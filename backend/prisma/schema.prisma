@@ -1,0 +1,1604 @@
+generator client {
+  provider = "prisma-client-js"
+  previewFeatures = ["multiSchema"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  schemas  = ["public"]
+}
+
+// Prisma schema mapped to existing Supabase DB (public schema)
+
+model Branch {
+  id                   Int                    @id @default(autoincrement())
+  name                 String
+  location             String
+  pawnshopId           String?                @map("pawnshop_id") @db.Uuid
+  ownerUserId          String?                @map("owner_user_id") @db.Uuid
+  tickets              Ticket[]
+  staff                Staff[]
+  systemSettings       SystemSettings?
+  queueTickets         QueueTicket[]
+  cashLedgerEntries    CashLedgerEntry[]
+  dailyReconciliations DailyReconciliation[]
+  attendanceRecords    AttendanceRecord[]
+  payslips             Payslip[]
+  pawnshop             Pawnshop?              @relation(fields: [pawnshopId], references: [id])
+  @@map("branch")
+  @@schema("public")
+}
+
+model Category {
+  id        Int       @id @default(autoincrement())
+  name      String    @unique
+  inventory Inventory[]
+  auctionListings AuctionListing[]
+  @@map("category")
+  @@schema("public")
+}
+
+model Customer {
+  id                String              @id
+  fullName          String              @map("full_name")
+  contactNumber     String              @map("contact_number")
+  address           String
+  loyaltyTier       String              @map("loyaltytier") @default("Standard")
+  createdAt         DateTime            @map("created_at") @default(now())
+  pawnshopId        String?             @map("pawnshop_id") @db.Uuid
+  tickets           Ticket[]
+  queueTickets      QueueTicket[]
+  pawnshop          Pawnshop?           @relation(fields: [pawnshopId], references: [id])
+  loanApplications  LoanApplication[]
+  eligibilityChecks EligibilityCheck[]
+  payments          Payment[]
+  ratings           AuctionRating[]
+  @@map("customer")
+  @@schema("public")
+}
+
+model Inventory {
+  id            Int      @id @default(autoincrement())
+  categoryId    Int?     @map("categoryid")
+  ticketId      Int?     @map("ticketid")
+  isForAuction  Boolean  @map("isforauction") @default(false)
+  auctionPrice  Float?   @map("auctionprice")
+  category      Category? @relation(fields: [categoryId], references: [id])
+  ticket        Ticket?   @relation(fields: [ticketId], references: [id])
+  @@map("inventory")
+  @@schema("public")
+}
+
+model AuctionListing {
+  id              Int                       @id @default(autoincrement())
+  ticketId        Int                       @unique @map("ticket_id")
+  pawnshopId      String                    @map("pawnshop_id") @db.Uuid
+  categoryId      Int?                      @map("category_id")
+  title           String
+  description     String?
+  startingPrice   Float                     @map("starting_price")
+  reservePrice    Float?                    @map("reserve_price")
+  currentBid      Float                     @map("current_bid") @default(0)
+  bidCount        Int                       @map("bid_count") @default(0)
+  minBidIncrement Float                     @map("min_bid_increment") @default(100)
+  bidExtensionMin Int                       @map("bid_extension_min") @default(5)
+  status          AuctionStatus             @default(DRAFT)
+  startAt         DateTime?                 @map("start_at")
+  endAt           DateTime?                 @map("end_at")
+  publishedAt     DateTime?                 @map("published_at")
+  createdAt       DateTime                  @map("created_at") @default(now())
+  updatedAt       DateTime                  @map("updated_at") @default(now())
+  ownerType       ListingOwnerType?         @map("owner_type")
+  ownerId         String?                   @map("owner_id")
+
+  ticket          Ticket                    @relation(fields: [ticketId], references: [id])
+  pawnshop        Pawnshop                  @relation(fields: [pawnshopId], references: [id])
+  category        Category?                 @relation(fields: [categoryId], references: [id])
+  bids            AuctionBid[]
+  images          AuctionImage[]
+  payments        Payment[]
+  ratings         AuctionRating[]
+  compliance      AuctionWinnerCompliance?
+  legalProofs     LegalProof[]
+
+  @@map("auction_listings")
+  @@schema("public")
+}
+
+model AuctionBid {
+  id          Int      @id @default(autoincrement())
+  listingId   Int      @map("listing_id")
+  bidderId    String   @map("bidder_id")
+  amount      Float
+  createdAt   DateTime @map("created_at") @default(now())
+
+  listing     AuctionListing @relation(fields: [listingId], references: [id])
+  legalProofs LegalProof[]
+
+  @@index([listingId])
+  @@map("auction_bids")
+  @@schema("public")
+}
+
+model AuctionImage {
+  id          Int      @id @default(autoincrement())
+  listingId   Int      @map("listing_id")
+  url         String
+  sortOrder   Int      @map("sort_order") @default(0)
+  createdAt   DateTime @map("created_at") @default(now())
+
+  listing     AuctionListing @relation(fields: [listingId], references: [id])
+
+  @@index([listingId])
+  @@map("auction_images")
+  @@schema("public")
+}
+
+model Loan {
+  id                 Int                  @id @default(autoincrement())
+  ticketId           Int?                 @map("ticketid")
+  principalAmount    Float                @map("principalamount")
+  interestAmount     Float                @map("interestamount")
+  customerName       String?              @map("customername")
+  category           String?
+  weight             Decimal?
+  riskScore          Decimal?             @map("riskscore")
+  status             TicketLifecycleStatus @default(RECEIVED)
+  pawnshopId         String?              @map("pawnshop_id") @db.Uuid
+  createdAt          DateTime             @map("createdat") @default(now())
+  applicationId      String?              @unique @map("application_id")
+  ticket             Ticket?              @relation(fields: [ticketId], references: [id])
+  pawnshop           Pawnshop?            @relation(fields: [pawnshopId], references: [id])
+  application        LoanApplication?     @relation("ApplicationToLoan", fields: [applicationId], references: [id])
+  disbursements      LoanDisbursement[]
+  schedules          RepaymentSchedule[]
+  payments           Payment[]
+  penalties          Penalty[]
+  contract           LoanContract?
+  legalProofs        LegalProof[]
+  @@map("loan")
+  @@schema("public")
+}
+
+model Pawnshop {
+  id                        String                        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name                      String                        @unique
+  registrationNumber        String?                       @map("registration_number")
+  taxId                     String?                       @map("tax_id") @unique
+  address                   String?
+  latitude                  Float?
+  longitude                 Float?
+  contactEmail              String?                       @map("contact_email")
+  contactPhone              String?                       @map("contact_phone")
+  logoUrl                   String?                       @map("logo_url")
+  brandingId                Int?                          @map("branding_id")
+  branding                  Branding?                     @relation(fields: [brandingId], references: [id])
+  status                    String?                       @default("ACTIVE")
+  ownerEmail                String?                       @map("owner_email")
+  createdAt                 DateTime                      @map("created_at") @default(now())
+  isActive                  Boolean?                      @map("is_active") @default(true)
+  settings                  Json?                         @default("{}") @db.Json
+  adminInvites              AdminInvite[]
+  profiles                  Profile[]
+  customers                 Customer[]
+  tickets                   Ticket[]
+  loans                     Loan[]
+  branches                  Branch[]
+  auctionListings           AuctionListing[]
+  loanApplications          LoanApplication[]
+  queueTickets              QueueTicket[]
+  winnerCompliances         AuctionWinnerCompliance[]
+  cashLedgerEntries         CashLedgerEntry[]
+  dailyReconciliations      DailyReconciliation[]
+  attendanceRecords         AttendanceRecord[]
+  staffSchedules            StaffSchedule[]
+  payslips                  Payslip[]
+  subscriptions             Subscription[]
+  legalProofs               LegalProof[]
+  receipts                  Receipt[]
+  legalEntity               LegalEntity?
+  @@map("pawnshops")
+  @@schema("public")
+
+}
+
+model Branding {
+  id            Int      @id @default(autoincrement())
+  name          String   // e.g. "Acme Pawnshop Branding"
+  primaryColor  String?  // HEX or CSS color
+  secondaryColor String? // HEX or CSS color
+  accentColor   String?  // HEX or CSS color
+  logoUrl       String?  // Custom logo for branding
+  faviconUrl    String?  // Custom favicon
+  theme         String?  // e.g. "light", "dark", "custom"
+  customCss     String?  // Optional custom CSS
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @default(now())
+  pawnshops     Pawnshop[]
+
+  @@map("brandings")
+  @@schema("public")
+}
+
+model Staff {
+  id            String   @id
+  fullName      String   @map("full_name")
+  password      String
+  role          String   @default("STAFF")
+  contactNumber String?  @map("contact_number")
+  branchId      Int?     @map("branchid")
+  branch        Branch?  @relation(fields: [branchId], references: [id])
+  @@map("staff")
+  @@schema("public")
+}
+
+model SystemSettings {
+  id              Int    @id @default(autoincrement())
+  branchId        Int    @unique @map("branchid")
+  defaultInterest Float  @map("defaultinterest") @default(3.0)
+  enableAiPricing Boolean @map("enableaipricing") @default(true)
+  showVaultWidget Boolean @map("showvaultwidget") @default(true)
+  showRiskWidget  Boolean @map("showriskwidget") @default(true)
+  branch          Branch @relation(fields: [branchId], references: [id])
+  @@map("systemsettings")
+  @@schema("public")
+}
+
+model Ticket {
+  id           Int      @id @default(autoincrement())
+  ticketNumber String   @map("ticket_number") @unique
+  customerId   String   @map("customer_id")
+  branchId     Int?     @map("branch_id")
+  category     String
+  description  String
+  weight       Float?
+  storageLocation String @map("storage_location") @default("Vault A")
+  loanAmount   Float    @map("loan_amount")
+  interestRate Float    @map("interest_rate") @default(3.0)
+  status       String   @default("ACTIVE")
+  lifecycleStatus TicketLifecycleStatus @default(RECEIVED) @map("lifecycle_status")
+  isHighRisk   Boolean  @map("ishighrisk") @default(false)
+  pawnDate     DateTime @map("pawn_date") @default(now())
+  expiryDate   DateTime @map("expiry_date")
+  forfeitureDate DateTime? @map("forfeituredate")
+  gracePeriodEnd DateTime? @map("grace_period_end")
+  pawnshopId   String?  @map("pawnshop_id") @db.Uuid
+  contractId   String?  @map("contract_id") @db.Uuid
+  updatedAt    DateTime @map("updatedat") @default(now())
+
+  customer     Customer @relation(fields: [customerId], references: [id])
+  branch       Branch?  @relation(fields: [branchId], references: [id])
+  pawnshop     Pawnshop? @relation(fields: [pawnshopId], references: [id])
+  loans        Loan[]
+  inventory    Inventory[]
+  transactions Transaction[]
+  auctionListing AuctionListing?
+  contract     LoanContract? @relation(fields: [contractId], references: [id])
+  legalProofs  LegalProof[]
+  @@map("ticket")
+  @@schema("public")
+}
+
+model Transaction {
+  id        String   @id
+  ticketId  Int?     @map("ticketid")
+  type      String
+  amount    Float
+  date      DateTime @default(now())
+  staffName String   @map("staffname")
+  ticket    Ticket?  @relation(fields: [ticketId], references: [id])
+  @@map("transaction")
+  @@schema("public")
+}
+
+model AdminInvite {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email      String
+  pawnshopId String   @map("pawnshop_id") @db.Uuid
+  role       String   @default("ADMIN")
+  createdAt  DateTime @map("created_at") @default(now())
+  pawnshop   Pawnshop @relation(fields: [pawnshopId], references: [id])
+  @@map("admin_invites")
+  @@schema("public")
+}
+
+model Profile {
+  id              String                   @id @db.Uuid
+  role            String                   @default("STAFF")
+  staffType       String?                  @map("staff_type")
+  pawnshopId      String?                  @map("pawnshop_id") @db.Uuid
+  createdAt       DateTime                 @map("created_at") @default(now())
+  updatedAt       DateTime                 @map("updated_at") @default(now())
+  email           String?
+  fullName        String?                  @map("full_name")
+  branchId        String?                  @map("branch_id")
+  isOnline        Boolean                  @map("is_online") @default(false)
+  lastSeenAt      DateTime?                @map("last_seen_at")
+  avatarUrl       String?                  @map("avatar_url")
+  phoneNumber     String?                  @map("phone_number")
+  address         String?
+  dateOfBirth     DateTime?                @map("date_of_birth")
+  pawnshop        Pawnshop?                @relation(fields: [pawnshopId], references: [id])
+  approvals       LoanApproval[]
+  kyc             BidderKyc?
+  paymentMethods  CustomerPaymentMethod[]
+  securityLogs    SecurityLog[]
+  tosAcceptances  TOSAcceptance[]
+  @@map("profiles")
+  @@schema("public")
+}
+
+model CustomerPaymentMethod {
+  id           String   @id @default(uuid())
+  profileId    String   @map("profile_id") @db.Uuid
+  type         String   // CARD, GCASH, PAYMAYA, BANK_ACCOUNT
+  label        String?
+  last4        String?
+  cardBrand    String?  @map("card_brand")
+  expiryMonth  Int?     @map("expiry_month")
+  expiryYear   Int?     @map("expiry_year")
+  bankName     String?  @map("bank_name")
+  walletPhone  String?  @map("wallet_phone")
+  isDefault    Boolean  @default(false) @map("is_default")
+  createdAt    DateTime @default(now()) @map("created_at")
+  profile      Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  @@map("customer_payment_methods")
+  @@schema("public")
+}
+
+model SecurityLog {
+  id          String   @id @default(uuid())
+  profileId   String   @map("profile_id") @db.Uuid
+  action      String
+  ipAddress   String?  @map("ip_address")
+  userAgent   String?  @map("user_agent")
+  success     Boolean  @default(true)
+  createdAt   DateTime @default(now()) @map("created_at")
+  profile     Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  @@index([profileId, createdAt])
+  @@map("security_logs")
+  @@schema("public")
+}
+
+model ActivityLog {
+  id        Int      @id @default(autoincrement())
+  staffId   String   @map("staffid")
+  action    String
+  details   String
+  timestamp DateTime @default(now())
+  @@map("activitylog")
+  @@schema("public")
+}
+
+enum Role {
+  SUPER_ADMIN
+  ADMIN
+  OWNER
+  MANAGER
+  HR
+  STAFF
+  @@schema("public")
+}
+
+enum TicketStatus {
+  ACTIVE
+  REDEEMED
+  OVERDUE
+  FORFEITED
+  SOLD
+  @@schema("public")
+}
+
+enum TicketLifecycleStatus {
+  RECEIVED
+  APPRAISED
+  PENDING_APPROVAL
+  OFFER_MADE
+  CONTRACT_SIGNED
+  DISBURSED
+  ACTIVE
+  GRACE_PERIOD
+  OVERDUE
+  REDEEMED
+  FORFEITED
+  AUCTION_QUEUED
+  AUCTION_SOLD
+  AUCTION_UNSOLD
+  CANCELLED
+  @@schema("public")
+}
+
+enum ContractType {
+  LOAN_CONTRACT
+  AUCTION_BIDDER_AGREEMENT
+  TERMS_OF_SERVICE
+  CONSENT_FORM
+  REDEMPTION_RECEIPT
+  PRIVACY_POLICY
+  @@schema("public")
+}
+
+enum ReceiptType {
+  PAYMENT
+  REDEMPTION
+  LOAN_DISBURSEMENT
+  AUCTION_SALE
+  PENALTY
+  RENEWAL
+  SERVICE_FEE
+  @@schema("public")
+}
+
+enum AuctionStatus {
+  DRAFT
+  SCHEDULED
+  LIVE
+  ENDED
+  CANCELLED
+  @@schema("public")
+}
+
+// ============================================================================
+// LOAN MANAGEMENT SYSTEM ENUMS (Added Feb 15, 2026)
+// ============================================================================
+
+enum ApplicationStatus {
+  PENDING
+  DOCUMENTS_REVIEW
+  ELIGIBILITY_CHECK
+  AWAITING_APPROVAL
+  MANAGER_REVIEW
+  OWNER_APPROVAL
+  ADDITIONAL_PROOF
+  APPROVED
+  REJECTED
+  DISBURSED
+  @@schema("public")
+}
+
+enum DocumentType {
+  VALID_ID
+  PROOF_OF_INCOME
+  PROOF_OF_RESIDENCE
+  COLLATERAL_DOCUMENT
+  BUSINESS_PERMIT
+  BANK_STATEMENT
+  OTHER
+  @@schema("public")
+}
+
+enum ApproverRole {
+  STAFF
+  MANAGER
+  OWNER
+  @@schema("public")
+}
+
+enum ApprovalDecision {
+  APPROVED
+  REJECTED
+  REQUEST_MORE_INFO
+  @@schema("public")
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  PARTIAL
+  OVERDUE
+  WAIVED
+  @@schema("public")
+}
+
+enum PaymentMethod {
+  CASH
+  BANK_TRANSFER
+  CREDIT_CARD
+  DEBIT_CARD
+  E_WALLET
+  CHECK
+  @@schema("public")
+}
+
+enum PaymentType {
+  LOAN_REPAYMENT
+  AUCTION_PAYMENT
+  PENALTY_FEE
+  SERVICE_FEE
+  OTHER
+  @@schema("public")
+}
+
+enum PaymentTransactionStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  REFUNDED
+  @@schema("public")
+}
+
+enum PenaltyType {
+  LATE_PAYMENT
+  MISSED_PAYMENT
+  EARLY_TERMINATION
+  DOCUMENTATION_FEE
+  OTHER
+  @@schema("public")
+}
+
+enum RatingType {
+  ITEM_QUALITY
+  TRANSACTION_EXPERIENCE
+  SELLER_RATING
+  @@schema("public")
+}
+
+enum ListingOwnerType {
+  PAWNSHOP
+  CUSTOMER
+  @@schema("public")
+}
+
+// ============================================================================
+// LOAN MANAGEMENT SYSTEM MODELS (Added Feb 15, 2026)
+// ============================================================================
+
+model LoanApplication {
+  id                String              @id @default(uuid())
+  customerId        String              @map("customer_id")
+  pawnshopId        String              @map("pawnshop_id") @db.Uuid
+  loanAmount        Float               @map("loan_amount")
+  loanType          String              @map("loan_type")
+  termMonths        Int                 @map("term_months")
+  purpose           String
+  status            ApplicationStatus   @default(PENDING)
+  submittedAt       DateTime            @default(now()) @map("submitted_at")
+  evaluatedBy       String?             @map("evaluated_by") @db.Uuid
+  evaluatedAt       DateTime?           @map("evaluated_at")
+  approvedBy        String?             @map("approved_by") @db.Uuid
+  approvedAt        DateTime?           @map("approved_at")
+  rejectionReason   String?             @map("rejection_reason")
+  createdAt         DateTime            @default(now()) @map("created_at")
+  updatedAt         DateTime            @updatedAt @map("updated_at")
+  
+  customer          Customer            @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  pawnshop          Pawnshop            @relation(fields: [pawnshopId], references: [id], onDelete: Cascade)
+  documents         LoanDocument[]
+  approvals         LoanApproval[]
+  eligibilityCheck  EligibilityCheck?
+  disbursement      LoanDisbursement[]
+  loan              Loan?               @relation("ApplicationToLoan")
+  contract          LoanContract?
+  legalProofs       LegalProof[]
+  
+  @@map("loan_applications")
+  @@schema("public")
+}
+
+model LoanDocument {
+  id                String        @id @default(uuid())
+  applicationId     String        @map("application_id")
+  documentType      DocumentType  @map("document_type")
+  fileName          String        @map("file_name")
+  fileUrl           String        @map("file_url")
+  fileSize          Int           @map("file_size")
+  mimeType          String        @map("mime_type")
+  uploadedAt        DateTime      @default(now()) @map("uploaded_at")
+  uploadedBy        String        @map("uploaded_by") @db.Uuid
+  verified          Boolean       @default(false)
+  verifiedBy        String?       @map("verified_by") @db.Uuid
+  verifiedAt        DateTime?     @map("verified_at")
+  notes             String?
+  
+  application       LoanApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  
+  @@map("loan_documents")
+  @@schema("public")
+}
+
+model LoanApproval {
+  id                      String            @id @default(uuid())
+  applicationId           String            @map("application_id")
+  approverRole            ApproverRole      @map("approver_role")
+  approverId              String            @map("approver_id") @db.Uuid
+  decision                ApprovalDecision
+  comments                String?
+  additionalProofRequired Boolean           @default(false) @map("additional_proof_required")
+  additionalProofNotes    String?           @map("additional_proof_notes")
+  approvedAt              DateTime          @default(now()) @map("approved_at")
+  
+  application             LoanApplication   @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  approver                Profile           @relation(fields: [approverId], references: [id], onDelete: Cascade)
+  
+  @@map("loan_approvals")
+  @@schema("public")
+}
+
+model EligibilityCheck {
+  id                String          @id @default(uuid())
+  applicationId     String          @unique @map("application_id")
+  customerId        String          @map("customer_id")
+  creditScore       Int?            @map("credit_score")
+  hasPreviousLoans  Boolean         @map("has_previous_loans")
+  previousLoanCount Int             @default(0) @map("previous_loan_count")
+  defaultHistory    Boolean         @default(false) @map("default_history")
+  incomeVerified    Boolean         @default(false) @map("income_verified")
+  monthlyIncome     Float?          @map("monthly_income")
+  debtToIncomeRatio Float?          @map("debt_to_income_ratio")
+  employmentStatus  String?         @map("employment_status")
+  eligible          Boolean
+  eligibilityNotes  String?         @map("eligibility_notes")
+  checkedAt         DateTime        @default(now()) @map("checked_at")
+  checkedBy         String          @map("checked_by") @db.Uuid
+  
+  application       LoanApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  customer          Customer        @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  
+  @@map("eligibility_checks")
+  @@schema("public")
+}
+
+model LoanDisbursement {
+  id                  String          @id @default(uuid())
+  loanId              Int             @map("loan_id")
+  applicationId       String          @map("application_id")
+  amount              Float
+  disbursementMethod  String          @map("disbursement_method")
+  referenceNumber     String?         @map("reference_number")
+  disbursedBy         String          @map("disbursed_by") @db.Uuid
+  disbursedAt         DateTime        @default(now()) @map("disbursed_at")
+  receivedBy          String          @map("received_by")
+  receiptUrl          String?         @map("receipt_url")
+  notes               String?
+  
+  loan                Loan            @relation(fields: [loanId], references: [id], onDelete: Cascade)
+  application         LoanApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  
+  @@map("loan_disbursements")
+  @@schema("public")
+}
+
+enum ProofRecordType {
+  APPLICATION_SUBMITTED
+  CONTRACT_PROOF
+  PAYMENT_PROOF
+  REPAYMENT_PROOF
+  PENALTY_PROOF
+  LEDGER_ENTRY_PROOF
+  AUCTION_SETTLEMENT_PROOF
+  RECEIPT_PROOF
+  BIDDER_AGREEMENT_PROOF
+  TOS_ACCEPTANCE_PROOF
+  REDEMPTION_PROOF
+  DISBURSEMENT_PROOF
+  @@schema("public")
+}
+
+model LegalProof {
+  id              String          @id @default(uuid())
+  proofNumber     String          @unique @map("proof_number")
+  pawnshopId      String          @map("pawnshop_id") @db.Uuid
+  recordType      ProofRecordType  @map("record_type")
+  title           String
+  summary         String
+  payload         Json            @db.Json
+  sourceHash      String          @map("source_hash")
+  createdBy       String          @map("created_by") @db.Uuid
+  applicationId   String?         @map("application_id")
+  loanId          Int?            @map("loan_id")
+  paymentId       String?         @map("payment_id") @db.Uuid
+  ledgerEntryId   String?         @map("ledger_entry_id") @db.Uuid
+  ticketId        Int?            @map("ticket_id")
+  contractId      String?         @map("contract_id") @db.Uuid
+  auctionListingId Int?            @map("auction_listing_id")
+  auctionBidId    Int?            @map("auction_bid_id")
+  receiptId       String?         @map("receipt_id") @db.Uuid
+  createdAt       DateTime        @default(now()) @map("created_at")
+
+  pawnshop        Pawnshop        @relation(fields: [pawnshopId], references: [id], onDelete: Cascade)
+  application     LoanApplication? @relation(fields: [applicationId], references: [id], onDelete: SetNull)
+  loan            Loan?           @relation(fields: [loanId], references: [id], onDelete: SetNull)
+  payment         Payment?        @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+  ledgerEntry     CashLedgerEntry? @relation(fields: [ledgerEntryId], references: [id], onDelete: SetNull)
+  ticket          Ticket?         @relation(fields: [ticketId], references: [id], onDelete: SetNull)
+  contract        LoanContract?   @relation(fields: [contractId], references: [id], onDelete: SetNull)
+  auctionListing   AuctionListing? @relation(fields: [auctionListingId], references: [id], onDelete: SetNull)
+  auctionBid       AuctionBid?     @relation(fields: [auctionBidId], references: [id], onDelete: SetNull)
+  receipt          Receipt?        @relation(fields: [receiptId], references: [id], onDelete: SetNull)
+
+  @@index([pawnshopId, recordType, createdAt])
+  @@index([applicationId])
+  @@index([loanId])
+  @@index([paymentId])
+  @@index([ledgerEntryId])
+  @@index([ticketId])
+  @@index([contractId])
+  @@index([auctionListingId])
+  @@index([auctionBidId])
+  @@index([receiptId])
+  @@map("legal_proofs")
+  @@schema("public")
+}
+
+model RepaymentSchedule {
+  id                Int             @id @default(autoincrement())
+  loanId            Int             @map("loan_id")
+  installmentNumber Int             @map("installment_number")
+  dueDate           DateTime        @map("due_date")
+  principalAmount   Float           @map("principal_amount")
+  interestAmount    Float           @map("interest_amount")
+  totalAmount       Float           @map("total_amount")
+  status            PaymentStatus   @default(PENDING)
+  paidAmount        Float           @default(0) @map("paid_amount")
+  paidDate          DateTime?       @map("paid_date")
+  penaltyAmount     Float           @default(0) @map("penalty_amount")
+  notes             String?
+  createdAt         DateTime        @default(now()) @map("created_at")
+  
+  loan              Loan            @relation(fields: [loanId], references: [id], onDelete: Cascade)
+  payments          Payment[]
+  
+  @@unique([loanId, installmentNumber])
+  @@map("repayment_schedules")
+  @@schema("public")
+}
+
+model Payment {
+  id                String                    @id @default(uuid())
+  customerId        String                    @map("customer_id")
+  loanId            Int?                      @map("loan_id")
+  scheduleId        Int?                      @map("schedule_id")
+  auctionListingId  Int?                      @map("auction_listing_id")
+  amount            Float
+  paymentMethod     PaymentMethod             @map("payment_method")
+  paymentType       PaymentType               @map("payment_type")
+  referenceNumber   String?                   @map("reference_number")
+  transactionId     String?                   @map("transaction_id")
+  status            PaymentTransactionStatus  @default(PENDING)
+  processedBy       String?                   @map("processed_by") @db.Uuid
+  processedAt       DateTime                  @default(now()) @map("processed_at")
+  receiptUrl        String?                   @map("receipt_url")
+  notes             String?
+  
+  customer          Customer                  @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  loan              Loan?                     @relation(fields: [loanId], references: [id], onDelete: Cascade)
+  schedule          RepaymentSchedule?        @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+  auctionListing    AuctionListing?           @relation(fields: [auctionListingId], references: [id], onDelete: Cascade)
+  legalProofs       LegalProof[]
+  
+  @@map("payments")
+  @@schema("public")
+}
+
+model Penalty {
+  id            String       @id @default(uuid())
+  loanId        Int          @map("loan_id")
+  scheduleId    Int?         @map("schedule_id")
+  penaltyType   PenaltyType  @map("penalty_type")
+  amount        Float
+  reason        String
+  appliedDate   DateTime     @default(now()) @map("applied_date")
+  waived        Boolean      @default(false)
+  waivedBy      String?      @map("waived_by") @db.Uuid
+  waivedAt      DateTime?    @map("waived_at")
+  waivedReason  String?      @map("waived_reason")
+  
+  loan          Loan         @relation(fields: [loanId], references: [id], onDelete: Cascade)
+  
+  @@map("penalties")
+  @@schema("public")
+}
+
+model LoanContract {
+  id                String          @id @default(uuid())
+  loanId            Int             @unique @map("loan_id")
+  applicationId     String          @unique @map("application_id")
+  contractNumber    String          @unique @map("contract_number")
+  templateVersion   String          @map("template_version")
+  contractData      Json            @map("contract_data")
+  pdfUrl            String?         @map("pdf_url")
+  signedByCustomer  Boolean         @default(false) @map("signed_by_customer")
+  customerSignature String?         @map("customer_signature")
+  customerSignedAt  DateTime?       @map("customer_signed_at")
+  signedByStaff     Boolean         @default(false) @map("signed_by_staff")
+  staffSignature    String?         @map("staff_signature")
+  staffId           String?         @map("staff_id") @db.Uuid
+  staffSignedAt     DateTime?       @map("staff_signed_at")
+  generatedAt       DateTime        @default(now()) @map("generated_at")
+  
+  loan              Loan            @relation(fields: [loanId], references: [id], onDelete: Cascade)
+  application       LoanApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  legalProofs       LegalProof[]
+  tickets           Ticket[]
+  
+  @@map("loan_contracts")
+  @@schema("public")
+}
+
+model AuctionRating {
+  id            Int          @id @default(autoincrement())
+  listingId     Int          @map("listing_id")
+  customerId    String       @map("customer_id")
+  rating        Int
+  comment       String?
+  ratingType    RatingType   @map("rating_type")
+  createdAt     DateTime     @default(now()) @map("created_at")
+  
+  listing       AuctionListing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  customer      Customer       @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  
+  @@unique([listingId, customerId, ratingType])
+  @@map("auction_ratings")
+  @@schema("public")
+}
+
+// ============================================================================
+// KYC (Know Your Customer) for Bidders
+// ============================================================================
+
+enum KycStatus {
+  NOT_SUBMITTED
+  PENDING
+  VERIFIED
+  REJECTED
+  @@schema("public")
+}
+
+enum KycIdType {
+  NATIONAL_ID
+  PASSPORT
+  DRIVERS_LICENSE
+  SSS_ID
+  PHILHEALTH_ID
+  TIN_ID
+  VOTERS_ID
+  POSTAL_ID
+  OTHER
+  @@schema("public")
+}
+
+model BidderKyc {
+  id              String     @id @default(uuid())
+  profileId       String     @unique @map("profile_id") @db.Uuid
+  status          KycStatus  @default(NOT_SUBMITTED)
+
+  // Personal details
+  fullName        String     @map("full_name")
+  dateOfBirth     DateTime   @map("date_of_birth")
+  address         String
+  phoneNumber     String     @map("phone_number")
+
+  // ID verification
+  idType          KycIdType  @map("id_type")
+  idNumber        String     @map("id_number")
+  idFrontUrl      String     @map("id_front_url")
+  idBackUrl       String?    @map("id_back_url")
+  selfieUrl       String     @map("selfie_url")
+
+  // Admin review
+  reviewedBy      String?    @map("reviewed_by") @db.Uuid
+  reviewedAt      DateTime?  @map("reviewed_at")
+  rejectionReason String?    @map("rejection_reason")
+
+  createdAt       DateTime   @default(now()) @map("created_at")
+  updatedAt       DateTime   @updatedAt @map("updated_at")
+
+  profile         Profile    @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@map("bidder_kyc")
+  @@schema("public")
+}
+
+// ============================================================================
+// QUEUE SYSTEM (Multi-tenant with pawnshop isolation)
+// ============================================================================
+
+enum QueueStatus {
+  WAITING
+  SERVING
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+  @@schema("public")
+}
+
+enum QueueType {
+  PAWNING
+  RENEWAL
+  REDEMPTION
+  AUCTION_INQUIRY
+  GENERAL
+  @@schema("public")
+}
+
+model QueueTicket {
+  id              String       @id @default(uuid())
+  queueNumber     String       @map("queue_number")  // e.g., "P001", "R005"
+  pawnshopId      String       @map("pawnshop_id") @db.Uuid
+  branchId        Int?         @map("branch_id")
+  customerId      String       @map("customer_id")
+  queueType       QueueType    @map("queue_type")
+  status          QueueStatus  @default(WAITING)
+  priority        Int          @default(0)         // 0=normal, 1=priority, 2=urgent
+  estimatedWaitMinutes Int?    @map("estimated_wait_minutes")
+  
+  // Timestamps
+  joinedAt        DateTime     @default(now()) @map("joined_at")
+  calledAt        DateTime?    @map("called_at")
+  servedAt        DateTime?    @map("served_at")
+  completedAt     DateTime?    @map("completed_at")
+  
+  // Staff assignment
+  assignedStaffId String?      @map("assigned_staff_id")
+  counterNumber   String?      @map("counter_number")
+  
+  // Metadata
+  notes           String?
+  metadata        Json?        @db.Json  // Custom data per pawnshop
+  
+  pawnshop        Pawnshop     @relation(fields: [pawnshopId], references: [id], onDelete: Cascade)
+  branch          Branch?      @relation(fields: [branchId], references: [id])
+  customer        Customer     @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  messages        TicketMessage[]
+  
+  @@unique([pawnshopId, queueNumber])
+  @@index([pawnshopId, status, joinedAt])
+  @@index([customerId, status])
+  @@map("queue_tickets")
+  @@schema("public")
+}
+
+// ============================================================================
+// TICKET CHAT SYSTEM
+// ============================================================================
+
+enum MessageSenderRole {
+  CUSTOMER
+  STAFF
+  @@schema("public")
+}
+
+model TicketMessage {
+  id         String            @id @default(uuid())
+  ticketId   String            @map("ticket_id")
+  senderId   String            @map("sender_id")
+  senderRole MessageSenderRole @map("sender_role")
+  message    String
+  createdAt  DateTime          @default(now()) @map("created_at")
+  readAt     DateTime?         @map("read_at")
+
+  ticket     QueueTicket       @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  @@index([ticketId, createdAt])
+  @@map("ticket_messages")
+  @@schema("public")
+}
+
+// ============================================================================
+// PUSH NOTIFICATION SYSTEM
+// ============================================================================
+
+enum NotificationChannel {
+  PUSH
+  SMS
+  EMAIL
+  IN_APP
+  @@schema("public")
+}
+
+enum NotificationType {
+  AUCTION_ENDING_SOON
+  AUCTION_OUTBID
+  AUCTION_WON
+  AUCTION_LOST
+  QUEUE_READY
+  COMPLIANCE_REMINDER
+  PAYMENT_DUE
+  PAYMENT_OVERDUE
+  SUBSCRIPTION_EXPIRING
+  SYSTEM_ANNOUNCEMENT
+  @@schema("public")
+}
+
+enum NotificationStatus {
+  PENDING
+  SENT
+  FAILED
+  READ
+  @@schema("public")
+}
+
+model PushToken {
+  id              String      @id @default(uuid())
+  userId          String      @map("user_id") @db.Uuid
+  deviceToken     String      @map("device_token")
+  platform        String      // "ios", "android", "web"
+  deviceName      String?     @map("device_name")
+  isActive        Boolean     @default(true) @map("is_active")
+  lastUsedAt      DateTime    @default(now()) @map("last_used_at")
+  createdAt       DateTime    @default(now()) @map("created_at")
+  updatedAt       DateTime    @updatedAt @map("updated_at")
+  
+  @@unique([userId, deviceToken])
+  @@index([userId, isActive])
+  @@map("push_tokens")
+  @@schema("public")
+}
+
+model Notification {
+  id              String              @id @default(uuid())
+  recipientId     String              @map("recipient_id") @db.Uuid
+  channel         NotificationChannel
+  type            NotificationType
+  status          NotificationStatus  @default(PENDING)
+  
+  // Content
+  title           String
+  body            String
+  data            Json?               @db.Json  // Additional payload
+  
+  // Tracking
+  sentAt          DateTime?           @map("sent_at")
+  readAt          DateTime?           @map("read_at")
+  failureReason   String?             @map("failure_reason")
+  retryCount      Int                 @default(0) @map("retry_count")
+  
+  // Scheduling
+  scheduledFor    DateTime?           @map("scheduled_for")
+  expiresAt       DateTime?           @map("expires_at")
+  
+  createdAt       DateTime            @default(now()) @map("created_at")
+  
+  @@index([recipientId, status])
+  @@index([scheduledFor, status])
+  @@index([type, status])
+  @@map("notifications")
+  @@schema("public")
+}
+
+// ============================================================================
+// AUCTION WINNER COMPLIANCE
+// ============================================================================
+
+enum ComplianceStatus {
+  PENDING_COMPLIANCE
+  REMINDER_SENT
+  COMPLIED
+  READY_FOR_RELEASE
+  RELEASED
+  EXPIRED
+  REFUNDED
+  @@schema("public")
+}
+
+model AuctionWinnerCompliance {
+  id                  String            @id @default(uuid())
+  listingId           Int               @unique @map("listing_id")
+  winnerId            String            @map("winner_id") @db.Uuid
+  pawnshopId          String            @map("pawnshop_id") @db.Uuid
+  winningBid          Float             @map("winning_bid")
+  status              ComplianceStatus  @default(PENDING_COMPLIANCE)
+  
+  // Deadline management
+  complianceDeadline  DateTime          @map("compliance_deadline")
+  reminderSentAt      DateTime?         @map("reminder_sent_at")
+  lastReminderAt      DateTime?         @map("last_reminder_at")
+  reminderCount       Int               @default(0) @map("reminder_count")
+  
+  // Compliance actions
+  compliedAt          DateTime?         @map("complied_at")
+  paymentProofUrl     String?           @map("payment_proof_url")
+  paymentReference    String?           @map("payment_reference")
+  verifiedBy          String?           @map("verified_by") @db.Uuid
+  verifiedAt          DateTime?         @map("verified_at")
+  
+  // Release tracking
+  releasedAt          DateTime?         @map("released_at")
+  releasedBy          String?           @map("released_by") @db.Uuid
+  releaseNotes        String?           @map("release_notes")
+  
+  // Expiry handling
+  expiredAt           DateTime?         @map("expired_at")
+  expiryAction        String?           @map("expiry_action")  // "REQUEUE", "NEXT_BIDDER"
+  
+  // Winner information (cached for pawnshop access)
+  winnerFullName      String            @map("winner_full_name")
+  winnerEmail         String?           @map("winner_email")
+  winnerPhone         String            @map("winner_phone")
+  winnerAddress       String?           @map("winner_address")
+  
+  // Privacy & audit
+  accessLog           Json[]            @default([]) @map("access_log") @db.Json
+  consentAcceptedAt   DateTime?         @map("consent_accepted_at")
+  
+  createdAt           DateTime          @default(now()) @map("created_at")
+  updatedAt           DateTime          @updatedAt @map("updated_at")
+  
+  listing             AuctionListing    @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  pawnshop            Pawnshop          @relation(fields: [pawnshopId], references: [id], onDelete: Cascade)
+  
+  @@index([pawnshopId, status])
+  @@index([winnerId, status])
+  @@index([complianceDeadline, status])
+  @@map("auction_winner_compliance")
+  @@schema("public")
+}
+
+// ============================================================================
+// IMMUTABLE FINANCE LEDGER
+// ============================================================================
+
+enum LedgerEntryType {
+  DEBIT
+  CREDIT
+  @@schema("public")
+}
+
+enum LedgerCategory {
+  LOAN_DISBURSEMENT
+  LOAN_REPAYMENT
+  AUCTION_PAYMENT
+  AUCTION_REFUND
+  PENALTY_COLLECTION
+  FEE_COLLECTION
+  OPERATIONAL_EXPENSE
+  SALARY_PAYMENT
+  SUBSCRIPTION_PAYMENT
+  CASH_IN
+  CASH_OUT
+  ADJUSTMENT
+  @@schema("public")
+}
+
+model CashLedgerEntry {
+  id                String          @id @default(uuid())
+  pawnshopId        String          @map("pawnshop_id") @db.Uuid
+  branchId          Int?            @map("branch_id")
+  entryNumber       String          @map("entry_number")  // Sequential: "LEDGER-2026-00001"
+  
+  // Transaction details
+  entryType         LedgerEntryType @map("entry_type")
+  category          LedgerCategory
+  amount            Float
+  balanceBefore     Float           @map("balance_before")
+  balanceAfter      Float           @map("balance_after")
+  
+  // References
+  referenceType     String?         @map("reference_type")  // "LOAN", "AUCTION", "PAYMENT"
+  referenceId       String?         @map("reference_id")
+  
+  // Metadata
+  description       String
+  performedBy       String          @map("performed_by") @db.Uuid
+  counterparty      String?         // Customer ID or external entity
+  paymentMethod     String?         @map("payment_method")
+  receiptNumber     String?         @map("receipt_number")
+  
+  // Audit trail
+  transactionDate   DateTime        @default(now()) @map("transaction_date")
+  recordedAt        DateTime        @default(now()) @map("recorded_at")
+  ipAddress         String?         @map("ip_address")
+  deviceInfo        String?         @map("device_info")
+  
+  // Reconciliation
+  reconciledAt      DateTime?       @map("reconciled_at")
+  reconciledBy      String?         @map("reconciled_by") @db.Uuid
+  reconciliationId  String?         @map("reconciliation_id")
+  
+  pawnshop          Pawnshop        @relation(fields: [pawnshopId], references: [id], onDelete: Cascade)
+  branch            Branch?         @relation(fields: [branchId], references: [id])
+  legalProofs       LegalProof[]
+  
+  @@unique([pawnshopId, entryNumber])
+  @@index([pawnshopId, transactionDate])
+  @@index([referenceType, referenceId])
+  @@index([category, transactionDate])
+  @@map("cash_ledger_entries")
+  @@schema("public")
+}
+
+model DailyReconciliation {
+  id                String      @id @default(uuid())
+  pawnshopId        String      @map("pawnshop_id") @db.Uuid
+  branchId          Int?        @map("branch_id")
+  reconciliationDate DateTime   @map("reconciliation_date") @db.Date
+  
+  // Balances
+  openingBalance    Float       @map("opening_balance")
+  closingBalance    Float       @map("closing_balance")
+  systemBalance     Float       @map("system_balance")
+  physicalCash      Float?      @map("physical_cash")
+  variance          Float?
+  
+  // Summary
+  totalDebit        Float       @map("total_debit")
+  totalCredit       Float       @map("total_credit")
+  transactionCount  Int         @map("transaction_count")
+  
+  // Status
+  isReconciled      Boolean     @default(false) @map("is_reconciled")
+  reconciledBy      String?     @map("reconciled_by") @db.Uuid
+  reconciledAt      DateTime?   @map("reconciled_at")
+  notes             String?
+  
+  createdAt         DateTime    @default(now()) @map("created_at")
+  
+  pawnshop          Pawnshop    @relation(fields: [pawnshopId], references: [id], onDelete: Cascade)
+  branch            Branch?     @relation(fields: [branchId], references: [id])
+  
+  @@unique([pawnshopId, branchId, reconciliationDate])
+  @@index([pawnshopId, reconciliationDate])
+  @@map("daily_reconciliations")
+  @@schema("public")
+}
+
+// ============================================================================
+// LEGALITY BACKBONE: Contract Templates, Clauses, Receipts, TOS, Legal Entity
+// Added July 5, 2026 — Phase 1 Thesis B Defense
+// ============================================================================
+
+model ContractTemplate {
+  id            String       @id @default(uuid())
+  name          String
+  type          ContractType
+  version       String       @default("1.0")
+  content       String
+  variables     Json         @default("[]")
+  isActive      Boolean      @default(true)
+  metadata      Json?        @db.Json
+  createdAt     DateTime     @default(now()) @map("created_at")
+  updatedAt     DateTime     @updatedAt @map("updated_at")
+
+  @@map("contract_templates")
+  @@schema("public")
+}
+
+model ContractClause {
+  id            String        @id @default(uuid())
+  name          String
+  type          ContractType?
+  content       String
+  sortOrder     Int           @default(0)
+  isMandatory   Boolean       @default(false)
+  isActive      Boolean       @default(true)
+  createdAt     DateTime      @default(now()) @map("created_at")
+
+  @@map("contract_clauses")
+  @@schema("public")
+}
+
+model Receipt {
+  id              String      @id @default(uuid())
+  receiptNumber   String      @map("receipt_number")
+  pawnshopId      String      @map("pawnshop_id") @db.Uuid
+  receiptType     ReceiptType @map("receipt_type")
+  referenceType   String      @map("reference_type")
+  referenceId     String      @map("reference_id")
+  amount          Float
+  taxAmount       Float       @default(0) @map("tax_amount")
+  totalAmount     Float       @map("total_amount")
+  currency        String      @default("PHP")
+  customerName    String      @map("customer_name")
+  customerAddress String?     @map("customer_address")
+  lineItems       Json        @default("[]") @map("line_items")
+  pdfUrl          String?     @map("pdf_url")
+  isVoid          Boolean     @default(false) @map("is_void")
+  voidReason      String?     @map("void_reason")
+  generatedAt     DateTime    @default(now()) @map("generated_at")
+  generatedBy     String      @map("generated_by") @db.Uuid
+
+  pawnshop        Pawnshop    @relation(fields: [pawnshopId], references: [id])
+  legalProofs     LegalProof[]
+
+  @@unique([pawnshopId, receiptNumber])
+  @@index([pawnshopId, receiptType, generatedAt])
+  @@index([referenceType, referenceId])
+  @@map("receipts")
+  @@schema("public")
+}
+
+model TOSAcceptance {
+  id              String       @id @default(uuid())
+  profileId       String       @map("profile_id") @db.Uuid
+  contractType    ContractType @map("contract_type")
+  tosVersion      String       @map("tos_version")
+  acceptedAt      DateTime     @default(now()) @map("accepted_at")
+  ipAddress       String?      @map("ip_address")
+  userAgent       String?      @map("user_agent")
+
+  profile         Profile      @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@unique([profileId, contractType])
+  @@index([profileId])
+  @@map("tos_acceptances")
+  @@schema("public")
+}
+
+model LegalEntity {
+  id                    String   @id @default(uuid())
+  pawnshopId            String   @unique @map("pawnshop_id") @db.Uuid
+  legalName             String   @map("legal_name")
+  registrationNumber    String?  @map("registration_number")
+  taxId                 String?  @map("tax_id")
+  businessAddress       String?  @map("business_address")
+  authorizedRepresentative String? @map("authorized_representative")
+  representativePosition String? @map("representative_position")
+  representativeContact  String? @map("representative_contact")
+  createdAt             DateTime @default(now()) @map("created_at")
+  updatedAt             DateTime @updatedAt @map("updated_at")
+
+  pawnshop              Pawnshop @relation(fields: [pawnshopId], references: [id], onDelete: Cascade)
+
+  @@map("legal_entities")
+  @@schema("public")
+}
+
+// ============================================================================
+// ATTENDANCE & PAYROLL
+// ============================================================================
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  LATE
+  HALF_DAY
+  ON_LEAVE
+  HOLIDAY
+  @@schema("public")
+}
+
+enum LeaveType {
+  SICK_LEAVE
+  VACATION_LEAVE
+  EMERGENCY_LEAVE
+  UNPAID_LEAVE
+  @@schema("public")
+}
+
+model AttendanceRecord {
+  id                String            @id @default(uuid())
+  staffId           String            @map("staff_id")
+  pawnshopId        String            @map("pawnshop_id") @db.Uuid
+  branchId          Int?              @map("branch_id")
+  date              DateTime          @db.Date
+  
+  // Time tracking
+  clockIn           DateTime?         @map("clock_in")
+  clockOut          DateTime?         @map("clock_out")
+  workHours         Float?            @map("work_hours")
+  overtimeHours     Float?            @default(0) @map("overtime_hours")
+  
+  // Status
+  status            AttendanceStatus  @default(PRESENT)
+  isLate            Boolean           @default(false) @map("is_late")
+  lateMinutes       Int?              @default(0) @map("late_minutes")
+  
+  // Leave management
+  leaveType         LeaveType?        @map("leave_type")
+  leaveReason       String?           @map("leave_reason")
+  leaveApprovedBy   String?           @map("leave_approved_by") @db.Uuid
+  
+  // Geolocation verification
+  clockInLocation   String?           @map("clock_in_location")  // lat,lng
+  clockOutLocation  String?           @map("clock_out_location")
+  
+  // Audit
+  notes             String?
+  verifiedBy        String?           @map("verified_by") @db.Uuid
+  verifiedAt        DateTime?         @map("verified_at")
+  
+  createdAt         DateTime          @default(now()) @map("created_at")
+  updatedAt         DateTime          @updatedAt @map("updated_at")
+  
+  pawnshop          Pawnshop          @relation(fields: [pawnshopId], references: [id], onDelete: Cascade)
+  branch            Branch?           @relation(fields: [branchId], references: [id])
+  
+  @@unique([staffId, pawnshopId, date])
+  @@index([pawnshopId, date])
+  @@index([staffId, date])
+  @@map("attendance_records")
+  @@schema("public")
+}
+
+/// Per-staff work schedule configuration
+model StaffSchedule {
+  id            String   @id @default(uuid())
+  staffId       String   @map("staff_id")
+  pawnshopId    String   @map("pawnshop_id") @db.Uuid
+
+  // Shift times (stored as "HH:mm" strings, e.g. "08:00", "17:00")
+  shiftStart    String   @default("08:00") @map("shift_start")
+  shiftEnd      String   @default("17:00") @map("shift_end")
+
+  // Working days (bitmask: Mon=1,Tue=2,Wed=4,Thu=8,Fri=16,Sat=32,Sun=64)
+  workingDays   Int      @default(31) @map("working_days")  // Mon-Fri by default
+
+  // Late threshold in minutes
+  lateThreshold Int      @default(15) @map("late_threshold")
+
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  pawnshop      Pawnshop @relation(fields: [pawnshopId], references: [id], onDelete: Cascade)
+
+  @@unique([staffId, pawnshopId])
+  @@map("staff_schedules")
+  @@schema("public")
+}
+
+enum PayslipStatus {
+  DRAFT
+  PENDING_APPROVAL
+  APPROVED
+  PAID
+  CANCELLED
+  @@schema("public")
+}
+
+model Payslip {
+  id                String         @id @default(uuid())
+  staffId           String         @map("staff_id")
+  pawnshopId        String         @map("pawnshop_id") @db.Uuid
+  branchId          Int?           @map("branch_id")
+  
+  // Period
+  periodStart       DateTime       @map("period_start") @db.Date
+  periodEnd         DateTime       @map("period_end") @db.Date
+  paymentDate       DateTime? @map("payment_date") @db.Date
+  
+  // Earnings
+  baseSalary        Float          @map("base_salary")
+  overtimePay       Float          @default(0) @map("overtime_pay")
+  allowances        Float          @default(0)
+  bonuses           Float          @default(0)
+  grossPay          Float          @map("gross_pay")
+  
+  // Deductions
+  tax               Float          @default(0)
+  sss               Float          @default(0)
+  philhealth        Float          @default(0)
+  pagibig           Float          @default(0)
+  lateDeductions    Float          @default(0) @map("late_deductions")
+  otherDeductions   Float          @default(0) @map("other_deductions")
+  totalDeductions   Float          @map("total_deductions")
+  
+  // Net pay
+  netPay            Float          @map("net_pay")
+  
+  // Work summary
+  daysWorked        Int            @map("days_worked")
+  daysAbsent        Int            @default(0) @map("days_absent")
+  daysLate          Int            @default(0) @map("days_late")
+  overtimeHours     Float          @default(0) @map("overtime_hours")
+  
+  // Status & approval
+  status            PayslipStatus  @default(DRAFT)
+  approvedBy        String?        @map("approved_by") @db.Uuid
+  approvedAt        DateTime?      @map("approved_at")
+  paidBy            String?        @map("paid_by") @db.Uuid
+  paidAt            DateTime?      @map("paid_at")
+  
+  // Document
+  pdfUrl            String?        @map("pdf_url")
+  notes             String?
+  
+  createdAt         DateTime       @default(now()) @map("created_at")
+  updatedAt         DateTime       @updatedAt @map("updated_at")
+  
+  pawnshop          Pawnshop       @relation(fields: [pawnshopId], references: [id], onDelete: Cascade)
+  branch            Branch?        @relation(fields: [branchId], references: [id])
+  
+  @@unique([staffId, pawnshopId, periodStart, periodEnd])
+  @@index([pawnshopId, status])
+  @@index([staffId, periodStart])
+  @@map("payslips")
+  @@schema("public")
+}
+
+// ============================================================================
+// SUBSCRIPTION SYSTEM
+// ============================================================================
+
+enum SubscriptionTier {
+  FREE
+  BASIC
+  PROFESSIONAL
+  ENTERPRISE
+  @@schema("public")
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  PAST_DUE
+  CANCELLED
+  EXPIRED
+  TRIAL
+  @@schema("public")
+}
+
+enum BillingInterval {
+  MONTHLY
+  QUARTERLY
+  ANNUALLY
+  @@schema("public")
+}
+
+model Subscription {
+  id                String              @id @default(uuid())
+  pawnshopId        String              @map("pawnshop_id") @db.Uuid
+  tier              SubscriptionTier
+  status            SubscriptionStatus  @default(TRIAL)
+  billingInterval   BillingInterval     @map("billing_interval")
+  
+  // Pricing
+  price             Float
+  currency          String              @default("PHP")
+  
+  // Period
+  startDate         DateTime            @map("start_date")
+  endDate           DateTime            @map("end_date")
+  trialEndDate      DateTime?           @map("trial_end_date")
+  cancelledAt       DateTime?           @map("cancelled_at")
+  
+  // Features & limits
+  maxBranches       Int?                @map("max_branches")
+  maxStaff          Int?                @map("max_staff")
+  maxTransactions   Int?                @map("max_transactions_per_month")
+  features          Json                @db.Json  // {"analytics": true, "api_access": true}
+  
+  // Billing
+  lastBilledAt      DateTime?           @map("last_billed_at")
+  nextBillingDate   DateTime            @map("next_billing_date")
+  autoRenew         Boolean             @default(true) @map("auto_renew")
+  
+  // Payment tracking
+  paymentMethodId   String?             @map("payment_method_id")
+  billingEmail      String?             @map("billing_email")
+  
+  // PayMongo integration
+  paymongoSubscriptionId String?        @map("paymongo_subscription_id")
+  paymongoCustomerId     String?        @map("paymongo_customer_id")
+  paymongoPlanId         String?        @map("paymongo_plan_id")
+  paymongoCheckoutUrl    String?        @map("paymongo_checkout_url")
+  
+  createdAt         DateTime            @default(now()) @map("created_at")
+  updatedAt         DateTime            @updatedAt @map("updated_at")
+  
+  pawnshop          Pawnshop            @relation(fields: [pawnshopId], references: [id], onDelete: Cascade)
+  payments          SubscriptionPayment[]
+  
+  @@index([pawnshopId, status])
+  @@index([nextBillingDate, status])
+  @@map("subscriptions")
+  @@schema("public")
+}
+
+model SubscriptionPayment {
+  id                String      @id @default(uuid())
+  subscriptionId    String      @map("subscription_id")
+  amount            Float
+  currency          String      @default("PHP")
+  status            String      // "pending", "completed", "failed", "refunded"
+  
+  // Payment details
+  paymentMethod     String      @map("payment_method")
+  paymentReference  String?     @map("payment_reference")
+  transactionId     String?     @map("transaction_id")
+  receiptUrl        String?     @map("receipt_url")
+  
+  // Dates
+  billingDate       DateTime    @map("billing_date")
+  paidAt            DateTime?   @map("paid_at")
+  failedAt          DateTime?   @map("failed_at")
+  failureReason     String?     @map("failure_reason")
+  
+  createdAt         DateTime    @default(now()) @map("created_at")
+  
+  subscription      Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  
+  @@index([subscriptionId, status])
+  @@map("subscription_payments")
+  @@schema("public")
+}

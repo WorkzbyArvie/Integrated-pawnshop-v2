@@ -1,0 +1,6 @@
+{
+  "dependencies": {
+    "ecc-universal": "^2.0.0",
+    "react-router-dom": "^7.13.0"
+  }
+}

@@ -1,0 +1,4 @@
+{
+  "chat.history": true,
+  "chat.historySize": 50
+}

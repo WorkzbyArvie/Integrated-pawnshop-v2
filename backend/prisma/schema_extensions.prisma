@@ -1,0 +1,414 @@
+// ============================================================================
+// PAWNSHOP SYSTEM RENOVATION - SCHEMA EXTENSIONS
+// Date: February 15, 2026
+// Description: New tables and enums for loan management, approvals, 
+//              document management, payments, contracts, and enhanced auctions
+//============================================================================
+
+// To integrate: Append this content to your existing schema.prisma file
+
+// ============================================================================
+// NEW ENUMS
+// ============================================================================
+
+enum ApplicationStatus {
+  PENDING              // Initial submission
+  DOCUMENTS_REVIEW     // Documents under review
+  ELIGIBILITY_CHECK    // Credit/income verification
+  AWAITING_APPROVAL    // Pending staff approval
+  MANAGER_REVIEW       // Pending manager approval
+  OWNER_APPROVAL       // Pending owner final approval
+  ADDITIONAL_PROOF     // Requires more documents
+  APPROVED             // Ready for disbursement
+  REJECTED             // Application denied
+  DISBURSED            // Loan released
+  
+  @@schema("public")
+}
+
+enum DocumentType {
+  VALID_ID
+  PROOF_OF_INCOME
+  PROOF_OF_RESIDENCE
+  COLLATERAL_DOCUMENT
+  BUSINESS_PERMIT
+  BANK_STATEMENT
+  OTHER
+  
+  @@schema("public")
+}
+
+enum ApproverRole {
+  STAFF
+  MANAGER
+  OWNER
+  
+  @@schema("public")
+}
+
+enum ApprovalDecision {
+  APPROVED
+  REJECTED
+  REQUEST_MORE_INFO
+  
+  @@schema("public")
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  PARTIAL
+  OVERDUE
+  WAIVED
+  
+  @@schema("public")
+}
+
+enum PaymentMethod {
+  CASH
+  BANK_TRANSFER
+  CREDIT_CARD
+  DEBIT_CARD
+  E_WALLET
+  CHECK
+  
+  @@schema("public")
+}
+
+enum PaymentType {
+  LOAN_REPAYMENT
+  AUCTION_PAYMENT
+  PENALTY_FEE
+  SERVICE_FEE
+  OTHER
+  
+  @@schema("public")
+}
+
+enum PaymentTransactionStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  REFUNDED
+  
+  @@schema("public")
+}
+
+enum PenaltyType {
+  LATE_PAYMENT
+  MISSED_PAYMENT
+  EARLY_TERMINATION
+  DOCUMENTATION_FEE
+  OTHER
+  
+  @@schema("public")
+}
+
+enum RatingType {
+  ITEM_QUALITY
+  TRANSACTION_EXPERIENCE
+  SELLER_RATING
+  
+  @@schema("public")
+}
+
+enum ListingOwnerType {
+  PAWNSHOP
+  CUSTOMER
+  
+  @@schema("public")
+}
+
+// ============================================================================
+// NEW MODELS
+// ============================================================================
+
+// ============================================================================
+// 1. LOAN APPLICATION MODEL
+// ============================================================================
+model LoanApplication {
+  id                String              @id @default(uuid())
+  customerId        String              @map("customer_id")
+  pawnshopId        String              @map("pawnshop_id")
+  loanAmount        Float               @map("loan_amount")
+  loanType          String              @map("loan_type")  // Personal, Business, Emergency
+  termMonths        Int                 @map("term_months")
+  purpose           String
+  status            ApplicationStatus   @default(PENDING)
+  submittedAt       DateTime            @default(now()) @map("submitted_at")
+  evaluatedBy       String?             @map("evaluated_by")
+  evaluatedAt       DateTime?           @map("evaluated_at")
+  approvedBy        String?             @map("approved_by")
+  approvedAt        DateTime?           @map("approved_at")
+  rejectionReason   String?             @map("rejection_reason")
+  createdAt         DateTime            @default(now()) @map("created_at")
+  updatedAt         DateTime            @updatedAt @map("updated_at")
+  
+  // Relations
+  customer          Customer            @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  pawnshop          Pawnshop            @relation(fields: [pawnshopId], references: [id], onDelete: Cascade)
+  documents         LoanDocument[]
+  approvals         LoanApproval[]
+  eligibilityCheck  EligibilityCheck?
+  disbursement      LoanDisbursement[]
+  loan              Loan?               @relation("ApplicationToLoan")
+  contract          LoanContract?
+  
+  @@map("loan_applications")
+}
+
+// ============================================================================
+// 2. LOAN DOCUMENT MODEL
+// ============================================================================
+model LoanDocument {
+  id                String        @id @default(uuid())
+  applicationId     String        @map("application_id")
+  documentType      DocumentType  @map("document_type")
+  fileName          String        @map("file_name")
+  fileUrl           String        @map("file_url")        // Supabase Storage URL
+  fileSize          Int           @map("file_size")
+  mimeType          String        @map("mime_type")
+  uploadedAt        DateTime      @default(now()) @map("uploaded_at")
+  uploadedBy        String        @map("uploaded_by")
+  verified          Boolean       @default(false)
+  verifiedBy        String?       @map("verified_by")
+  verifiedAt        DateTime?     @map("verified_at")
+  notes             String?
+  
+  // Relations
+  application       LoanApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  
+  @@map("loan_documents")
+}
+
+// ============================================================================
+// 3. LOAN APPROVAL MODEL (Multi-level approval tracking)
+// ============================================================================
+model LoanApproval {
+  id                      String            @id @default(uuid())
+  applicationId           String            @map("application_id")
+  approverRole            ApproverRole      @map("approver_role")
+  approverId              String            @map("approver_id")
+  decision                ApprovalDecision
+  comments                String?
+  additionalProofRequired Boolean           @default(false) @map("additional_proof_required")
+  additionalProofNotes    String?           @map("additional_proof_notes")
+  approvedAt              DateTime          @default(now()) @map("approved_at")
+  
+  // Relations
+  application             LoanApplication   @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  approver                Profile           @relation(fields: [approverId], references: [id], onDelete: Cascade)
+  
+  @@map("loan_approvals")
+}
+
+// ============================================================================
+// 4. ELIGIBILITY CHECK MODEL
+// ============================================================================
+model EligibilityCheck {
+  id                String          @id @default(uuid())
+  applicationId     String          @unique @map("application_id")
+  customerId        String          @map("customer_id")
+  creditScore       Int?            @map("credit_score")       // If available
+  hasPreviousLoans  Boolean         @map("has_previous_loans")
+  previousLoanCount Int             @default(0) @map("previous_loan_count")
+  defaultHistory    Boolean         @default(false) @map("default_history")
+  incomeVerified    Boolean         @default(false) @map("income_verified")
+  monthlyIncome     Float?          @map("monthly_income")
+  debtToIncomeRatio Float?          @map("debt_to_income_ratio")
+  employmentStatus  String?         @map("employment_status")
+  eligible          Boolean
+  eligibilityNotes  String?         @map("eligibility_notes")
+  checkedAt         DateTime        @default(now()) @map("checked_at")
+  checkedBy         String          @map("checked_by")
+  
+  // Relations
+  application       LoanApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  customer          Customer        @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  
+  @@map("eligibility_checks")
+}
+
+// ============================================================================
+// 5. LOAN DISBURSEMENT MODEL
+// ============================================================================
+model LoanDisbursement {
+  id                  String          @id @default(uuid())
+  loanId              Int             @map("loan_id")
+  applicationId       String          @map("application_id")
+  amount              Float
+  disbursementMethod  String          @map("disbursement_method")  // Cash, Bank Transfer, Check
+  referenceNumber     String?         @map("reference_number")
+  disbursedBy         String          @map("disbursed_by")
+  disbursedAt         DateTime        @default(now()) @map("disbursed_at")
+  receivedBy          String          @map("received_by")          // Customer ID
+  receiptUrl          String?         @map("receipt_url")
+  notes               String?
+  
+  // Relations
+  loan                Loan            @relation(fields: [loanId], references: [id], onDelete: Cascade)
+  application         LoanApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  
+  @@map("loan_disbursements")
+}
+
+// ============================================================================
+// 6. REPAYMENT SCHEDULE MODEL
+// ============================================================================
+model RepaymentSchedule {
+  id                Int             @id @default(autoincrement())
+  loanId            Int             @map("loan_id")
+  installmentNumber Int             @map("installment_number")
+  dueDate           DateTime        @map("due_date")
+  principalAmount   Float           @map("principal_amount")
+  interestAmount    Float           @map("interest_amount")
+  totalAmount       Float           @map("total_amount")
+  status            PaymentStatus   @default(PENDING)
+  paidAmount        Float           @default(0) @map("paid_amount")
+  paidDate          DateTime?       @map("paid_date")
+  penaltyAmount     Float           @default(0) @map("penalty_amount")
+  notes             String?
+  createdAt         DateTime        @default(now()) @map("created_at")
+  
+  // Relations
+  loan              Loan            @relation(fields: [loanId], references: [id], onDelete: Cascade)
+  payments          Payment[]
+  
+  @@unique([loanId, installmentNumber])
+  @@map("repayment_schedules")
+}
+
+// ============================================================================
+// 7. PAYMENT MODEL (Centralized payment tracking)
+// ============================================================================
+model Payment {
+  id                String                    @id @default(uuid())
+  customerId        String                    @map("customer_id")
+  loanId            Int?                      @map("loan_id")
+  scheduleId        Int?                      @map("schedule_id")
+  auctionListingId  Int?                      @map("auction_listing_id")
+  amount            Float
+  paymentMethod     PaymentMethod             @map("payment_method")
+  paymentType       PaymentType               @map("payment_type")
+  referenceNumber   String?                   @map("reference_number")
+  transactionId     String?                   @map("transaction_id")  // External payment gateway ID
+  status            PaymentTransactionStatus  @default(PENDING)
+  processedBy       String?                   @map("processed_by")
+  processedAt       DateTime                  @default(now()) @map("processed_at")
+  receiptUrl        String?                   @map("receipt_url")
+  notes             String?
+  
+  // Relations
+  customer          Customer                  @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  loan              Loan?                     @relation(fields: [loanId], references: [id], onDelete: Cascade)
+  schedule          RepaymentSchedule?        @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+  auctionListing    AuctionListing?           @relation(fields: [auctionListingId], references: [id], onDelete: Cascade)
+  
+  @@map("payments")
+}
+
+// ============================================================================
+// 8. PENALTY MODEL
+// ============================================================================
+model Penalty {
+  id            String       @id @default(uuid())
+  loanId        Int          @map("loan_id")
+  scheduleId    Int?         @map("schedule_id")
+  penaltyType   PenaltyType  @map("penalty_type")
+  amount        Float
+  reason        String
+  appliedDate   DateTime     @default(now()) @map("applied_date")
+  waived        Boolean      @default(false)
+  waivedBy      String?      @map("waived_by")
+  waivedAt      DateTime?    @map("waived_at")
+  waivedReason  String?      @map("waived_reason")
+  
+  // Relations
+  loan          Loan         @relation(fields: [loanId], references: [id], onDelete: Cascade)
+  
+  @@map("penalties")
+}
+
+// ============================================================================
+// 9. LOAN CONTRACT MODEL
+// ============================================================================
+model LoanContract {
+  id                String          @id @default(uuid())
+  loanId            Int             @unique @map("loan_id")
+  applicationId     String          @map("application_id")
+  contractNumber    String          @unique @map("contract_number")
+  templateVersion   String          @map("template_version")
+  contractData      Json            @map("contract_data")    // Merged template with loan data
+  pdfUrl            String?         @map("pdf_url")          // Generated PDF contract
+  signedByCustomer  Boolean         @default(false) @map("signed_by_customer")
+  customerSignature String?         @map("customer_signature")
+  customerSignedAt  DateTime?       @map("customer_signed_at")
+  signedByStaff     Boolean         @default(false) @map("signed_by_staff")
+  staffSignature    String?         @map("staff_signature")
+  staffId           String?         @map("staff_id")
+  staffSignedAt     DateTime?       @map("staff_signed_at")
+  generatedAt       DateTime        @default(now()) @map("generated_at")
+  
+  // Relations
+  loan              Loan            @relation(fields: [loanId], references: [id], onDelete: Cascade)
+  application       LoanApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  
+  @@map("loan_contracts")
+}
+
+// ============================================================================
+// 10. AUCTION RATING MODEL
+// ============================================================================
+model AuctionRating {
+  id            Int          @id @default(autoincrement())
+  listingId     Int          @map("listing_id")
+  customerId    String       @map("customer_id")
+  rating        Int                          // 1-5 stars
+  comment       String?
+  ratingType    RatingType   @map("rating_type")
+  createdAt     DateTime     @default(now()) @map("created_at")
+  
+  // Relations
+  listing       AuctionListing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  customer      Customer       @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  
+  @@unique([listingId, customerId, ratingType])
+  @@map("auction_ratings")
+}
+
+// ============================================================================
+// MODIFICATIONS TO EXISTING MODELS
+// ============================================================================
+
+/*
+  NOTE: Add these fields to existing models in your schema.prisma:
+  
+  1. Loan Model - Add:
+     applicationId     String?             @map("application_id")
+     application       LoanApplication?    @relation("ApplicationToLoan", fields: [applicationId], references: [id])
+     disbursements     LoanDisbursement[]
+     schedules         RepaymentSchedule[]
+     penalties         Penalty[]
+     contract          LoanContract?
+     payments          Payment[]
+  
+  2. Customer Model - Add:
+     loanApplications  LoanApplication[]
+     eligibilityChecks EligibilityCheck[]
+     auctionRatings    AuctionRating[]
+     payments          Payment[]
+  
+  3. AuctionListing Model - Add:
+     listedBy          String?             @map("listed_by")  // NULL = pawnshop, UUID = customer
+     listedByType      ListingOwnerType    @default(PAWNSHOP) @map("listed_by_type")
+     minimumBid        Float?              @map("minimum_bid")
+     ratings           AuctionRating[]
+     payments          Payment[]
+     
+  4. Pawnshop Model - Add:
+     loanApplications  LoanApplication[]
+  
+  5. Profile Model - Add:
+     approvals         LoanApproval[]
+*/

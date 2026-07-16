@@ -1,0 +1,313 @@
+﻿import { useState, useEffect } from 'react';
+import { GitBranch, MapPin, Building2, Users2, Shield, Loader2, X, Navigation } from 'lucide-react';
+import { useToast } from '../App';
+import { supabase } from '../lib/supabaseClient';
+import { getBackendUrl } from '../lib/backendUrl';
+import { LocationPicker } from './LocationPicker';
+import { BranchAnalytics } from './BranchAnalytics';
+
+interface Branch {
+  id: string;
+  name: string;
+  location: string;
+  latitude: number | null;
+  longitude: number | null;
+  manager: string;
+  staffCount: number;
+  status: string;
+}
+
+export function BranchManagement() {
+  const { showToast } = useToast();
+  const [branches, setBranches] = useState<Branch[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Analytics view state
+  const [analyticsView, setAnalyticsView] = useState<{ open: boolean; branch: Branch | null }>({ open: false, branch: null });
+
+  // Location modal state
+  const [locationModal, setLocationModal] = useState<{
+    open: boolean;
+    branch: Branch | null;
+    lat: number | null;
+    lng: number | null;
+    address: string;
+    saving: boolean;
+  }>({ open: false, branch: null, lat: null, lng: null, address: '', saving: false });
+
+  const fetchBranches = async () => {
+    setIsLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('pawnshops')
+        .select(`
+          id,
+          name,
+          address,
+          latitude,
+          longitude,
+          status
+        `);
+
+      if (error) throw error;
+
+      const formattedBranches: Branch[] = (data || []).map((b: any) => ({
+        id: b.id,
+        name: b.name,
+        location: b.address || 'Location Unset',
+        latitude: b.latitude,
+        longitude: b.longitude,
+        manager: 'System Admin',
+        staffCount: 0,
+        status: b.status || 'ACTIVE'
+      }));
+
+      setBranches(formattedBranches);
+    } catch (err: unknown) {
+      console.error("Branch Fetch Error:", err);
+      showToast("Failed to sync branch network database", "error");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchBranches();
+  }, []);
+
+  const openLocationModal = (branch: Branch) => {
+    setLocationModal({
+      open: true,
+      branch,
+      lat: branch.latitude,
+      lng: branch.longitude,
+      address: branch.location !== 'Location Unset' ? branch.location : '',
+      saving: false,
+    });
+  };
+
+  const saveLocation = async () => {
+    if (!locationModal.branch || locationModal.lat === null || locationModal.lng === null) {
+      showToast('Please select a location on the map first.', 'error');
+      return;
+    }
+
+    setLocationModal((prev) => ({ ...prev, saving: true }));
+
+    try {
+      const session = (await supabase.auth.getSession()).data.session;
+      const token = session?.access_token;
+      if (!token) throw new Error('Not authenticated');
+
+      const backendUrl = getBackendUrl();
+      const res = await fetch(`${backendUrl}/pawnshops/${locationModal.branch.id}/location`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          latitude: locationModal.lat,
+          longitude: locationModal.lng,
+          address: locationModal.address || undefined,
+        }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.message || 'Failed to save location');
+      }
+
+      showToast(`ðŸ“ Location saved for ${locationModal.branch.name}`, 'success');
+      setLocationModal({ open: false, branch: null, lat: null, lng: null, address: '', saving: false });
+      fetchBranches(); // Refresh
+    } catch (err: unknown) {
+      console.error('Save location error:', err);
+      showToast(err instanceof Error ? err.message : String(err), 'error');
+    } finally {
+      setLocationModal((prev) => ({ ...prev, saving: false }));
+    }
+  };
+
+  // If analytics view is open, render it instead
+  if (analyticsView.open && analyticsView.branch) {
+    return (
+      <BranchAnalytics
+        branchId={analyticsView.branch.id}
+        branchName={analyticsView.branch.name}
+        onBack={() => setAnalyticsView({ open: false, branch: null })}
+      />
+    );
+  }
+
+  return (
+    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      {/* Location Picker Modal */}
+      {locationModal.open && locationModal.branch && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+          <div className="bg-[#14141B] rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-auto">
+            <div className="flex items-center justify-between p-6 border-b border-[rgba(201,160,92,0.08)]">
+              <div>
+                <h2 className="text-xl font-black text-[#EAE2D6]">
+                  ðŸ“ Set Location â€” {locationModal.branch.name}
+                </h2>
+                <p className="text-sm text-[#6B655C] mt-1">
+                  Click the map, search an address, or use GPS to pin the branch location.
+                </p>
+              </div>
+              <button
+                onClick={() => setLocationModal({ open: false, branch: null, lat: null, lng: null, address: '', saving: false })}
+                className="p-2 hover:bg-[#1C1C26] rounded-full transition-colors"
+              >
+                <X className="w-5 h-5 text-[#6B655C]" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <LocationPicker
+                latitude={locationModal.lat}
+                longitude={locationModal.lng}
+                onLocationSelect={(lat, lng) => setLocationModal((prev) => ({ ...prev, lat, lng }))}
+                onAddressResolve={(addr) => setLocationModal((prev) => ({ ...prev, address: addr }))}
+              />
+
+              {locationModal.address && (
+                <div className="bg-[#C9A05C]/10 border border-blue-100 rounded-xl px-4 py-3">
+                  <p className="text-xs font-bold text-[#C9A05C] uppercase tracking-wider mb-1">Resolved Address</p>
+                  <p className="text-sm text-[#C9A05C]">{locationModal.address}</p>
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-end gap-3 p-6 border-t border-[rgba(201,160,92,0.08)]">
+              <button
+                onClick={() => setLocationModal({ open: false, branch: null, lat: null, lng: null, address: '', saving: false })}
+                className="px-6 py-3 bg-[#1C1C26] text-[#999186] rounded-xl text-sm font-bold hover:bg-[#222228] transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={saveLocation}
+                disabled={locationModal.saving || locationModal.lat === null}
+                className="px-6 py-3 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center gap-2"
+              >
+                {locationModal.saving ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Navigation className="w-4 h-4" />
+                )}
+                {locationModal.saving ? 'Saving...' : 'Save Location'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Header */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-black text-[#EAE2D6] flex items-center gap-3 tracking-tight">
+            <div className="p-2 bg-blue-600 rounded-xl shadow-lg shadow-blue-200">
+              <GitBranch className="w-8 h-8 text-white" />
+            </div>
+            Pawnshop <span className="text-[#C9A05C]">Management</span>
+          </h1>
+          <p className="text-[#6B655C] font-medium mt-1">Global oversight of your pawnshop network assets.</p>
+        </div>
+      </div>
+
+      {isLoading ? (
+        <div className="flex flex-col items-center justify-center py-32 bg-[#14141B] rounded-[3rem] border border-[rgba(201,160,92,0.08)]">
+          <Loader2 className="w-12 h-12 text-[#C9A05C] animate-spin mb-4" />
+          <p className="text-[10px] font-black text-[#6B655C] uppercase tracking-[0.3em]">Pinging Network Nodes...</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {branches.length > 0 ? (
+            branches.map((branch) => (
+              <div key={branch.id} className="bg-[#14141B] border border-[rgba(201,160,92,0.12)] rounded-[2.5rem] p-8 hover:shadow-2xl hover:border-blue-500/30 transition-all group relative overflow-hidden">
+                <div className="flex justify-between items-start mb-6 relative z-10">
+                  <div className="w-14 h-14 bg-[#1C1C26] rounded-2xl flex items-center justify-center group-hover:bg-blue-600 transition-colors">
+                    <Building2 className="w-7 h-7 text-[#6B655C] group-hover:text-white" />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="bg-emerald-100 text-emerald-700 text-[9px] font-black px-3 py-1 rounded-full uppercase tracking-widest">
+                      Live
+                    </span>
+                  </div>
+                </div>
+
+                <div className="relative z-10">
+                  <h3 className="text-2xl font-black text-[#EAE2D6] group-hover:text-[#C9A05C] transition-colors">{branch.name}</h3>
+                  <p className="text-[#6B655C] flex items-center gap-1.5 text-sm mb-4 font-bold">
+                    <MapPin className="w-4 h-4 text-blue-500" /> {branch.location}
+                  </p>
+
+                  {/* GPS Location Badge */}
+                  {branch.latitude && branch.longitude ? (
+                    <div className="flex items-center gap-2 mb-6">
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-700 text-[10px] font-bold rounded-lg border border-emerald-100">
+                        <Navigation className="w-3 h-3" />
+                        GPS: {branch.latitude.toFixed(4)}, {branch.longitude.toFixed(4)}
+                      </span>
+                      <button
+                        onClick={() => openLocationModal(branch)}
+                        className="text-[10px] font-bold text-[#C9A05C] hover:text-[#C9A05C] underline underline-offset-2"
+                      >
+                        Update
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => openLocationModal(branch)}
+                      className="flex items-center gap-2 mb-6 px-4 py-2 bg-amber-50 text-amber-700 border border-amber-200 rounded-xl text-xs font-bold hover:bg-amber-100 transition-colors"
+                    >
+                      <MapPin className="w-3.5 h-3.5" />
+                      Set Pin Location
+                    </button>
+                  )}
+                  
+                  <div className="grid grid-cols-2 gap-6 py-6 border-y border-slate-50">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2.5 bg-[#1C1C26] text-[#999186] rounded-xl group-hover:bg-[#C9A05C]/10 group-hover:text-[#C9A05C] transition-colors">
+                        <Shield className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <p className="text-[10px] text-[#6B655C] uppercase font-black tracking-tighter">Auth Lead</p>
+                        <p className="text-sm font-bold text-[#6B655C]">{branch.manager}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className="p-2.5 bg-[#1C1C26] text-[#999186] rounded-xl group-hover:bg-[#C9A05C]/10 group-hover:text-[#C9A05C] transition-colors">
+                        <Users2 className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <p className="text-[10px] text-[#6B655C] uppercase font-black tracking-tighter">Active Personnel</p>
+                        <p className="text-sm font-bold text-[#6B655C]">{branch.staffCount} Records</p>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <button
+                    onClick={() => setAnalyticsView({ open: true, branch })}
+                    className="w-full mt-8 py-3 bg-[#1C1C26] text-[#6B655C] text-[10px] font-black uppercase rounded-xl group-hover:bg-[#C9A05C]/10 group-hover:text-[#C9A05C] transition-all hover:shadow-md"
+                  >
+                    Pawnshop Details
+                  </button>
+                </div>
+
+                {/* Decorative node icon */}
+                <GitBranch className="absolute -right-8 -bottom-8 w-48 h-48 opacity-[0.02] group-hover:opacity-[0.05] transition-opacity" />
+              </div>
+            ))
+          ) : (
+            <div className="col-span-full py-20 text-center bg-[#1C1C26] rounded-[3rem] border-2 border-dashed border-[rgba(201,160,92,0.12)]">
+              <Building2 className="w-12 h-12 text-slate-300 mx-auto mb-4" />
+              <p className="text-[#6B655C] font-bold text-[10px] uppercase tracking-widest">No branch entities registered in the system.</p>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
