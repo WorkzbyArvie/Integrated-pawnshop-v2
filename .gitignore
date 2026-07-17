@@ -1,42 +1,44 @@
-# Dependencies
 node_modules/
-.pnp
-.pnp.js
+backend/node_modules/
+frontend/node_modules/
+auction-frontend/node_modules/
+mobile/node_modules/
 
-# Build outputs
-dist/
-build/
-.next/
-out/
-
-# Flutter
-mobile/.dart_tool/
+**/dist/
+**/build/
 mobile/build/
+mobile/build_apk.log
+
+# Flutter / Dart build artifacts
+mobile/.dart_tool/
 mobile/.flutter-plugins
 mobile/.flutter-plugins-dependencies
 mobile/.packages
-# mobile/pubspec.lock  -- now tracked
+mobile/*.log
+mobile/gradle-*.log
+mobile/android/build/
+mobile/android/.gradle/
+mobile/android/gradle/wrapper/gradle-wrapper.jar
+mobile/android/local.properties
+mobile/android/hs_err_*.log
+mobile/android/replay_*.log
+mobile/android/*.log
+mobile/android/app/src/main/java/io/flutter/plugins/GeneratedPluginRegistrant.java
+mobile/ios/Flutter/
+mobile/ios/Runner/GeneratedPluginRegistrant.*
+mobile/linux/flutter/ephemeral/
+mobile/macos/Flutter/ephemeral/
+mobile/windows/flutter/ephemeral/
 
-# Environment files (contain secrets)
-.env
-backend/.env
-frontend/.env
-auction-frontend/.env
-mobile/.env
+# NestJS build output
+backend/dist/
 
-# IDE
-# .vscode/  -- now tracked
-.idea/
-*.swp
-*.swo
-
-# OS files
+*.log
 .DS_Store
 Thumbs.db
+*.swp
+*.swo
+*~
 
-# Logs
-*.log
-npm-debug.log*
-
-# Testing
-coverage/
+# Keep .env in git (private repo, clone-and-run)
+# .env
