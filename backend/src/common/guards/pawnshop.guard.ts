@@ -23,7 +23,11 @@ export class PawnshopGuard implements CanActivate {
     '/subscriptions/webhook',
     '/tenant-governance/client-registrations',
     '/tenant-governance/branding',
+    '/tenant-governance/pawnshops/metadata',
+    '/tenant-governance/support-chat',
+    '/analytics/branch/',
     '/notifications/user/',
+    '/pawn-tickets/pending-approval',
   ];
 
   canActivate(context: ExecutionContext): boolean {
