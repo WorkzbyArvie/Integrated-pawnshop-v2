@@ -23,9 +23,10 @@ export class ContractRendererService {
       staffSignedAt?: string | null;
     },
   ) {
-    let template = await this.prisma.contractTemplate.findUnique({
-      where: { id: templateId },
-    });
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(templateId);
+    let template = isUuid
+      ? await this.prisma.contractTemplate.findUnique({ where: { id: templateId } })
+      : null;
     if (!template) {
       const normalizedType = templateId
         .replace(/-/g, '_')
@@ -85,9 +86,10 @@ export class ContractRendererService {
       staffSignedAt?: string | null;
     },
   ): Promise<{ htmlContent: string; pdfBuffer: Buffer; templateType: string; templateVersion: string }> {
-    let template = await this.prisma.contractTemplate.findUnique({
-      where: { id: templateId },
-    });
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(templateId);
+    let template = isUuid
+      ? await this.prisma.contractTemplate.findUnique({ where: { id: templateId } })
+      : null;
     if (!template) {
       const normalizedType = templateId
         .replace(/-/g, '_')
