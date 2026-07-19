@@ -1,4 +1,4 @@
-﻿import { useState } from 'react';
+﻿import { useRef, useState } from 'react';
 import { 
   Calculator, 
   Scale, 
@@ -23,6 +23,7 @@ interface SalesPosProps {
 
 export function SalesPos({ branchId, activeBranchId, setActiveTab }: SalesPosProps) {
   const { showToast } = useToast();
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const STORAGE_BUCKET_CANDIDATES = ['kyc-documents', 'loan-documents', 'loan-contracts'];
   const defaultDeadline = () => {
     const date = new Date();
@@ -219,14 +220,33 @@ export function SalesPos({ branchId, activeBranchId, setActiveTab }: SalesPosPro
     }
   };
 
+  const resetForm = () => {
+    setFormData({
+      customerName: '',
+      customerAddress: '',
+      customerContact: '',
+      hasMobileAccount: false,
+      accountEmail: '',
+      itemCategory: '',
+      itemDescription: '',
+      weight: '',
+      appraisalDeadline: defaultDeadline(),
+      markForAuction: false,
+    });
+    setRiskScore(null);
+    setRecommendedAmount(null);
+    setItemPhotoFiles([]);
+    setConfirmData(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
   const handleConfirmApproval = async () => {
     if (!confirmData) return;
     setIsConfirming(true);
     try {
       await api.post(`/pawn-tickets/${confirmData.ticketId}/submit-for-approval`, {});
       showToast(`Ticket ${confirmData.ticketNumber} submitted for manager approval!`, "success");
-      setConfirmData(null);
-      setActiveTab('dashboard');
+      resetForm();
     } catch (error: any) {
       console.error("Submit for approval error:", error);
       showToast(error.message || "Failed to submit for approval", "error");
@@ -363,6 +383,7 @@ export function SalesPos({ branchId, activeBranchId, setActiveTab }: SalesPosPro
               <div className="space-y-3">
                 <label className="text-[10px] font-black text-[#6B655C] uppercase tracking-widest">Item Photos (required for auction listing)</label>
                 <input
+                  ref={fileInputRef}
                   type="file"
                   accept="image/*"
                   multiple

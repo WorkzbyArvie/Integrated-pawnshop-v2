@@ -1208,6 +1208,7 @@ export class TenantGovernanceService {
     status?: string,
     _scopeId?: string,
   ): Promise<Record<string, unknown>[]> {
+    await this.ensureRegistrationChatTables();
     const actor = await this.getProfileOrThrow(actorUserId);
     this.assertRole(actor, ['SUPER_ADMIN']);
 
