@@ -14,8 +14,10 @@ import { createClient } from '@supabase/supabase-js';
 import { SubscriptionStatus } from '@prisma/client';
 import * as dns from 'node:dns';
 
-// Load .env file explicitly
-dotenv.config({ path: path.join(__dirname, '..', '.env') });
+// Load .env file explicitly — try multiple paths for dev vs compiled
+dotenv.config({ path: path.resolve(__dirname, '..', '.env') });
+dotenv.config({ path: path.resolve(__dirname, '..', '..', '.env') });
+dotenv.config();
 
 async function bootstrap() {
   const logger = new Logger('Bootstrap');
