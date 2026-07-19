@@ -122,7 +122,9 @@ export function Dashboard({
 
     return () => {
       mounted = false;
-      supabase.removeChannel(channel).catch(() => {});
+      try {
+        supabase.removeChannel(channel);
+      } catch {}
     };
   }, [targetUuid, activeOperationalBranchId]);
 
@@ -170,7 +172,6 @@ export function Dashboard({
 
       // If no branch is selected, we won't fetch branch-scoped dashboard data.
       if (!targetUuid) {
-        console.warn('âš ï¸  [Dashboard] No targetUuid provided, setting empty stats');
         setStats({
           totalLoans: 0,
           totalInterest: 0,

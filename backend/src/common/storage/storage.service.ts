@@ -38,9 +38,8 @@ export class StorageService {
       });
 
     if (error) {
-      this.logger.error(`Supabase upload failed: ${error.message}`);
+      this.logger.warn(`Supabase upload skipped (storage not configured): ${error.message}`);
       const localPath = `${folder}/${fileName}`;
-      this.logger.warn(`Falling back to local path: ${localPath}`);
       return localPath;
     }
 

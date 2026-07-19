@@ -23,7 +23,7 @@ export class RateLimitGuard implements CanActivate {
   private readonly store = new Map<string, RateLimitEntry>();
 
   private readonly DEFAULT_TTL = 60_000;
-  private readonly DEFAULT_LIMIT = 60;
+  private readonly DEFAULT_LIMIT = 300;
 
   constructor(private reflector: Reflector) {}
 

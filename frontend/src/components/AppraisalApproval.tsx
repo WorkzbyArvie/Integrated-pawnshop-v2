@@ -7,6 +7,15 @@ import { useToast } from '../App';
 import api from '../lib/apiClient';
 import { ContractViewer } from './ContractViewer';
 import { formatCurrency } from '../lib/formatters';
+import Swal from 'sweetalert2';
+
+const tierColors: Record<string, string> = {
+  Standard: 'bg-gray-600',
+  Bronze: 'bg-amber-700',
+  Silver: 'bg-gray-400',
+  Gold: 'bg-yellow-500',
+  VIP: 'bg-purple-600',
+};
 
 interface PendingApiTicket {
   id: number;
@@ -24,6 +33,7 @@ interface PendingApiTicket {
     fullName: string;
     contactNumber: string;
     address: string;
+    loyaltyTier: string;
   } | null;
 }
 
@@ -43,6 +53,7 @@ interface PendingAppraisal {
   customerName: string;
   customerContact: string;
   customerAddress: string;
+  loyaltyTier: string;
 }
 
 interface AppraisalApprovalProps {
@@ -115,7 +126,9 @@ export function AppraisalApproval({ branchId, activeBranchId, userRole = 'STAFF'
 
       const tickets = await api.get<PendingApiTicket[]>('/pawn-tickets/pending-approval', query);
 
-      const transformedData: PendingAppraisal[] = tickets.map((ticket: any) => {
+      const transformedData: PendingAppraisal[] = tickets
+        .filter((ticket: any) => ticket.lifecycleStatus !== 'CONTRACT_SIGNED')
+        .map((ticket: any) => {
         const rawDescription = ticket.description || '';
         return {
           id: ticket.id,
@@ -133,6 +146,7 @@ export function AppraisalApproval({ branchId, activeBranchId, userRole = 'STAFF'
           customerName: ticket.customer?.fullName || ticket.customerName || 'Unknown',
           customerContact: ticket.customer?.contactNumber || ticket.customerContact || 'N/A',
           customerAddress: ticket.customer?.address || ticket.customerAddress || 'N/A',
+          loyaltyTier: ticket.customer?.loyaltyTier || 'Standard',
         };
       });
 
@@ -154,6 +168,17 @@ export function AppraisalApproval({ branchId, activeBranchId, userRole = 'STAFF'
       showToast('You do not have permission to approve appraisals', 'error');
       return;
     }
+    const confirm = await Swal.fire({
+      title: 'Confirm Action',
+      text: 'Approve this appraisal and generate a loan contract?',
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonColor: '#C9A05C',
+      cancelButtonColor: '#6B655C',
+      confirmButtonText: 'Yes, proceed',
+      cancelButtonText: 'Cancel',
+    });
+    if (!confirm.isConfirmed) return;
 
     setProcessingId(appraisalId);
     try {
@@ -329,7 +354,12 @@ export function AppraisalApproval({ branchId, activeBranchId, userRole = 'STAFF'
                 >
                   <div className="flex justify-between items-start mb-4">
                     <div>
-                      <h3 className="font-black text-[#EAE2D6] text-lg">{appraisal.customerName}</h3>
+                      <h3 className="font-black text-[#EAE2D6] text-lg flex items-center gap-2">
+                        {appraisal.customerName}
+                        <span className={`px-2 py-0.5 rounded-full text-[9px] font-black text-white ${tierColors[appraisal.loyaltyTier] || 'bg-gray-600'}`}>
+                          {appraisal.loyaltyTier}
+                        </span>
+                      </h3>
                       <p className="text-xs text-[#C9A05C] font-bold uppercase tracking-wider">
                         {appraisal.ticketNumber}
                       </p>
@@ -375,7 +405,12 @@ export function AppraisalApproval({ branchId, activeBranchId, userRole = 'STAFF'
                     <User className="w-5 h-5 text-[#C9A05C]" />
                     <div>
                       <p className="text-[9px] font-black text-[#6B655C] uppercase tracking-widest">Customer</p>
-                      <p className="font-bold text-[#EAE2D6]">{selectedAppraisal.customerName}</p>
+                      <p className="font-bold text-[#EAE2D6] flex items-center gap-2">
+                        {selectedAppraisal.customerName}
+                        <span className={`px-2 py-0.5 rounded-full text-[9px] font-black text-white ${tierColors[selectedAppraisal.loyaltyTier] || 'bg-gray-600'}`}>
+                          {selectedAppraisal.loyaltyTier}
+                        </span>
+                      </p>
                       <p className="text-xs text-[#999186]">{selectedAppraisal.customerContact}</p>
                     </div>
                   </div>
@@ -540,7 +575,7 @@ export function AppraisalApproval({ branchId, activeBranchId, userRole = 'STAFF'
               {approveResult && approveResult.ticketId === selectedAppraisal.id && canApprove && (
                 <div className="pt-4 border-t border-[rgba(201,160,92,0.08)]">
                   <p className="text-[10px] text-[#C9A05C] font-black uppercase tracking-widest text-center">
-                    Contract generated â€” proceed with signing
+                    Contract generated -- proceed with signing
                   </p>
                 </div>
               )}

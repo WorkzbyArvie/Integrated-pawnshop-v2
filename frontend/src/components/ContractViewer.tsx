@@ -46,6 +46,8 @@ export function ContractViewer({
   const customerCanvasRef = useRef<HTMLCanvasElement>(null);
   const staffCanvasRef = useRef<HTMLCanvasElement>(null);
 
+  const [downloading, setDownloading] = useState(false);
+
   useEffect(() => {
     if (!open) return;
     const fetchContract = async () => {
@@ -163,6 +165,33 @@ export function ContractViewer({
     }
   };
 
+  const handleDownloadPdf = async () => {
+    if (!contract) return;
+    setDownloading(true);
+    try {
+      const headers: Record<string, string> = {};
+      const { supabase: supa } = await import('../lib/supabaseClient');
+      const { data: { session } } = await supa.auth.getSession();
+      if (session?.access_token) headers['Authorization'] = `Bearer ${session.access_token}`;
+      const pawnshopId = localStorage.getItem('active_pawnshop_id') ?? '';
+      if (pawnshopId) headers['pawnshop-id'] = pawnshopId;
+
+      const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/loan/contracts/${contract.id}/pdf`, { headers });
+      if (!res.ok) throw new Error('Failed to download PDF');
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${contract.contractNumber}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Download failed');
+    } finally {
+      setDownloading(false);
+    }
+  };
+
   if (!open) return null;
 
   return (
@@ -203,7 +232,7 @@ export function ContractViewer({
               <div className="bg-[#C9A05C]/10 rounded-2xl border border-[rgba(201,160,92,0.15)] p-5 space-y-2">
                 <p className="text-lg font-black text-indigo-900">{contract.contractNumber}</p>
                 <p className="text-xs font-bold text-[#C9A05C]">
-                  Version: {contract.templateVersion} â€” Generated {formatDateTime(contract.generatedAt)}
+                  Version: {contract.templateVersion} -- Generated {formatDateTime(contract.generatedAt)}
                 </p>
               </div>
 
@@ -335,15 +364,24 @@ export function ContractViewer({
               </div>
 
               <div className="flex flex-wrap gap-3">
-                <a
-                  href={contract.pdfUrl || '#'}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-[#C9A05C] text-white text-sm font-bold hover:bg-[#E5C88C] transition-colors"
-                >
-                  <FileDown className="w-4 h-4" />
-                  Download Contract PDF
-                </a>
+                {contract ? (
+                  <button
+                    onClick={handleDownloadPdf}
+                    disabled={downloading}
+                    className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-[#C9A05C] text-white text-sm font-bold hover:bg-[#E5C88C] transition-colors disabled:opacity-50"
+                  >
+                    <FileDown className="w-4 h-4" />
+                    {downloading ? 'Downloading...' : 'Download Contract PDF'}
+                  </button>
+                ) : (
+                  <button
+                    disabled
+                    className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-[#6B655C]/30 text-[#999186] text-sm font-bold cursor-not-allowed"
+                  >
+                    <FileDown className="w-4 h-4" />
+                    PDF Not Available
+                  </button>
+                )}
                 {contract.signedByCustomer && contract.signedByStaff && onDisburse && (
                   <button
                     onClick={onDisburse}
@@ -351,7 +389,7 @@ export function ContractViewer({
                     className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-[#3DA86C] text-white text-sm font-bold hover:bg-[#4DB87C] transition-colors disabled:opacity-50"
                   >
                     <FileDown className="w-4 h-4" />
-                    {disbursing ? 'Dispersing...' : 'Disburse Loan'}
+                    {disbursing ? 'Disbursing...' : 'Disburse Loan'}
                   </button>
                 )}
               </div>

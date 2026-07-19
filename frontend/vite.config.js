@@ -39,42 +39,42 @@ export default defineConfig({
     ],
     proxy: {
       '/analytics': {
-        target: 'http://localhost:3333',
+        target: 'http://localhost:3000',
         changeOrigin: true,
         secure: false
       },
       '/queue': {
-        target: 'http://localhost:3333',
+        target: 'http://localhost:3000',
         changeOrigin: true,
         secure: false
       },
       '/finance': {
-        target: 'http://localhost:3333',
+        target: 'http://localhost:3000',
         changeOrigin: true,
         secure: false
       },
       '/attendance': {
-        target: 'http://localhost:3333',
+        target: 'http://localhost:3000',
         changeOrigin: true,
         secure: false
       },
       '/payroll': {
-        target: 'http://localhost:3333',
+        target: 'http://localhost:3000',
         changeOrigin: true,
         secure: false
       },
       '/compliance': {
-        target: 'http://localhost:3333',
+        target: 'http://localhost:3000',
         changeOrigin: true,
         secure: false
       },
       '/notifications': {
-        target: 'http://localhost:3333',
+        target: 'http://localhost:3000',
         changeOrigin: true,
         secure: false
       },
       '/subscriptions': {
-        target: 'http://localhost:3333',
+        target: 'http://localhost:3000',
         changeOrigin: true,
         secure: false
       }

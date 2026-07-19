@@ -2,6 +2,8 @@ import { Controller, Post, Get, Param, Body, Req, Query, HttpCode, HttpStatus, L
 import type { Request } from 'express';
 import { PawnTicketService } from './pawn-ticket.service';
 import { CreatePawnTicketDto } from './dto/create-pawn-ticket.dto';
+import { AppraiseTicketDto } from './dto/appraise-ticket.dto';
+import { RedeemTicketDto } from './dto/redeem-ticket.dto';
 import { AuditLog } from '../common/decorators/audit-log.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 
@@ -110,5 +112,46 @@ export class PawnTicketController {
       user?.id ?? '',
       user?.role,
     );
+  }
+
+  @Roles('APPRAISER', 'STAFF', 'MANAGER', 'OWNER')
+  @AuditLog('APPRAISE_TICKET')
+  @Post('pawn-tickets/:id/appraise')
+  @HttpCode(HttpStatus.OK)
+  appraiseTicket(
+    @Param('id') id: string,
+    @Body() dto: AppraiseTicketDto,
+    @Req() req: Request,
+  ) {
+    const user = (req as any).user as { id: string; role: string } | undefined;
+    return this.pawnTicketService.appraiseTicket(
+      parseInt(id, 10),
+      dto,
+      user?.id ?? '',
+      user?.role,
+    );
+  }
+
+  @Roles('CASHIER_TELLER', 'MANAGER', 'OWNER')
+  @AuditLog('REDEEM_TICKET_IN_PERSON')
+  @Post('pawn-tickets/:id/redeem')
+  @HttpCode(HttpStatus.OK)
+  redeemTicket(
+    @Param('id') id: string,
+    @Body() dto: RedeemTicketDto,
+    @Req() req: Request,
+  ) {
+    const user = (req as any).user as { id: string; role: string } | undefined;
+    return this.pawnTicketService.redeemTicket(
+      parseInt(id, 10),
+      dto,
+      user?.id ?? '',
+      user?.role,
+    );
+  }
+
+  @Get('pawn-tickets/customers/:customerId/tier')
+  getCustomerTier(@Param('customerId') customerId: string) {
+    return this.pawnTicketService.getCustomerTierInfo(customerId);
   }
 }

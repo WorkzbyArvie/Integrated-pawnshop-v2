@@ -61,6 +61,12 @@
 - [x] Forfeiture -> Auction queue handoff
 - [x] Renewal flow endpoint
 
+### Phase 2.5: PROCESS FLOW COMPLETION (In Progress)
+- [ ] Appraisal endpoint (`POST /pawn-tickets/:id/appraise`) — RECEIVED → APPRAISED with valuation
+- [ ] Grace period auto-entry cron — OVERDUE → GRACE_PERIOD after 5 days
+- [ ] In-person redemption endpoint (`POST /pawn-tickets/:id/redeem`) — staff walk-in payment
+- [ ] NotificationModule wiring — alerts for overdue, grace period, forfeiture, redemption
+
 ### Phase 3: SECURITY HARDENING ✅
 - [x] @Roles() decorator + RbacGuard (RBAC enforcement at every endpoint)
 - [x] SUPER_ADMIN-only endpoint protection (built into RbacGuard)
@@ -102,6 +108,7 @@
 | Architecture proposal | Done |
 | Phase 1 development | Done |
 | Phase 2 development | Done |
+| Phase 2.5 (Process Flow Completion) | In Progress |
 | Phase 3 development | Done |
 | Phase 4 development | Done |
 | Phase 5 (Legality Enforcement) | Done |
@@ -119,6 +126,7 @@
 5. **Pawn ticket flow** now goes through NestJS backend with contract enforcement (2026-07-07)
 6. **Contract renderer** supports both UUID lookup and type-based fallback (2026-07-07)
 7. **Redemption** now creates LegalProof + Receipt + proper lifecycleStatus transition (2026-07-07)
+8. **Phase 2.5 added** to fill process gaps: appraisal endpoint, grace period cron, in-person redemption, notifications (2026-07-17)
 
 ---
 

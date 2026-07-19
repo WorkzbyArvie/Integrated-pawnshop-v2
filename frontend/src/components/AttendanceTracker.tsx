@@ -1,5 +1,5 @@
 ﻿/**
- * AttendanceTracker â€“ Staff attendance with clock-in/out and leave management.
+ * AttendanceTracker -- Staff attendance with clock-in/out and leave management.
  *
  * Features:
  *   - Auto-loaded staff roster with today's status
@@ -458,10 +458,10 @@ export function AttendanceTracker({ branchId: _branchId, activeBranchId, userRol
                     ) : (
                       <>
                         <TableCell className="font-mono text-sm">
-                          {s.schedule?.shiftStart || <span className="text-[#6B655C]">â€”</span>}
+                          {s.schedule?.shiftStart || <span className="text-[#6B655C]">--</span>}
                         </TableCell>
                         <TableCell className="font-mono text-sm">
-                          {s.schedule?.shiftEnd || <span className="text-[#6B655C]">â€”</span>}
+                          {s.schedule?.shiftEnd || <span className="text-[#6B655C]">--</span>}
                         </TableCell>
                         <TableCell>
                           <div className="flex gap-0.5">
@@ -482,8 +482,8 @@ export function AttendanceTracker({ branchId: _branchId, activeBranchId, userRol
                       </>
                     )}
                     <TableCell>{todayStatusBadge(s.todayStatus, s.isLate)}</TableCell>
-                    <TableCell className="font-mono text-sm">{s.clockIn ? formatTime(s.clockIn) : 'â€”'}</TableCell>
-                    <TableCell className="font-mono text-sm">{s.clockOut ? formatTime(s.clockOut) : 'â€”'}</TableCell>
+                    <TableCell className="font-mono text-sm">{s.clockIn ? formatTime(s.clockIn) : '--'}</TableCell>
+                    <TableCell className="font-mono text-sm">{s.clockOut ? formatTime(s.clockOut) : '--'}</TableCell>
                     <TableCell>
                       {editingScheduleId === s.id ? (
                         <div className="flex gap-1">
@@ -592,26 +592,26 @@ export function AttendanceTracker({ branchId: _branchId, activeBranchId, userRol
                     <TableCell>{formatDate(record.date)}</TableCell>
                     <TableCell className="font-medium">{member?.fullName || record.staffId?.slice(0, 8) + '...'}</TableCell>
                     <TableCell>
-                      <Badge variant="outline" className="text-xs">{member?.role || 'â€”'}</Badge>
+                      <Badge variant="outline" className="text-xs">{member?.role || '--'}</Badge>
                     </TableCell>
                     <TableCell>
                       <Badge className={statusColor(record.status)}>{humanizeStatus(record.status)}</Badge>
                     </TableCell>
                     <TableCell>{formatTime(record.clockIn)}</TableCell>
                     <TableCell>{formatTime(record.clockOut)}</TableCell>
-                    <TableCell>{record.workHours ? `${record.workHours.toFixed(1)}h` : 'â€”'}</TableCell>
+                    <TableCell>{record.workHours ? `${record.workHours.toFixed(1)}h` : '--'}</TableCell>
                     <TableCell className={record.overtime && record.overtime > 0 ? 'text-emerald-600 font-medium' : ''}>
-                      {record.overtime ? `${record.overtime.toFixed(1)}h` : 'â€”'}
+                      {record.overtime ? `${record.overtime.toFixed(1)}h` : '--'}
                     </TableCell>
                     <TableCell className={record.lateMinutes && record.lateMinutes > 0 ? 'text-rose-600 font-medium' : ''}>
-                      {record.lateMinutes ?? 'â€”'}
+                      {record.lateMinutes ?? '--'}
                     </TableCell>
                     <TableCell>
                       {record.verifiedBy ? (
                         <Badge variant="outline" className="text-emerald-600">
                           <ClipboardCheck className="w-3 h-3 mr-1" /> Verified
                         </Badge>
-                      ) : 'â€”'}
+                      ) : '--'}
                     </TableCell>
                     <TableCell>
                       <div className="flex gap-1">
@@ -636,11 +636,11 @@ export function AttendanceTracker({ branchId: _branchId, activeBranchId, userRol
         </Card>
       )}
 
-      {/* Schedule Settings Dialog â€” bulk apply to all staff */}
+      {/* Schedule Settings Dialog -- bulk apply to all staff */}
       <Dialog open={showScheduleDialog} onOpenChange={setShowScheduleDialog}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Schedule Settings â€” Apply to All Staff</DialogTitle>
+            <DialogTitle>Schedule Settings -- Apply to All Staff</DialogTitle>
           </DialogHeader>
           <div className="space-y-5 py-4">
             <div className="grid grid-cols-2 gap-4">

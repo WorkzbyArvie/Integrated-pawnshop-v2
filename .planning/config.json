@@ -1,0 +1,14 @@
+{
+  "project_name": "PawnGold",
+  "project_type": "brownfield",
+  "is_brownfield": true,
+  "has_codebase_map": true,
+  "has_git": true,
+  "repo_url": "https://github.com/WorkzbyArvie/Integrated-pawnshop-v2.git",
+  "planning_dir": ".planning",
+  "codebase_map_dir": ".planning/codebase",
+  "created_at": "2026-07-17",
+  "thesis_deadline": "less_than_2_weeks",
+  "priority_order": ["fix_bugs", "legality", "system_flow", "security"],
+  "legality_format": "standard_philippine_pawnshop"
+}

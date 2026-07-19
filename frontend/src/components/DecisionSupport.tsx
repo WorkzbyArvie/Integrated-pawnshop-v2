@@ -246,20 +246,26 @@ export function DecisionSupport({ branchId, activeBranchId }: DecisionSupportPro
               <LineChart className="text-[#C9A05C] w-5 h-5" /> Asset Concentration
             </h3>
           </div>
-          <div className="h-[300px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={chartData}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                <XAxis dataKey="name" axisLine={false} tickLine={false} fontSize={10} fontWeight="900" tick={{fill: '#94a3b8'}} />
-                <YAxis axisLine={false} tickLine={false} fontSize={10} fontWeight="900" tick={{fill: '#94a3b8'}} />
-                <Tooltip cursor={{fill: '#f8fafc'}} contentStyle={{ borderRadius: '24px', border: 'none', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1)' }} />
-                <Bar dataKey="estimatedValue" radius={[12, 12, 12, 12]} barSize={50}>
-                  {chartData.map((_, i) => (
-                    <Cell key={i} fill={i % 2 === 0 ? '#4f46e5' : '#818cf8'} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+          <div className="h-[300px]" style={{ minWidth: 0, minHeight: 0 }}>
+            {chartData.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%" minHeight={0} minWidth={0}>
+                <BarChart data={chartData}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                  <XAxis dataKey="name" axisLine={false} tickLine={false} fontSize={10} fontWeight="900" tick={{fill: '#94a3b8'}} />
+                  <YAxis axisLine={false} tickLine={false} fontSize={10} fontWeight="900" tick={{fill: '#94a3b8'}} />
+                  <Tooltip cursor={{fill: '#f8fafc'}} contentStyle={{ borderRadius: '24px', border: 'none', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1)' }} />
+                  <Bar dataKey="estimatedValue" radius={[12, 12, 12, 12]} barSize={50}>
+                    {chartData.map((_, i) => (
+                      <Cell key={i} fill={i % 2 === 0 ? '#4f46e5' : '#818cf8'} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="flex items-center justify-center h-full text-[#6B655C] text-xs font-bold uppercase">
+                No data available
+              </div>
+            )}
           </div>
         </div>
 

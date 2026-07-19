@@ -8,8 +8,17 @@ import { formatCurrency, formatDateTime } from '../lib/formatters';
 import { LoanHistoryTimeline } from './LoanHistoryTimeline';
 import { LoanStatusProgress } from './LoanStatusProgress';
 
+const tierColors: Record<string, string> = {
+  Standard: 'bg-gray-600',
+  Bronze: 'bg-amber-700',
+  Silver: 'bg-gray-400',
+  Gold: 'bg-yellow-500',
+  VIP: 'bg-purple-600',
+};
+
 type CustomerDashboard = {
   customerId: string;
+  tier: string;
   summary: {
     totalLoans: number;
     activeLoanCount: number;
@@ -100,6 +109,9 @@ export function CustomerHistory({ customerId }: CustomerHistoryProps) {
         <p className="mt-2 text-[11px] font-black uppercase tracking-widest text-[#6B655C] flex items-center gap-2">
           <Users className="w-4 h-4 text-[#C9A05C]" />
           {customerId}
+          <span className={`px-2 py-0.5 rounded-full text-[9px] font-black text-white ${tierColors[data.tier] || 'bg-gray-600'}`}>
+            {data.tier || 'Standard'}
+          </span>
         </p>
       </div>
 

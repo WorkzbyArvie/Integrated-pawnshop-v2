@@ -105,7 +105,7 @@ export function ReceiptViewer({ receiptId, referenceType, referenceId, open, onC
                 <div>
                   <p className="text-2xl font-black text-[#EAE2D6]">{receipt.receiptNumber}</p>
                   <p className="text-sm font-bold text-[#6B655C] mt-1">
-                    {humanizeStatus(receipt.receiptType)} â€” {receipt.customerName}
+                    {humanizeStatus(receipt.receiptType)} -- {receipt.customerName}
                   </p>
                 </div>
                 {receipt.isVoid && (
@@ -192,7 +192,7 @@ export function ReceiptViewer({ receiptId, referenceType, referenceId, open, onC
                   <div>
                     <p className="text-sm font-black text-[#EAE2D6]">{r.receiptNumber}</p>
                     <p className="text-xs font-bold text-[#6B655C] mt-0.5">
-                      {humanizeStatus(r.receiptType)} â€” {formatCurrency(r.totalAmount)}
+                      {humanizeStatus(r.receiptType)} -- {formatCurrency(r.totalAmount)}
                     </p>
                     <p className="text-[10px] font-semibold text-[#6B655C]">{formatDateTime(r.generatedAt)}</p>
                   </div>

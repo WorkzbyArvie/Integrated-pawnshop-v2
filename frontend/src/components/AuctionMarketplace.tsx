@@ -1030,7 +1030,7 @@ export function AuctionMarketplace({ branchId, activeBranchId }: AuctionMarketpl
                         <p className="text-xs text-[#999186] mt-1">{proof.summary}</p>
                         <div className="flex items-center justify-between mt-2 text-[10px] text-[#6B655C]">
                           <span>{proof.createdAt ? new Date(proof.createdAt).toLocaleString('en-PH') : 'Unknown time'}</span>
-                          <span>{proof.sourceHash ? `${proof.sourceHash.slice(0, 12)}â€¦` : 'No hash'}</span>
+                          <span>{proof.sourceHash ? `${proof.sourceHash.slice(0, 12)}...` : 'No hash'}</span>
                         </div>
                       </div>
                     ))}

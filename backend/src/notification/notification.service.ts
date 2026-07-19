@@ -221,15 +221,17 @@ export class NotificationService {
    */
   async getUserNotifications(
     userId: string,
-    limit = 50,
-    offset = 0,
+    limit?: number,
+    offset?: number,
   ): Promise<any> {
+    const safeLimit = Math.max(1, Number(limit) || 50);
+    const safeOffset = Math.max(0, Number(offset) || 0);
     const [notifications, total] = await Promise.all([
       this.prisma.notification.findMany({
         where: { recipientId: userId },
         orderBy: { createdAt: 'desc' },
-        skip: offset,
-        take: limit,
+        skip: safeOffset,
+        take: safeLimit,
       }),
       this.prisma.notification.count({
         where: { recipientId: userId },
@@ -238,7 +240,7 @@ export class NotificationService {
 
     return {
       data: notifications,
-      meta: { total, limit, offset },
+      meta: { total, limit: safeLimit, offset: safeOffset },
     };
   }
 

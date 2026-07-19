@@ -165,7 +165,7 @@ export function BranchAnalytics({ branchId, branchName, onBack }: BranchAnalytic
         ticketNumber: t.ticket_number || `TKT-${t.id}`,
         category: t.category || 'General',
         status: (t.status || 'ACTIVE').toUpperCase(),
-        pawnDate: t.pawn_date ? new Date(t.pawn_date).toLocaleDateString() : 'â€”',
+        pawnDate: t.pawn_date ? new Date(t.pawn_date).toLocaleDateString() : '--',
       }))
     );
   };

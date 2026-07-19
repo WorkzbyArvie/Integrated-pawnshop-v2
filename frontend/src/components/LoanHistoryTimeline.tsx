@@ -72,17 +72,17 @@ function getEventSummary(event: TimelineEvent): string {
     case 'CONTRACT_SIGNED':
       return `Contract ${event.number || ''} signed`;
     case 'PROOF_RECORD':
-      return `${humanizeStatus(event.recordType as string)} â€” ${event.proofNumber || ''}`;
+      return `${humanizeStatus(event.recordType as string)} -- ${event.proofNumber || ''}`;
     case 'DISBURSEMENT':
       return `Disbursed ${formatCurrency(event.amount as number)} via ${humanizeStatus(event.method as string) || 'Unknown'}`;
     case 'PENALTY':
-      return `${formatCurrency(event.amount as number)} penalty applied (${humanizeStatus(event.type as string || '')})${event.waived ? ' â€” Waived' : ''}`;
+      return `${formatCurrency(event.amount as number)} penalty applied (${humanizeStatus(event.type as string || '')})${event.waived ? ' -- Waived' : ''}`;
     case 'RECEIPT':
       return `Receipt ${event.receiptNumber || ''} (${humanizeStatus(event.type as string)})`;
     case 'LIFECYCLE_STATUS':
       return `Status: ${humanizeStatus(event.status as string)}`;
     case 'LOAN_CREATED':
-      return `Loan created â€” ${formatCurrency(event.amount as number)}`;
+      return `Loan created -- ${formatCurrency(event.amount as number)}`;
     default:
       return JSON.stringify(event.data || {});
   }

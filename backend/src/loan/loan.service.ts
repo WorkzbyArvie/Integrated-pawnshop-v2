@@ -7,10 +7,11 @@ import { PrismaService } from '../prisma.service';
 import { FinanceService } from '../finance/finance.service';
 import { CreatePaymentDto } from './dto/payment.dto';
 import { RenewLoanDto } from './dto/renew-loan.dto';
-import { LedgerEntryType, LedgerCategory } from '@prisma/client';
+import { LedgerEntryType, LedgerCategory, NotificationChannel, NotificationType } from '@prisma/client';
 import { LegalProofService } from './legal-proof.service';
 import { ReceiptService } from '../receipt/receipt.service';
 import { StateMachineService } from '../common/state-machine/state-machine.service';
+import { NotificationService } from '../notification/notification.service';
 
 @Injectable()
 export class LoanService {
@@ -20,6 +21,7 @@ export class LoanService {
     private legalProofService: LegalProofService,
     private receiptService: ReceiptService,
     private stateMachine: StateMachineService,
+    private notificationService: NotificationService,
   ) {}
 
   async recordPayment(dto: CreatePaymentDto) {
@@ -161,6 +163,31 @@ export class LoanService {
         'Failed to create finance ledger entry for loan payment:',
         err,
       );
+    }
+
+    if (dto.customerId) {
+      try {
+        const loanForNotif = dto.loanId
+          ? await this.prisma.loan.findUnique({
+              where: { id: dto.loanId },
+              select: { ticket: { select: { ticketNumber: true } } },
+            })
+          : null;
+        await this.notificationService.sendNotification({
+          recipientId: dto.customerId,
+          channel: NotificationChannel.IN_APP,
+          type: NotificationType.PAYMENT_DUE,
+          title: 'Payment Recorded',
+          body: `Your payment of ₱${dto.amount.toFixed(2)} has been recorded${loanForNotif?.ticket ? ` for ticket #${loanForNotif.ticket.ticketNumber}` : ''}.`,
+          data: {
+            paymentId: payment.id,
+            loanId: dto.loanId,
+            amount: dto.amount,
+          },
+        });
+      } catch (notifErr) {
+        console.error('Failed to send payment notification:', notifErr);
+      }
     }
 
     return payment;
@@ -561,8 +588,14 @@ export class LoanService {
       },
     });
 
+    const customer = await this.prisma.customer.findUnique({
+      where: { id: customerId },
+      select: { loyaltyTier: true },
+    });
+
     return {
       customerId,
+      tier: customer?.loyaltyTier || 'Standard',
       summary: {
         totalLoans: loans.length,
         activeLoanCount: activeLoans.length,
@@ -672,6 +705,26 @@ export class LoanService {
       });
     } catch (receiptErr) {
       console.error('Failed to generate disbursement receipt:', receiptErr);
+    }
+
+    if (loan.ticket?.customerId) {
+      try {
+        await this.notificationService.sendNotification({
+          recipientId: loan.ticket.customerId,
+          channel: NotificationChannel.IN_APP,
+          type: NotificationType.PAYMENT_DUE,
+          title: 'Loan Disbursed',
+          body: `Your loan of ₱${loan.principalAmount.toFixed(2)} for ticket #${loan.ticket.ticketNumber} has been disbursed and is now active.`,
+          data: {
+            loanId: loan.id,
+            ticketId: loan.ticket.id,
+            ticketNumber: loan.ticket.ticketNumber,
+            principalAmount: loan.principalAmount,
+          },
+        });
+      } catch (notifErr) {
+        console.error('Failed to send disbursement notification:', notifErr);
+      }
     }
 
     return {

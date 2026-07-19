@@ -1,5 +1,5 @@
 ﻿/**
- * PayrollManagement â€“ Philippine-compliant payroll with tax & deductions.
+ * PayrollManagement -- Philippine-compliant payroll with tax & deductions.
  *
  * Features:
  *   - Payslip generation (individual + bulk)
@@ -55,6 +55,7 @@ import { formatCurrency, formatDate, statusColor, humanizeStatus } from '@/lib/f
 import type { Payslip, PayslipStatus, PayrollSummary } from '@/lib/types';
 import { supabase } from '@/lib/supabaseClient';
 import { useToast } from '../App';
+import Swal from 'sweetalert2';
 
 interface StaffMember {
   id: string;
@@ -329,6 +330,17 @@ export function PayrollManagement({ branchId: _branchId, activeBranchId }: Payro
   };
 
   const handleApprove = async (payslipId: string) => {
+    const confirm = await Swal.fire({
+      title: 'Confirm Action',
+      text: 'Approve this payslip for payment?',
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonColor: '#C9A05C',
+      cancelButtonColor: '#6B655C',
+      confirmButtonText: 'Yes, proceed',
+      cancelButtonText: 'Cancel',
+    });
+    if (!confirm.isConfirmed) return;
     try {
       const {
         data: { session },
@@ -345,6 +357,17 @@ export function PayrollManagement({ branchId: _branchId, activeBranchId }: Payro
   };
 
   const handleReject = async (payslipId: string) => {
+    const confirm = await Swal.fire({
+      title: 'Are you sure?',
+      text: 'Reject this payslip?',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#ef4444',
+      cancelButtonColor: '#6B655C',
+      confirmButtonText: 'Yes, proceed',
+      cancelButtonText: 'Cancel',
+    });
+    if (!confirm.isConfirmed) return;
     try {
       const {
         data: { session },
@@ -579,7 +602,7 @@ export function PayrollManagement({ branchId: _branchId, activeBranchId }: Payro
                     <TableRow key={ps.id} className="cursor-pointer hover:bg-[#1C1C26]" onClick={() => viewPayslipDetail(ps)}>
                       <TableCell className="text-xs font-medium">{staffMap[ps.staffId] || ps.staffId?.slice(0, 8) + '...'}</TableCell>
                       <TableCell className="text-xs">
-                        {formatDate(ps.periodStart)} â€“ {formatDate(ps.periodEnd)}
+                        {formatDate(ps.periodStart)} -- {formatDate(ps.periodEnd)}
                       </TableCell>
                       <TableCell>{ps.daysWorked}</TableCell>
                       <TableCell className="text-right font-mono">{formatCurrency(ps.grossPay)}</TableCell>
@@ -642,7 +665,7 @@ export function PayrollManagement({ branchId: _branchId, activeBranchId }: Payro
                   {humanizeStatus(selectedPayslip.status)}
                 </Badge>
                 <span className="text-sm text-[#6B655C]">
-                  {formatDate(selectedPayslip.periodStart)} â€“ {formatDate(selectedPayslip.periodEnd)}
+                  {formatDate(selectedPayslip.periodStart)} -- {formatDate(selectedPayslip.periodEnd)}
                 </span>
               </div>
 

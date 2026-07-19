@@ -40,7 +40,7 @@ model Category {
 }
 
 model Customer {
-  id                String              @id
+  id                String              @id @default(uuid()) @db.Uuid
   fullName          String              @map("full_name")
   contactNumber     String              @map("contact_number")
   address           String
@@ -90,7 +90,7 @@ model AuctionListing {
   createdAt       DateTime                  @map("created_at") @default(now())
   updatedAt       DateTime                  @map("updated_at") @default(now())
   ownerType       ListingOwnerType?         @map("owner_type")
-  ownerId         String?                   @map("owner_id")
+  ownerId         String?                   @map("owner_id") @db.Uuid
 
   ticket          Ticket                    @relation(fields: [ticketId], references: [id])
   pawnshop        Pawnshop                  @relation(fields: [pawnshopId], references: [id])
@@ -109,7 +109,7 @@ model AuctionListing {
 model AuctionBid {
   id          Int      @id @default(autoincrement())
   listingId   Int      @map("listing_id")
-  bidderId    String   @map("bidder_id")
+  bidderId    String   @map("bidder_id") @db.Uuid
   amount      Float
   createdAt   DateTime @map("created_at") @default(now())
 
@@ -147,7 +147,7 @@ model Loan {
   status             TicketLifecycleStatus @default(RECEIVED)
   pawnshopId         String?              @map("pawnshop_id") @db.Uuid
   createdAt          DateTime             @map("createdat") @default(now())
-  applicationId      String?              @unique @map("application_id")
+  applicationId      String?              @unique @map("application_id") @db.Uuid
   ticket             Ticket?              @relation(fields: [ticketId], references: [id])
   pawnshop           Pawnshop?            @relation(fields: [pawnshopId], references: [id])
   application        LoanApplication?     @relation("ApplicationToLoan", fields: [applicationId], references: [id])
@@ -222,7 +222,7 @@ model Branding {
 }
 
 model Staff {
-  id            String   @id
+  id            String   @id @default(uuid()) @db.Uuid
   fullName      String   @map("full_name")
   password      String
   role          String   @default("STAFF")
@@ -248,7 +248,7 @@ model SystemSettings {
 model Ticket {
   id           Int      @id @default(autoincrement())
   ticketNumber String   @map("ticket_number") @unique
-  customerId   String   @map("customer_id")
+  customerId   String   @map("customer_id") @db.Uuid
   branchId     Int?     @map("branch_id")
   category     String
   description  String
@@ -281,7 +281,7 @@ model Ticket {
 }
 
 model Transaction {
-  id        String   @id
+  id        String   @id @default(uuid()) @db.Uuid
   ticketId  Int?     @map("ticketid")
   type      String
   amount    Float
@@ -312,7 +312,7 @@ model Profile {
   updatedAt       DateTime                 @map("updated_at") @default(now())
   email           String?
   fullName        String?                  @map("full_name")
-  branchId        String?                  @map("branch_id")
+  branchId        String?                  @map("branch_id") @db.Uuid
   isOnline        Boolean                  @map("is_online") @default(false)
   lastSeenAt      DateTime?                @map("last_seen_at")
   avatarUrl       String?                  @map("avatar_url")
@@ -330,7 +330,7 @@ model Profile {
 }
 
 model CustomerPaymentMethod {
-  id           String   @id @default(uuid())
+  id           String   @id @default(uuid()) @db.Uuid
   profileId    String   @map("profile_id") @db.Uuid
   type         String   // CARD, GCASH, PAYMAYA, BANK_ACCOUNT
   label        String?
@@ -348,7 +348,7 @@ model CustomerPaymentMethod {
 }
 
 model SecurityLog {
-  id          String   @id @default(uuid())
+  id          String   @id @default(uuid()) @db.Uuid
   profileId   String   @map("profile_id") @db.Uuid
   action      String
   ipAddress   String?  @map("ip_address")
@@ -363,7 +363,7 @@ model SecurityLog {
 
 model ActivityLog {
   id        Int      @id @default(autoincrement())
-  staffId   String   @map("staffid")
+  staffId   String   @map("staffid") @db.Uuid
   action    String
   details   String
   timestamp DateTime @default(now())
@@ -546,8 +546,8 @@ enum ListingOwnerType {
 // ============================================================================
 
 model LoanApplication {
-  id                String              @id @default(uuid())
-  customerId        String              @map("customer_id")
+  id                String              @id @default(uuid()) @db.Uuid
+  customerId        String              @map("customer_id") @db.Uuid
   pawnshopId        String              @map("pawnshop_id") @db.Uuid
   loanAmount        Float               @map("loan_amount")
   loanType          String              @map("loan_type")
@@ -578,8 +578,8 @@ model LoanApplication {
 }
 
 model LoanDocument {
-  id                String        @id @default(uuid())
-  applicationId     String        @map("application_id")
+  id                String        @id @default(uuid()) @db.Uuid
+  applicationId     String        @map("application_id") @db.Uuid
   documentType      DocumentType  @map("document_type")
   fileName          String        @map("file_name")
   fileUrl           String        @map("file_url")
@@ -599,8 +599,8 @@ model LoanDocument {
 }
 
 model LoanApproval {
-  id                      String            @id @default(uuid())
-  applicationId           String            @map("application_id")
+  id                      String            @id @default(uuid()) @db.Uuid
+  applicationId           String            @map("application_id") @db.Uuid
   approverRole            ApproverRole      @map("approver_role")
   approverId              String            @map("approver_id") @db.Uuid
   decision                ApprovalDecision
@@ -617,9 +617,9 @@ model LoanApproval {
 }
 
 model EligibilityCheck {
-  id                String          @id @default(uuid())
-  applicationId     String          @unique @map("application_id")
-  customerId        String          @map("customer_id")
+  id                String          @id @default(uuid()) @db.Uuid
+  applicationId     String          @unique @map("application_id") @db.Uuid
+  customerId        String          @map("customer_id") @db.Uuid
   creditScore       Int?            @map("credit_score")
   hasPreviousLoans  Boolean         @map("has_previous_loans")
   previousLoanCount Int             @default(0) @map("previous_loan_count")
@@ -641,15 +641,15 @@ model EligibilityCheck {
 }
 
 model LoanDisbursement {
-  id                  String          @id @default(uuid())
+  id                  String          @id @default(uuid()) @db.Uuid
   loanId              Int             @map("loan_id")
-  applicationId       String          @map("application_id")
+  applicationId       String          @map("application_id") @db.Uuid
   amount              Float
   disbursementMethod  String          @map("disbursement_method")
   referenceNumber     String?         @map("reference_number")
   disbursedBy         String          @map("disbursed_by") @db.Uuid
   disbursedAt         DateTime        @default(now()) @map("disbursed_at")
-  receivedBy          String          @map("received_by")
+  receivedBy          String          @map("received_by") @db.Uuid
   receiptUrl          String?         @map("receipt_url")
   notes               String?
   
@@ -677,7 +677,7 @@ enum ProofRecordType {
 }
 
 model LegalProof {
-  id              String          @id @default(uuid())
+  id              String          @id @default(uuid()) @db.Uuid
   proofNumber     String          @unique @map("proof_number")
   pawnshopId      String          @map("pawnshop_id") @db.Uuid
   recordType      ProofRecordType  @map("record_type")
@@ -686,7 +686,7 @@ model LegalProof {
   payload         Json            @db.Json
   sourceHash      String          @map("source_hash")
   createdBy       String          @map("created_by") @db.Uuid
-  applicationId   String?         @map("application_id")
+  applicationId   String?         @map("application_id") @db.Uuid
   loanId          Int?            @map("loan_id")
   paymentId       String?         @map("payment_id") @db.Uuid
   ledgerEntryId   String?         @map("ledger_entry_id") @db.Uuid
@@ -746,8 +746,8 @@ model RepaymentSchedule {
 }
 
 model Payment {
-  id                String                    @id @default(uuid())
-  customerId        String                    @map("customer_id")
+  id                String                    @id @default(uuid()) @db.Uuid
+  customerId        String                    @map("customer_id") @db.Uuid
   loanId            Int?                      @map("loan_id")
   scheduleId        Int?                      @map("schedule_id")
   auctionListingId  Int?                      @map("auction_listing_id")
@@ -773,7 +773,7 @@ model Payment {
 }
 
 model Penalty {
-  id            String       @id @default(uuid())
+  id            String       @id @default(uuid()) @db.Uuid
   loanId        Int          @map("loan_id")
   scheduleId    Int?         @map("schedule_id")
   penaltyType   PenaltyType  @map("penalty_type")
@@ -792,9 +792,9 @@ model Penalty {
 }
 
 model LoanContract {
-  id                String          @id @default(uuid())
+  id                String          @id @default(uuid()) @db.Uuid
   loanId            Int             @unique @map("loan_id")
-  applicationId     String          @unique @map("application_id")
+  applicationId     String          @unique @map("application_id") @db.Uuid
   contractNumber    String          @unique @map("contract_number")
   templateVersion   String          @map("template_version")
   contractData      Json            @map("contract_data")
@@ -820,7 +820,7 @@ model LoanContract {
 model AuctionRating {
   id            Int          @id @default(autoincrement())
   listingId     Int          @map("listing_id")
-  customerId    String       @map("customer_id")
+  customerId    String       @map("customer_id") @db.Uuid
   rating        Int
   comment       String?
   ratingType    RatingType   @map("rating_type")
@@ -860,7 +860,7 @@ enum KycIdType {
 }
 
 model BidderKyc {
-  id              String     @id @default(uuid())
+  id              String     @id @default(uuid()) @db.Uuid
   profileId       String     @unique @map("profile_id") @db.Uuid
   status          KycStatus  @default(NOT_SUBMITTED)
 
@@ -914,11 +914,11 @@ enum QueueType {
 }
 
 model QueueTicket {
-  id              String       @id @default(uuid())
+  id              String       @id @default(uuid()) @db.Uuid
   queueNumber     String       @map("queue_number")  // e.g., "P001", "R005"
   pawnshopId      String       @map("pawnshop_id") @db.Uuid
   branchId        Int?         @map("branch_id")
-  customerId      String       @map("customer_id")
+  customerId      String       @map("customer_id") @db.Uuid
   queueType       QueueType    @map("queue_type")
   status          QueueStatus  @default(WAITING)
   priority        Int          @default(0)         // 0=normal, 1=priority, 2=urgent
@@ -931,7 +931,7 @@ model QueueTicket {
   completedAt     DateTime?    @map("completed_at")
   
   // Staff assignment
-  assignedStaffId String?      @map("assigned_staff_id")
+  assignedStaffId String?      @map("assigned_staff_id") @db.Uuid
   counterNumber   String?      @map("counter_number")
   
   // Metadata
@@ -961,9 +961,9 @@ enum MessageSenderRole {
 }
 
 model TicketMessage {
-  id         String            @id @default(uuid())
-  ticketId   String            @map("ticket_id")
-  senderId   String            @map("sender_id")
+  id         String            @id @default(uuid()) @db.Uuid
+  ticketId   String            @map("ticket_id") @db.Uuid
+  senderId   String            @map("sender_id") @db.Uuid
   senderRole MessageSenderRole @map("sender_role")
   message    String
   createdAt  DateTime          @default(now()) @map("created_at")
@@ -1011,7 +1011,7 @@ enum NotificationStatus {
 }
 
 model PushToken {
-  id              String      @id @default(uuid())
+  id              String      @id @default(uuid()) @db.Uuid
   userId          String      @map("user_id") @db.Uuid
   deviceToken     String      @map("device_token")
   platform        String      // "ios", "android", "web"
@@ -1028,7 +1028,7 @@ model PushToken {
 }
 
 model Notification {
-  id              String              @id @default(uuid())
+  id              String              @id @default(uuid()) @db.Uuid
   recipientId     String              @map("recipient_id") @db.Uuid
   channel         NotificationChannel
   type            NotificationType
@@ -1074,7 +1074,7 @@ enum ComplianceStatus {
 }
 
 model AuctionWinnerCompliance {
-  id                  String            @id @default(uuid())
+  id                  String            @id @default(uuid()) @db.Uuid
   listingId           Int               @unique @map("listing_id")
   winnerId            String            @map("winner_id") @db.Uuid
   pawnshopId          String            @map("pawnshop_id") @db.Uuid
@@ -1153,7 +1153,7 @@ enum LedgerCategory {
 }
 
 model CashLedgerEntry {
-  id                String          @id @default(uuid())
+  id                String          @id @default(uuid()) @db.Uuid
   pawnshopId        String          @map("pawnshop_id") @db.Uuid
   branchId          Int?            @map("branch_id")
   entryNumber       String          @map("entry_number")  // Sequential: "LEDGER-2026-00001"
@@ -1200,7 +1200,7 @@ model CashLedgerEntry {
 }
 
 model DailyReconciliation {
-  id                String      @id @default(uuid())
+  id                String      @id @default(uuid()) @db.Uuid
   pawnshopId        String      @map("pawnshop_id") @db.Uuid
   branchId          Int?        @map("branch_id")
   reconciliationDate DateTime   @map("reconciliation_date") @db.Date
@@ -1236,11 +1236,11 @@ model DailyReconciliation {
 
 // ============================================================================
 // LEGALITY BACKBONE: Contract Templates, Clauses, Receipts, TOS, Legal Entity
-// Added July 5, 2026 — Phase 1 Thesis B Defense
+// Added July 5, 2026 â€” Phase 1 Thesis B Defense
 // ============================================================================
 
 model ContractTemplate {
-  id            String       @id @default(uuid())
+  id            String       @id @default(uuid()) @db.Uuid
   name          String
   type          ContractType
   version       String       @default("1.0")
@@ -1256,7 +1256,7 @@ model ContractTemplate {
 }
 
 model ContractClause {
-  id            String        @id @default(uuid())
+  id            String        @id @default(uuid()) @db.Uuid
   name          String
   type          ContractType?
   content       String
@@ -1270,7 +1270,7 @@ model ContractClause {
 }
 
 model Receipt {
-  id              String      @id @default(uuid())
+  id              String      @id @default(uuid()) @db.Uuid
   receiptNumber   String      @map("receipt_number")
   pawnshopId      String      @map("pawnshop_id") @db.Uuid
   receiptType     ReceiptType @map("receipt_type")
@@ -1300,7 +1300,7 @@ model Receipt {
 }
 
 model TOSAcceptance {
-  id              String       @id @default(uuid())
+  id              String       @id @default(uuid()) @db.Uuid
   profileId       String       @map("profile_id") @db.Uuid
   contractType    ContractType @map("contract_type")
   tosVersion      String       @map("tos_version")
@@ -1317,7 +1317,7 @@ model TOSAcceptance {
 }
 
 model LegalEntity {
-  id                    String   @id @default(uuid())
+  id                    String   @id @default(uuid()) @db.Uuid
   pawnshopId            String   @unique @map("pawnshop_id") @db.Uuid
   legalName             String   @map("legal_name")
   registrationNumber    String?  @map("registration_number")
@@ -1358,8 +1358,8 @@ enum LeaveType {
 }
 
 model AttendanceRecord {
-  id                String            @id @default(uuid())
-  staffId           String            @map("staff_id")
+  id                String            @id @default(uuid()) @db.Uuid
+  staffId           String            @map("staff_id") @db.Uuid
   pawnshopId        String            @map("pawnshop_id") @db.Uuid
   branchId          Int?              @map("branch_id")
   date              DateTime          @db.Date
@@ -1404,8 +1404,8 @@ model AttendanceRecord {
 
 /// Per-staff work schedule configuration
 model StaffSchedule {
-  id            String   @id @default(uuid())
-  staffId       String   @map("staff_id")
+  id            String   @id @default(uuid()) @db.Uuid
+  staffId       String   @map("staff_id") @db.Uuid
   pawnshopId    String   @map("pawnshop_id") @db.Uuid
 
   // Shift times (stored as "HH:mm" strings, e.g. "08:00", "17:00")
@@ -1438,8 +1438,8 @@ enum PayslipStatus {
 }
 
 model Payslip {
-  id                String         @id @default(uuid())
-  staffId           String         @map("staff_id")
+  id                String         @id @default(uuid()) @db.Uuid
+  staffId           String         @map("staff_id") @db.Uuid
   pawnshopId        String         @map("pawnshop_id") @db.Uuid
   branchId          Int?           @map("branch_id")
   
@@ -1526,7 +1526,7 @@ enum BillingInterval {
 }
 
 model Subscription {
-  id                String              @id @default(uuid())
+  id                String              @id @default(uuid()) @db.Uuid
   pawnshopId        String              @map("pawnshop_id") @db.Uuid
   tier              SubscriptionTier
   status            SubscriptionStatus  @default(TRIAL)
@@ -1576,8 +1576,8 @@ model Subscription {
 }
 
 model SubscriptionPayment {
-  id                String      @id @default(uuid())
-  subscriptionId    String      @map("subscription_id")
+  id                String      @id @default(uuid()) @db.Uuid
+  subscriptionId    String      @map("subscription_id") @db.Uuid
   amount            Float
   currency          String      @default("PHP")
   status            String      // "pending", "completed", "failed", "refunded"

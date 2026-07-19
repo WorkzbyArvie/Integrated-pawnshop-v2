@@ -1,5 +1,5 @@
 ﻿/**
- * QueueManagement â€“ Real-time customer queue dashboard.
+ * QueueManagement -- Real-time customer queue dashboard.
  *
  * Features:
  *   - Live queue board with status columns (Waiting â†’ Serving â†’ Completed)
@@ -57,6 +57,7 @@ import useApi from '@/lib/useApi';
 import { formatTime, formatDateTime, statusColor, humanizeStatus } from '@/lib/formatters';
 import type { QueueTicket, QueueStatistics, QueueType, QueueStatus } from '@/lib/types';
 import { useToast } from '../App';
+import Swal from 'sweetalert2';
 
 const QUEUE_TYPES: QueueType[] = ['PAWNING', 'RENEWAL', 'REDEMPTION', 'AUCTION_INQUIRY', 'GENERAL'];
 
@@ -218,6 +219,17 @@ export function QueueManagement({ branchId: _branchId }: QueueManagementProps) {
   };
 
   const handleCancel = async (ticketId: string) => {
+    const confirm = await Swal.fire({
+      title: 'Confirm Action',
+      text: 'Cancel this queue ticket?',
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonColor: '#C9A05C',
+      cancelButtonColor: '#6B655C',
+      confirmButtonText: 'Yes, proceed',
+      cancelButtonText: 'Cancel',
+    });
+    if (!confirm.isConfirmed) return;
     try {
       await api.post(`/queue/${ticketId}/cancel`);
       showToast('Ticket cancelled', 'success');
@@ -503,8 +515,8 @@ export function QueueManagement({ branchId: _branchId }: QueueManagementProps) {
                     <TableCell>
                       <Badge className={statusColor(ticket.status)}>{humanizeStatus(ticket.status)}</Badge>
                     </TableCell>
-                    <TableCell>{ticket.priority > 0 ? `P${ticket.priority}` : 'â€”'}</TableCell>
-                    <TableCell>{ticket.counterNumber || 'â€”'}</TableCell>
+                    <TableCell>{ticket.priority > 0 ? `P${ticket.priority}` : '--'}</TableCell>
+                    <TableCell>{ticket.counterNumber || '--'}</TableCell>
                     <TableCell className="text-xs">{formatDateTime(ticket.createdAt)}</TableCell>
                     <TableCell className="text-xs">{formatTime(ticket.servedAt)}</TableCell>
                     <TableCell className="text-xs">{formatTime(ticket.completedAt)}</TableCell>
@@ -595,7 +607,7 @@ export function QueueManagement({ branchId: _branchId }: QueueManagementProps) {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <MessageSquare className="w-5 h-5" />
-              Chat â€“ Ticket {chatTicket?.queueNumber}
+              Chat -- Ticket {chatTicket?.queueNumber}
               <Badge className={statusColor(chatTicket?.status || 'WAITING')}>{humanizeStatus(chatTicket?.status || 'WAITING')}</Badge>
             </DialogTitle>
           </DialogHeader>

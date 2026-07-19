@@ -66,7 +66,7 @@ export function RepaymentSchedule({ loanId, onBack }: RepaymentScheduleProps) {
   };
 
   const formatCurrency = (amount: number) => {
-    return `â‚±${amount.toLocaleString('en-PH', { minimumFractionDigits: 2 })}`;
+    return `₱${amount.toLocaleString('en-PH', { minimumFractionDigits: 2 })}`;
   };
 
   const formatDate = (dateString: string) => {
@@ -354,7 +354,7 @@ function PaymentModal({ schedule, onClose, onSuccess }: PaymentModalProps) {
   };
 
   const formatCurrency = (amount: number) => {
-    return `â‚±${amount.toLocaleString('en-PH', { minimumFractionDigits: 2 })}`;
+    return `₱${amount.toLocaleString('en-PH', { minimumFractionDigits: 2 })}`;
   };
 
   return (

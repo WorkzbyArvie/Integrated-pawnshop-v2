@@ -234,7 +234,7 @@ export function AuctionTab({ branchId }: AuctionTabProps) {
                     <div>
                       <p className="text-[10px] text-blue-500 uppercase font-black tracking-[0.1em] mb-1">Target Recovery</p>
                       <div className="flex items-center gap-1">
-                          <span className="text-[#C9A05C] font-bold text-lg">â‚±</span>
+                          <span className="text-[#C9A05C] font-bold text-lg">₱</span>
                           <input 
                               type="number" 
                               value={Math.round(item.auctionPrice)}

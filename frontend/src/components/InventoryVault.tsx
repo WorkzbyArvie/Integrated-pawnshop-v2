@@ -17,6 +17,7 @@ import {
 import { supabase } from '../lib/supabaseClient';
 import { useToast } from '../App';
 import { formatCurrency } from '../lib/formatters';
+import Swal from 'sweetalert2';
 
 interface InventoryItem {
   id: string;
@@ -35,6 +36,7 @@ interface InventoryItem {
   status: string;
   customerName: string;
   location: string;
+  contractId: string | null;
 }
 
 interface InventoryVaultProps {
@@ -234,6 +236,7 @@ export function InventoryVault({ branchId, activeBranchId }: InventoryVaultProps
           ishighrisk,
           storage_location,
           pawnshop_id,
+          contract_id,
           customer:customer_id (
             full_name
           )
@@ -257,6 +260,13 @@ export function InventoryVault({ branchId, activeBranchId }: InventoryVaultProps
         const photoUrls = extractPhotoUrlsFromDescription(ticket.description || '');
         const cleanedDescription = sanitizeDescription(ticket.description || ticket.category || 'Asset');
 
+        const expiryDate = ticket.expiry_date ? new Date(ticket.expiry_date) : null;
+        const forfeitureDate = ticket.forfeituredate
+          ? new Date(ticket.forfeituredate)
+          : expiryDate
+            ? new Date(expiryDate.getTime() + 3 * 24 * 60 * 60 * 1000)
+            : null;
+
         return {
           id: String(ticket.id),
           ticketNumber: ticket.ticket_number || 'N/A',
@@ -266,14 +276,15 @@ export function InventoryVault({ branchId, activeBranchId }: InventoryVaultProps
           category: ticket.category || 'Uncategorized',
           weight: Number(ticket.weight) || 0,
           pawnDate: ticket.pawn_date ? new Date(ticket.pawn_date).toISOString() : new Date().toISOString(),
-          expiryDate: ticket.expiry_date ? new Date(ticket.expiry_date).toISOString() : null,
-          forfeitureDate: ticket.forfeituredate ? new Date(ticket.forfeituredate).toISOString() : null,
+          expiryDate: expiryDate ? expiryDate.toISOString() : null,
+          forfeitureDate: forfeitureDate ? forfeitureDate.toISOString() : null,
           estimatedValue: Number(ticket.loan_amount) || 0,
           interestRate: Number(ticket.interest_rate) || 0,
           isHighRisk: Boolean(ticket.ishighrisk),
           status: (ticket.status || 'ACTIVE').toUpperCase(),
           customerName: customerFullName,
-          location: ticket.storage_location || 'Main Vault'
+          location: ticket.storage_location || 'Main Vault',
+          contractId: ticket.contract_id || null,
         } as InventoryItem;
       });
 
@@ -287,6 +298,17 @@ export function InventoryVault({ branchId, activeBranchId }: InventoryVaultProps
 
   const handleMarkForAuction = async (item: InventoryItem) => {
     if (item.status !== 'ACTIVE') return;
+    const confirm = await Swal.fire({
+      title: 'Confirm Action',
+      text: `Mark ticket ${item.ticketNumber} for auction? This will move the item out of the vault.`,
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonColor: '#C9A05C',
+      cancelButtonColor: '#6B655C',
+      confirmButtonText: 'Yes, proceed',
+      cancelButtonText: 'Cancel',
+    });
+    if (!confirm.isConfirmed) return;
 
     setUpdatingId(item.id);
     try {
@@ -316,6 +338,26 @@ export function InventoryVault({ branchId, activeBranchId }: InventoryVaultProps
       showToast(err instanceof Error ? err.message : String(err), 'error');
     } finally {
       setUpdatingId(null);
+    }
+  };
+
+  const handleShowContract = async (item: InventoryItem) => {
+    if (!item.contractId) return;
+    try {
+      const headers: Record<string, string> = {};
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.access_token) headers['Authorization'] = `Bearer ${session.access_token}`;
+      const pawnshopId = localStorage.getItem('active_pawnshop_id') ?? '';
+      if (pawnshopId) headers['pawnshop-id'] = pawnshopId;
+
+      const backendUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+      const res = await fetch(`${backendUrl}/loan/contracts/${item.contractId}/pdf`, { headers });
+      if (!res.ok) throw new Error('Failed to fetch contract PDF');
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      window.open(url, '_blank');
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Failed to open contract', 'error');
     }
   };
 
@@ -666,7 +708,7 @@ export function InventoryVault({ branchId, activeBranchId }: InventoryVaultProps
                 </div>
 
                 <div className="pt-4">
-                  <div className="grid grid-cols-3 gap-3">
+                  <div className={`grid gap-3 ${item.contractId ? 'grid-cols-4' : 'grid-cols-3'}`}>
                     <button
                       onClick={() => handleQuickPhotoChange(item)}
                       disabled={updatingId === item.id}
@@ -684,6 +726,14 @@ export function InventoryVault({ branchId, activeBranchId }: InventoryVaultProps
                       <Eye className="w-4 h-4" />
                       See Details
                     </button>
+                    {item.contractId ? (
+                      <button
+                        onClick={() => handleShowContract(item)}
+                        className="w-full text-[10px] font-black uppercase tracking-widest rounded-2xl px-4 py-3 border border-[rgba(201,160,92,0.12)] transition-all flex items-center justify-center gap-2 bg-[#14141B] text-[#C9A05C] hover:bg-[#1C1C26] hover:text-[#EAE2D6]"
+                      >
+                        Contract
+                      </button>
+                    ) : null}
                     <button
                       onClick={() => handleMarkForAuction(item)}
                       disabled={item.status !== 'ACTIVE' || updatingId === item.id}

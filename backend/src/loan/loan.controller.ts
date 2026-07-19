@@ -8,10 +8,11 @@ import {
   Param,
   Query,
   Req,
+  Res,
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
-import type { Request } from 'express';
+import type { Request, Response } from 'express';
 import { LoanApplicationService } from './loan-application.service';
 import { LoanContractService } from './loan-contract.service';
 import { EligibilityService } from './eligibility.service';
@@ -381,5 +382,18 @@ export class LoanController {
   @Get('contracts/:contractId/proofs')
   getContractProofs(@Param('contractId') contractId: string) {
     return this.loanContractService.getContractProofs(contractId);
+  }
+
+  @Get('contracts/:contractId/pdf')
+  async downloadContractPdf(
+    @Param('contractId') contractId: string,
+    @Res() res: Response,
+  ) {
+    const { buffer, contractNumber } = await this.loanContractService.downloadContractPdf(contractId);
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `attachment; filename="${contractNumber}.pdf"`,
+    });
+    res.end(buffer);
   }
 }

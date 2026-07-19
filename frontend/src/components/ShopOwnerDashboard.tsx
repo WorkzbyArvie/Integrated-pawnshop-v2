@@ -67,7 +67,7 @@ export function ShopOwnerDashboard({ setActiveTab, config }: ShopOwnerDashboardP
         <div className="bg-[#14141B] p-6 rounded-[32px] border border-[rgba(201,160,92,0.08)] shadow-sm text-left">
           <p className="text-xs font-bold text-[#6B655C] uppercase tracking-widest mb-4">Total Portfolio</p>
           <div className="flex items-end gap-2">
-            <h2 className="text-3xl font-bold text-[#EAE2D6]">â‚±4.2M</h2>
+            <h2 className="text-3xl font-bold text-[#EAE2D6]">₱4.2M</h2>
             <span className="text-emerald-500 text-xs font-bold mb-1.5 flex items-center">
               <TrendingUp size={12} /> +12%
             </span>
@@ -111,7 +111,7 @@ export function ShopOwnerDashboard({ setActiveTab, config }: ShopOwnerDashboardP
                   <div className="text-left">
                     <h4 className="font-bold text-[#EAE2D6]">{branch.name}</h4>
                     <p className="text-xs text-[#6B655C]">
-                      {config.hr_enabled ? `${branch.staffCount} Staff Members â€¢ ` : ''} 
+                      {config.hr_enabled ? `${branch.staffCount} Staff Members • ` : ''} 
                       {branch.activeTickets} Active Tickets
                     </p>
                   </div>

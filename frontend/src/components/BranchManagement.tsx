@@ -149,7 +149,7 @@ export function BranchManagement() {
             <div className="flex items-center justify-between p-6 border-b border-[rgba(201,160,92,0.08)]">
               <div>
                 <h2 className="text-xl font-black text-[#EAE2D6]">
-                  ðŸ“ Set Location â€” {locationModal.branch.name}
+                  ðŸ“ Set Location -- {locationModal.branch.name}
                 </h2>
                 <p className="text-sm text-[#6B655C] mt-1">
                   Click the map, search an address, or use GPS to pin the branch location.

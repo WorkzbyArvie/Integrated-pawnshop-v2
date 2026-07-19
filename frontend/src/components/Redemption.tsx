@@ -10,6 +10,16 @@ import {
 import { useToast } from '../App';
 import { supabase } from '../lib/supabaseClient';
 import api from '../lib/apiClient';
+import { formatCurrency } from '../lib/formatters';
+import Swal from 'sweetalert2';
+
+const tierColors: Record<string, string> = {
+  Standard: 'bg-gray-600',
+  Bronze: 'bg-amber-700',
+  Silver: 'bg-gray-400',
+  Gold: 'bg-yellow-500',
+  VIP: 'bg-purple-600',
+};
 
 // UPDATED: Added props interface to fix TS2322 error
 interface RedemptionProps {
@@ -25,6 +35,7 @@ interface RedemptionItem {
   loanAmount: number;
   expiryDate: string;
   status: string;
+  loyaltyTier: string;
 }
 
 export function Redemption({ branchId, activeBranchId }: RedemptionProps) {
@@ -69,7 +80,8 @@ export function Redemption({ branchId, activeBranchId }: RedemptionProps) {
           expiry_date, 
           status, 
           customer:customer_id (
-            full_name
+            full_name,
+            loyaltytier
           )
         `);
 
@@ -80,7 +92,7 @@ export function Redemption({ branchId, activeBranchId }: RedemptionProps) {
         query = query.eq('branch_id', activeOperationalBranchId as any);
       }
 
-      const { data, error } = await query.eq('status', 'ACTIVE'); 
+      const { data, error } = await query.eq('lifecycle_status', 'ACTIVE'); 
 
       if (error) throw error;
 
@@ -91,7 +103,8 @@ export function Redemption({ branchId, activeBranchId }: RedemptionProps) {
         itemDetails: sanitizeAssetDetails(ticket.description),
         loanAmount: Number(ticket.loan_amount) || 0,
         expiryDate: ticket.expiry_date,
-        status: ticket.status
+        status: ticket.status,
+        loyaltyTier: ticket.customer?.loyaltytier || 'Standard',
       }));
 
       setItems(activeItems);
@@ -110,18 +123,55 @@ export function Redemption({ branchId, activeBranchId }: RedemptionProps) {
 
   const handleRedeem = async (id: string) => {
     if (!selectedItem) return;
+    const confirm = await Swal.fire({
+      title: 'Confirm Action',
+      text: `Authorize release for ticket ${selectedItem.ticketId}? Total due: ${formatCurrency(calculateTotal(selectedItem.loanAmount).total)}`,
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonColor: '#C9A05C',
+      cancelButtonColor: '#6B655C',
+      confirmButtonText: 'Yes, proceed',
+      cancelButtonText: 'Cancel',
+    });
+    if (!confirm.isConfirmed) return;
     
     setIsLoading(true);
     try {
-      const result = await api.patch<{ id: number; status: string; totalCollected: number }>(
-        `/tickets/${id}/redeem`
+      const totalDue = calculateTotal(selectedItem.loanAmount).total;
+      const result = await api.post<{
+        ticketId: number;
+        ticketNumber: string;
+        lifecycleStatus: string;
+        amountPaid: number;
+        paymentId: number;
+        message: string;
+      }>(
+        `/pawn-tickets/${id}/redeem`,
+        { amountPaid: totalDue, paymentMethod: 'CASH', notes: `In-person redemption` }
       );
 
       setItems(prev => prev.filter(item => item.id !== id));
       showToast(
-        `Ticket #${selectedItem.ticketId} redeemed! â‚±${result.totalCollected?.toLocaleString() || selectedItem.loanAmount.toLocaleString()} collected.`,
+        `Ticket #${selectedItem.ticketId} redeemed! ${formatCurrency(result.amountPaid || selectedItem.loanAmount)} collected.`,
         "success"
       );
+
+      await Swal.fire({
+        title: 'Redemption Complete',
+        html: `
+          <div style="text-align:left; font-size: 13px;">
+            <p><strong>Ticket:</strong> ${selectedItem.ticketId}</p>
+            <p><strong>Customer:</strong> ${selectedItem.customerName}</p>
+            <p><strong>Item:</strong> ${selectedItem.itemDetails}</p>
+            <p><strong>Amount Paid:</strong> ${formatCurrency(result.amountPaid || selectedItem.loanAmount)}</p>
+            <p style="margin-top:10px; color:#666; font-size:11px;">Payment receipt and legal proof have been generated and recorded.</p>
+          </div>
+        `,
+        icon: 'success',
+        confirmButtonColor: '#C9A05C',
+        confirmButtonText: 'Done',
+      });
+
       setSelectedItem(null);
       
     } catch (error: any) {
@@ -200,8 +250,15 @@ export function Redemption({ branchId, activeBranchId }: RedemptionProps) {
                         <p className="font-black text-[#EAE2D6]">{item.itemDetails}</p>
                         <p className="text-[10px] text-[#C9A05C] font-bold uppercase">Ref: {item.ticketId}</p>
                       </td>
-                      <td className="px-8 py-6 text-sm font-bold text-[#999186]">{item.customerName}</td>
-                      <td className="px-8 py-6 font-black text-[#EAE2D6]">â‚±{item.loanAmount.toLocaleString()}</td>
+                      <td className="px-8 py-6 text-sm font-bold text-[#999186]">
+                        <span className="flex items-center gap-2">
+                          {item.customerName}
+                          <span className={`px-2 py-0.5 rounded-full text-[9px] font-black text-white ${tierColors[item.loyaltyTier] || 'bg-gray-600'}`}>
+                            {item.loyaltyTier}
+                          </span>
+                        </span>
+                      </td>
+                      <td className="px-8 py-6 font-black text-[#EAE2D6]">{formatCurrency(item.loanAmount)}</td>
                       <td className="px-8 py-6 text-right">
                         <button 
                           onClick={() => setSelectedItem(item)} 
@@ -229,24 +286,34 @@ export function Redemption({ branchId, activeBranchId }: RedemptionProps) {
                 <Receipt className="w-6 h-6 text-blue-400" />
                 <h3 className="font-black text-xl uppercase italic tracking-tighter">Settlement</h3>
               </div>
+
+              <div className="mb-6 pb-4 border-b border-white/5">
+                <p className="text-[10px] font-black text-[#6B655C] uppercase mb-1">Customer</p>
+                <p className="font-bold text-white flex items-center gap-2">
+                  {selectedItem.customerName}
+                  <span className={`px-2 py-0.5 rounded-full text-[9px] font-black text-white ${tierColors[selectedItem.loyaltyTier] || 'bg-gray-600'}`}>
+                    {selectedItem.loyaltyTier}
+                  </span>
+                </p>
+              </div>
               
               <div className="space-y-4 mb-10">
                 <div className="flex justify-between items-center pb-4 border-b border-white/5">
                   <span className="text-[10px] font-black text-[#6B655C] uppercase">Principal</span>
-                  <span className="font-bold text-lg">â‚±{selectedItem.loanAmount.toLocaleString()}</span>
+                  <span className="font-bold text-lg">{formatCurrency(selectedItem.loanAmount)}</span>
                 </div>
                 <div className="flex justify-between items-center pb-4 border-b border-white/5">
                   <span className="text-[10px] font-black text-[#6B655C] uppercase">Interest (3%)</span>
-                  <span className="font-bold text-blue-400">+ â‚±{calculateTotal(selectedItem.loanAmount).interest.toLocaleString()}</span>
+                  <span className="font-bold text-blue-400">+ {formatCurrency(calculateTotal(selectedItem.loanAmount).interest)}</span>
                 </div>
                 <div className="flex justify-between items-center pb-4 border-b border-white/5">
                   <span className="text-[10px] font-black text-[#6B655C] uppercase">Service Fee</span>
-                  <span className="font-bold text-blue-400">+ â‚±50.00</span>
+                  <span className="font-bold text-blue-400">+ {formatCurrency(50)}</span>
                 </div>
                 <div className="pt-6 flex justify-between items-end">
                   <span className="text-[10px] font-black text-blue-400 uppercase mb-2">Total Due</span>
                   <span className="text-4xl font-black italic tracking-tighter">
-                    â‚±{calculateTotal(selectedItem.loanAmount).total.toLocaleString()}
+                    {formatCurrency(calculateTotal(selectedItem.loanAmount).total)}
                   </span>
                 </div>
               </div>

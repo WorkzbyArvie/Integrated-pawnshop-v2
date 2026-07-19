@@ -221,6 +221,17 @@ export function AuctionQueue({ branchId, activeBranchId }: AuctionQueueProps) {
 
   const handleCancel = async (item: AuctionQueueItem) => {
     if (!item.listingId) return;
+    const confirm = await Swal.fire({
+      title: 'Are you sure?',
+      text: `Cancel auction listing for ticket ${item.ticketNumber}?`,
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#ef4444',
+      cancelButtonColor: '#6B655C',
+      confirmButtonText: 'Yes, proceed',
+      cancelButtonText: 'Cancel',
+    });
+    if (!confirm.isConfirmed) return;
 
     setPublishingId(item.id);
     try {
@@ -244,6 +255,17 @@ export function AuctionQueue({ branchId, activeBranchId }: AuctionQueueProps) {
       showToast('Cancel the listing before returning to vault', 'error');
       return;
     }
+    const confirm = await Swal.fire({
+      title: 'Are you sure?',
+      text: `Return ticket ${item.ticketNumber} to vault? This removes it from the auction queue.`,
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#ef4444',
+      cancelButtonColor: '#6B655C',
+      confirmButtonText: 'Yes, proceed',
+      cancelButtonText: 'Cancel',
+    });
+    if (!confirm.isConfirmed) return;
 
     setActionId(item.id);
     try {
@@ -264,6 +286,17 @@ export function AuctionQueue({ branchId, activeBranchId }: AuctionQueueProps) {
       showToast('Cancel the listing before marking as sold', 'error');
       return;
     }
+    const confirm = await Swal.fire({
+      title: 'Are you sure?',
+      text: `Mark ticket ${item.ticketNumber} as sold? This action cannot be undone.`,
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#ef4444',
+      cancelButtonColor: '#6B655C',
+      confirmButtonText: 'Yes, proceed',
+      cancelButtonText: 'Cancel',
+    });
+    if (!confirm.isConfirmed) return;
 
     setActionId(item.id);
     try {
@@ -439,7 +472,7 @@ export function AuctionQueue({ branchId, activeBranchId }: AuctionQueueProps) {
                     <div>
                       <p className="text-[10px] text-purple-500 uppercase font-black tracking-[0.1em] mb-1">Target Recovery</p>
                       <div className="flex items-center gap-1">
-                        <span className="text-purple-600 font-bold text-lg">â‚±</span>
+                        <span className="text-purple-600 font-bold text-lg">₱</span>
                         <input
                           type="number"
                           value={Math.round(item.auctionPrice)}
@@ -475,7 +508,7 @@ export function AuctionQueue({ branchId, activeBranchId }: AuctionQueueProps) {
                         <p className="text-[10px] text-[#6B655C] uppercase font-black tracking-[0.1em] flex items-center gap-1"><Clock className="w-3 h-3" /> Auction Settings</p>
                         <div className="grid grid-cols-2 gap-3">
                           <div>
-                            <label className="text-[10px] text-[#6B655C] font-bold block mb-1">Min Bid Increment (â‚±)</label>
+                            <label className="text-[10px] text-[#6B655C] font-bold block mb-1">Min Bid Increment (₱)</label>
                             <input
                               type="number"
                               min={1}

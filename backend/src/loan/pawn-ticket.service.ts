@@ -5,6 +5,12 @@ import { LegalProofService } from './legal-proof.service';
 import { LoanContractService } from './loan-contract.service';
 import { StateMachineService } from '../common/state-machine/state-machine.service';
 import { CreatePawnTicketDto } from './dto/create-pawn-ticket.dto';
+import { AppraiseTicketDto } from './dto/appraise-ticket.dto';
+import { RedeemTicketDto } from './dto/redeem-ticket.dto';
+import { ReceiptService } from '../receipt/receipt.service';
+import { FinanceService } from '../finance/finance.service';
+import { NotificationService } from '../notification/notification.service';
+import { LedgerEntryType, LedgerCategory, NotificationChannel, NotificationType, PaymentMethod } from '@prisma/client';
 
 @Injectable()
 export class PawnTicketService {
@@ -13,6 +19,9 @@ export class PawnTicketService {
     private legalProofService: LegalProofService,
     private loanContractService: LoanContractService,
     private stateMachine: StateMachineService,
+    private receiptService: ReceiptService,
+    private financeService: FinanceService,
+    private notificationService: NotificationService,
   ) {}
 
   async createTicket(dto: CreatePawnTicketDto, createdBy: string) {
@@ -88,6 +97,25 @@ export class PawnTicketService {
       );
     }
 
+    if (customerId) {
+      try {
+        await this.notificationService.sendNotification({
+          recipientId: customerId,
+          channel: NotificationChannel.IN_APP,
+          type: NotificationType.PAYMENT_DUE,
+          title: 'Pawn Ticket Created',
+          body: `Your pawn ticket ${ticketNumber} has been created for ₱${dto.loanAmount.toFixed(2)}. Awaiting appraisal.`,
+          data: {
+            ticketId: ticket.id,
+            ticketNumber,
+            loanAmount: dto.loanAmount,
+          },
+        });
+      } catch (notifErr) {
+        console.error('Failed to send ticket creation notification:', notifErr);
+      }
+    }
+
     return {
       id: ticket.id,
       ticketNumber,
@@ -108,83 +136,6 @@ export class PawnTicketService {
       throw new BadRequestException(
         `Cannot submit ticket in status: ${ticket.lifecycleStatus}. Must be RECEIVED.`,
       );
-    }
-
-    const isOwner = userRole === 'OWNER';
-
-    if (isOwner) {
-      await this.stateMachine.transition(
-        'TICKET_LIFECYCLE',
-        ticket.lifecycleStatus,
-        'OFFER_MADE',
-        { userRole },
-      );
-
-      const loanApp = await this.prisma.loanApplication.create({
-        data: {
-          customerId: ticket.customerId,
-          pawnshopId: this.assertPawnshopId(ticket),
-          loanAmount: ticket.loanAmount,
-          loanType: 'PAWN',
-          termMonths: 1,
-          purpose: ticket.description || ticket.category,
-          status: 'APPROVED',
-          approvedBy: userId,
-          approvedAt: new Date(),
-        },
-      });
-
-      const loan = await this.prisma.loan.create({
-        data: {
-          ticketId: ticket.id,
-          applicationId: loanApp.id,
-          pawnshopId: this.assertPawnshopId(ticket),
-          customerName: ticket.customer?.fullName || 'Customer',
-          principalAmount: ticket.loanAmount,
-          interestAmount: Math.round(ticket.loanAmount * 0.035),
-          category: ticket.category,
-          weight: ticket.weight,
-          status: 'RECEIVED',
-        },
-      });
-
-      const contract = await this.loanContractService.generateContractForApplication(
-        loanApp.id,
-        userId,
-      );
-
-      await this.prisma.ticket.update({
-        where: { id: ticket.id },
-        data: { lifecycleStatus: 'OFFER_MADE', contractId: contract.id },
-      });
-
-      await this.legalProofService.createProof({
-        pawnshopId: this.assertPawnshopId(ticket),
-        recordType: 'CONTRACT_PROOF',
-        title: `Owner auto-approved ticket with contract — ${ticket.ticketNumber}`,
-        summary: `Owner auto-approved ticket ${ticket.ticketNumber}. Contract ${contract.contractNumber} generated for ₱${ticket.loanAmount.toFixed(2)}.`,
-        createdBy: userId,
-        ticketId: ticket.id,
-        loanId: loan.id,
-        applicationId: loanApp.id,
-        contractId: contract.id,
-        payload: {
-          ticketId: ticket.id,
-          ticketNumber: ticket.ticketNumber,
-          lifecycleStatus: 'OFFER_MADE',
-          approvedBy: userId,
-          autoApproved: true,
-        },
-      });
-
-      return {
-        id: ticket.id,
-        ticketNumber: ticket.ticketNumber,
-        lifecycleStatus: 'OFFER_MADE',
-        applicationId: loanApp.id,
-        loanId: loan.id,
-        contractId: contract.id,
-      };
     }
 
     await this.stateMachine.transition(
@@ -224,7 +175,7 @@ export class PawnTicketService {
   async getPendingApprovalTickets(pawnshopId: string, branchId?: number) {
     const where: any = {
       pawnshopId,
-      lifecycleStatus: 'PENDING_APPROVAL',
+      lifecycleStatus: { in: ['PENDING_APPROVAL', 'CONTRACT_SIGNED'] },
     };
     if (branchId) where.branchId = branchId;
 
@@ -232,7 +183,7 @@ export class PawnTicketService {
       where,
       include: {
         customer: {
-          select: { id: true, fullName: true, contactNumber: true, address: true },
+          select: { id: true, fullName: true, contactNumber: true, address: true, loyaltyTier: true },
         },
       },
       orderBy: { pawnDate: 'desc' },
@@ -377,6 +328,26 @@ export class PawnTicketService {
       },
     });
 
+    if (ticket.customerId) {
+      try {
+        await this.notificationService.sendNotification({
+          recipientId: ticket.customerId,
+          channel: NotificationChannel.IN_APP,
+          type: NotificationType.PAYMENT_DUE,
+          title: 'Loan Offer Ready',
+          body: `Your pawn ticket ${ticket.ticketNumber} has been approved. A loan contract for ₱${ticket.loanAmount.toFixed(2)} is ready for signing.`,
+          data: {
+            ticketId: ticket.id,
+            ticketNumber: ticket.ticketNumber,
+            contractId: contract.id,
+            loanAmount: ticket.loanAmount,
+          },
+        });
+      } catch (notifErr) {
+        console.error('Failed to send approval notification:', notifErr);
+      }
+    }
+
     return {
       ticketId: ticket.id,
       ticketNumber: ticket.ticketNumber,
@@ -385,6 +356,211 @@ export class PawnTicketService {
       contractId: contract.id,
       contract,
       lifecycleStatus: 'OFFER_MADE',
+    };
+  }
+
+  async appraiseTicket(ticketId: number, dto: AppraiseTicketDto, appraisedBy: string, userRole?: string) {
+    const ticket = await this.prisma.ticket.findUnique({
+      where: { id: ticketId },
+      include: { customer: true },
+    });
+
+    if (!ticket) throw new NotFoundException('Ticket not found');
+    if (ticket.lifecycleStatus !== 'RECEIVED') {
+      throw new BadRequestException(
+        `Cannot appraise ticket in status: ${ticket.lifecycleStatus}. Must be RECEIVED.`,
+      );
+    }
+
+    await this.stateMachine.transition(
+      'TICKET_LIFECYCLE',
+      ticket.lifecycleStatus,
+      'APPRAISED',
+      { userRole },
+    );
+
+    const updatedTicket = await this.prisma.ticket.update({
+      where: { id: ticket.id },
+      data: {
+        lifecycleStatus: 'APPRAISED',
+        loanAmount: dto.recommendedLoanAmount || ticket.loanAmount,
+        isHighRisk: (dto.riskScore ?? 0) > 40,
+        updatedAt: new Date(),
+      },
+    });
+
+    await this.legalProofService.createProof({
+      pawnshopId: this.assertPawnshopId(ticket),
+      recordType: 'APPLICATION_SUBMITTED',
+      title: `Item appraised: ${ticket.ticketNumber}`,
+      summary: `Ticket ${ticket.ticketNumber} appraised at ₱${dto.appraisedValue.toFixed(2)}. Recommended loan: ₱${(dto.recommendedLoanAmount || ticket.loanAmount).toFixed(2)}.`,
+      createdBy: appraisedBy,
+      ticketId: ticket.id,
+      payload: {
+        ticketId: ticket.id,
+        ticketNumber: ticket.ticketNumber,
+        appraisedValue: dto.appraisedValue,
+        riskScore: dto.riskScore,
+        recommendedLoanAmount: dto.recommendedLoanAmount || ticket.loanAmount,
+        itemCondition: dto.itemCondition,
+        appraisalNotes: dto.appraisalNotes,
+        appraisedBy,
+        previousLoanAmount: ticket.loanAmount,
+      },
+    });
+
+    return {
+      id: updatedTicket.id,
+      ticketNumber: updatedTicket.ticketNumber,
+      lifecycleStatus: 'APPRAISED',
+      appraisedValue: dto.appraisedValue,
+      recommendedLoanAmount: dto.recommendedLoanAmount || ticket.loanAmount,
+    };
+  }
+
+  async redeemTicket(ticketId: number, dto: RedeemTicketDto, processedBy: string, userRole?: string) {
+    const ticket = await this.prisma.ticket.findUnique({
+      where: { id: ticketId },
+      include: { customer: true, loans: true },
+    });
+
+    if (!ticket) throw new NotFoundException('Ticket not found');
+
+    const redeemableStates = ['ACTIVE', 'GRACE_PERIOD'];
+    if (!redeemableStates.includes(ticket.lifecycleStatus)) {
+      throw new BadRequestException(
+        `Cannot redeem ticket in status: ${ticket.lifecycleStatus}. Must be ACTIVE or GRACE_PERIOD.`,
+      );
+    }
+
+    const loan = ticket.loans?.[0];
+    if (!loan) throw new BadRequestException('No loan found for this ticket');
+
+    const pawnshopId = this.assertPawnshopId(ticket);
+
+    await this.stateMachine.transition(
+      'TICKET_LIFECYCLE',
+      ticket.lifecycleStatus,
+      'REDEEMED',
+      { userRole },
+    );
+
+    await this.prisma.ticket.update({
+      where: { id: ticket.id },
+      data: {
+        lifecycleStatus: 'REDEEMED',
+        status: 'REDEEMED',
+        updatedAt: new Date(),
+      },
+    });
+
+    await this.prisma.loan.update({
+      where: { id: loan.id },
+      data: { status: 'REDEEMED' },
+    });
+
+    const payment = await this.prisma.payment.create({
+      data: {
+        customerId: ticket.customerId,
+        loanId: loan.id,
+        amount: dto.amountPaid,
+        paymentMethod: (dto.paymentMethod || 'CASH') as PaymentMethod,
+        paymentType: 'LOAN_REPAYMENT',
+        referenceNumber: dto.referenceNumber,
+        status: 'COMPLETED',
+        processedBy,
+        notes: dto.notes || `In-person redemption for ticket #${ticket.ticketNumber}`,
+      },
+    });
+
+    try {
+      const ledgerEntry = await this.financeService.createEntry(pawnshopId, {
+        entryType: LedgerEntryType.CREDIT,
+        category: LedgerCategory.LOAN_REPAYMENT,
+        amount: dto.amountPaid,
+        description: `Redemption payment from ${ticket.customer?.fullName || 'customer'} (Ticket #${ticket.ticketNumber})`,
+        performedBy: processedBy,
+        referenceType: 'PAYMENT',
+        referenceId: payment.id,
+        counterparty: ticket.customer?.fullName || undefined,
+        paymentMethod: dto.paymentMethod || 'CASH',
+      });
+
+      await this.legalProofService.createProof({
+        pawnshopId,
+        recordType: 'REDEMPTION_PROOF',
+        title: `Ticket redeemed: ${ticket.ticketNumber}`,
+        summary: `Ticket ${ticket.ticketNumber} redeemed. Payment of ₱${dto.amountPaid.toFixed(2)} received from ${ticket.customer?.fullName || 'customer'}.`,
+        createdBy: processedBy,
+        ticketId: ticket.id,
+        loanId: loan.id,
+        paymentId: payment.id,
+        ledgerEntryId: ledgerEntry.id,
+        payload: {
+          ticketId: ticket.id,
+          ticketNumber: ticket.ticketNumber,
+          loanId: loan.id,
+          paymentId: payment.id,
+          amountPaid: dto.amountPaid,
+          paymentMethod: (dto.paymentMethod || 'CASH') as PaymentMethod,
+          referenceNumber: dto.referenceNumber,
+          processedBy,
+          redeemedAt: new Date().toISOString(),
+        },
+      });
+    } catch (err) {
+      console.error('Failed to create ledger entry or proof for redemption:', err);
+    }
+
+    try {
+      await this.receiptService.generateReceipt({
+        pawnshopId,
+        receiptType: 'REDEMPTION',
+        referenceType: 'PAYMENT',
+        referenceId: payment.id,
+        amount: dto.amountPaid,
+        customerName: ticket.customer?.fullName || 'Customer',
+        lineItems: [
+          { description: `Pawn Redemption — Ticket #${ticket.ticketNumber}`, amount: dto.amountPaid },
+        ],
+        generatedBy: processedBy,
+      });
+    } catch (receiptErr) {
+      console.error('Failed to generate redemption receipt:', receiptErr);
+    }
+
+    if (ticket.customerId) {
+      try {
+        await this.calculateAndUpdateCustomerTier(ticket.customerId);
+      } catch (tierErr) {
+        console.error('Failed to update customer tier:', tierErr);
+      }
+
+      try {
+        await this.notificationService.sendNotification({
+          recipientId: ticket.customerId,
+          channel: NotificationChannel.IN_APP,
+          type: NotificationType.PAYMENT_DUE,
+          title: 'Item Redeemed Successfully',
+          body: `Your pawn ticket ${ticket.ticketNumber} has been redeemed. You can collect your item at the pawnshop.`,
+          data: {
+            ticketId: ticket.id,
+            ticketNumber: ticket.ticketNumber,
+            amountPaid: dto.amountPaid,
+          },
+        });
+      } catch (notifErr) {
+        console.error('Failed to send redemption notification:', notifErr);
+      }
+    }
+
+    return {
+      ticketId: ticket.id,
+      ticketNumber: ticket.ticketNumber,
+      lifecycleStatus: 'REDEEMED',
+      amountPaid: dto.amountPaid,
+      paymentId: payment.id,
+      message: 'Ticket redeemed successfully',
     };
   }
 
@@ -453,6 +629,46 @@ export class PawnTicketService {
       },
     });
     return customer.id;
+  }
+
+  async calculateAndUpdateCustomerTier(customerId: string): Promise<string> {
+    const redeemedCount = await this.prisma.ticket.count({
+      where: {
+        customerId,
+        OR: [
+          { lifecycleStatus: 'REDEEMED' },
+          { status: 'REDEEMED' },
+        ],
+      },
+    });
+
+    let tier = 'Standard';
+    if (redeemedCount >= 30) tier = 'VIP';
+    else if (redeemedCount >= 15) tier = 'Gold';
+    else if (redeemedCount >= 5) tier = 'Silver';
+    else if (redeemedCount >= 1) tier = 'Bronze';
+
+    await this.prisma.customer.update({
+      where: { id: customerId },
+      data: { loyaltyTier: tier },
+    });
+
+    return tier;
+  }
+
+  async getCustomerTierInfo(customerId: string) {
+    const count = await this.prisma.ticket.count({
+      where: {
+        customerId,
+        OR: [{ lifecycleStatus: 'REDEEMED' }, { status: 'REDEEMED' }],
+      },
+    });
+    const customer = await this.prisma.customer.findUnique({
+      where: { id: customerId },
+      select: { loyaltyTier: true },
+    });
+    const tier = customer?.loyaltyTier || 'Standard';
+    return { tier, redeemedCount: count };
   }
 
   private assertPawnshopId(ticket: { pawnshopId?: string | null }): string {

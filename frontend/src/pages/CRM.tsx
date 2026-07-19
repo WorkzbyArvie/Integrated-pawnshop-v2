@@ -1,5 +1,5 @@
 ﻿import { useState, useEffect } from 'react';
-import { Search, Filter, MoreVertical, Phone, Mail, Shield } from 'lucide-react';
+import { Search, Filter, MoreVertical, Phone, Mail, Shield, ChevronDown } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 
 // 1. ADD THIS INTERFACE
@@ -22,6 +22,7 @@ export function CrmTable({ branchId }: CrmTableProps) {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [tierFilter, setTierFilter] = useState<string>('all');
 
   useEffect(() => {
     const fetchCustomers = async () => {
@@ -51,10 +52,19 @@ export function CrmTable({ branchId }: CrmTableProps) {
   }, [branchId]); // RE-RUN when branch changes
 
   const filteredCustomers = customers.filter(c => 
-    c.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (c.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     c.contact_number.includes(searchTerm) ||
-    c.id.toLowerCase().includes(searchTerm.toLowerCase())
+    c.id.toLowerCase().includes(searchTerm.toLowerCase())) &&
+    (tierFilter === 'all' || c.loyaltytier === tierFilter)
   );
+
+  const tierColors: Record<string, string> = {
+    'Standard': 'bg-gray-500/20 text-gray-400',
+    'Bronze': 'bg-amber-700/20 text-amber-500',
+    'Silver': 'bg-gray-400/20 text-gray-300',
+    'Gold': 'bg-yellow-500/20 text-yellow-400',
+    'VIP': 'bg-purple-600/20 text-purple-400',
+  };
 
   if (loading) {
     return (
@@ -79,9 +89,21 @@ export function CrmTable({ branchId }: CrmTableProps) {
             onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
-        <button className="flex items-center gap-2 px-4 py-3 bg-[#1C1C26] text-[#999186] rounded-xl text-xs font-bold hover:bg-[#1C1C26] transition-all">
-          <Filter className="w-4 h-4" /> Filter Result
-        </button>
+        <div className="flex items-center gap-2">
+          <Filter className="w-4 h-4 text-[#6B655C]" />
+          <select
+            value={tierFilter}
+            onChange={(e) => setTierFilter(e.target.value)}
+            className="bg-[#1C1C26] border-none rounded-xl px-4 py-3 text-xs font-bold text-[#999186] outline-none focus:ring-2 focus:ring-[#C9A05C] transition-all"
+          >
+            <option value="all">All Tiers</option>
+            <option value="Standard">Standard</option>
+            <option value="Bronze">Bronze</option>
+            <option value="Silver">Silver</option>
+            <option value="Gold">Gold</option>
+            <option value="VIP">VIP</option>
+          </select>
+        </div>
       </div>
 
       {/* Table */}
@@ -123,8 +145,10 @@ export function CrmTable({ branchId }: CrmTableProps) {
                   <div className="flex items-center gap-2">
                     <Shield className="w-4 h-4 text-emerald-500" />
                     <div>
-                      <p className="text-xs font-bold text-[#6B655C]">{customer.loyaltytier}</p>
-                      <p className="text-[10px] text-[#6B655C] font-medium">{customer.id}</p>
+                      <span className={`inline-block px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider ${tierColors[customer.loyaltytier] || 'bg-gray-500/20 text-gray-400'}`}>
+                        {customer.loyaltytier || 'Standard'}
+                      </span>
+                      <p className="text-[10px] text-[#6B655C] font-medium mt-1">{customer.id.slice(0, 8)}</p>
                     </div>
                   </div>
                 </td>

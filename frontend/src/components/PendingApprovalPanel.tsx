@@ -7,6 +7,7 @@ import { useToast } from '../App';
 import api from '../lib/apiClient';
 import { formatCurrency } from '../lib/formatters';
 import { ContractViewer } from './ContractViewer';
+import Swal from 'sweetalert2';
 
 interface PendingTicket {
   id: number;
@@ -22,8 +23,17 @@ interface PendingTicket {
     fullName: string;
     contactNumber: string;
     address: string;
+    loyaltyTier: string;
   } | null;
 }
+
+const tierColors: Record<string, string> = {
+  Standard: 'bg-gray-600',
+  Bronze: 'bg-amber-700',
+  Silver: 'bg-gray-400',
+  Gold: 'bg-yellow-500',
+  VIP: 'bg-purple-600',
+};
 
 interface PendingApprovalPanelProps {
   branchId: string | null;
@@ -80,6 +90,17 @@ export function PendingApprovalPanel({ branchId, activeBranchId, userRole = 'STA
 
   const handleApprove = async (ticket: PendingTicket) => {
     if (!canApprove) return;
+    const confirm = await Swal.fire({
+      title: 'Confirm Action',
+      text: `Approve ticket ${ticket.ticketNumber} and generate loan contract?`,
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonColor: '#C9A05C',
+      cancelButtonColor: '#6B655C',
+      confirmButtonText: 'Yes, proceed',
+      cancelButtonText: 'Cancel',
+    });
+    if (!confirm.isConfirmed) return;
     setProcessingId(ticket.id);
     try {
       const result = await api.post<{
@@ -227,6 +248,9 @@ export function PendingApprovalPanel({ branchId, activeBranchId, userRole = 'STA
                 <div className="flex items-center gap-2 text-xs" style={{ color: 'var(--text-secondary)' }}>
                   <User className="w-3.5 h-3.5" />
                   <span className="font-semibold text-[#EAE2D6]">{ticket.customer?.fullName || 'Unknown'}</span>
+                  <span className={`px-2 py-0.5 rounded-full text-[9px] font-black text-white ${tierColors[ticket.customer?.loyaltyTier || 'Standard'] || 'bg-gray-600'}`}>
+                    {ticket.customer?.loyaltyTier || 'Standard'}
+                  </span>
                 </div>
                 <div className="flex items-center gap-2 text-xs" style={{ color: 'var(--text-secondary)' }}>
                   <Scale className="w-3.5 h-3.5" />
@@ -293,7 +317,12 @@ export function PendingApprovalPanel({ branchId, activeBranchId, userRole = 'STA
             <div className="space-y-3 mb-8">
               <div className="flex justify-between px-4 py-3 rounded-2xl" style={{ background: 'rgba(255,255,255,0.035)' }}>
                 <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>Customer</span>
-                <span className="text-[11px] font-semibold text-[#EAE2D6]">{selectedTicket.customer?.fullName || 'Unknown'}</span>
+                <span className="text-[11px] font-semibold text-[#EAE2D6] flex items-center gap-2">
+                  {selectedTicket.customer?.fullName || 'Unknown'}
+                  <span className={`px-2 py-0.5 rounded-full text-[9px] font-black text-white ${tierColors[selectedTicket.customer?.loyaltyTier || 'Standard'] || 'bg-gray-600'}`}>
+                    {selectedTicket.customer?.loyaltyTier || 'Standard'}
+                  </span>
+                </span>
               </div>
               <div className="flex justify-between px-4 py-3 rounded-2xl" style={{ background: 'rgba(255,255,255,0.035)' }}>
                 <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>Contact</span>

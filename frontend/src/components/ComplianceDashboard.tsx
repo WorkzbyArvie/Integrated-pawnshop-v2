@@ -1,5 +1,5 @@
 ﻿/**
- * ComplianceDashboard â€“ Auction winner compliance workflow.
+ * ComplianceDashboard -- Auction winner compliance workflow.
  *
  * State Machine: PENDING_COMPLIANCE â†’ COMPLIED â†’ READY_FOR_RELEASE â†’ RELEASED
  *                           â†˜ EXPIRED
@@ -124,11 +124,22 @@ export function ComplianceDashboard({ branchId: _branchId, activeBranchId }: Com
   // â”€â”€ Handlers â”€â”€
   const handleVerifySubmit = async () => {
     if (!selectedCompliance) return;
+    const confirm = await Swal.fire({
+      title: 'Confirm Action',
+      text: 'Verify this compliance record? This marks it ready for release.',
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonColor: '#C9A05C',
+      cancelButtonColor: '#6B655C',
+      confirmButtonText: 'Yes, proceed',
+      cancelButtonText: 'Cancel',
+    });
+    if (!confirm.isConfirmed) return;
     try {
       await api.post(`/compliance/${selectedCompliance.id}/verify`, {
         verifiedBy: localStorage.getItem('user_id') || 'admin',
       });
-      showToast('Compliance verified â€” ready for release', 'success');
+      showToast('Compliance verified -- ready for release', 'success');
       setShowVerifyDialog(false);
       refetchAll();
     } catch (err: unknown) {
@@ -142,6 +153,17 @@ export function ComplianceDashboard({ branchId: _branchId, activeBranchId }: Com
       showToast('Released by is required', 'error');
       return;
     }
+    const confirm = await Swal.fire({
+      title: 'Are you sure?',
+      text: 'Release this item to the winner? This action cannot be undone.',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#ef4444',
+      cancelButtonColor: '#6B655C',
+      confirmButtonText: 'Yes, proceed',
+      cancelButtonText: 'Cancel',
+    });
+    if (!confirm.isConfirmed) return;
     try {
       await api.post(`/compliance/${selectedCompliance.id}/release`, releaseForm);
       showToast('Item released to winner', 'success');
@@ -408,7 +430,7 @@ export function ComplianceDashboard({ branchId: _branchId, activeBranchId }: Com
                         )}
                       </span>
                     </TableCell>
-                    <TableCell className="text-xs">{c.paymentReference || 'â€”'}</TableCell>
+                    <TableCell className="text-xs">{c.paymentReference || '--'}</TableCell>
                     <TableCell className="text-xs">{formatDate(c.createdAt)}</TableCell>
                     <TableCell>
                       <div className="flex gap-1">

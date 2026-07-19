@@ -133,7 +133,7 @@ export function LoanApplicationForm({
               <div>
                 <label className="block text-sm font-bold text-[#999186] mb-2">
                   <DollarSign className="w-4 h-4 inline mr-1" />
-                  Loan Amount (â‚±)
+                  Loan Amount (₱)
                 </label>
                 <input
                   type="number"
@@ -195,7 +195,7 @@ export function LoanApplicationForm({
                     Estimated Monthly Payment
                   </p>
                   <p className="text-3xl font-black text-[#C9A05C]">
-                    â‚±{calculateMonthlyPayment()}
+                    ₱{calculateMonthlyPayment()}
                   </p>
                   <p className="text-xs text-[#C9A05C] mt-1">
                     Based on {formData.termMonths} months at 3.5% interest
@@ -244,7 +244,7 @@ export function LoanApplicationForm({
                 <div className="space-y-3">
                   <div className="flex justify-between">
                     <span className="text-[#999186]">Loan Amount:</span>
-                    <span className="font-bold text-[#EAE2D6]">â‚±{parseFloat(formData.loanAmount).toLocaleString()}</span>
+                    <span className="font-bold text-[#EAE2D6]">₱{parseFloat(formData.loanAmount).toLocaleString()}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-[#999186]">Loan Type:</span>
@@ -256,7 +256,7 @@ export function LoanApplicationForm({
                   </div>
                   <div className="flex justify-between">
                     <span className="text-[#999186]">Monthly Payment:</span>
-                    <span className="font-bold text-[#C9A05C]">â‚±{calculateMonthlyPayment()}</span>
+                    <span className="font-bold text-[#C9A05C]">₱{calculateMonthlyPayment()}</span>
                   </div>
                 </div>
 

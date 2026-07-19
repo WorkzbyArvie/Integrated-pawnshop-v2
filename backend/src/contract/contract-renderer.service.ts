@@ -16,6 +16,12 @@ export class ContractRendererService {
     data: Record<string, any>,
     pawnshopId: string,
     userId: string,
+    signatures?: {
+      customerSignature?: string | null;
+      customerSignedAt?: string | null;
+      staffSignature?: string | null;
+      staffSignedAt?: string | null;
+    },
   ) {
     let template = await this.prisma.contractTemplate.findUnique({
       where: { id: templateId },
@@ -33,7 +39,7 @@ export class ContractRendererService {
     const compile = Handlebars.compile(template.content);
     const htmlContent = compile(data);
 
-    const pdfBuffer = await this.generatePdf(htmlContent, data);
+    const pdfBuffer = await this.generatePdf(htmlContent, data, signatures);
 
     const fileName = `${template.type}-${Date.now()}.pdf`;
     const storageUrl = await this.storage.uploadPdf(pdfBuffer, 'contracts', fileName);
@@ -72,6 +78,12 @@ export class ContractRendererService {
   async renderPdfOnly(
     templateId: string,
     data: Record<string, any>,
+    signatures?: {
+      customerSignature?: string | null;
+      customerSignedAt?: string | null;
+      staffSignature?: string | null;
+      staffSignedAt?: string | null;
+    },
   ): Promise<{ htmlContent: string; pdfBuffer: Buffer; templateType: string; templateVersion: string }> {
     let template = await this.prisma.contractTemplate.findUnique({
       where: { id: templateId },
@@ -89,7 +101,7 @@ export class ContractRendererService {
     const compile = Handlebars.compile(template.content);
     const htmlContent = compile(data);
 
-    const pdfBuffer = await this.generatePdf(htmlContent, data);
+    const pdfBuffer = await this.generatePdf(htmlContent, data, signatures);
 
     return { htmlContent, pdfBuffer, templateType: template.type, templateVersion: template.version };
   }
@@ -102,7 +114,12 @@ export class ContractRendererService {
     return { pdfUrl: contract.pdfUrl, contractNumber: contract.contractNumber };
   }
 
-  private generatePdf(html: string, data: Record<string, any>): Promise<Buffer> {
+  private generatePdf(html: string, data: Record<string, any>, signatures?: {
+    customerSignature?: string | null;
+    customerSignedAt?: string | null;
+    staffSignature?: string | null;
+    staffSignedAt?: string | null;
+  }): Promise<Buffer> {
     return new Promise((resolve) => {
       const doc = new PDFDocument({ margin: 50, size: 'A4' });
       const buffers: Buffer[] = [];
@@ -135,6 +152,30 @@ export class ContractRendererService {
       }
 
       doc.moveDown(2);
+      doc.fontSize(12).font('Helvetica-Bold').text('SIGNATURES', { underline: true });
+      doc.moveDown(0.5);
+
+      if (signatures?.customerSignature) {
+        try {
+          doc.image(signatures.customerSignature, 50, doc.y, { width: 200, height: 60 });
+          doc.moveDown(3);
+        } catch { doc.moveDown(0.5); }
+      }
+      doc.fontSize(10).font('Helvetica');
+      const customerDate = signatures?.customerSignedAt ? new Date(signatures.customerSignedAt).toLocaleDateString('en-PH') : '_______________';
+      doc.text(`Customer: _________________________  Date: ${customerDate}`);
+      doc.moveDown(1);
+
+      if (signatures?.staffSignature) {
+        try {
+          doc.image(signatures.staffSignature, 50, doc.y, { width: 200, height: 60 });
+          doc.moveDown(3);
+        } catch { doc.moveDown(0.5); }
+      }
+      const staffDate = signatures?.staffSignedAt ? new Date(signatures.staffSignedAt).toLocaleDateString('en-PH') : '_______________';
+      doc.text(`Pawnshop Representative: _________________________  Date: ${staffDate}`);
+      doc.moveDown(1);
+
       doc.fontSize(8).fillColor('#999').text(
         'This document was electronically generated and is legally binding.',
         50, doc.page.height - 80,

@@ -1,5 +1,5 @@
 ﻿/**
- * SubscriptionManager â€“ SaaS subscription & billing management.
+ * SubscriptionManager -- SaaS subscription & billing management.
  *
  * Features:
  *   - Current plan overview
@@ -137,7 +137,7 @@ export function SubscriptionManager({ branchId: _branchId }: SubscriptionManager
 
       // If checkout URL was returned, redirect to complete payment
       if (res?.checkoutUrl) {
-        showToast('Redirecting to paymentâ€¦', 'success');
+        showToast('Redirecting to payment...', 'success');
         window.open(res.checkoutUrl, '_blank', 'noopener');
       } else {
         showToast(
@@ -181,7 +181,7 @@ export function SubscriptionManager({ branchId: _branchId }: SubscriptionManager
       }) as any;
 
       if (res?.checkoutUrl) {
-        showToast('Redirecting to paymentâ€¦', 'success');
+        showToast('Redirecting to payment...', 'success');
         window.open(res.checkoutUrl, '_blank', 'noopener');
         refetchAll();
         return;

@@ -82,7 +82,7 @@ export function ApplicationsList({ pawnshopId, onViewApplication }: Applications
   );
 
   const formatCurrency = (amount: number) => {
-    return `â‚±${amount.toLocaleString('en-PH', { minimumFractionDigits: 2 })}`;
+    return `₱${amount.toLocaleString('en-PH', { minimumFractionDigits: 2 })}`;
   };
 
   const formatDate = (dateString: string) => {

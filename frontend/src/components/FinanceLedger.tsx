@@ -1,5 +1,5 @@
 ﻿/**
- * FinanceLedger â€“ Immutable cash ledger with reconciliation.
+ * FinanceLedger -- Immutable cash ledger with reconciliation.
  *
  * Features:
  *   - Balance overview + financial summary
@@ -57,6 +57,7 @@ import { formatCurrency, formatDateTime, humanizeStatus } from '@/lib/formatters
 import type { LedgerEntry, LedgerEntryType, LedgerCategory, FinanceSummary } from '@/lib/types';
 import { supabase } from '@/lib/supabaseClient';
 import { useToast } from '../App';
+import Swal from 'sweetalert2';
 
 const CATEGORIES: LedgerCategory[] = [
   'LOAN_DISBURSEMENT', 'LOAN_REPAYMENT', 'AUCTION_PAYMENT', 'AUCTION_REFUND',
@@ -137,7 +138,13 @@ export function FinanceLedger({ branchId: _branchId, activeBranchId }: FinanceLe
     role?: string;
   }>>('/attendance/staff-list', staffQuery, [normalizedBranchId]);
   const staffList = Array.isArray(staffListRaw) ? staffListRaw : [];
-  // Removed unused staffList variable to clean up TS warning
+  const staffNameMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const s of staffList) {
+      map[s.id] = s.fullName || s.email || s.id;
+    }
+    return map;
+  }, [staffList]);
 
   // â”€â”€ Recon form â”€â”€
   const [reconForm, setReconForm] = useState({ physicalCash: '' });
@@ -260,6 +267,17 @@ export function FinanceLedger({ branchId: _branchId, activeBranchId }: FinanceLe
   };
 
   const handleApproveRequest = async (requestId: string) => {
+    const confirm = await Swal.fire({
+      title: 'Confirm Action',
+      text: 'Approve this ledger entry? This will record it in the cash ledger.',
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonColor: '#C9A05C',
+      cancelButtonColor: '#6B655C',
+      confirmButtonText: 'Yes, proceed',
+      cancelButtonText: 'Cancel',
+    });
+    if (!confirm.isConfirmed) return;
     try {
       const {
         data: { session },
@@ -465,7 +483,7 @@ export function FinanceLedger({ branchId: _branchId, activeBranchId }: FinanceLe
                     <TableCell>
                       <Badge variant="outline" className="text-xs">{humanizeStatus(entry.category)}</Badge>
                     </TableCell>
-                    <TableCell className="max-w-[200px] truncate">{entry.description}</TableCell>
+                    <TableCell className="text-sm whitespace-normal break-words">{entry.description}</TableCell>
                     <TableCell className={`text-right font-mono font-bold ${
                       entry.entryType === 'CREDIT' ? 'text-emerald-600' :
                       entry.entryType === 'DEBIT' ? 'text-rose-600' : 'text-amber-600'
@@ -473,7 +491,7 @@ export function FinanceLedger({ branchId: _branchId, activeBranchId }: FinanceLe
                       {entry.entryType === 'DEBIT' ? '-' : '+'}{formatCurrency(entry.amount)}
                     </TableCell>
                     <TableCell className="text-right font-mono">{formatCurrency(entry.balanceAfter)}</TableCell>
-                    <TableCell className="text-xs text-[#6B655C]">{entry.performedBy}</TableCell>
+                    <TableCell className="text-xs text-[#6B655C]">{staffNameMap[entry.performedBy] || entry.performedBy}</TableCell>
                     <TableCell className="text-xs">
                       {formatDateTime(
                         (entry as any).transactionDate ||
@@ -615,7 +633,7 @@ export function FinanceLedger({ branchId: _branchId, activeBranchId }: FinanceLe
               </div>
             </div>
             <div>
-              <label className="text-sm font-medium text-[#6B655C]">Amount (â‚±) *</label>
+              <label className="text-sm font-medium text-[#6B655C]">Amount (₱) *</label>
               <Input
                 type="number"
                 min={0}
@@ -721,7 +739,7 @@ export function FinanceLedger({ branchId: _branchId, activeBranchId }: FinanceLe
               Record the physical cash count for today. The system will compare it against the computed balance.
             </p>
             <div>
-              <label className="text-sm font-medium text-[#6B655C]">Physical Cash Count (â‚±)</label>
+              <label className="text-sm font-medium text-[#6B655C]">Physical Cash Count (₱)</label>
               <Input
                 type="number"
                 min={0}

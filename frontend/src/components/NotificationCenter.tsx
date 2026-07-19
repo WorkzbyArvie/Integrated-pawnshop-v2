@@ -1,5 +1,5 @@
 ﻿/**
- * NotificationCenter â€“ In-app notification bell + dropdown inbox.
+ * NotificationCenter -- In-app notification bell + dropdown inbox.
  *
  * Features:
  *   - Bell icon with unread count badge
@@ -37,15 +37,20 @@ export function NotificationCenter({ userId }: NotificationCenterProps) {
     data: notificationsRaw,
     loading,
     refetch,
-  } = useApi<{ data: Notification[]; total: number } | Notification[]>(
+  } = useApi<{ data: Notification[]; meta: { total: number } } | Notification[]>(
     userId ? `/notifications/user/${userId}` : null,
-    { limit: 20, offset: 0 },
+    {},
     [userId],
   );
 
-  const notifications: Notification[] = Array.isArray(notificationsRaw)
-    ? notificationsRaw
-    : (notificationsRaw as any)?.data ?? [];
+  const notifications: Notification[] = (() => {
+    if (!notificationsRaw) return [];
+    if (Array.isArray(notificationsRaw)) return notificationsRaw;
+    if ((notificationsRaw as any)?.data && Array.isArray((notificationsRaw as any).data)) {
+      return (notificationsRaw as any).data;
+    }
+    return [];
+  })();
 
   const unreadCount = notifications.filter((n) => n.status !== 'READ').length;
 
@@ -74,7 +79,7 @@ export function NotificationCenter({ userId }: NotificationCenterProps) {
       await api.patch(`/notifications/${notificationId}/read`);
       refetch();
     } catch {
-      // Silent fail â€” non-critical
+      // Silent fail -- non-critical
     }
   };
 

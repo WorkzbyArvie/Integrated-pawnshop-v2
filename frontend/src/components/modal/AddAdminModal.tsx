@@ -212,7 +212,7 @@ export function AddAdminModal({ branchId, branchName }: AddAdminModalProps) {
             </label>
             <Input 
               type="password" 
-              placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢" 
+              placeholder="••••••••••••" 
               value={password}
               onChange={(e) => {
                 setPassword(e.target.value);

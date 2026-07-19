@@ -39,11 +39,12 @@ export class LoanContractService {
     const contractNumber = this.generateContractNumber();
     const legalEntity = application.pawnshop?.legalEntity;
 
+    const loan = application.loan;
     const templateData = {
       contractNumber,
       generatedDate: new Date().toLocaleDateString('en-PH'),
       pawnshopLegalName: legalEntity?.legalName || application.pawnshop?.name || '',
-      registrationNumber: legalEntity?.registrationNumber || 'N/A',
+      registrationNumber: legalEntity?.registrationNumber || application.pawnshop?.registrationNumber || 'Pending Registration',
       customerName: application.customer.fullName,
       customerIdType: 'Valid ID',
       customerIdNumber: 'N/A',
@@ -57,9 +58,9 @@ export class LoanContractService {
       maturityDate: new Date(Date.now() + application.termMonths * 30 * 24 * 60 * 60 * 1000).toLocaleDateString('en-PH'),
       graceDays: '30',
       latePenaltyRate: '3',
-      itemDescription: application.purpose || 'Collateral item',
-      itemCategory: application.loanType,
-      itemWeight: 'N/A',
+      itemDescription: this.stripPhotoUrls(application.purpose),
+      itemCategory: loan?.category || application.purpose || application.loanType,
+      itemWeight: loan?.weight ? `${loan.weight}g` : 'N/A',
     };
 
     let pdfUrl: string | null = null;
@@ -257,10 +258,38 @@ export class LoanContractService {
     return contracts;
   }
 
+  async downloadContractPdf(contractId: string): Promise<{ buffer: Buffer; contractNumber: string }> {
+    const contract = await this.prisma.loanContract.findUnique({ where: { id: contractId } });
+    if (!contract) throw new NotFoundException('Contract not found');
+
+    const { pdfBuffer } = await this.contractRenderer.renderPdfOnly(
+      'loan-contract',
+      contract.contractData as Record<string, any>,
+      {
+        customerSignature: contract.customerSignature,
+        customerSignedAt: contract.customerSignedAt?.toISOString() || null,
+        staffSignature: contract.staffSignature,
+        staffSignedAt: contract.staffSignedAt?.toISOString() || null,
+      },
+    );
+
+    return { buffer: pdfBuffer, contractNumber: contract.contractNumber };
+  }
+
   async getContractProofs(contractId: string) {
     const contract = await this.prisma.loanContract.findUnique({ where: { id: contractId } });
     if (!contract) throw new NotFoundException('Contract not found');
     return this.legalProofService.listByContract(contractId);
+  }
+
+  private stripPhotoUrls(text?: string | null): string {
+    if (!text) return 'Collateral item';
+    return text
+      .replace(/\n?\s*\[PHOTO_URL\]\s+https?:\/\/\S+/gi, '')
+      .replace(/\n?\s*\[PHOTO_URLS\]\s+\[[\s\S]*?\]/gi, '')
+      .replace(/https?:\/\/\S+/gi, '')
+      .replace(/\s{2,}/g, ' ')
+      .trim() || 'Collateral item';
   }
 
   private generateContractNumber(): string {

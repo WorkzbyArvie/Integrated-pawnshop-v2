@@ -218,7 +218,7 @@ export function TrialRequestsPanel() {
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <div>
                         <p className="text-sm font-bold text-[#EAE2D6]">{request.pawnshop_name}</p>
-                        <p className="text-xs text-[#6B655C]">{request.owner_name} â€¢ {request.owner_email}</p>
+                        <p className="text-xs text-[#6B655C]">{request.owner_name} • {request.owner_email}</p>
                       </div>
                       <span className={`rounded-full border px-2 py-1 text-[10px] font-black uppercase tracking-wider ${toneByStatus(request.status)}`}>
                         {request.status}

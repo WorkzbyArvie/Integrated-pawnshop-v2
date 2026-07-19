@@ -16,9 +16,11 @@ import { ContractModule } from '../contract/contract.module';
 import { ReceiptModule } from '../receipt/receipt.module';
 import { PawnTicketController } from './pawn-ticket.controller';
 import { PawnTicketService } from './pawn-ticket.service';
+import { NotificationModule } from '../notification/notification.module';
+import { GracePeriodService } from './grace-period.service';
 
 @Module({
-  imports: [FinanceModule, ContractModule, ReceiptModule],
+  imports: [FinanceModule, ContractModule, ReceiptModule, NotificationModule],
   controllers: [LoanController, UserLoansController, PawnTicketController],
   providers: [
     LoanService,
@@ -32,6 +34,7 @@ import { PawnTicketService } from './pawn-ticket.service';
     PaymongoService,
     LegalProofService,
     PawnTicketService,
+    GracePeriodService,
   ],
   exports: [
     LoanService,
@@ -43,6 +46,7 @@ import { PawnTicketService } from './pawn-ticket.service';
     UserLoansService,
     LegalProofService,
     PawnTicketService,
+    GracePeriodService,
   ],
 })
 export class LoanModule {}

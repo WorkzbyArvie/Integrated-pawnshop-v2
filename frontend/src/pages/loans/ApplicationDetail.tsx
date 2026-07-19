@@ -92,7 +92,7 @@ export function ApplicationDetail({ applicationId, onBack }: ApplicationDetailPr
   };
 
   const formatCurrency = (amount: number) => {
-    return `â‚±${amount.toLocaleString('en-PH', { minimumFractionDigits: 2 })}`;
+    return `₱${amount.toLocaleString('en-PH', { minimumFractionDigits: 2 })}`;
   };
 
   const formatDate = (dateString: string) => {
@@ -270,7 +270,7 @@ export function ApplicationDetail({ applicationId, onBack }: ApplicationDetailPr
                     <div>
                       <p className="font-bold text-[#EAE2D6]">{doc.fileName}</p>
                       <p className="text-sm text-[#6B655C]">
-                        {doc.documentType} â€¢ Uploaded {formatDate(doc.uploadedAt)}
+                        {doc.documentType} • Uploaded {formatDate(doc.uploadedAt)}
                       </p>
                     </div>
                     {doc.verifiedBy && (

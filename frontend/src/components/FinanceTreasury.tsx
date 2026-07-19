@@ -1,5 +1,5 @@
 ﻿/**
- * FinanceTreasury â€“ Unified Finance & Treasury dashboard.
+ * FinanceTreasury -- Unified Finance & Treasury dashboard.
  *
  * Shows the integrated view of:
  *   - Cash balance & cash flow
@@ -161,7 +161,7 @@ export function FinanceTreasury({ branchId: _branchId, activeBranchId }: Finance
             Finance <span className="text-[#C9A05C]">&amp;</span> Treasury
           </h2>
           <p className="text-[#6B655C] font-medium uppercase text-[10px] tracking-widest">
-            Attendance &bull; Payroll &bull; Cash Flow â€” Integrated View
+            Attendance &bull; Payroll &bull; Cash Flow -- Integrated View
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -406,7 +406,7 @@ export function FinanceTreasury({ branchId: _branchId, activeBranchId }: Finance
                       </Badge>
                     </TableCell>
                     <TableCell className="font-medium">{CATEGORY_LABELS[tx.category] || tx.category}</TableCell>
-                    <TableCell className="max-w-[200px] truncate" title={tx.description}>{tx.description}</TableCell>
+                    <TableCell className="whitespace-normal break-words">{tx.description}</TableCell>
                     <TableCell className={`text-right font-bold ${tx.entryType === 'CREDIT' ? 'text-emerald-600' : 'text-rose-600'}`}>
                       {tx.entryType === 'CREDIT' ? '+' : '-'}{formatCurrency(tx.amount)}
                     </TableCell>
