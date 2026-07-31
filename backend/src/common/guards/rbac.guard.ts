@@ -11,8 +11,11 @@ import { PrismaService } from '../../prisma.service';
 import { AuthUserService } from '../auth-user.service';
 import { ROLES_KEY } from '../decorators/roles.decorator';
 import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
+import { PERMISSIONS_KEY } from '../decorators/requires-permission.decorator';
+import { PermissionService } from '../permissions/permissions.service';
 
 const SUPER_ADMIN = 'SUPER_ADMIN';
+const LEGACY_CASHIER_TELLER = 'CASHIER_TELLER';
 
 @Injectable()
 export class RbacGuard implements CanActivate {
@@ -22,6 +25,7 @@ export class RbacGuard implements CanActivate {
     private reflector: Reflector,
     private prisma: PrismaService,
     private authUser: AuthUserService,
+    private permissionService: PermissionService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -45,7 +49,7 @@ export class RbacGuard implements CanActivate {
 
     const profile = await this.prisma.profile.findUnique({
       where: { id: userId },
-      select: { role: true, pawnshopId: true },
+      select: { role: true, staffType: true, pawnshopId: true },
     });
 
     if (!profile) {
@@ -53,41 +57,61 @@ export class RbacGuard implements CanActivate {
     }
 
     const userRole = profile.role;
+    const legacyCashierTeller = userRole === LEGACY_CASHIER_TELLER;
+    const effectiveStaffType = legacyCashierTeller
+      ? LEGACY_CASHIER_TELLER
+      : profile.staffType;
+    const baseRole = legacyCashierTeller ? 'STAFF' : userRole;
 
     const requiredRoles = this.reflector.getAllAndOverride<string[]>(
       ROLES_KEY,
       [context.getHandler(), context.getClass()],
     );
+    const requiredPermissions = this.reflector.getAllAndOverride<string[]>(
+      PERMISSIONS_KEY,
+      [context.getHandler(), context.getClass()],
+    );
 
-    if (!requiredRoles || requiredRoles.length === 0) {
+    const setUser = () => {
       request.user = {
         id: userId,
         role: userRole,
+        staffType: effectiveStaffType,
         pawnshopId: profile.pawnshopId,
       };
+    };
+
+    if ((!requiredRoles || requiredRoles.length === 0) &&
+        (!requiredPermissions || requiredPermissions.length === 0)) {
+      setUser();
       return true;
     }
 
     if (userRole === SUPER_ADMIN) {
-      request.user = {
-        id: userId,
-        role: userRole,
-        pawnshopId: profile.pawnshopId,
-      };
+      setUser();
       return true;
     }
 
-    if (requiredRoles.includes(userRole)) {
-      request.user = {
-        id: userId,
-        role: userRole,
-        pawnshopId: profile.pawnshopId,
-      };
+    if (requiredPermissions && requiredPermissions.length > 0) {
+      const effective =
+        await this.permissionService.resolveEffectivePermissions(
+          baseRole,
+          effectiveStaffType,
+        );
+      if (requiredPermissions.every((permission) => effective.has(permission as never))) {
+        setUser();
+        return true;
+      }
+    }
+
+    if (requiredRoles && requiredRoles.includes(userRole)) {
+      setUser();
       return true;
     }
 
     throw new ForbiddenException(
-      `Access denied. Required role(s): ${requiredRoles.join(', ')}. Your role: ${userRole}`,
+      `Access denied. Required role(s): ${requiredRoles?.join(', ') ?? 'none'}. ` +
+        `Required permission(s): ${requiredPermissions?.join(', ') ?? 'none'}. Your role: ${userRole}`,
     );
   }
 }

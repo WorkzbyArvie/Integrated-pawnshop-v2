@@ -3,6 +3,7 @@ import { StateMachineService } from './state-machine/state-machine.service';
 import { AuthUserService } from './auth-user.service';
 import { PawnshopGuard } from './guards/pawnshop.guard';
 import { StorageService } from './storage/storage.service';
+import { PermissionsModule } from './permissions/permissions.module';
 import {
   TICKET_LIFECYCLE,
   LOAN_APPLICATION_LIFECYCLE,
@@ -11,6 +12,7 @@ import {
 
 @Global()
 @Module({
+  imports: [PermissionsModule],
   providers: [
     StateMachineService,
     AuthUserService,
