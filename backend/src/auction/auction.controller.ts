@@ -11,9 +11,13 @@ import {
   Patch,
   Post,
   Query,
+  Req,
 } from '@nestjs/common';
+import type { Request } from 'express';
 import { Public } from '../common/decorators/public.decorator';
+import { RequiresPermission } from '../common/decorators/requires-permission.decorator';
 import { Throttle } from '../common/decorators/throttle.decorator';
+import { RequiresCompliance } from '../common/decorators/requires-compliance.decorator';
 import { AuctionService } from './auction.service';
 import { AuctionAuthService } from './auction-auth.service';
 import { AuctionPaymentService } from './auction-payment.service';
@@ -22,6 +26,9 @@ import { ListAuctionListingsQueryDto } from './dto/list-auction-listings.dto';
 import { PlaceBidDto } from './dto/place-bid.dto';
 import { PublishAuctionListingDto } from './dto/publish-auction-listing.dto';
 import { CreateAuctionRatingDto } from './dto/create-auction-rating.dto';
+import { ReleaseComplianceDto } from './dto/release-compliance.dto';
+import { ManualSettleDto } from './dto/manual-settle.dto';
+import { SignComplianceContractDto } from './dto/sign-compliance-contract.dto';
 
 @Controller('auction')
 export class AuctionController {
@@ -72,6 +79,7 @@ export class AuctionController {
     return this.auctionService.getListingProofs(id, actorId);
   }
 
+  @RequiresCompliance(40)
   @Post('listings')
   async createListing(
     @Headers('authorization') authHeader: string | undefined,
@@ -129,7 +137,7 @@ export class AuctionController {
   @Post('bidders/accept-tos')
   async acceptBidderTos(
     @Headers('authorization') authHeader: string | undefined,
-    @Body('listingId') listingId: number,
+    @Body('listingId') listingId: number | undefined,
     @Headers('x-forwarded-for') ipAddress?: string,
     @Headers('user-agent') userAgent?: string,
   ) {
@@ -223,5 +231,53 @@ export class AuctionController {
       'SIMULATED',
     );
     return { received: true, simulated: true };
+  }
+
+  @Get('settlements')
+  @RequiresPermission('auction.settle')
+  async listSettlements(
+    @Req() req: Request,
+    @Query('status') status?: string,
+    @Query('limit') limit?: string,
+    @Query('offset') offset?: string,
+  ) {
+    const pawnshopId = (req as any).headers['pawnshop-id'] || (req as any).user?.pawnshopId;
+    return this.auctionService.listSettlements(
+      pawnshopId,
+      status,
+      limit ? parseInt(limit) : 20,
+      offset ? parseInt(offset) : 0,
+    );
+  }
+
+  @Patch('settlements/:id/release')
+  @RequiresPermission('auction.settle')
+  async releaseCompliance(
+    @Param('id') id: string,
+    @Body() dto: ReleaseComplianceDto,
+    @Req() req: Request,
+  ) {
+    const staffId = (req as any).user?.id || 'unknown';
+    return this.auctionService.releaseCompliance(id, staffId, dto.notes);
+  }
+
+  @Post('settlements/:id/manual-settle')
+  @RequiresPermission('auction.manual_settle')
+  async manualSettle(
+    @Param('id') id: string,
+    @Body() dto: ManualSettleDto,
+  ) {
+    return this.auctionService.manualSettle(dto);
+  }
+
+  @Public()
+  @Post('settlements/:id/sign-contract')
+  async signContract(
+    @Param('id') id: string,
+    @Body() dto: SignComplianceContractDto,
+    @Headers('authorization') authHeader: string | undefined,
+  ) {
+    const actorId = await this.auctionAuthService.getActorId(authHeader);
+    return this.auctionService.signContract(id, dto.signedName);
   }
 }

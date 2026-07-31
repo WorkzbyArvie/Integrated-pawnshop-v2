@@ -12,7 +12,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { Public } from './common/decorators/public.decorator';
-import { Roles } from './common/decorators/roles.decorator';
+import { RequiresPermission } from './common/decorators/requires-permission.decorator';
 import { Throttle } from './common/decorators/throttle.decorator';
 import { AppService } from './app.service';
 
@@ -61,7 +61,7 @@ export class AppController {
   }
 
   @Public()
-  @Throttle({ ttl: 60_000, limit: 3 })
+  @Throttle({ ttl: 60_000, limit: 10 })
   @Post('auth/request-auth-code')
   async requestAuthCode(@Body() body: any) {
     try {
@@ -78,6 +78,7 @@ export class AppController {
     }
   }
 
+  @Public()
   @Post('auth/verify-auth-code')
   async verifyAuthCode(@Body() body: any) {
     try {
@@ -94,20 +95,42 @@ export class AppController {
     }
   }
 
+  @Public()
   @Post('auth/register-bidder')
   async registerBidder(@Body() body: any) {
     try {
       console.log('[Controller] registerBidder called for:', body.email);
       const result = await this.appService.registerBidder(body);
-      console.log('[Controller] ✅ registerBidder succeeded');
+      console.log('[Controller] ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ registerBidder succeeded');
       return result;
     } catch (error: any) {
-      console.error('[Controller] ❌ registerBidder failed:', error.message);
+      console.error('[Controller] ÃƒÂ¢Ã‚ÂÃ…â€™ registerBidder failed:', error.message);
       throw new HttpException(
         {
           success: false,
           error: error.message || 'Failed to register bidder',
           message: error.message || 'Failed to register bidder',
+        },
+        error.statusCode || HttpStatus.BAD_REQUEST,
+      );
+    }
+  }
+
+  @Public()
+  @Post('auth/register-owner')
+  async registerOwner(@Body() body: any) {
+    try {
+      console.log('[Controller] registerOwner called for:', body.email);
+      const result = await this.appService.registerOwner(body);
+      console.log('[Controller] ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ registerOwner succeeded');
+      return result;
+    } catch (error: any) {
+      console.error('[Controller] ÃƒÂ¢Ã‚ÂÃ…â€™ registerOwner failed:', error.message);
+      throw new HttpException(
+        {
+          success: false,
+          error: error.message || 'Failed to register owner',
+          message: error.message || 'Failed to register owner',
         },
         error.statusCode || HttpStatus.BAD_REQUEST,
       );
@@ -132,10 +155,10 @@ export class AppController {
 
       const result = await this.appService.createBranchAdmin(userId, body);
 
-      console.log('[Controller] ✅ createBranchAdmin succeeded');
+      console.log('[Controller] ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ createBranchAdmin succeeded');
       return result;
     } catch (error: any) {
-      console.error('[Controller] ❌ createBranchAdmin failed:', {
+      console.error('[Controller] ÃƒÂ¢Ã‚ÂÃ…â€™ createBranchAdmin failed:', {
         message: error.message,
         code: error.code,
         statusCode: error.statusCode,
@@ -248,9 +271,17 @@ export class AppController {
     @Headers('authorization') authHeader: string | undefined,
   ) {
     const userId = await this.extractUserId(authHeader);
-    // Only admins can view pending KYC
-    await this.appService.requireAdmin(userId);
+    await this.appService.requireSuperAdmin(userId);
     return this.appService.listPendingKyc();
+  }
+
+  @Get('auth/kyc/all')
+  async listAllKyc(
+    @Headers('authorization') authHeader: string | undefined,
+  ) {
+    const userId = await this.extractUserId(authHeader);
+    await this.appService.requireSuperAdmin(userId);
+    return this.appService.listAllKyc();
   }
 
   @Patch('auth/kyc/:id/review')
@@ -262,7 +293,7 @@ export class AppController {
   ) {
     try {
       const userId = await this.extractUserId(authHeader);
-      await this.appService.requireAdmin(userId);
+      await this.appService.requireSuperAdmin(userId);
       return await this.appService.reviewKyc(
         kycId,
         userId,
@@ -321,6 +352,7 @@ export class AppController {
 
   // --- PAWNSHOPS ENDPOINTS ---
   @Get('pawnshops')
+  @RequiresPermission('platform.manage')
   findAllPawnshops() {
     return this.appService.getAllPawnshops();
   }

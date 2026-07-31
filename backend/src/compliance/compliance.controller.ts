@@ -1,156 +1,84 @@
 import {
+  Body,
   Controller,
   Get,
-  Post,
-  Patch,
-  Body,
   Param,
+  Post,
+  Put,
   Query,
-  Headers,
-  HttpCode,
-  HttpStatus,
-  Logger,
+  Req,
 } from '@nestjs/common';
 import { ComplianceService } from './compliance.service';
-import { VerifyComplianceDto } from './dto/verify-compliance.dto';
-import { ReleaseItemDto } from './dto/release-item.dto';
-import { ComplianceStatus } from '@prisma/client';
+import { UploadDocumentDto } from './dto/upload-document.dto';
+import { VerifyDocumentDto } from './dto/verify-document.dto';
+import { RequiresPermission } from '../common/decorators/requires-permission.decorator';
 
 @Controller('compliance')
 export class ComplianceController {
-  private readonly logger = new Logger(ComplianceController.name);
-
   constructor(private readonly complianceService: ComplianceService) {}
 
-  /**
-   * Get all compliance records for pawnshop
-   * GET /compliance
-   */
-  @Get()
-  async findAll(
-    @Headers('pawnshop-id') pawnshopId: string,
-    @Query('status') status?: ComplianceStatus,
-    @Query('branchId') branchId?: string,
+  @Post('documents')
+  @RequiresPermission('compliance.manage_documents')
+  async uploadDocument(@Req() req: any, @Body() dto: UploadDocumentDto) {
+    return this.complianceService.uploadDocument(req.user.id, dto);
+  }
+
+  @Get('documents')
+  @RequiresPermission('compliance.view')
+  async getDocuments(
+    @Req() req: any,
+    @Query('pawnshopId') pawnshopId?: string,
   ) {
-    return this.complianceService.findAll(pawnshopId, status, branchId);
+    return this.complianceService.getDocuments(req.user.id, pawnshopId);
   }
 
-  /**
-   * Get compliance statistics
-   * GET /compliance/statistics
-   */
-  @Get('statistics')
-  async getStatistics(
-    @Headers('pawnshop-id') pawnshopId: string,
-    @Query('branchId') branchId?: string,
-  ) {
-    return this.complianceService.getStatistics(pawnshopId, branchId);
-  }
-
-  /**
-   * Get winner's compliance records
-   * GET /compliance/winner/:winnerId
-   */
-  @Get('winner/:winnerId')
-  async findByWinner(@Param('winnerId') winnerId: string) {
-    return this.complianceService.findByWinner(winnerId);
-  }
-
-  /**
-   * Get a specific compliance record
-   * GET /compliance/:id
-   */
-  @Get(':id')
-  async findOne(
-    @Headers('pawnshop-id') pawnshopId: string,
+  @Put('documents/:id/verify')
+  @RequiresPermission('platform.manage')
+  async verifyDocument(
+    @Req() req: any,
     @Param('id') id: string,
-    @Headers('user-id') userId?: string,
+    @Body() dto: VerifyDocumentDto,
   ) {
-    // Log access for audit purposes
-    if (userId) {
-      await this.complianceService.logAccess(id, userId, 'VIEW');
-    }
-    return this.complianceService.findOne(pawnshopId, id);
+    return this.complianceService.verifyDocument(req.user.id, id, dto);
   }
 
-  /**
-   * Winner submits compliance proof
-   * POST /compliance/:id/submit
-   */
-  @Post(':id/submit')
-  @HttpCode(HttpStatus.OK)
-  async submitCompliance(
-    @Headers('user-id') winnerId: string,
-    @Param('id') complianceId: string,
-    @Body() dto: VerifyComplianceDto,
+  @Post('documents/:id/renew')
+  @RequiresPermission('compliance.manage_documents')
+  async renewDocument(
+    @Req() req: any,
+    @Param('id') id: string,
+    @Body() dto: UploadDocumentDto,
   ) {
-    return this.complianceService.submitCompliance(winnerId, complianceId, dto);
+    return this.complianceService.renewDocument(req.user.id, id, dto);
   }
 
-  /**
-   * Pawnshop staff verifies compliance
-   * POST /compliance/:id/verify
-   */
-  @Post(':id/verify')
-  @HttpCode(HttpStatus.OK)
-  async verifyCompliance(
-    @Headers('pawnshop-id') pawnshopId: string,
-    @Param('id') complianceId: string,
-    @Body() body: { verifiedBy: string },
-  ) {
-    return this.complianceService.verifyCompliance(
-      pawnshopId,
-      complianceId,
-      body.verifiedBy,
-    );
+  @Get()
+  @RequiresPermission('compliance.view')
+  async root(@Req() req: any) {
+    return this.complianceService.getComplianceScore(req.user.id);
   }
 
-  /**
-   * Release item to winner
-   * POST /compliance/:id/release
-   */
-  @Post(':id/release')
-  @HttpCode(HttpStatus.OK)
-  async releaseItem(
-    @Headers('pawnshop-id') pawnshopId: string,
-    @Param('id') complianceId: string,
-    @Body() dto: ReleaseItemDto,
-  ) {
-    return this.complianceService.releaseItem(pawnshopId, complianceId, dto);
+  @Get('score')
+  @RequiresPermission('compliance.view')
+  async getComplianceScore(@Req() req: any) {
+    return this.complianceService.getComplianceScore(req.user.id);
   }
 
-  /**
-   * Extend compliance deadline
-   * PATCH /compliance/:id/extend-deadline
-   */
-  @Patch(':id/extend-deadline')
-  async extendDeadline(
-    @Headers('pawnshop-id') pawnshopId: string,
-    @Param('id') complianceId: string,
-    @Body() body: { additionalHours: number },
-  ) {
-    return this.complianceService.extendDeadline(
-      pawnshopId,
-      complianceId,
-      body.additionalHours,
-    );
+  @Get('pending-reviews')
+  @RequiresPermission('platform.manage')
+  async getPendingReviews() {
+    return this.complianceService.getPendingReviews();
   }
 
-  /**
-   * Offer listing to next highest bidder (fallback winner)
-   * POST /compliance/:id/offer-next
-   */
-  @Post(':id/offer-next')
-  @HttpCode(HttpStatus.OK)
-  async offerToNextBidder(
-    @Headers('pawnshop-id') pawnshopId: string,
-    @Param('id') complianceId: string,
-    @Body() body: { promotedBy?: string },
-  ) {
-    return this.complianceService.offerToNextBidder(
-      pawnshopId,
-      complianceId,
-      body.promotedBy,
-    );
+  @Get('all-pawnshops')
+  @RequiresPermission('platform.manage')
+  async getAllPawnshopCompliance() {
+    return this.complianceService.getAllPawnshopCompliance();
+  }
+
+  @Get('super-admin-overview')
+  @RequiresPermission('platform.manage')
+  async getSuperAdminOverview() {
+    return this.complianceService.getSuperAdminOverview();
   }
 }
