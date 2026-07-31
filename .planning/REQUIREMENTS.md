@@ -80,27 +80,25 @@ milestone closes every gap. Audit summary:
 
 | REQ-ID | Phase | Status |
 |--------|-------|--------|
-| ONB-01 | | |
-| ONB-02 | | |
-| ONB-03 | | |
-| ONB-04 | | |
-| CTR-01 | | |
-| CTR-02 | | |
-| CTR-03 | | |
-| RBAC-01 | | |
-| RBAC-02 | | |
-| RBAC-03 | | |
-| RBAC-04 | | |
-| RBAC-05 | | |
-| RBAC-06 | | |
-| KYC-01 | | |
-| KYC-02 | | |
-| KYC-03 | | |
-| KYC-04 | | |
-| KYC-05 | | |
-| CUST-01 | | |
-| CUST-02 | | |
-| CUST-03 | | |
-| CUST-04 | | |
-
-*(filled by roadmap)*
+| ONB-01 | Phase 10 | Pending |
+| ONB-02 | Phase 10 | Pending |
+| ONB-03 | Phase 10 | Pending |
+| ONB-04 | Phase 10 | Pending |
+| CTR-01 | Phase 11 | Pending |
+| CTR-02 | Phase 11 | Pending |
+| CTR-03 | Phase 11 | Pending |
+| RBAC-01 | Phase 7 | Pending |
+| RBAC-02 | Phase 7 | Pending |
+| RBAC-03 | Phase 8 | Pending |
+| RBAC-04 | Phase 8 | Pending |
+| RBAC-05 | Phase 8 | Pending |
+| RBAC-06 | Phase 8 | Pending |
+| KYC-01 | Phase 9 | Pending |
+| KYC-02 | Phase 9 | Pending |
+| KYC-03 | Phase 9 | Pending |
+| KYC-04 | Phase 9 | Pending |
+| KYC-05 | Phase 9 | Pending |
+| CUST-01 | Phase 12 | Pending |
+| CUST-02 | Phase 12 | Pending |
+| CUST-03 | Phase 12 | Pending |
+| CUST-04 | Phase 12 | Pending |
