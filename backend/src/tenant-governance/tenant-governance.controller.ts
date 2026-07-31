@@ -10,6 +10,7 @@ import {
 } from '@nestjs/common';
 import { AuthUserService } from '../common/auth-user.service';
 import { TenantGovernanceService } from './tenant-governance.service';
+import { RequiresPermission } from '../common/decorators/requires-permission.decorator';
 import { RequestSupportAccessDto } from './dto/request-support-access.dto';
 import { ApproveSupportAccessDto } from './dto/approve-support-access.dto';
 import { ConfigureOnboardingDto } from './dto/configure-onboarding.dto';
@@ -23,6 +24,9 @@ import { ReviewClientRegistrationDto } from './dto/review-client-registration.dt
 import { UpdateSupportConversationStatusDto } from './dto/update-support-conversation-status.dto';
 import { PostClientRegistrationMessageDto } from './dto/post-client-registration-message.dto';
 import { CancelClientRegistrationDto } from './dto/cancel-client-registration.dto';
+import { CreatePawnshopDirectDto } from './dto/create-pawnshop-direct.dto';
+import { InviteOwnerDto } from './dto/invite-owner.dto';
+import { ExtendTrialDto, UpgradeTierDto, AdjustSubscriptionStatusDto } from './dto/manage-subscription.dto';
 
 @Controller('tenant-governance')
 export class TenantGovernanceController {
@@ -32,12 +36,14 @@ export class TenantGovernanceController {
   ) {}
 
   @Get('pawnshops/metadata')
+  @RequiresPermission('platform.manage')
   async getPawnshopMetadata(@Headers('authorization') authHeader?: string) {
     const userId = await this.authUserService.getUserIdFromAuthHeader(authHeader);
     return this.tenantGovernanceService.getPawnshopMetadata(userId);
   }
 
   @Post('support-access/request')
+  @RequiresPermission('platform.manage')
   async requestSupportAccess(
     @Headers('authorization') authHeader: string | undefined,
     @Body() dto: RequestSupportAccessDto,
@@ -47,6 +53,7 @@ export class TenantGovernanceController {
   }
 
   @Post('support-access/:requestId/approve')
+  @RequiresPermission('platform.manage')
   async approveSupportAccess(
     @Headers('authorization') authHeader: string | undefined,
     @Param('requestId') requestId: string,
@@ -57,6 +64,7 @@ export class TenantGovernanceController {
   }
 
   @Post('support-access/:grantId/revoke')
+  @RequiresPermission('platform.manage')
   async revokeSupportAccess(
     @Headers('authorization') authHeader: string | undefined,
     @Param('grantId') grantId: string,
@@ -66,6 +74,7 @@ export class TenantGovernanceController {
   }
 
   @Get('support-access/audit')
+  @RequiresPermission('platform.manage')
   async getSupportAccessAudit(
     @Headers('authorization') authHeader: string | undefined,
     @Query('pawnshopId') pawnshopId?: string,
@@ -75,6 +84,7 @@ export class TenantGovernanceController {
   }
 
   @Get('audit/history')
+  @RequiresPermission('tenant.view_audit')
   async getTenantAuditHistory(
     @Headers('authorization') authHeader: string | undefined,
     @Query('pawnshopId') pawnshopId?: string,
@@ -86,6 +96,7 @@ export class TenantGovernanceController {
   }
 
   @Get('support-access/status')
+  @RequiresPermission('platform.manage')
   async getSupportAccessStatus(
     @Headers('authorization') authHeader: string | undefined,
     @Query('pawnshopId') pawnshopId?: string,
@@ -95,6 +106,7 @@ export class TenantGovernanceController {
   }
 
   @Get('support-access/requests')
+  @RequiresPermission('platform.manage')
   async listSupportAccessRequests(
     @Headers('authorization') authHeader: string | undefined,
     @Query('pawnshopId') pawnshopId?: string,
@@ -109,6 +121,7 @@ export class TenantGovernanceController {
   }
 
   @Post('onboarding/configure')
+  @RequiresPermission('platform.manage')
   async configureOnboarding(
     @Headers('authorization') authHeader: string | undefined,
     @Body() dto: ConfigureOnboardingDto,
@@ -118,6 +131,7 @@ export class TenantGovernanceController {
   }
 
   @Patch('branding')
+  @RequiresPermission('platform.manage')
   async updateBranding(
     @Headers('authorization') authHeader: string | undefined,
     @Body() dto: UpdateBrandingDto,
@@ -172,6 +186,7 @@ export class TenantGovernanceController {
   }
 
   @Post('client-registrations/:requestId/review')
+  @RequiresPermission('platform.manage')
   async reviewClientRegistration(
     @Headers('authorization') authHeader: string | undefined,
     @Param('requestId') requestId: string,
@@ -222,6 +237,46 @@ export class TenantGovernanceController {
     );
   }
 
+  @Post('client-registrations/:requestId/documents')
+  async uploadRegistrationDocument(
+    @Headers('authorization') authHeader: string | undefined,
+    @Param('requestId') requestId: string,
+    @Body() dto: { documentType: string; fileName: string; fileUrl: string; fileSize?: number },
+  ) {
+    const userId = await this.authUserService.getUserIdFromAuthHeader(authHeader);
+    return this.tenantGovernanceService.uploadRegistrationDocument(userId, requestId, dto);
+  }
+
+  @Get('client-registrations/:requestId/documents')
+  async listRegistrationDocuments(
+    @Headers('authorization') authHeader: string | undefined,
+    @Param('requestId') requestId: string,
+  ) {
+    const userId = await this.authUserService.getUserIdFromAuthHeader(authHeader);
+    return this.tenantGovernanceService.listRegistrationDocuments(userId, requestId);
+  }
+
+  @Get('client-registrations/:requestId/documents/admin')
+  async adminListRegistrationDocuments(
+    @Headers('authorization') authHeader: string | undefined,
+    @Param('requestId') requestId: string,
+  ) {
+    const userId = await this.authUserService.getUserIdFromAuthHeader(authHeader);
+    return this.tenantGovernanceService.adminListRegistrationDocuments(userId, requestId);
+  }
+
+  @Post('client-registrations/:requestId/documents/:documentId/review')
+  @RequiresPermission('platform.manage')
+  async reviewRegistrationDocument(
+    @Headers('authorization') authHeader: string | undefined,
+    @Param('requestId') requestId: string,
+    @Param('documentId') documentId: string,
+    @Body() dto: { decision: 'APPROVED' | 'REJECTED'; rejectionReason?: string },
+  ) {
+    const userId = await this.authUserService.getUserIdFromAuthHeader(authHeader);
+    return this.tenantGovernanceService.reviewRegistrationDocument(userId, requestId, documentId, dto);
+  }
+
   @Get('branches')
   async listBranches(
     @Headers('authorization') authHeader: string | undefined,
@@ -232,6 +287,7 @@ export class TenantGovernanceController {
   }
 
   @Post('branches')
+  @RequiresPermission('tenant.manage_branches')
   async createBranch(
     @Headers('authorization') authHeader: string | undefined,
     @Body() dto: CreateBranchDto,
@@ -241,6 +297,7 @@ export class TenantGovernanceController {
   }
 
   @Patch('branches/:branchId')
+  @RequiresPermission('tenant.manage_branches')
   async updateBranch(
     @Headers('authorization') authHeader: string | undefined,
     @Param('branchId') branchId: string,
@@ -304,5 +361,107 @@ export class TenantGovernanceController {
       conversationId,
       dto,
     );
+  }
+
+  @Patch('pawnshops/:id/toggle-status')
+  @RequiresPermission('platform.manage')
+  async togglePawnshopStatus(
+    @Headers('authorization') authHeader: string | undefined,
+    @Param('id') id: string,
+  ) {
+    const userId = await this.authUserService.getUserIdFromAuthHeader(authHeader);
+    return this.tenantGovernanceService.togglePawnshopStatus(userId, id);
+  }
+
+  @Patch('pawnshops/:id/settings')
+  @RequiresPermission('platform.manage')
+  async updatePawnshopSettings(
+    @Headers('authorization') authHeader: string | undefined,
+    @Param('id') id: string,
+    @Body() body: { settings: Record<string, unknown> },
+  ) {
+    const userId = await this.authUserService.getUserIdFromAuthHeader(authHeader);
+    return this.tenantGovernanceService.updatePawnshopSettings(userId, id, body.settings);
+  }
+
+  @Post('pawnshops/:id/delete')
+  @RequiresPermission('platform.manage')
+  async deletePawnshop(
+    @Headers('authorization') authHeader: string | undefined,
+    @Param('id') id: string,
+  ) {
+    const userId = await this.authUserService.getUserIdFromAuthHeader(authHeader);
+    return this.tenantGovernanceService.deletePawnshop(userId, id);
+  }
+
+  @Post('pawnshops')
+  @RequiresPermission('platform.manage')
+  async createPawnshopDirect(
+    @Headers('authorization') authHeader: string | undefined,
+    @Body() dto: CreatePawnshopDirectDto,
+  ) {
+    const userId = await this.authUserService.getUserIdFromAuthHeader(authHeader);
+    return this.tenantGovernanceService.createPawnshopDirect(userId, dto);
+  }
+
+  @Post('invitations')
+  @RequiresPermission('platform.manage')
+  async inviteOwner(
+    @Headers('authorization') authHeader: string | undefined,
+    @Body() dto: InviteOwnerDto,
+  ) {
+    const userId = await this.authUserService.getUserIdFromAuthHeader(authHeader);
+    return this.tenantGovernanceService.inviteOwner(userId, dto);
+  }
+
+  @Get('analytics/platform')
+  @RequiresPermission('platform.manage')
+  async getPlatformAnalytics(
+    @Headers('authorization') authHeader: string | undefined,
+  ) {
+    const userId = await this.authUserService.getUserIdFromAuthHeader(authHeader);
+    return this.tenantGovernanceService.getPlatformAnalytics(userId);
+  }
+
+  @Post('subscriptions/:pawnshopId/extend-trial')
+  @RequiresPermission('platform.manage')
+  async extendTrial(
+    @Headers('authorization') authHeader: string | undefined,
+    @Param('pawnshopId') pawnshopId: string,
+    @Body() dto: ExtendTrialDto,
+  ) {
+    const userId = await this.authUserService.getUserIdFromAuthHeader(authHeader);
+    return this.tenantGovernanceService.extendTrial(userId, pawnshopId, dto);
+  }
+
+  @Post('subscriptions/:pawnshopId/upgrade-tier')
+  @RequiresPermission('platform.manage')
+  async upgradeTier(
+    @Headers('authorization') authHeader: string | undefined,
+    @Param('pawnshopId') pawnshopId: string,
+    @Body() dto: UpgradeTierDto,
+  ) {
+    const userId = await this.authUserService.getUserIdFromAuthHeader(authHeader);
+    return this.tenantGovernanceService.upgradeTier(userId, pawnshopId, dto);
+  }
+
+  @Patch('subscriptions/:pawnshopId/status')
+  @RequiresPermission('platform.manage')
+  async adjustSubscriptionStatus(
+    @Headers('authorization') authHeader: string | undefined,
+    @Param('pawnshopId') pawnshopId: string,
+    @Body() dto: AdjustSubscriptionStatusDto,
+  ) {
+    const userId = await this.authUserService.getUserIdFromAuthHeader(authHeader);
+    return this.tenantGovernanceService.adjustSubscriptionStatus(userId, pawnshopId, dto);
+  }
+
+  @Post('subscriptions/request-extension')
+  @RequiresPermission('tenant.manage')
+  async requestTrialExtension(
+    @Headers('authorization') authHeader: string | undefined,
+  ) {
+    const userId = await this.authUserService.getUserIdFromAuthHeader(authHeader);
+    return this.tenantGovernanceService.requestTrialExtension(userId, {});
   }
 }
