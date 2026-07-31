@@ -13,6 +13,7 @@ import {
 } from '@nestjs/common';
 import { Public } from './common/decorators/public.decorator';
 import { RequiresPermission } from './common/decorators/requires-permission.decorator';
+import { PERMISSIONS } from './common/permissions/permissions.const';
 import { Throttle } from './common/decorators/throttle.decorator';
 import { AppService } from './app.service';
 
@@ -101,10 +102,10 @@ export class AppController {
     try {
       console.log('[Controller] registerBidder called for:', body.email);
       const result = await this.appService.registerBidder(body);
-      console.log('[Controller] ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ registerBidder succeeded');
+      console.log('[Controller] ÃƒÆ’Ã‚Â¢Ãƒâ€¦Ã¢â‚¬Å“ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ registerBidder succeeded');
       return result;
     } catch (error: any) {
-      console.error('[Controller] ÃƒÂ¢Ã‚ÂÃ…â€™ registerBidder failed:', error.message);
+      console.error('[Controller] ÃƒÆ’Ã‚Â¢Ãƒâ€šÃ‚ÂÃƒâ€¦Ã¢â‚¬â„¢ registerBidder failed:', error.message);
       throw new HttpException(
         {
           success: false,
@@ -122,10 +123,10 @@ export class AppController {
     try {
       console.log('[Controller] registerOwner called for:', body.email);
       const result = await this.appService.registerOwner(body);
-      console.log('[Controller] ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ registerOwner succeeded');
+      console.log('[Controller] ÃƒÆ’Ã‚Â¢Ãƒâ€¦Ã¢â‚¬Å“ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ registerOwner succeeded');
       return result;
     } catch (error: any) {
-      console.error('[Controller] ÃƒÂ¢Ã‚ÂÃ…â€™ registerOwner failed:', error.message);
+      console.error('[Controller] ÃƒÆ’Ã‚Â¢Ãƒâ€šÃ‚ÂÃƒâ€¦Ã¢â‚¬â„¢ registerOwner failed:', error.message);
       throw new HttpException(
         {
           success: false,
@@ -155,10 +156,10 @@ export class AppController {
 
       const result = await this.appService.createBranchAdmin(userId, body);
 
-      console.log('[Controller] ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ createBranchAdmin succeeded');
+      console.log('[Controller] ÃƒÆ’Ã‚Â¢Ãƒâ€¦Ã¢â‚¬Å“ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ createBranchAdmin succeeded');
       return result;
     } catch (error: any) {
-      console.error('[Controller] ÃƒÂ¢Ã‚ÂÃ…â€™ createBranchAdmin failed:', {
+      console.error('[Controller] ÃƒÆ’Ã‚Â¢Ãƒâ€šÃ‚ÂÃƒâ€¦Ã¢â‚¬â„¢ createBranchAdmin failed:', {
         message: error.message,
         code: error.code,
         statusCode: error.statusCode,
@@ -352,7 +353,7 @@ export class AppController {
 
   // --- PAWNSHOPS ENDPOINTS ---
   @Get('pawnshops')
-  @RequiresPermission('platform.manage')
+  @RequiresPermission(PERMISSIONS['platform.manage'])
   findAllPawnshops() {
     return this.appService.getAllPawnshops();
   }

@@ -11,6 +11,7 @@ import {
 import { AuthUserService } from '../common/auth-user.service';
 import { TenantGovernanceService } from './tenant-governance.service';
 import { RequiresPermission } from '../common/decorators/requires-permission.decorator';
+import { PERMISSIONS } from '../common/permissions/permissions.const';
 import { RequestSupportAccessDto } from './dto/request-support-access.dto';
 import { ApproveSupportAccessDto } from './dto/approve-support-access.dto';
 import { ConfigureOnboardingDto } from './dto/configure-onboarding.dto';
@@ -36,14 +37,14 @@ export class TenantGovernanceController {
   ) {}
 
   @Get('pawnshops/metadata')
-  @RequiresPermission('platform.manage')
+  @RequiresPermission(PERMISSIONS['platform.manage'])
   async getPawnshopMetadata(@Headers('authorization') authHeader?: string) {
     const userId = await this.authUserService.getUserIdFromAuthHeader(authHeader);
     return this.tenantGovernanceService.getPawnshopMetadata(userId);
   }
 
   @Post('support-access/request')
-  @RequiresPermission('platform.manage')
+  @RequiresPermission(PERMISSIONS['platform.manage'])
   async requestSupportAccess(
     @Headers('authorization') authHeader: string | undefined,
     @Body() dto: RequestSupportAccessDto,
@@ -53,7 +54,7 @@ export class TenantGovernanceController {
   }
 
   @Post('support-access/:requestId/approve')
-  @RequiresPermission('platform.manage')
+  @RequiresPermission(PERMISSIONS['platform.manage'])
   async approveSupportAccess(
     @Headers('authorization') authHeader: string | undefined,
     @Param('requestId') requestId: string,
@@ -64,7 +65,7 @@ export class TenantGovernanceController {
   }
 
   @Post('support-access/:grantId/revoke')
-  @RequiresPermission('platform.manage')
+  @RequiresPermission(PERMISSIONS['platform.manage'])
   async revokeSupportAccess(
     @Headers('authorization') authHeader: string | undefined,
     @Param('grantId') grantId: string,
@@ -74,7 +75,7 @@ export class TenantGovernanceController {
   }
 
   @Get('support-access/audit')
-  @RequiresPermission('platform.manage')
+  @RequiresPermission(PERMISSIONS['platform.manage'])
   async getSupportAccessAudit(
     @Headers('authorization') authHeader: string | undefined,
     @Query('pawnshopId') pawnshopId?: string,
@@ -84,7 +85,7 @@ export class TenantGovernanceController {
   }
 
   @Get('audit/history')
-  @RequiresPermission('tenant.view_audit')
+  @RequiresPermission(PERMISSIONS['tenant.view_audit'])
   async getTenantAuditHistory(
     @Headers('authorization') authHeader: string | undefined,
     @Query('pawnshopId') pawnshopId?: string,
@@ -96,7 +97,7 @@ export class TenantGovernanceController {
   }
 
   @Get('support-access/status')
-  @RequiresPermission('platform.manage')
+  @RequiresPermission(PERMISSIONS['platform.manage'])
   async getSupportAccessStatus(
     @Headers('authorization') authHeader: string | undefined,
     @Query('pawnshopId') pawnshopId?: string,
@@ -106,7 +107,7 @@ export class TenantGovernanceController {
   }
 
   @Get('support-access/requests')
-  @RequiresPermission('platform.manage')
+  @RequiresPermission(PERMISSIONS['platform.manage'])
   async listSupportAccessRequests(
     @Headers('authorization') authHeader: string | undefined,
     @Query('pawnshopId') pawnshopId?: string,
@@ -121,7 +122,7 @@ export class TenantGovernanceController {
   }
 
   @Post('onboarding/configure')
-  @RequiresPermission('platform.manage')
+  @RequiresPermission(PERMISSIONS['platform.manage'])
   async configureOnboarding(
     @Headers('authorization') authHeader: string | undefined,
     @Body() dto: ConfigureOnboardingDto,
@@ -131,7 +132,7 @@ export class TenantGovernanceController {
   }
 
   @Patch('branding')
-  @RequiresPermission('platform.manage')
+  @RequiresPermission(PERMISSIONS['platform.manage'])
   async updateBranding(
     @Headers('authorization') authHeader: string | undefined,
     @Body() dto: UpdateBrandingDto,
@@ -186,7 +187,7 @@ export class TenantGovernanceController {
   }
 
   @Post('client-registrations/:requestId/review')
-  @RequiresPermission('platform.manage')
+  @RequiresPermission(PERMISSIONS['platform.manage'])
   async reviewClientRegistration(
     @Headers('authorization') authHeader: string | undefined,
     @Param('requestId') requestId: string,
@@ -266,7 +267,7 @@ export class TenantGovernanceController {
   }
 
   @Post('client-registrations/:requestId/documents/:documentId/review')
-  @RequiresPermission('platform.manage')
+  @RequiresPermission(PERMISSIONS['platform.manage'])
   async reviewRegistrationDocument(
     @Headers('authorization') authHeader: string | undefined,
     @Param('requestId') requestId: string,
@@ -287,7 +288,7 @@ export class TenantGovernanceController {
   }
 
   @Post('branches')
-  @RequiresPermission('tenant.manage_branches')
+  @RequiresPermission(PERMISSIONS['tenant.manage_branches'])
   async createBranch(
     @Headers('authorization') authHeader: string | undefined,
     @Body() dto: CreateBranchDto,
@@ -297,7 +298,7 @@ export class TenantGovernanceController {
   }
 
   @Patch('branches/:branchId')
-  @RequiresPermission('tenant.manage_branches')
+  @RequiresPermission(PERMISSIONS['tenant.manage_branches'])
   async updateBranch(
     @Headers('authorization') authHeader: string | undefined,
     @Param('branchId') branchId: string,
@@ -364,7 +365,7 @@ export class TenantGovernanceController {
   }
 
   @Patch('pawnshops/:id/toggle-status')
-  @RequiresPermission('platform.manage')
+  @RequiresPermission(PERMISSIONS['platform.manage'])
   async togglePawnshopStatus(
     @Headers('authorization') authHeader: string | undefined,
     @Param('id') id: string,
@@ -374,7 +375,7 @@ export class TenantGovernanceController {
   }
 
   @Patch('pawnshops/:id/settings')
-  @RequiresPermission('platform.manage')
+  @RequiresPermission(PERMISSIONS['platform.manage'])
   async updatePawnshopSettings(
     @Headers('authorization') authHeader: string | undefined,
     @Param('id') id: string,
@@ -385,7 +386,7 @@ export class TenantGovernanceController {
   }
 
   @Post('pawnshops/:id/delete')
-  @RequiresPermission('platform.manage')
+  @RequiresPermission(PERMISSIONS['platform.manage'])
   async deletePawnshop(
     @Headers('authorization') authHeader: string | undefined,
     @Param('id') id: string,
@@ -395,7 +396,7 @@ export class TenantGovernanceController {
   }
 
   @Post('pawnshops')
-  @RequiresPermission('platform.manage')
+  @RequiresPermission(PERMISSIONS['platform.manage'])
   async createPawnshopDirect(
     @Headers('authorization') authHeader: string | undefined,
     @Body() dto: CreatePawnshopDirectDto,
@@ -405,7 +406,7 @@ export class TenantGovernanceController {
   }
 
   @Post('invitations')
-  @RequiresPermission('platform.manage')
+  @RequiresPermission(PERMISSIONS['platform.manage'])
   async inviteOwner(
     @Headers('authorization') authHeader: string | undefined,
     @Body() dto: InviteOwnerDto,
@@ -415,7 +416,7 @@ export class TenantGovernanceController {
   }
 
   @Get('analytics/platform')
-  @RequiresPermission('platform.manage')
+  @RequiresPermission(PERMISSIONS['platform.manage'])
   async getPlatformAnalytics(
     @Headers('authorization') authHeader: string | undefined,
   ) {
@@ -424,7 +425,7 @@ export class TenantGovernanceController {
   }
 
   @Post('subscriptions/:pawnshopId/extend-trial')
-  @RequiresPermission('platform.manage')
+  @RequiresPermission(PERMISSIONS['platform.manage'])
   async extendTrial(
     @Headers('authorization') authHeader: string | undefined,
     @Param('pawnshopId') pawnshopId: string,
@@ -435,7 +436,7 @@ export class TenantGovernanceController {
   }
 
   @Post('subscriptions/:pawnshopId/upgrade-tier')
-  @RequiresPermission('platform.manage')
+  @RequiresPermission(PERMISSIONS['platform.manage'])
   async upgradeTier(
     @Headers('authorization') authHeader: string | undefined,
     @Param('pawnshopId') pawnshopId: string,
@@ -446,7 +447,7 @@ export class TenantGovernanceController {
   }
 
   @Patch('subscriptions/:pawnshopId/status')
-  @RequiresPermission('platform.manage')
+  @RequiresPermission(PERMISSIONS['platform.manage'])
   async adjustSubscriptionStatus(
     @Headers('authorization') authHeader: string | undefined,
     @Param('pawnshopId') pawnshopId: string,
@@ -457,7 +458,7 @@ export class TenantGovernanceController {
   }
 
   @Post('subscriptions/request-extension')
-  @RequiresPermission('tenant.manage')
+  @RequiresPermission(PERMISSIONS['tenant.manage'])
   async requestTrialExtension(
     @Headers('authorization') authHeader: string | undefined,
   ) {

@@ -33,6 +33,7 @@ import { RenewLoanDto } from './dto/renew-loan.dto';
 import { Throttle } from '../common/decorators/throttle.decorator';
 import { AuditLog } from '../common/decorators/audit-log.decorator';
 import { RequiresPermission } from '../common/decorators/requires-permission.decorator';
+import { PERMISSIONS } from '../common/permissions/permissions.const';
 import { RequiresCompliance } from '../common/decorators/requires-compliance.decorator';
 
 @Controller('loan')
@@ -53,7 +54,7 @@ export class LoanController {
 
   @Post('applications')
   @HttpCode(HttpStatus.CREATED)
-  @RequiresPermission('loan.collect')
+  @RequiresPermission(PERMISSIONS['loan.collect'])
   createApplication(@Body() dto: CreateLoanApplicationDto) {
     return this.loanApplicationService.createApplication(dto);
   }
@@ -86,7 +87,7 @@ export class LoanController {
   }
 
   @Patch('applications/:id/status')
-  @RequiresPermission('loan.manage')
+  @RequiresPermission(PERMISSIONS['loan.manage'])
   updateApplicationStatus(
     @Param('id') id: string,
     @Body() dto: UpdateApplicationStatusDto,
@@ -104,7 +105,7 @@ export class LoanController {
 
   @Delete('applications/:id')
   @HttpCode(HttpStatus.NO_CONTENT)
-  @RequiresPermission('loan.manage')
+  @RequiresPermission(PERMISSIONS['loan.manage'])
   deleteApplication(@Param('id') id: string) {
     return this.loanApplicationService.deleteApplication(id);
   }
@@ -115,7 +116,7 @@ export class LoanController {
 
   @AuditLog('CHECK_ELIGIBILITY')
   @Post('eligibility/check')
-  @RequiresPermission('loan.create')
+  @RequiresPermission(PERMISSIONS['loan.create'])
   checkEligibility(
     @Body('applicationId') applicationId: string,
     @Req() req: Request,
@@ -139,7 +140,7 @@ export class LoanController {
   // ============================================================================
 
   @Post(':loanId/schedule/generate')
-  @RequiresPermission('loan.create')
+  @RequiresPermission(PERMISSIONS['loan.create'])
   generateSchedule(@Body() dto: GenerateRepaymentScheduleDto) {
     return this.repaymentService.generateSchedule(dto);
   }
@@ -150,7 +151,7 @@ export class LoanController {
   }
 
   @Patch('schedule/payment')
-  @RequiresPermission('loan.manage')
+  @RequiresPermission(PERMISSIONS['loan.manage'])
   updateSchedulePayment(@Body() dto: UpdateSchedulePaymentDto) {
     return this.repaymentService.updatePayment(dto);
   }
@@ -170,7 +171,7 @@ export class LoanController {
   // ============================================================================
 
   @Post('penalties/calculate')
-  @RequiresPermission('loan.collect')
+  @RequiresPermission(PERMISSIONS['loan.collect'])
   calculatePenalties(@Body('loanId') loanId: number) {
     return this.penaltyService.calculatePenalties(loanId);
   }
@@ -182,7 +183,7 @@ export class LoanController {
 
   @AuditLog('WAIVE_PENALTY')
   @Patch('penalties/:id/waive')
-  @RequiresPermission('loan.manage')
+  @RequiresPermission(PERMISSIONS['loan.manage'])
   waivePenalty(
     @Param('id') id: string,
     @Body('reason') reason: string,
@@ -194,7 +195,7 @@ export class LoanController {
 
   @AuditLog('APPLY_PENALTY')
   @Post('penalties/manual')
-  @RequiresPermission('loan.manage')
+  @RequiresPermission(PERMISSIONS['loan.manage'])
   applyManualPenalty(
     @Body()
     data: {
@@ -215,7 +216,7 @@ export class LoanController {
   @AuditLog('PROCESS_FORFEITURES')
   @Post('forfeitures/process')
   @HttpCode(HttpStatus.OK)
-  @RequiresPermission('loan.manage')
+  @RequiresPermission(PERMISSIONS['loan.manage'])
   processForfeitures() {
     return this.loanForfeitureService.processForfeitures();
   }
@@ -223,7 +224,7 @@ export class LoanController {
   @AuditLog('QUEUE_FOR_AUCTION')
   @Post('forfeitures/:ticketId/queue-auction')
   @HttpCode(HttpStatus.OK)
-  @RequiresPermission('pawn_ticket.send_to_auction')
+  @RequiresPermission(PERMISSIONS['pawn_ticket.send_to_auction'])
   queueForAuction(
     @Param('ticketId') ticketId: string,
     @Req() req: Request,
@@ -243,7 +244,7 @@ export class LoanController {
   @AuditLog('DISBURSE_LOAN')
   @Post(':loanId/disburse')
   @HttpCode(HttpStatus.OK)
-  @RequiresPermission('loan.collect')
+  @RequiresPermission(PERMISSIONS['loan.collect'])
   disburseLoan(
     @Param('loanId') loanId: string,
     @Req() req: Request,
@@ -264,7 +265,7 @@ export class LoanController {
   @Throttle({ ttl: 60_000, limit: 10 })
   @Post('renew')
   @HttpCode(HttpStatus.OK)
-  @RequiresPermission('loan.collect')
+  @RequiresPermission(PERMISSIONS['loan.collect'])
   renewLoan(@Body() dto: RenewLoanDto) {
     return this.loanService.renewLoan(dto);
   }
@@ -277,7 +278,7 @@ export class LoanController {
   @Throttle({ ttl: 60_000, limit: 20 })
   @Post('payments')
   @HttpCode(HttpStatus.CREATED)
-  @RequiresPermission('loan.collect')
+  @RequiresPermission(PERMISSIONS['loan.collect'])
   recordPayment(@Body() dto: CreatePaymentDto) {
     return this.loanService.recordPayment(dto);
   }
@@ -334,7 +335,7 @@ export class LoanController {
   @AuditLog('GENERATE_CONTRACT')
   @Post('contracts/:applicationId/generate')
   @HttpCode(HttpStatus.CREATED)
-  @RequiresPermission('loan.manage')
+  @RequiresPermission(PERMISSIONS['loan.manage'])
   generateContract(
     @Param('applicationId') applicationId: string,
     @Req() req: Request,
@@ -370,7 +371,7 @@ export class LoanController {
 
   @AuditLog('SIGN_CONTRACT_STAFF')
   @Patch('contracts/:applicationId/sign-staff')
-  @RequiresPermission('contract.sign')
+  @RequiresPermission(PERMISSIONS['contract.sign'])
   signContractByStaff(
     @Param('applicationId') applicationId: string,
     @Body('staffSignature') staffSignature: string,

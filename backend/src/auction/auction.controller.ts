@@ -16,6 +16,7 @@ import {
 import type { Request } from 'express';
 import { Public } from '../common/decorators/public.decorator';
 import { RequiresPermission } from '../common/decorators/requires-permission.decorator';
+import { PERMISSIONS } from '../common/permissions/permissions.const';
 import { Throttle } from '../common/decorators/throttle.decorator';
 import { RequiresCompliance } from '../common/decorators/requires-compliance.decorator';
 import { AuctionService } from './auction.service';
@@ -234,7 +235,7 @@ export class AuctionController {
   }
 
   @Get('settlements')
-  @RequiresPermission('auction.settle')
+  @RequiresPermission(PERMISSIONS['auction.settle'])
   async listSettlements(
     @Req() req: Request,
     @Query('status') status?: string,
@@ -251,7 +252,7 @@ export class AuctionController {
   }
 
   @Patch('settlements/:id/release')
-  @RequiresPermission('auction.settle')
+  @RequiresPermission(PERMISSIONS['auction.settle'])
   async releaseCompliance(
     @Param('id') id: string,
     @Body() dto: ReleaseComplianceDto,
@@ -262,7 +263,7 @@ export class AuctionController {
   }
 
   @Post('settlements/:id/manual-settle')
-  @RequiresPermission('auction.manual_settle')
+  @RequiresPermission(PERMISSIONS['auction.manual_settle'])
   async manualSettle(
     @Param('id') id: string,
     @Body() dto: ManualSettleDto,

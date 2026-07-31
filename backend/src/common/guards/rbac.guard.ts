@@ -15,7 +15,12 @@ import { PERMISSIONS_KEY } from '../decorators/requires-permission.decorator';
 import { PermissionService } from '../permissions/permissions.service';
 
 const SUPER_ADMIN = 'SUPER_ADMIN';
-const LEGACY_CASHIER_TELLER = 'CASHIER_TELLER';
+const LEGACY_ROLES = new Set([
+  'CASHIER_TELLER',
+  'APPRAISER',
+  'INVENTORY_CUSTODIAN',
+  'AUDITOR',
+]);
 
 @Injectable()
 export class RbacGuard implements CanActivate {
@@ -57,11 +62,11 @@ export class RbacGuard implements CanActivate {
     }
 
     const userRole = profile.role;
-    const legacyCashierTeller = userRole === LEGACY_CASHIER_TELLER;
-    const effectiveStaffType = legacyCashierTeller
-      ? LEGACY_CASHIER_TELLER
+    const legacyRole = LEGACY_ROLES.has(userRole);
+    const effectiveStaffType = legacyRole
+      ? profile.staffType ?? userRole
       : profile.staffType;
-    const baseRole = legacyCashierTeller ? 'STAFF' : userRole;
+    const baseRole = legacyRole ? 'STAFF' : userRole;
 
     const requiredRoles = this.reflector.getAllAndOverride<string[]>(
       ROLES_KEY,

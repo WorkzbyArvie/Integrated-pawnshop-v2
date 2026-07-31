@@ -6,6 +6,7 @@ import { AppraiseTicketDto } from './dto/appraise-ticket.dto';
 import { RedeemTicketDto } from './dto/redeem-ticket.dto';
 import { AuditLog } from '../common/decorators/audit-log.decorator';
 import { RequiresPermission } from '../common/decorators/requires-permission.decorator';
+import { PERMISSIONS } from '../common/permissions/permissions.const';
 import { RequiresCompliance } from '../common/decorators/requires-compliance.decorator';
 
 @Controller()
@@ -18,7 +19,7 @@ export class PawnTicketController {
   @AuditLog('CREATE_PAWN_TICKET')
   @Post('pawn-tickets')
   @HttpCode(HttpStatus.CREATED)
-  @RequiresPermission('pawn_ticket.create')
+  @RequiresPermission(PERMISSIONS['pawn_ticket.create'])
   async createTicket(
     @Body() dto: CreatePawnTicketDto,
     @Req() req: Request,
@@ -41,7 +42,7 @@ export class PawnTicketController {
   @AuditLog('SUBMIT_FOR_APPROVAL')
   @Post('pawn-tickets/:id/submit-for-approval')
   @HttpCode(HttpStatus.OK)
-  @RequiresPermission('pawn_ticket.submit_approval')
+  @RequiresPermission(PERMISSIONS['pawn_ticket.submit_approval'])
   submitForApproval(
     @Param('id') id: string,
     @Req() req: Request,
@@ -57,7 +58,7 @@ export class PawnTicketController {
   @AuditLog('MANAGER_APPROVE_TICKET')
   @Post('pawn-tickets/:id/manager-approve')
   @HttpCode(HttpStatus.OK)
-  @RequiresPermission('pawn_ticket.approve')
+  @RequiresPermission(PERMISSIONS['pawn_ticket.approve'])
   managerApproveTicket(
     @Param('id') id: string,
     @Req() req: Request,
@@ -73,7 +74,7 @@ export class PawnTicketController {
   @AuditLog('MANAGER_DECLINE_TICKET')
   @Post('pawn-tickets/:id/decline')
   @HttpCode(HttpStatus.OK)
-  @RequiresPermission('pawn_ticket.decline')
+  @RequiresPermission(PERMISSIONS['pawn_ticket.decline'])
   declineTicket(
     @Param('id') id: string,
     @Body('reason') reason: string,
@@ -90,7 +91,7 @@ export class PawnTicketController {
 
   @Get('pawn-tickets/pending-approval')
   @HttpCode(HttpStatus.OK)
-  @RequiresPermission('pawn_ticket.approve')
+  @RequiresPermission(PERMISSIONS['pawn_ticket.approve'])
   getPendingApproval(
     @Req() req: Request,
     @Query('pawnshopId') pawnshopId?: string,
@@ -106,7 +107,7 @@ export class PawnTicketController {
   @AuditLog('APPROVE_PAWN_TICKET')
   @Post('pawn-tickets/:id/approve')
   @HttpCode(HttpStatus.OK)
-  @RequiresPermission('pawn_ticket.approve')
+  @RequiresPermission(PERMISSIONS['pawn_ticket.approve'])
   approveTicket(
     @Param('id') id: string,
     @Req() req: Request,
@@ -122,7 +123,7 @@ export class PawnTicketController {
   @AuditLog('APPRAISE_TICKET')
   @Post('pawn-tickets/:id/appraise')
   @HttpCode(HttpStatus.OK)
-  @RequiresPermission('pawn_ticket.appraise')
+  @RequiresPermission(PERMISSIONS['pawn_ticket.appraise'])
   appraiseTicket(
     @Param('id') id: string,
     @Body() dto: AppraiseTicketDto,
@@ -140,7 +141,7 @@ export class PawnTicketController {
   @AuditLog('REDEEM_TICKET_IN_PERSON')
   @Post('pawn-tickets/:id/redeem')
   @HttpCode(HttpStatus.OK)
-  @RequiresPermission('pawn_ticket.redeem')
+  @RequiresPermission(PERMISSIONS['pawn_ticket.redeem'])
   redeemTicket(
     @Param('id') id: string,
     @Body() dto: RedeemTicketDto,
@@ -156,7 +157,7 @@ export class PawnTicketController {
   }
 
   @Get('pawn-tickets/customers/:customerId/tier')
-  @RequiresPermission('pawn_ticket.view')
+  @RequiresPermission(PERMISSIONS['pawn_ticket.view'])
   getCustomerTier(@Param('customerId') customerId: string) {
     return this.pawnTicketService.getCustomerTierInfo(customerId);
   }
@@ -164,7 +165,7 @@ export class PawnTicketController {
   @AuditLog('SEND_TO_AUCTION')
   @Post('pawn-tickets/:id/send-to-auction')
   @HttpCode(HttpStatus.OK)
-  @RequiresPermission('pawn_ticket.send_to_auction')
+  @RequiresPermission(PERMISSIONS['pawn_ticket.send_to_auction'])
   sendToAuction(
     @Param('id') id: string,
     @Req() req: Request,

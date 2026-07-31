@@ -299,8 +299,13 @@ function findControllerFiles(dir: string): string[] {
 function parseArgs(raw: string): string[] {
   return raw
     .split(',')
-    .map((part) => part.trim().replace(/^['"]|['"]$/g, ''))
-    .filter(Boolean);
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .map((part) => {
+      const constMatch = part.match(/^PERMISSIONS\['([^']+)'\]$/);
+      if (constMatch) return constMatch[1];
+      return part.replace(/^['"]|['"]$/g, '');
+    });
 }
 
 function findMethodName(lines: string[], start: number): string | undefined {
