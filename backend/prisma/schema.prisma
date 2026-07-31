@@ -4,9 +4,10 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
-  schemas  = ["public"]
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+  schemas   = ["public"]
 }
 
 // Prisma schema mapped to existing Supabase DB (public schema)
@@ -17,6 +18,9 @@ model Branch {
   location             String
   pawnshopId           String?                @map("pawnshop_id") @db.Uuid
   ownerUserId          String?                @map("owner_user_id") @db.Uuid
+  createdAt            DateTime               @default(now()) @map("created_at")
+  updatedAt            DateTime               @updatedAt @map("updated_at")
+  isActive             Boolean                @default(true) @map("is_active")
   tickets              Ticket[]
   staff                Staff[]
   systemSettings       SystemSettings?
@@ -45,6 +49,8 @@ model Customer {
   contactNumber     String              @map("contact_number")
   address           String
   loyaltyTier       String              @map("loyaltytier") @default("Standard")
+  tier              CustomerTier        @default(STANDARD) @map("tier")
+  kycStatus         KycStatus           @default(NOT_SUBMITTED) @map("kyc_status")
   createdAt         DateTime            @map("created_at") @default(now())
   pawnshopId        String?             @map("pawnshop_id") @db.Uuid
   tickets           Ticket[]
@@ -54,6 +60,9 @@ model Customer {
   eligibilityChecks EligibilityCheck[]
   payments          Payment[]
   ratings           AuctionRating[]
+  receipts          Receipt[]
+  customerKyc       CustomerKyc?
+  tierHistory       CustomerTierHistory[]
   @@map("customer")
   @@schema("public")
 }
@@ -157,6 +166,9 @@ model Loan {
   penalties          Penalty[]
   contract           LoanContract?
   legalProofs        LegalProof[]
+  @@index([pawnshopId])
+  @@index([status])
+  @@index([pawnshopId, status])
   @@map("loan")
   @@schema("public")
 }
@@ -198,6 +210,11 @@ model Pawnshop {
   legalProofs               LegalProof[]
   receipts                  Receipt[]
   legalEntity               LegalEntity?
+  pawnshopDocuments         PawnshopDocument[]
+  approvalRecords           ApprovalRecord[]
+  customerKycRecords        CustomerKyc[]
+  @@index([status])
+  @@index([status, isActive])
   @@map("pawnshops")
   @@schema("public")
 
@@ -276,6 +293,11 @@ model Ticket {
   auctionListing AuctionListing?
   contract     LoanContract? @relation(fields: [contractId], references: [id])
   legalProofs  LegalProof[]
+  @@index([pawnshopId])
+  @@index([lifecycleStatus])
+  @@index([status])
+  @@index([pawnshopId, lifecycleStatus])
+  @@index([pawnshopId, status])
   @@map("ticket")
   @@schema("public")
 }
@@ -325,6 +347,11 @@ model Profile {
   paymentMethods  CustomerPaymentMethod[]
   securityLogs    SecurityLog[]
   tosAcceptances  TOSAcceptance[]
+  approvalRequests  ApprovalRecord[]       @relation("ApprovalRequestedBy")
+  approvalDecisions ApprovalRecord[]       @relation("ApprovalDecidedBy")
+  @@index([pawnshopId])
+  @@index([role])
+  @@index([pawnshopId, role])
   @@map("profiles")
   @@schema("public")
 }
@@ -427,6 +454,9 @@ enum ReceiptType {
   PENALTY
   RENEWAL
   SERVICE_FEE
+  APPRAISAL_CERTIFICATE
+  FORFEITURE
+  AUCTION_UNSOLD
   @@schema("public")
 }
 
@@ -673,6 +703,13 @@ enum ProofRecordType {
   TOS_ACCEPTANCE_PROOF
   REDEMPTION_PROOF
   DISBURSEMENT_PROOF
+  FORFEITURE_PROOF
+  GRACE_PERIOD_ENTRY
+  AUCTION_UNSOLD_PROOF
+  AUCTION_SELLER_PROOF
+  AUCTION_LISTING_PROOF
+  AUCTION_PUBLISH_PROOF
+  AUCTION_BID_PROOF
   @@schema("public")
 }
 
@@ -801,9 +838,15 @@ model LoanContract {
   pdfUrl            String?         @map("pdf_url")
   signedByCustomer  Boolean         @default(false) @map("signed_by_customer")
   customerSignature String?         @map("customer_signature")
+  customerSignatureType      SignatureType @default(TYPED) @map("customer_signature_type")
+  customerSignatureImageUrl  String?       @map("customer_signature_image_url")
+  customerSignatureImageMime String?       @map("customer_signature_image_mime")
   customerSignedAt  DateTime?       @map("customer_signed_at")
   signedByStaff     Boolean         @default(false) @map("signed_by_staff")
   staffSignature    String?         @map("staff_signature")
+  staffSignatureType      SignatureType @default(TYPED) @map("staff_signature_type")
+  staffSignatureImageUrl  String?       @map("staff_signature_image_url")
+  staffSignatureImageMime String?       @map("staff_signature_image_mime")
   staffId           String?         @map("staff_id") @db.Uuid
   staffSignedAt     DateTime?       @map("staff_signed_at")
   generatedAt       DateTime        @default(now()) @map("generated_at")
@@ -877,6 +920,9 @@ model BidderKyc {
   idBackUrl       String?    @map("id_back_url")
   selfieUrl       String     @map("selfie_url")
 
+  // Client-side verification results (advisory — admin is the security gate)
+  verificationData Json?     @map("verification_data")
+
   // Admin review
   reviewedBy      String?    @map("reviewed_by") @db.Uuid
   reviewedAt      DateTime?  @map("reviewed_at")
@@ -887,6 +933,7 @@ model BidderKyc {
 
   profile         Profile    @relation(fields: [profileId], references: [id], onDelete: Cascade)
 
+  @@index([status])
   @@map("bidder_kyc")
   @@schema("public")
 }
@@ -946,6 +993,8 @@ model QueueTicket {
   @@unique([pawnshopId, queueNumber])
   @@index([pawnshopId, status, joinedAt])
   @@index([customerId, status])
+  @@index([pawnshopId, queueType, joinedAt])
+  @@index([customerId, joinedAt])
   @@map("queue_tickets")
   @@schema("public")
 }
@@ -1109,6 +1158,10 @@ model AuctionWinnerCompliance {
   winnerPhone         String            @map("winner_phone")
   winnerAddress       String?           @map("winner_address")
   
+  // Contract signing
+  contractSignedAt    DateTime?         @map("contract_signed_at")
+  signedName          String?           @map("signed_name")
+
   // Privacy & audit
   accessLog           Json[]            @default([]) @map("access_log") @db.Json
   consentAcceptedAt   DateTime?         @map("consent_accepted_at")
@@ -1288,13 +1341,16 @@ model Receipt {
   voidReason      String?     @map("void_reason")
   generatedAt     DateTime    @default(now()) @map("generated_at")
   generatedBy     String      @map("generated_by") @db.Uuid
+  customerId      String?     @map("customer_id") @db.Uuid
 
   pawnshop        Pawnshop    @relation(fields: [pawnshopId], references: [id])
+  customer        Customer?   @relation(fields: [customerId], references: [id], onDelete: SetNull)
   legalProofs     LegalProof[]
 
   @@unique([pawnshopId, receiptNumber])
   @@index([pawnshopId, receiptType, generatedAt])
   @@index([referenceType, referenceId])
+  @@index([customerId])
   @@map("receipts")
   @@schema("public")
 }
@@ -1552,6 +1608,9 @@ model Subscription {
   lastBilledAt      DateTime?           @map("last_billed_at")
   nextBillingDate   DateTime            @map("next_billing_date")
   autoRenew         Boolean             @default(true) @map("auto_renew")
+
+  @@index([pawnshopId])
+  @@index([status])
   
   // Payment tracking
   paymentMethodId   String?             @map("payment_method_id")
@@ -1600,5 +1659,268 @@ model SubscriptionPayment {
   
   @@index([subscriptionId, status])
   @@map("subscription_payments")
+  @@schema("public")
+}
+
+enum ComplianceDocType {
+  DTI_REGISTRATION
+  SEC_REGISTRATION
+  MAYORS_PERMIT
+  BIR_COR
+  BSP_LICENSE
+  AMLC_REGISTRATION
+  GOVERNMENT_ID
+  PROOF_OF_ADDRESS
+  FIRE_SAFETY_CERT
+  OCCUPANCY_PERMIT
+  @@schema("public")
+}
+
+enum ComplianceDocStatus {
+  UPLOADED
+  UNDER_REVIEW
+  VERIFIED
+  REJECTED
+  EXPIRED
+  @@schema("public")
+}
+
+model PawnshopDocument {
+  id              String             @id @default(uuid()) @db.Uuid
+  pawnshopId      String?            @map("pawnshop_id") @db.Uuid
+  registrationRequestId String?      @map("registration_request_id") @db.Uuid
+  documentType    ComplianceDocType  @map("document_type")
+  fileName        String             @map("file_name")
+  fileUrl         String             @map("file_url")
+  fileSize        Int?               @map("file_size")
+  status          ComplianceDocStatus @default(UPLOADED)
+  expiryDate      DateTime?          @map("expiry_date")
+  rejectionReason String?            @map("rejection_reason")
+  verifiedBy      String?            @map("verified_by") @db.Uuid
+  verifiedAt      DateTime?          @map("verified_at")
+  uploadedBy      String             @map("uploaded_by") @db.Uuid
+  hasViewed       Boolean            @default(false) @map("has_viewed")
+  viewedAt        DateTime?          @map("viewed_at")
+  viewedBy        String?            @map("viewed_by") @db.Uuid
+  createdAt       DateTime           @default(now()) @map("created_at")
+  updatedAt       DateTime           @updatedAt @map("updated_at")
+
+  pawnshop        Pawnshop?          @relation(fields: [pawnshopId], references: [id], onDelete: Cascade)
+
+  @@index([pawnshopId, documentType])
+  @@index([pawnshopId, status])
+  @@index([status])
+  @@index([registrationRequestId])
+  @@map("pawnshop_documents")
+  @@schema("public")
+}
+
+model TenantAuditLog {
+  id           String   @id @default(uuid()) @db.Uuid
+  pawnshopId   String   @map("pawnshop_id") @db.Uuid
+  actorUserId  String?  @map("actor_user_id") @db.Uuid
+  action       String
+  metadata     Json?
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@index([pawnshopId, createdAt])
+  @@map("tenant_audit_logs")
+  @@schema("public")
+}
+
+model ClientRegistrationRequest {
+  id              String   @id @default(uuid()) @db.Uuid
+  pawnshopName    String   @map("pawnshop_name")
+  ownerName       String   @map("owner_name")
+  ownerEmail      String   @map("owner_email")
+  contactNumber   String?  @map("contact_number")
+  selectedModules Json?    @map("selected_modules")
+  staffCount      Int?     @default(1) @map("staff_count")
+  notes           String?
+  status          String   @default("PENDING")
+  handledBy       String?  @map("handled_by") @db.Uuid
+  handledAt       DateTime? @map("handled_at")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  messages ClientRegistrationMessage[]
+
+  @@index([status, createdAt])
+  @@map("client_registration_requests")
+  @@schema("public")
+}
+
+model ClientRegistrationMessage {
+  id           String   @id @default(uuid()) @db.Uuid
+  requestId    String   @map("request_id") @db.Uuid
+  senderUserId String?  @map("sender_user_id") @db.Uuid
+  senderType   String   @map("sender_type")
+  message      String
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  request ClientRegistrationRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  @@index([requestId, createdAt])
+  @@map("client_registration_messages")
+  @@schema("public")
+}
+
+model SupportChatConversation {
+  id            String   @id @default(uuid()) @db.Uuid
+  pawnshopId    String   @map("pawnshop_id") @db.Uuid
+  subject       String
+  status        String   @default("OPEN")
+  createdBy     String   @map("created_by") @db.Uuid
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+  lastMessageAt DateTime @default(now()) @map("last_message_at")
+
+  messages SupportChatMessage[]
+
+  @@index([pawnshopId, lastMessageAt])
+  @@map("support_chat_conversations")
+  @@schema("public")
+}
+
+model SupportChatMessage {
+  id             String   @id @default(uuid()) @db.Uuid
+  conversationId String   @map("conversation_id") @db.Uuid
+  pawnshopId     String   @map("pawnshop_id") @db.Uuid
+  senderId       String   @map("sender_id") @db.Uuid
+  senderRole     String   @map("sender_role")
+  message        String
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  conversation SupportChatConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, createdAt])
+  @@map("support_chat_messages")
+  @@schema("public")
+}
+
+// ============================================================================
+// Phase 7: Permission catalog + v2.0 schema baseline (additive only)
+// ============================================================================
+
+enum CustomerTier {
+  STANDARD
+  BRONZE
+  SILVER
+  GOLD
+  VIP
+  @@schema("public")
+}
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+  @@schema("public")
+}
+
+enum ApprovalTargetType {
+  APPRAISAL
+  REDEMPTION
+  LOAN_APPLICATION
+  @@schema("public")
+}
+
+enum SignatureType {
+  CANVAS
+  TYPED
+  UPLOADED
+  @@schema("public")
+}
+
+model Permission {
+  id              String           @id @default(uuid()) @db.Uuid
+  name            String           @unique
+  group           String
+  description     String?
+  createdAt       DateTime         @default(now()) @map("created_at")
+  rolePermissions RolePermission[]
+
+  @@map("permissions")
+  @@schema("public")
+}
+
+model RolePermission {
+  id           String     @id @default(uuid()) @db.Uuid
+  role         String
+  permissionId String     @map("permission_id") @db.Uuid
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([role, permissionId])
+  @@index([role])
+  @@map("role_permissions")
+  @@schema("public")
+}
+
+model ApprovalRecord {
+  id              String             @id @default(uuid()) @db.Uuid
+  pawnshopId      String             @map("pawnshop_id") @db.Uuid
+  targetType      ApprovalTargetType @map("target_type")
+  targetId        String             @map("target_id")
+  status          ApprovalStatus     @default(PENDING)
+  amount          Float?
+  requestedById   String             @map("requested_by_id") @db.Uuid
+  decidedById     String?            @map("decided_by_id") @db.Uuid
+  decidedAt       DateTime?          @map("decided_at")
+  decisionComment String?            @map("decision_comment")
+  createdAt       DateTime           @default(now()) @map("created_at")
+  updatedAt       DateTime           @updatedAt @map("updated_at")
+
+  pawnshop        Pawnshop           @relation(fields: [pawnshopId], references: [id])
+  requestedBy     Profile            @relation("ApprovalRequestedBy", fields: [requestedById], references: [id], onDelete: Restrict)
+  decidedBy       Profile?           @relation("ApprovalDecidedBy", fields: [decidedById], references: [id])
+
+  @@index([pawnshopId, status])
+  @@index([targetType, targetId])
+  @@map("approval_records")
+  @@schema("public")
+}
+
+model CustomerKyc {
+  id               String     @id @default(uuid()) @db.Uuid
+  customerId       String     @unique @map("customer_id") @db.Uuid
+  pawnshopId       String     @map("pawnshop_id") @db.Uuid
+  status           KycStatus  @default(NOT_SUBMITTED)
+  fullName         String     @map("full_name")
+  contactNumber    String     @map("contact_number")
+  address          String
+  idType           KycIdType  @map("id_type")
+  idNumber         String     @map("id_number")
+  idFrontUrl       String     @map("id_front_url")
+  idBackUrl        String?    @map("id_back_url")
+  selfieUrl        String?    @map("selfie_url")
+  verificationData Json?      @map("verification_data")
+  reviewedBy       String?    @map("reviewed_by") @db.Uuid
+  reviewedAt       DateTime?  @map("reviewed_at")
+  rejectionReason  String?    @map("rejection_reason")
+  createdAt        DateTime   @default(now()) @map("created_at")
+  updatedAt        DateTime   @updatedAt @map("updated_at")
+
+  customer         Customer   @relation(fields: [customerId], references: [id])
+  pawnshop         Pawnshop   @relation(fields: [pawnshopId], references: [id])
+
+  @@index([pawnshopId, status])
+  @@map("customer_kyc")
+  @@schema("public")
+}
+
+model CustomerTierHistory {
+  id          String        @id @default(uuid()) @db.Uuid
+  customerId  String        @map("customer_id") @db.Uuid
+  fromTier    CustomerTier? @map("from_tier")
+  toTier      CustomerTier  @map("to_tier")
+  reason      String
+  changedById String?       @map("changed_by_id") @db.Uuid
+  changedAt   DateTime      @default(now()) @map("changed_at")
+
+  customer    Customer      @relation(fields: [customerId], references: [id])
+
+  @@index([customerId, changedAt])
+  @@map("customer_tier_history")
   @@schema("public")
 }
