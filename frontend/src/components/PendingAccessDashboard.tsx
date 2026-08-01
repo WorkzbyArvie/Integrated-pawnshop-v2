@@ -1,5 +1,5 @@
 ﻿import { FormEvent, useEffect, useMemo, useState } from 'react';
-import { Clock3, MessageSquare, RefreshCcw, Send } from 'lucide-react';
+import { Clock3, MessageSquare, RefreshCcw, Send, Upload, FileCheck, AlertCircle } from 'lucide-react';
 import api from '../lib/apiClient';
 import { useToast } from '../App';
 
@@ -32,22 +32,22 @@ type PendingAccessDashboardProps = {
 
 type TrialRequestForm = {
   pawnshopName: string;
-  ownerName: string;
   ownerEmail: string;
   contactNumber: string;
-  staffCount: number;
   notes: string;
-  selectedModules: string[];
 };
 
-const TRIAL_MODULE_OPTIONS = [
-  'Inventory Vault',
-  'Finance & Treasury',
-  'Customer CRM',
-  'Staff Matrix',
-  'Decision Support',
-  'Auto-Reminders',
-] as const;
+type RegDocument = {
+  id: string;
+  document_type: string;
+  file_name: string;
+  file_url: string;
+  file_size: number | null;
+  status: string;
+  rejection_reason: string | null;
+  created_at: string;
+};
+
 
 const statusTone = (status: string) => {
   const normalized = status.toUpperCase();
@@ -58,7 +58,7 @@ const statusTone = (status: string) => {
   return 'text-[#C9A05C] bg-[#C9A05C]/10 border-[rgba(201,160,92,0.2)]';
 };
 
-export function PendingAccessDashboard({ ownerEmail, ownerName, registrationStatus }: PendingAccessDashboardProps) {
+export function PendingAccessDashboard({ ownerEmail, registrationStatus }: PendingAccessDashboardProps) {
   const { showToast } = useToast();
   const [loading, setLoading] = useState(true);
   const [requests, setRequests] = useState<TrialRequest[]>([]);
@@ -74,13 +74,22 @@ export function PendingAccessDashboard({ ownerEmail, ownerName, registrationStat
   const [, setError] = useState<string | null>(null);
   const [form, setForm] = useState<TrialRequestForm>({
     pawnshopName: '',
-    ownerName: ownerName || '',
     ownerEmail: ownerEmail || '',
     contactNumber: '',
-    staffCount: 5,
     notes: '',
-    selectedModules: ['Inventory Vault', 'Customer CRM'],
   });
+  const [regDocs, setRegDocs] = useState<RegDocument[]>([]);
+  const [uploadingDocType, setUploadingDocType] = useState<string | null>(null);
+
+  const REQUIRED_DOC_TYPES = [
+    { type: 'DTI_REGISTRATION', label: 'DTI/SEC Registration', desc: 'Business name registration certificate' },
+    { type: 'MAYORS_PERMIT', label: "Mayor's Permit", desc: 'Local business operating permit' },
+    { type: 'BIR_COR', label: 'BIR Certificate of Registration', desc: 'Tax registration certificate' },
+    { type: 'BSP_LICENSE', label: 'BSP License', desc: 'Bangko Sentral ng Pilipinas license to operate' },
+    { type: 'AMLC_REGISTRATION', label: 'AMLC Registration', desc: 'Anti-Money Laundering Council registration' },
+    { type: 'GOVERNMENT_ID', label: 'Valid Government ID', desc: 'Owner\u2019s valid government-issued ID' },
+    { type: 'PROOF_OF_ADDRESS', label: 'Proof of Address', desc: 'Utility bill or lease contract' },
+  ];
 
   const latestRequest = requests[0] ?? null;
   const latestStatus = latestRequest?.status?.toUpperCase() || '';
@@ -125,6 +134,54 @@ export function PendingAccessDashboard({ ownerEmail, ownerName, registrationStat
     }
   };
 
+  const loadDocuments = async (requestId: string) => {
+    try {
+      const res = await api.get<{ documents: RegDocument[] }>(`/tenant-governance/client-registrations/${requestId}/documents`);
+      setRegDocs(res?.documents || []);
+    } catch {
+      setRegDocs([]);
+    }
+  };
+
+  const handleUploadDocument = async (docType: string, file: File) => {
+    if (!latestRequest?.id) return;
+    setUploadingDocType(docType);
+    try {
+      const ext = file.name.includes('.') ? file.name.split('.').pop() : 'bin';
+      const safeExt = (ext || 'bin').toLowerCase().replace(/[^a-z0-9]/g, '') || 'bin';
+      const storagePath = `registration-docs/${latestRequest.id}/${docType}_${Date.now()}.${safeExt}`;
+
+      const { supabase } = await import('../lib/supabaseClient');
+      const { error: uploadError } = await supabase.storage
+        .from('kyc-documents')
+        .upload(storagePath, file, {
+          contentType: file.type || 'application/octet-stream',
+          upsert: true,
+        });
+
+      if (uploadError) {
+        throw new Error(uploadError.message || 'File upload to storage failed.');
+      }
+
+      const { data: urlData } = supabase.storage.from('kyc-documents').getPublicUrl(storagePath);
+      const fileUrl = urlData?.publicUrl || storagePath;
+
+      await api.post(`/tenant-governance/client-registrations/${latestRequest.id}/documents`, {
+        documentType: docType,
+        fileName: file.name,
+        fileUrl,
+        fileSize: file.size,
+      });
+      showToast(`${docType.replace(/_/g, ' ')} uploaded successfully.`, 'success');
+      await loadDocuments(latestRequest.id);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err) || 'Upload failed.';
+      showToast(message, 'error');
+    } finally {
+      setUploadingDocType(null);
+    }
+  };
+
   useEffect(() => {
     loadRequests();
   }, []);
@@ -132,36 +189,21 @@ export function PendingAccessDashboard({ ownerEmail, ownerName, registrationStat
   useEffect(() => {
     if (!latestRequest?.id) {
       setMessages([]);
+      setRegDocs([]);
       return;
     }
 
     loadMessages(latestRequest.id);
+    loadDocuments(latestRequest.id);
   }, [latestRequest?.id]);
 
   useEffect(() => {
     setForm((prev) => ({
       ...prev,
       ownerEmail: prev.ownerEmail || ownerEmail || '',
-      ownerName: prev.ownerName || ownerName || '',
     }));
-  }, [ownerEmail, ownerName]);
+  }, [ownerEmail]);
 
-  const toggleModule = (module: string) => {
-    setForm((prev) => {
-      const exists = prev.selectedModules.includes(module);
-      if (exists) {
-        return {
-          ...prev,
-          selectedModules: prev.selectedModules.filter((item) => item !== module),
-        };
-      }
-
-      return {
-        ...prev,
-        selectedModules: [...prev.selectedModules, module],
-      };
-    });
-  };
 
   const handleSubmitRequest = async (event: FormEvent) => {
     event.preventDefault();
@@ -175,22 +217,12 @@ export function PendingAccessDashboard({ ownerEmail, ownerName, registrationStat
       return;
     }
 
-    if (form.selectedModules.length === 0) {
-      const message = 'Select at least one module for your trial setup.';
-      setError(message);
-      showToast(message, 'error');
-      return;
-    }
-
     setSubmittingRequest(true);
     try {
       await api.post('/tenant-governance/client-registrations/me', {
         pawnshopName: form.pawnshopName,
-        ownerName: form.ownerName,
         ownerEmail: form.ownerEmail,
         contactNumber: form.contactNumber || undefined,
-        selectedModules: form.selectedModules,
-        staffCount: Number(form.staffCount),
         notes: form.notes || undefined,
       });
 
@@ -201,10 +233,12 @@ export function PendingAccessDashboard({ ownerEmail, ownerName, registrationStat
         ...prev,
         pawnshopName: '',
         contactNumber: '',
-        staffCount: 5,
         notes: '',
       }));
       await loadRequests();
+      const updated = await api.get<TrialRequest[]>('/tenant-governance/client-registrations/me');
+      const latest = Array.isArray(updated) ? updated[0] : null;
+      if (latest?.id) await loadDocuments(latest.id);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err) || 'Unable to submit trial request right now.';
       setError(message);
@@ -326,87 +360,65 @@ export function PendingAccessDashboard({ ownerEmail, ownerName, registrationStat
             Complete this once. The selected modules below become your initial system configuration after approval.
           </p>
 
-          <form onSubmit={handleSubmitRequest} className="mt-4 space-y-3">
-            <div className="grid gap-3 md:grid-cols-2">
-              <input
-                value={form.pawnshopName}
-                onChange={(e) => setForm((prev) => ({ ...prev, pawnshopName: e.target.value }))}
-                placeholder="Pawnshop Name"
-                className="rounded-xl border border-slate-300 px-3 py-2 text-sm"
-                required
-                disabled={!canSubmitRequest}
-              />
-              <input
-                value={form.ownerName}
-                onChange={(e) => setForm((prev) => ({ ...prev, ownerName: e.target.value }))}
-                placeholder="Owner / Admin Name"
-                className="rounded-xl border border-slate-300 px-3 py-2 text-sm"
-                required
-                disabled={!canSubmitRequest}
-              />
-              <input
-                value={form.ownerEmail}
-                onChange={(e) => setForm((prev) => ({ ...prev, ownerEmail: e.target.value }))}
-                placeholder="Owner Email"
-                type="email"
-                className="rounded-xl border border-slate-300 px-3 py-2 text-sm"
-                required
-                readOnly={Boolean(ownerEmail)}
-                disabled={!canSubmitRequest}
-              />
-              <input
-                value={form.contactNumber}
-                onChange={(e) => setForm((prev) => ({ ...prev, contactNumber: e.target.value }))}
-                placeholder="Contact Number"
-                className="rounded-xl border border-slate-300 px-3 py-2 text-sm"
-                disabled={!canSubmitRequest}
-              />
-              <input
-                value={form.staffCount}
-                onChange={(e) => setForm((prev) => ({ ...prev, staffCount: Number(e.target.value || 1) }))}
-                placeholder="Initial Staff Count"
-                type="number"
-                min={1}
-                className="rounded-xl border border-slate-300 px-3 py-2 text-sm"
-                required
-                disabled={!canSubmitRequest}
-              />
-              <div className="rounded-xl border border-[rgba(201,160,92,0.12)] bg-[#1C1C26] px-3 py-2 text-xs font-semibold text-[#999186]">
-                Selected modules: {form.selectedModules.length}
+          <form onSubmit={handleSubmitRequest} className="mt-4 space-y-4">
+            <div className="grid gap-4 md:grid-cols-2">
+              <div>
+                <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-[#999186]">
+                  Pawnshop Name <span className="text-rose-400">*</span>
+                </label>
+                <input
+                  value={form.pawnshopName}
+                  onChange={(e) => setForm((prev) => ({ ...prev, pawnshopName: e.target.value }))}
+                  placeholder="e.g. Golden Pawn jewelry shop"
+                  className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
+                  required
+                  disabled={!canSubmitRequest}
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-[#999186]">
+                  Email Address <span className="text-rose-400">*</span>
+                </label>
+                <input
+                  value={form.ownerEmail}
+                  onChange={(e) => setForm((prev) => ({ ...prev, ownerEmail: e.target.value }))}
+                  type="email"
+                  className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
+                  required
+                  readOnly={Boolean(ownerEmail)}
+                  disabled={!canSubmitRequest}
+                />
+                {ownerEmail && (
+                  <p className="mt-1 text-[11px] text-[#6B655C]">Pre-filled from your account</p>
+                )}
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-[#999186]">
+                  Contact Number
+                </label>
+                <input
+                  value={form.contactNumber}
+                  onChange={(e) => setForm((prev) => ({ ...prev, contactNumber: e.target.value }))}
+                  placeholder="e.g. 09171234567"
+                  className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
+                  disabled={!canSubmitRequest}
+                />
+                <p className="mt-1 text-[11px] text-[#6B655C]">Phone or mobile number for SMS updates</p>
               </div>
             </div>
 
             <div>
-              <p className="mb-2 text-sm font-bold text-[#EAE2D6]">Modules to activate</p>
-              <div className="grid gap-2 md:grid-cols-2">
-                {TRIAL_MODULE_OPTIONS.map((module) => {
-                  const checked = form.selectedModules.includes(module);
-                  return (
-                    <label
-                      key={module}
-                      className="flex items-center gap-2 rounded-lg border border-[rgba(201,160,92,0.12)] bg-[#14141B] px-3 py-2 text-sm text-[#6B655C]"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        onChange={() => toggleModule(module)}
-                        disabled={!canSubmitRequest}
-                        className="h-4 w-4 accent-blue-600"
-                      />
-                      <span>{module}</span>
-                    </label>
-                  );
-                })}
-              </div>
+              <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-[#999186]">
+                Additional Notes
+              </label>
+              <textarea
+                value={form.notes}
+                onChange={(e) => setForm((prev) => ({ ...prev, notes: e.target.value }))}
+                placeholder="e.g. Target go-live date, branch locations, special requirements..."
+                className="min-h-24 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
+                disabled={!canSubmitRequest}
+              />
             </div>
-
-            <textarea
-              value={form.notes}
-              onChange={(e) => setForm((prev) => ({ ...prev, notes: e.target.value }))}
-              placeholder="Optional note (target go-live date, requirements, etc.)"
-              className="min-h-24 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
-              disabled={!canSubmitRequest}
-            />
 
             {!canSubmitRequest ? (
               <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
@@ -476,6 +488,97 @@ export function PendingAccessDashboard({ ownerEmail, ownerName, registrationStat
             </div>
           )}
           </article>
+
+          {hasActiveRequest && (
+            <article className="rounded-3xl border border-[rgba(201,160,92,0.12)] bg-[#14141B] p-6 shadow-sm">
+              <div className="flex items-center gap-2">
+                <Upload className="h-5 w-5 text-[#6B655C]" />
+                <h3 className="text-lg font-bold text-[#EAE2D6]">Regulatory Documents</h3>
+              </div>
+              <p className="mt-1 text-xs text-[#6B655C]">
+                Upload your business documents to speed up approval. All 7 documents are required before activation.
+              </p>
+
+              <div className="mt-4 space-y-3">
+                {REQUIRED_DOC_TYPES.map((doc) => {
+                  const existing = regDocs.find((d) => d.document_type === doc.type);
+                  const isUploading = uploadingDocType === doc.type;
+                  const statusColor = existing?.status === 'VERIFIED'
+                    ? 'text-emerald-600 bg-emerald-50 border-emerald-200'
+                    : existing?.status === 'REJECTED'
+                      ? 'text-rose-600 bg-rose-50 border-rose-200'
+                      : existing
+                        ? 'text-amber-600 bg-amber-50 border-amber-200'
+                        : 'text-[#6B655C] bg-[#1C1C26] border-[rgba(201,160,92,0.12)]';
+
+                  return (
+                    <div key={doc.type} className="flex items-center justify-between gap-3 rounded-xl border border-[rgba(201,160,92,0.12)] bg-[#1C1C26] px-4 py-3">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-bold text-[#EAE2D6] truncate">{doc.label}</p>
+                        <p className="text-[11px] text-[#6B655C]">{doc.desc}</p>
+                        {existing && (
+                          <div className="mt-1 flex items-center gap-2">
+                            <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full border ${statusColor}`}>
+                              {existing.status === 'VERIFIED' ? 'Verified' : existing.status === 'REJECTED' ? 'Rejected' : 'Under Review'}
+                            </span>
+                            <span className="text-[10px] text-[#6B655C] truncate">{existing.file_name}</span>
+                          </div>
+                        )}
+                        {existing?.rejection_reason && (
+                          <p className="mt-1 text-[10px] text-rose-400">{existing.rejection_reason}</p>
+                        )}
+                      </div>
+                      <div>
+                        {!existing || existing.status === 'REJECTED' ? (
+                          <label className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest cursor-pointer transition-all ${isUploading ? 'bg-[#1C1C26] text-[#6B655C] cursor-wait' : 'bg-[#C9A05C]/10 text-[#C9A05C] hover:bg-[#C9A05C] hover:text-white'}`}>
+                            {isUploading ? (
+                              <>
+                                <span className="animate-spin h-3 w-3 border-2 border-[#C9A05C] border-t-transparent rounded-full" />
+                                Uploading...
+                              </>
+                            ) : (
+                              <>
+                                <Upload size={12} /> Upload
+                              </>
+                            )}
+                            <input
+                              type="file"
+                              className="hidden"
+                              accept=".pdf,.jpg,.jpeg,.png"
+                              disabled={isUploading}
+                              onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                if (file) handleUploadDocument(doc.type, file);
+                                e.target.value = '';
+                              }}
+                            />
+                          </label>
+                        ) : existing.status === 'VERIFIED' ? (
+                          <span className="inline-flex items-center gap-1 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-emerald-600">
+                            <FileCheck size={12} /> Verified
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-amber-600">
+                            <AlertCircle size={12} /> Pending
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="mt-4 flex items-center gap-2 text-[10px] text-[#6B655C]">
+                <span className="font-bold">{regDocs.filter((d) => d.status === 'VERIFIED').length}/{REQUIRED_DOC_TYPES.length} documents verified</span>
+                <div className="flex-1 h-1 bg-[#1C1C26] rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-[#C9A05C] rounded-full transition-all"
+                    style={{ width: `${(regDocs.filter((d) => d.status === 'VERIFIED').length / REQUIRED_DOC_TYPES.length) * 100}%` }}
+                  />
+                </div>
+              </div>
+            </article>
+          )}
 
           <article className="rounded-3xl border border-[rgba(201,160,92,0.12)] bg-[#14141B] p-6 shadow-sm">
           <div className="flex items-center gap-2">

@@ -142,6 +142,7 @@ async function bootstrap() {
     '/tenant-governance',
     '/branding',
     '/security',
+    '/compliance',
   ];
 
   const isPublicAuctionReadRoute = (
@@ -193,6 +194,20 @@ async function bootstrap() {
     if (pathName === '/notifications/read-all' && req.method === 'PATCH')
       return true;
 
+    return false;
+  };
+
+  const isBidderAuctionRoute = (
+    req: express.Request,
+    pathName: string,
+  ): boolean => {
+    if (!pathName) return false;
+    if (pathName.startsWith('/auction/bidders/tos-status')) return true;
+    if (pathName.startsWith('/auction/bidders/accept-tos')) return true;
+    if (pathName.startsWith('/auction/bidders/my-bids')) return true;
+    if (pathName.startsWith('/auction/bidders/my-winnings')) return true;
+    if (pathName.startsWith('/auction/bidders/me/')) return true;
+    if (/^\/auction\/settlements\/[^/]+\/sign-contract$/.test(pathName) && req.method === 'POST') return true;
     return false;
   };
 
@@ -283,6 +298,16 @@ async function bootstrap() {
       }
 
       if (normalizedRole === 'BIDDER' && isBidderMobileRoute(req, pathName)) {
+        next();
+        return;
+      }
+
+      if (isBidderAuctionRoute(req, pathName)) {
+        next();
+        return;
+      }
+
+      if (req.method === 'GET' && /^\/notifications\/user\/[^/]+$/.test(pathName)) {
         next();
         return;
       }

@@ -215,14 +215,19 @@ export default function LandingPage() {
   const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(0);
   const [plansFromApi, setPlansFromApi] = useState<BackendPlan[] | null>(null);
   const [authMode, setAuthMode] = useState<'signup' | 'signin'>('signup');
+  const [authStep, setAuthStep] = useState<'form' | 'otp'>('form');
   const [authSubmitting, setAuthSubmitting] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
   const [authMessage, setAuthMessage] = useState<string | null>(null);
   const [ownerUserId, setOwnerUserId] = useState<string | null>(null);
+  const [otpCode, setOtpCode] = useState('');
+  const [otpSentTo, setOtpSentTo] = useState('');
+  const [resendTimer, setResendTimer] = useState(0);
   const [authForm, setAuthForm] = useState({
     fullName: '',
     email: '',
     password: '',
+    confirmPassword: '',
   });
 
   useEffect(() => {
@@ -340,6 +345,12 @@ export default function LandingPage() {
     };
   }, []);
 
+  useEffect(() => {
+    if (resendTimer <= 0) return;
+    const id = setTimeout(() => setResendTimer((t) => t - 1), 1000);
+    return () => clearTimeout(id);
+  }, [resendTimer]);
+
   const pricingCards = useMemo(() => {
     if (!plansFromApi || plansFromApi.length === 0) {
       return PLAN_ROWS;
@@ -384,6 +395,9 @@ export default function LandingPage() {
   const openModal = () => {
     setAuthError(null);
     setAuthMessage(null);
+    setAuthStep('form');
+    setOtpCode('');
+    setResendTimer(0);
     syncOwnerSessionContext().catch(() => {
       setOwnerUserId(null);
     });
@@ -395,55 +409,146 @@ export default function LandingPage() {
     setAuthError(null);
     setAuthMessage(null);
 
-    if (!authForm.email || !authForm.password) {
-      setAuthError('Email and password are required.');
+    if (authMode === 'signin') {
+      if (!authForm.email || !authForm.password) {
+        setAuthError('Email and password are required.');
+        return;
+      }
+      setAuthSubmitting(true);
+      try {
+        const { error: signInError } = await supabase.auth.signInWithPassword({
+          email: authForm.email,
+          password: authForm.password,
+        });
+        if (signInError) throw signInError;
+        setAuthMessage('Signed in successfully.');
+        await syncOwnerSessionContext();
+      } catch (err: unknown) {
+        setAuthError((err instanceof Error ? err.message : String(err)) || 'Sign in failed.');
+      } finally {
+        setAuthSubmitting(false);
+      }
+      return;
+    }
+
+    if (!authForm.fullName || !authForm.email || !authForm.password) {
+      setAuthError('All fields are required.');
+      return;
+    }
+    if (authForm.password.length < 8) {
+      setAuthError('Password must be at least 8 characters.');
+      return;
+    }
+    if (authForm.password !== authForm.confirmPassword) {
+      setAuthError('Passwords do not match.');
       return;
     }
 
     setAuthSubmitting(true);
     try {
-      if (authMode === 'signup') {
-        const { data, error: signUpError } = await supabase.auth.signUp({
-          email: authForm.email,
-          password: authForm.password,
-          options: {
-            emailRedirectTo: `${window.location.origin}/login?onboarding=1`,
-            data: {
-              role: 'OWNER',
-              full_name: authForm.fullName || undefined,
-            },
-          },
-        });
+      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000';
+      const res = await fetch(`${backendUrl}/auth/request-auth-code`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: authForm.email, purpose: 'OWNER_REGISTRATION' }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Failed to send verification code');
 
-        if (signUpError) {
-          throw signUpError;
-        }
-
-        if (!data.session) {
-          setAuthMessage('Account created. Please verify your email, then sign in to continue your trial request.');
-          setAuthMode('signin');
-          return;
-        }
-
-        setAuthMessage('Owner account created successfully. Continue to Pending Access to submit your trial request.');
-      } else {
-        const { error: signInError } = await supabase.auth.signInWithPassword({
-          email: authForm.email,
-          password: authForm.password,
-        });
-
-        if (signInError) {
-          throw signInError;
-        }
-
-        setAuthMessage('Signed in successfully. Continue to Pending Access to submit and track your trial request.');
-      }
-
-      await syncOwnerSessionContext();
+      setOtpSentTo(authForm.email);
+      setAuthStep('otp');
+      setResendTimer(60);
+      setAuthMessage(`A 6-digit code was sent to ${authForm.email}.`);
     } catch (err: unknown) {
-      setAuthError((err instanceof Error ? err.message : String(err)) || 'Authentication failed. Please try again.');
+      setAuthError((err instanceof Error ? err.message : String(err)) || 'Failed to send code.');
     } finally {
       setAuthSubmitting(false);
+    }
+  };
+
+  const handleVerifyOtp = async (event: FormEvent) => {
+    event.preventDefault();
+    setAuthError(null);
+    setAuthMessage(null);
+
+    if (!otpCode || otpCode.length !== 6) {
+      setAuthError('Enter the 6-digit code.');
+      return;
+    }
+
+    setAuthSubmitting(true);
+    try {
+      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000';
+
+      const verifyRes = await fetch(`${backendUrl}/auth/verify-auth-code`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: authForm.email,
+          purpose: 'OWNER_REGISTRATION',
+          auth_code: otpCode,
+        }),
+      });
+      const verifyData = await verifyRes.json();
+      if (!verifyRes.ok) throw new Error(verifyData.message || 'Invalid or expired code');
+
+      const verifyPayload = verifyData.data || verifyData;
+
+      const registerRes = await fetch(`${backendUrl}/auth/register-owner`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: authForm.email,
+          password: authForm.password,
+          full_name: authForm.fullName,
+          verification_token: verifyPayload.verificationToken,
+          purpose: 'OWNER_REGISTRATION',
+        }),
+      });
+      const registerData = await registerRes.json();
+      if (!registerRes.ok) throw new Error(registerData.message || 'Registration failed');
+
+      const regPayload = registerData.data || registerData;
+
+      if (regPayload.session?.access_token) {
+        localStorage.setItem('auth_token', regPayload.session.access_token);
+        localStorage.setItem('auth_refresh_token', regPayload.session.refresh_token);
+      }
+
+      await supabase.auth.signInWithPassword({
+        email: authForm.email,
+        password: authForm.password,
+      });
+
+      setAuthMessage('Account created successfully. Continue to submit your trial request.');
+      await syncOwnerSessionContext();
+      setAuthStep('form');
+    } catch (err: unknown) {
+      setAuthError((err instanceof Error ? err.message : String(err)) || 'Verification failed.');
+    } finally {
+      setAuthSubmitting(false);
+    }
+  };
+
+  const resendCode = async () => {
+    if (resendTimer > 0) return;
+    setAuthError(null);
+    setAuthMessage(null);
+    try {
+      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000';
+      const res = await fetch(`${backendUrl}/auth/request-auth-code`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: authForm.email, purpose: 'OWNER_REGISTRATION' }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Failed to resend code');
+      setResendTimer(60);
+      setAuthMessage(`A new 6-digit code was sent to ${authForm.email}.`);
+    } catch (err: unknown) {
+      setAuthError((err instanceof Error ? err.message : String(err)) || 'Failed to resend code.');
     }
   };
 
@@ -1048,7 +1153,7 @@ export default function LandingPage() {
               </button>
             </div>
 
-            {!ownerUserId && (
+            {!ownerUserId && authStep === 'form' && (
               <div className="mb-5 rounded-[16px] p-4" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)' }}>
                 <p className="text-[14px] font-semibold" style={{ color: 'var(--text-primary)' }}>Owner account required</p>
                 <p className="mt-1 text-[12px] leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
@@ -1066,16 +1171,16 @@ export default function LandingPage() {
                       required
                     />
                   )}
+                  <input
+                    value={authForm.email}
+                    onChange={(e) => setAuthForm((prev) => ({ ...prev, email: e.target.value }))}
+                    type="email"
+                    placeholder="Owner Email"
+                    className="w-full rounded-[12px] px-3.5 py-2.5 text-[13px] outline-none"
+                    style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(201,160,92,0.15)', color: 'var(--text-primary)' }}
+                    required
+                  />
                   <div className="grid gap-3 md:grid-cols-2">
-                    <input
-                      value={authForm.email}
-                      onChange={(e) => setAuthForm((prev) => ({ ...prev, email: e.target.value }))}
-                      type="email"
-                      placeholder="Owner Email"
-                      className="rounded-[12px] px-3.5 py-2.5 text-[13px] outline-none"
-                      style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(201,160,92,0.15)', color: 'var(--text-primary)' }}
-                      required
-                    />
                     <input
                       value={authForm.password}
                       onChange={(e) => setAuthForm((prev) => ({ ...prev, password: e.target.value }))}
@@ -1085,6 +1190,17 @@ export default function LandingPage() {
                       style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(201,160,92,0.15)', color: 'var(--text-primary)' }}
                       required
                     />
+                    {authMode === 'signup' && (
+                      <input
+                        value={authForm.confirmPassword}
+                        onChange={(e) => setAuthForm((prev) => ({ ...prev, confirmPassword: e.target.value }))}
+                        type="password"
+                        placeholder="Confirm Password"
+                        className="rounded-[12px] px-3.5 py-2.5 text-[13px] outline-none"
+                        style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(201,160,92,0.15)', color: 'var(--text-primary)' }}
+                        required
+                      />
+                    )}
                   </div>
 
                   {authMessage && (
@@ -1110,6 +1226,66 @@ export default function LandingPage() {
                       style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: 'var(--text-secondary)' }}
                     >
                       {authMode === 'signup' ? 'Already have an account?' : 'Need an account?'}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            )}
+
+            {!ownerUserId && authStep === 'otp' && (
+              <div className="mb-5 rounded-[16px] p-4" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                <p className="text-[14px] font-semibold" style={{ color: 'var(--text-primary)' }}>Verify your email</p>
+                <p className="mt-1 text-[12px] leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
+                  Enter the 6-digit code sent to <span className="font-semibold" style={{ color: 'var(--text-primary)' }}>{otpSentTo}</span>
+                </p>
+
+                <form onSubmit={handleVerifyOtp} className="mt-4 space-y-3">
+                  <input
+                    value={otpCode}
+                    onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                    type="text"
+                    inputMode="numeric"
+                    maxLength={6}
+                    placeholder="000000"
+                    className="w-full rounded-[12px] px-3.5 py-3 text-[20px] text-center tracking-[0.4em] font-mono outline-none"
+                    style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(201,160,92,0.15)', color: 'var(--text-primary)' }}
+                    autoFocus
+                    required
+                  />
+
+                  <p className="text-center text-[12px] pt-1" style={{ color: 'var(--text-secondary)' }}>
+                    {resendTimer > 0 ? (
+                      <span>Resend code in <span className="font-semibold" style={{ color: 'var(--text-primary)' }}>{resendTimer}s</span></span>
+                    ) : (
+                      <button type="button" onClick={resendCode} className="font-semibold underline transition-colors" style={{ color: '#C9A05C' }}>
+                        Didn't receive code? Resend
+                      </button>
+                    )}
+                  </p>
+
+                  {authMessage && (
+                    <p className="rounded-[10px] px-3 py-2 text-[12px]" style={{ background: 'rgba(61,168,108,0.1)', color: 'var(--green)', border: '1px solid rgba(61,168,108,0.2)' }}>{authMessage}</p>
+                  )}
+                  {authError && (
+                    <p className="rounded-[10px] px-3 py-2 text-[12px]" style={{ background: 'rgba(212,69,69,0.1)', color: 'var(--red)', border: '1px solid rgba(212,69,69,0.2)' }}>{authError}</p>
+                  )}
+
+                  <div className="flex flex-wrap items-center gap-2 pt-1">
+                    <button
+                      type="submit"
+                      disabled={authSubmitting || otpCode.length !== 6}
+                      className="rounded-[12px] px-4 py-2.5 text-[13px] font-semibold transition-all active:scale-[0.97] disabled:opacity-50"
+                      style={{ background: 'linear-gradient(135deg, #C9A05C 0%, #A07D40 100%)', color: '#0A0A0F', border: '1px solid rgba(201,160,92,0.4)' }}
+                    >
+                      {authSubmitting ? 'Verifying...' : 'Verify & Create Account'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setAuthStep('form'); setAuthError(null); setAuthMessage(null); setOtpCode(''); setResendTimer(0); }}
+                      className="rounded-[12px] px-4 py-2.5 text-[13px] font-medium transition-all"
+                      style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: 'var(--text-secondary)' }}
+                    >
+                      Back
                     </button>
                   </div>
                 </form>

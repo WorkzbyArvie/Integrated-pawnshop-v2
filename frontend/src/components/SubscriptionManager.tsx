@@ -48,6 +48,7 @@ import {
 } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import api from '@/lib/apiClient';
+import Swal from 'sweetalert2';
 import useApi from '@/lib/useApi';
 import { formatCurrency, formatDate, statusColor, humanizeStatus } from '@/lib/formatters';
 import type { Subscription, SubscriptionPlan, SubscriptionLimits, SubscriptionTier, BillingInterval } from '@/lib/types';
@@ -165,8 +166,23 @@ export function SubscriptionManager({ branchId: _branchId }: SubscriptionManager
     }
 
     try {
-      await api.post('/subscriptions/change-tier', { tier: changeTier });
-      showToast(`Upgraded to ${changeTier}`, 'success');
+      const res = await api.post('/subscriptions/change-tier', { tier: changeTier }) as any;
+
+      // If checkout URL returned, redirect to payment (trial→paid flow)
+      if (res?.checkoutUrl) {
+        showToast('Complete payment to activate your new plan.', 'success');
+        window.open(res.checkoutUrl, '_blank', 'noopener');
+        setShowChangeDialog(false);
+        refetchAll();
+        return;
+      }
+
+      if (res?.paymentError) {
+        showToast(res.paymentError, 'error');
+        return;
+      }
+
+      showToast(`Plan changed to ${changeTier}`, 'success');
       setShowChangeDialog(false);
       refetchAll();
     } catch (err: unknown) {
@@ -282,7 +298,7 @@ export function SubscriptionManager({ branchId: _branchId }: SubscriptionManager
   const isAwaitingPaymentAuthorization =
     String(currentSub?.status || '').toUpperCase() === 'PAST_DUE';
   const currentPlanLabel = isTrialSubscription ? 'TRIAL' : currentTier;
-  const plansForDisplay = plansList.filter((plan) => plan.tier !== 'FREE');
+  const plansForDisplay = plansList;
   const checkoutUrl =
     paymentStatus?.checkoutUrl ||
     (currentSub as any)?.checkoutUrl ||
@@ -333,7 +349,7 @@ export function SubscriptionManager({ branchId: _branchId }: SubscriptionManager
                 )}
                 {isTrialSubscription && currentSub?.trialEndsAt && new Date(currentSub.trialEndsAt) > new Date() && (
                   <p className="text-xs text-amber-700 font-semibold mt-2">
-                    Automatic billing starts after trial ends. Cancel before {formatDate(currentSub.trialEndsAt)} to avoid any charge.
+                    Trial ends {formatDate(currentSub.trialEndsAt)}. Upgrade to a paid plan anytime to continue.
                   </p>
                 )}
                 {isFreeTier && (
@@ -483,7 +499,7 @@ export function SubscriptionManager({ branchId: _branchId }: SubscriptionManager
                     <p className="text-xs text-[#6B655C] capitalize">{key.replace(/_/g, ' ')}</p>
                     <div className="flex items-baseline gap-1 mt-1">
                       <span className={`text-lg font-black ${isExceeded ? 'text-rose-600' : 'text-[#EAE2D6]'}`}>{used}</span>
-                      <span className="text-sm text-[#6B655C]">/ {isUnlimited ? 'âˆž' : max}</span>
+                      <span className="text-sm text-[#6B655C]">/ {isUnlimited ? 'Unlimited' : max}</span>
                     </div>
                     {!isUnlimited && (
                       <div className="mt-2 h-1.5 bg-[#222228] rounded-full overflow-hidden">
@@ -530,41 +546,76 @@ export function SubscriptionManager({ branchId: _branchId }: SubscriptionManager
                     {TIER_ICONS[plan.tier]}
                     <h3 className="font-black text-lg">{plan.name || plan.tier}</h3>
                   </div>
-                  <p className="text-3xl font-black text-[#EAE2D6]">
-                    {formatCurrency(plan.monthlyPrice)}
-                    <span className="text-sm text-[#6B655C] font-normal">/mo</span>
-                  </p>
+                  {plan.tier === 'FREE' ? (
+                    <p className="text-3xl font-black text-[#EAE2D6]">
+                      Free
+                      <span className="text-sm text-[#6B655C] font-normal ml-2">15-day trial</span>
+                    </p>
+                  ) : (
+                    <p className="text-3xl font-black text-[#EAE2D6]">
+                      {formatCurrency(plan.monthlyPrice)}
+                      <span className="text-sm text-[#6B655C] font-normal">/mo</span>
+                    </p>
+                  )}
                   {plan.description && (
                     <p className="text-sm text-[#6B655C] mt-2">{plan.description}</p>
                   )}
+                  {plan.tagline && (
+                    <p className="text-xs text-[#999186] mt-1 italic">{plan.tagline}</p>
+                  )}
 
                   <div className="mt-4 space-y-2">
-                    {Object.entries(plan.features || {}).map(([feature, enabled]) => (
-                      <div key={feature} className="flex items-center gap-2 text-sm">
-                        {enabled ? (
-                          <Check className="w-4 h-4 text-emerald-500 flex-shrink-0" />
-                        ) : (
-                          <XCircle className="w-4 h-4 text-slate-300 flex-shrink-0" />
-                        )}
-                        <span className={enabled ? 'text-[#6B655C]' : 'text-[#6B655C]'}>
-                          {feature.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())}
-                        </span>
-                      </div>
-                    ))}
+                    {Object.entries(plan.features || {}).map(([feature, enabled]) => {
+                      const featureLabels: Record<string, string> = {
+                        pawn_ticketing: 'Pawn Ticketing & Loans',
+                        loan_management: 'Loan Lifecycle Management',
+                        basic_analytics: 'Basic Analytics Dashboard',
+                        advanced_analytics: 'Advanced Analytics & Reports',
+                        queue_management: 'Customer Queue Management',
+                        auction_access: 'Auction House Access',
+                        api_access: 'API Access for Integrations',
+                        priority_support: 'Priority Support',
+                        custom_branding: 'Custom Branding & White-label',
+                      };
+                      return (
+                        <div key={feature} className="flex items-center gap-2 text-sm">
+                          {enabled ? (
+                            <Check className="w-4 h-4 text-emerald-500 flex-shrink-0" />
+                          ) : (
+                            <XCircle className="w-4 h-4 text-slate-300 flex-shrink-0" />
+                          )}
+                          <span className={enabled ? 'text-[#6B655C]' : 'text-slate-400'}>
+                            {featureLabels[feature] || feature.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())}
+                          </span>
+                        </div>
+                      );
+                    })}
                   </div>
 
                   {plan.limits && (
                     <div className="mt-3 pt-3 border-t">
-                      {Object.entries(plan.limits).map(([key, val]) => (
-                        <div key={key} className="flex justify-between text-xs text-[#6B655C]">
-                          <span>{key.replace(/_/g, ' ')}</span>
-                          <span className="font-mono">{val === null ? 'âˆž' : val}</span>
-                        </div>
-                      ))}
+                      {Object.entries(plan.limits).map(([key, val]) => {
+                        if (val === null && key !== 'daily_transaction_limit') return null;
+                        const limitLabels: Record<string, string> = {
+                          max_branches: 'Branches',
+                          max_staff: 'Staff Members',
+                          max_transactions: 'Transactions/mo',
+                          daily_transaction_limit: 'Transactions/day',
+                        };
+                        const label = limitLabels[key] || key.replace(/_/g, ' ');
+                        if (plan.tier === 'FREE' && key === 'max_transactions') return null;
+                        if (plan.tier !== 'FREE' && key === 'daily_transaction_limit') return null;
+                        return (
+                          <div key={key} className="flex justify-between text-xs text-[#6B655C]">
+                            <span>{label}</span>
+                            <span className="font-mono">{val === null ? 'Unlimited' : val}</span>
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
 
-                  {!isCurrentPlan && plan.tier !== 'FREE' && (
+                  {!isCurrentPlan && (
                     <Button
                       className="w-full mt-4"
                       variant={plan.tier === 'ENTERPRISE' ? 'default' : 'outline'}
@@ -621,7 +672,7 @@ export function SubscriptionManager({ branchId: _branchId }: SubscriptionManager
           <DialogHeader>
             <DialogTitle>Start Subscription</DialogTitle>
             <DialogDescription>
-              Subscribe to a paid plan and proceed to checkout. If trial is available, billing automatically starts after trial unless you cancel before trial end.
+              Choose a paid plan to continue after your trial ends.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
@@ -701,9 +752,17 @@ export function SubscriptionManager({ branchId: _branchId }: SubscriptionManager
               </SelectContent>
             </Select>
           </div>
+          {isTrialSubscription && (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-3">
+              <p className="text-sm text-amber-900 font-semibold">Payment required to activate</p>
+              <p className="text-xs text-amber-700 mt-1">
+                Your trial will end permanently once payment is confirmed. You must complete payment before the new plan becomes active.
+              </p>
+            </div>
+          )}
           <DialogFooter>
             <Button onClick={handleChangeTier}>
-              <ArrowUpCircle className="w-4 h-4 mr-2" /> Change Plan (Next Billing)
+              <ArrowUpCircle className="w-4 h-4 mr-2" /> {isTrialSubscription ? 'Pay & Activate Plan' : 'Change Plan (Next Billing)'}
             </Button>
           </DialogFooter>
         </DialogContent>

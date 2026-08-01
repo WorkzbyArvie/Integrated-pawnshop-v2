@@ -213,11 +213,7 @@ export function SystemSettings({ config, setConfig, userRole, branchId, onBrandi
               ...currentSettings,
               global_overrides: { ...config },
             };
-            const { error } = await supabase
-              .from('pawnshops')
-              .update({ settings: updatedSettings })
-              .eq('id', shop.id);
-            if (error) throw error;
+            await api.patch(`/tenant-governance/pawnshops/${shop.id}/settings`, { settings: updatedSettings });
           }
         }
       } else if (branchId) {
@@ -249,12 +245,7 @@ export function SystemSettings({ config, setConfig, userRole, branchId, onBrandi
           global_overrides: currentSettings.global_overrides || {},
         };
 
-        const { error: updateError } = await supabase
-          .from('pawnshops')
-          .update({ settings: updatedSettings })
-          .eq('id', branchId);
-        
-        if (updateError) throw updateError;
+        await api.patch(`/tenant-governance/pawnshops/${branchId}/settings`, { settings: updatedSettings });
         setConfig((prev: any) => ({ ...prev, ...sanitizedConfig }));
       }
 

@@ -29,23 +29,29 @@ const TIER_CONFIG: Record<
   {
     name: string;
     description: string;
+    tagline: string;
     monthlyPrice: number;
     maxBranches: number | null;
     maxStaff: number | null;
     maxTransactions: number | null;
+    dailyTransactionLimit: number | null;
     features: Record<string, boolean>;
   }
 > = {
   FREE: {
-    name: 'Free',
-    description: 'Perfect for getting started',
+    name: 'Trial',
+    description: '15-day evaluation with core pawn operations',
+    tagline: 'No credit card required',
     monthlyPrice: 0,
     maxBranches: 1,
     maxStaff: 3,
-    maxTransactions: 100,
+    maxTransactions: 50,
+    dailyTransactionLimit: 50,
     features: {
+      pawn_ticketing: true,
+      loan_management: true,
       basic_analytics: true,
-      queue_management: true,
+      queue_management: false,
       auction_access: false,
       api_access: false,
       priority_support: false,
@@ -54,16 +60,19 @@ const TIER_CONFIG: Record<
   },
   BASIC: {
     name: 'Basic',
-    description: 'For small pawnshops',
+    description: 'For single-branch pawnshops ready to go digital',
+    tagline: 'Essential tools for daily operations',
     monthlyPrice: 2999,
     maxBranches: 3,
     maxStaff: 10,
     maxTransactions: null,
+    dailyTransactionLimit: null,
     features: {
+      pawn_ticketing: true,
+      loan_management: true,
       basic_analytics: true,
-      advanced_analytics: true,
       queue_management: true,
-      auction_access: true,
+      auction_access: false,
       api_access: false,
       priority_support: false,
       custom_branding: false,
@@ -71,12 +80,16 @@ const TIER_CONFIG: Record<
   },
   PROFESSIONAL: {
     name: 'Professional',
-    description: 'For growing businesses',
+    description: 'For growing pawnshop networks with multiple branches',
+    tagline: 'Scale with confidence and data',
     monthlyPrice: 7999,
     maxBranches: 10,
     maxStaff: 50,
     maxTransactions: null,
+    dailyTransactionLimit: null,
     features: {
+      pawn_ticketing: true,
+      loan_management: true,
       basic_analytics: true,
       advanced_analytics: true,
       queue_management: true,
@@ -88,12 +101,16 @@ const TIER_CONFIG: Record<
   },
   ENTERPRISE: {
     name: 'Enterprise',
-    description: 'For large organizations',
+    description: 'For large-scale operations requiring full control',
+    tagline: 'Unlimited power, dedicated support',
     monthlyPrice: 19999,
-    maxBranches: null, // Unlimited
+    maxBranches: null,
     maxStaff: null,
     maxTransactions: null,
+    dailyTransactionLimit: null,
     features: {
+      pawn_ticketing: true,
+      loan_management: true,
       basic_analytics: true,
       advanced_analytics: true,
       queue_management: true,
@@ -147,8 +164,9 @@ export class SubscriptionService {
     try {
       await this.prisma.$executeRaw`
         INSERT INTO public.tenant_audit_logs
-        (pawnshop_id, actor_user_id, action, metadata)
+        (id, pawnshop_id, actor_user_id, action, metadata)
         VALUES (
+          gen_random_uuid(),
           ${params.pawnshopId}::uuid,
           ${params.actorUserId}::uuid,
           ${params.action},
@@ -540,22 +558,20 @@ export class SubscriptionService {
       const autoTrial = await this.prisma.subscription.create({
         data: {
           pawnshopId: effectivePawnshopId,
-          tier: SubscriptionTier.BASIC,
+          tier: SubscriptionTier.FREE,
           status: SubscriptionStatus.TRIAL,
           billingInterval: BillingInterval.MONTHLY,
-          price: TIER_CONFIG.BASIC.monthlyPrice,
+          price: 0,
           startDate: now,
           endDate,
           trialEndDate,
           nextBillingDate: trialEndDate,
           autoRenew: false,
-          maxBranches: TIER_CONFIG.BASIC.maxBranches,
-          maxStaff: TIER_CONFIG.BASIC.maxStaff,
-          maxTransactions: TIER_CONFIG.BASIC.maxTransactions,
+          maxBranches: TIER_CONFIG.FREE.maxBranches,
+          maxStaff: TIER_CONFIG.FREE.maxStaff,
+          maxTransactions: TIER_CONFIG.FREE.maxTransactions,
           features: {
-            ...(TIER_CONFIG.BASIC.features as Record<string, boolean>),
-            // Trial policy: queue management remains unavailable during trial.
-            queue_management: false,
+            ...(TIER_CONFIG.FREE.features as Record<string, boolean>),
           },
         },
       });
@@ -669,13 +685,22 @@ export class SubscriptionService {
       select: {
         status: true,
         tier: true,
+        endDate: true,
+        autoRenew: true,
       },
     });
 
+    const now = new Date();
+    const isActive = latestSubscription?.status === SubscriptionStatus.ACTIVE;
+    const isTrial = latestSubscription?.status === SubscriptionStatus.TRIAL;
+    const hasEndDatePassed = latestSubscription?.endDate
+      ? now > new Date(latestSubscription.endDate) && !latestSubscription.autoRenew
+      : false;
+
     const isOperable = Boolean(
       latestSubscription &&
-        (latestSubscription.status === SubscriptionStatus.ACTIVE ||
-          latestSubscription.status === SubscriptionStatus.TRIAL),
+        (isActive || isTrial) &&
+        !hasEndDatePassed,
     );
 
     return {
@@ -688,7 +713,9 @@ export class SubscriptionService {
   }
 
   /**
-   * Upgrade or downgrade subscription tier
+   * Upgrade or downgrade subscription tier.
+   * When changing from trial to a paid plan, payment must be completed first.
+   * Trial is permanently ended once payment is confirmed.
    */
   async changeTier(
     pawnshopId: string,
@@ -739,11 +766,79 @@ export class SubscriptionService {
         );
       }
 
+      const isTrialToPaid = current.status === SubscriptionStatus.TRIAL;
       const tierConfig = TIER_CONFIG[newTier];
       const intervalMultiplier = INTERVAL_MULTIPLIER[current.billingInterval];
       const newPrice = tierConfig.monthlyPrice * intervalMultiplier;
 
-      // ── Update PayMongo plan if integrated ──
+      // ── Trial-to-paid: require payment first ──
+      // Generate a payment link but do NOT change the tier yet.
+      // Tier activates only after payment is confirmed via webhook or polling.
+      if (isTrialToPaid) {
+        let checkoutUrl: string | null = null;
+        let paymentError: string | null = null;
+
+        if (this.paymongoService.isEnabled) {
+          try {
+            const amountCentavos = Math.round(newPrice * 100);
+            const link = await this.paymongoService.createPaymentLink({
+              amountCentavos,
+              description: `${newTier} plan (${current.billingInterval}) — upgrade from trial`,
+              remarks: 'Trial-to-paid upgrade — PawnGold',
+              metadata: {
+                pawnshopId,
+                subscriptionId: current.id,
+                tier: newTier,
+                billingInterval: current.billingInterval,
+                action: 'TRIAL_UPGRADE',
+              },
+            });
+
+            checkoutUrl = link.checkoutUrl;
+
+            // Store pending tier change on the subscription so webhook can apply it
+            await (this.prisma.subscription as any).update({
+              where: { id: current.id },
+              data: {
+                paymongoCheckoutUrl: checkoutUrl,
+                billingEmail: current.billingEmail,
+              },
+            });
+          } catch (pmErr: any) {
+            paymentError = pmErr?.message || 'Payment link creation failed';
+            this.logger.warn(`Trial upgrade checkout failed: ${paymentError}`);
+          }
+        } else {
+          paymentError = 'Payment provider not configured';
+        }
+
+        await this.logSubscriptionAudit({
+          pawnshopId,
+          actorUserId,
+          action: 'SUBSCRIPTION_TRIAL_UPGRADE_INITIATED',
+          metadata: {
+            subscriptionId: current.id,
+            fromTier: current.tier,
+            toTier: newTier,
+            checkoutUrl,
+            paymentError,
+          },
+        });
+
+        return {
+          id: current.id,
+          status: current.status,
+          tier: current.tier,
+          pendingTier: newTier,
+          checkoutUrl,
+          paymentError,
+          message: paymentError
+            ? paymentError
+            : 'Complete payment to activate the new plan. Your trial will end permanently once payment is confirmed.',
+        };
+      }
+
+      // ── Non-trial tier change (existing paid → different paid) ──
       let newPaymongoPlanId = (current as any).paymongoPlanId;
       if (
         this.paymongoService.isEnabled &&
@@ -1141,6 +1236,7 @@ export class SubscriptionService {
       tier,
       name: config.name,
       description: config.description,
+      tagline: config.tagline,
       monthlyPrice: config.monthlyPrice,
       quarterlyPrice: config.monthlyPrice * INTERVAL_MULTIPLIER.QUARTERLY,
       annualPrice: config.monthlyPrice * INTERVAL_MULTIPLIER.ANNUALLY,
@@ -1149,6 +1245,7 @@ export class SubscriptionService {
         max_branches: config.maxBranches,
         max_staff: config.maxStaff,
         max_transactions: config.maxTransactions,
+        daily_transaction_limit: config.dailyTransactionLimit,
       },
     }));
   }
@@ -1180,7 +1277,7 @@ export class SubscriptionService {
   }> {
     const subscription = await this.getCurrent(pawnshopId, actorUserId);
 
-    const [activeBranchCountRows, staffCount, transactionCount] = await Promise.all([
+    const [activeBranchCountRows, staffCount] = await Promise.all([
       this.prisma.$queryRaw<Array<{ count: number }>>`
         SELECT COUNT(*)::int AS count
         FROM public.branch
@@ -1190,9 +1287,6 @@ export class SubscriptionService {
       this.prisma.staff.count({
         where: { branch: { pawnshopId } },
       }),
-      this.prisma.cashLedgerEntry.count({
-        where: { pawnshopId },
-      }),
     ]);
 
     // Plan branch usage counts the main pawnshop branch plus additional branch records.
@@ -1200,11 +1294,32 @@ export class SubscriptionService {
     const branchCount = additionalBranchCount + 1;
 
     const unlimitedTransactions = this.hasUnlimitedTransactions(subscription);
+    const isTrial = subscription.status === SubscriptionStatus.TRIAL;
+
+    let transactionCount = 0;
+    if (isTrial) {
+      const todayStart = new Date();
+      todayStart.setHours(0, 0, 0, 0);
+      const todayRows = await this.prisma.$queryRaw<Array<{ count: number }>>`
+        SELECT COUNT(*)::int AS count FROM public.cash_ledger_entries
+        WHERE pawnshop_id = ${pawnshopId}::uuid
+          AND transaction_date >= ${todayStart}
+      `;
+      transactionCount = todayRows[0]?.count ?? 0;
+    } else {
+      const totalRows = await this.prisma.$queryRaw<Array<{ count: number }>>`
+        SELECT COUNT(*)::int AS count FROM public.cash_ledger_entries
+        WHERE pawnshop_id = ${pawnshopId}::uuid
+      `;
+      transactionCount = totalRows[0]?.count ?? 0;
+    }
+
+    const txnLimit = isTrial ? 50 : (unlimitedTransactions ? null : subscription.maxTransactions);
 
     const limits = {
       max_branches: subscription.maxBranches,
       max_staff: subscription.maxStaff,
-      max_transactions: unlimitedTransactions ? null : subscription.maxTransactions,
+      max_transactions: txnLimit,
     };
 
     const usage = {
@@ -1242,6 +1357,59 @@ export class SubscriptionService {
       usage,
       exceededLimits,
     };
+  }
+
+  /**
+   * Expire subscriptions that have passed their end date without renewal.
+   * Runs hourly to catch expired subscriptions promptly.
+   */
+  @Cron(CronExpression.EVERY_HOUR)
+  async expireOverdueSubscriptions(): Promise<void> {
+    try {
+      const now = new Date();
+
+      const expiredSubscriptions = await this.prisma.subscription.findMany({
+        where: {
+          status: {
+            in: [SubscriptionStatus.ACTIVE, SubscriptionStatus.TRIAL],
+          },
+          endDate: { lt: now },
+          autoRenew: false,
+        },
+      });
+
+      for (const sub of expiredSubscriptions) {
+        try {
+          await this.prisma.subscription.update({
+            where: { id: sub.id },
+            data: {
+              status: SubscriptionStatus.EXPIRED,
+              autoRenew: false,
+            },
+          });
+
+          await this.logSubscriptionAudit({
+            pawnshopId: sub.pawnshopId,
+            action: 'SUBSCRIPTION_EXPIRED',
+            metadata: {
+              subscriptionId: sub.id,
+              tier: sub.tier,
+              endDate: sub.endDate.toISOString(),
+            },
+          });
+
+          this.logger.log(`Subscription ${sub.id} expired (ended ${sub.endDate.toISOString()})`);
+        } catch (err: any) {
+          this.logger.warn(`Failed to expire subscription ${sub.id}: ${err.message}`);
+        }
+      }
+
+      if (expiredSubscriptions.length > 0) {
+        this.logger.log(`Expired ${expiredSubscriptions.length} overdue subscriptions`);
+      }
+    } catch (error: any) {
+      this.logger.error(`Failed to expire subscriptions: ${error.message}`, error.stack);
+    }
   }
 
   /**
@@ -1418,10 +1586,33 @@ export class SubscriptionService {
 
     switch (eventType) {
       case 'subscription.payment.paid': {
-        // Activate subscription and record payment
+        // Check for pending trial upgrade — apply tier change and end trial permanently
+        const pendingTier = (subscription as any).pendingTier as SubscriptionTier | null;
+        const wasTrial = subscription.status === SubscriptionStatus.TRIAL;
+
+        const updateData: any = {
+          status: SubscriptionStatus.ACTIVE,
+        };
+
+        // If there was a pending tier change (trial→paid), apply it now
+        if (pendingTier) {
+          const tierConfig = TIER_CONFIG[pendingTier];
+          updateData.tier = pendingTier;
+          updateData.maxBranches = tierConfig.maxBranches;
+          updateData.maxStaff = tierConfig.maxStaff;
+          updateData.maxTransactions = tierConfig.maxTransactions;
+          updateData.features = tierConfig.features;
+          updateData.pendingTier = null; // Clear pending
+        }
+
+        // End trial permanently — set trialEndDate to now so trial can never be used again
+        if (wasTrial) {
+          updateData.trialEndDate = new Date();
+        }
+
         await this.prisma.subscription.update({
           where: { id: subscription.id },
-          data: { status: SubscriptionStatus.ACTIVE },
+          data: updateData,
         });
 
         const amount = (attrs.amount || 0) / 100; // centavos → PHP
@@ -1444,7 +1635,7 @@ export class SubscriptionService {
             entryType: LedgerEntryType.DEBIT,
             category: LedgerCategory.SUBSCRIPTION_PAYMENT,
             amount,
-            description: `PayMongo payment: ${subscription.tier} tier`,
+            description: `PayMongo payment: ${updateData.tier || subscription.tier} tier`,
             performedBy: 'paymongo',
             referenceType: 'SUBSCRIPTION',
             referenceId: subscription.id,
@@ -1454,7 +1645,9 @@ export class SubscriptionService {
         }
 
         this.logger.log(
-          `Subscription ${subscription.id} activated via PayMongo payment`,
+          `Subscription ${subscription.id} activated via PayMongo payment` +
+            (wasTrial ? ' (trial ended permanently)' : '') +
+            (pendingTier ? ` (tier changed to ${pendingTier})` : ''),
         );
         break;
       }
@@ -1615,6 +1808,38 @@ export class SubscriptionService {
       });
 
       if (!existingCompleted) {
+        // Check for pending trial upgrade
+        const pendingTier = (current as any).pendingTier as SubscriptionTier | null;
+        const wasTrial = current.status === SubscriptionStatus.TRIAL;
+
+        const updateData: any = {};
+
+        if (pendingTier) {
+          const tierConfig = TIER_CONFIG[pendingTier];
+          updateData.tier = pendingTier;
+          updateData.maxBranches = tierConfig.maxBranches;
+          updateData.maxStaff = tierConfig.maxStaff;
+          updateData.maxTransactions = tierConfig.maxTransactions;
+          updateData.features = tierConfig.features;
+          updateData.pendingTier = null;
+        }
+
+        if (current.status !== SubscriptionStatus.ACTIVE) {
+          updateData.status = SubscriptionStatus.ACTIVE;
+        }
+
+        // End trial permanently
+        if (wasTrial) {
+          updateData.trialEndDate = new Date();
+        }
+
+        if (Object.keys(updateData).length > 0) {
+          await this.prisma.subscription.update({
+            where: { id: current.id },
+            data: updateData,
+          });
+        }
+
         await this.prisma.subscriptionPayment.create({
           data: {
             subscriptionId: current.id,
@@ -1627,15 +1852,6 @@ export class SubscriptionService {
             paidAt: paidAt ? new Date(paidAt) : new Date(),
           },
         });
-
-        if (current.status !== SubscriptionStatus.ACTIVE) {
-          await this.prisma.subscription.update({
-            where: { id: current.id },
-            data: {
-              status: SubscriptionStatus.ACTIVE,
-            },
-          });
-        }
 
         await this.logSubscriptionAudit({
           pawnshopId,

@@ -1,5 +1,5 @@
 ﻿import { FormEvent, useEffect, useMemo, useState } from 'react';
-import { Loader2, MessageSquare, RefreshCcw, Send } from 'lucide-react';
+import { Loader2, MessageSquare, RefreshCcw, Send, Upload, X } from 'lucide-react';
 import api from '../../lib/apiClient';
 import { useToast } from '../../App';
 
@@ -28,6 +28,17 @@ type TrialMessage = {
   created_at: string;
 };
 
+type RegDocument = {
+  id: string;
+  document_type: string;
+  file_name: string;
+  file_url: string;
+  file_size: number | null;
+  status: string;
+  rejection_reason: string | null;
+  created_at: string;
+};
+
 const STATUS_OPTIONS: RequestStatus[] = ['ALL', 'PENDING', 'CONTACTED', 'APPROVED', 'REJECTED', 'CANCELLED'];
 
 const toneByStatus = (status: string) => {
@@ -52,6 +63,10 @@ export function TrialRequestsPanel() {
   const [adminNote, setAdminNote] = useState('');
   const [, setError] = useState<string | null>(null);
   const [, setSuccess] = useState<string | null>(null);
+  const [regDocs, setRegDocs] = useState<RegDocument[]>([]);
+  const [loadingDocs, setLoadingDocs] = useState(false);
+  const [reviewingDocId, setReviewingDocId] = useState<string | null>(null);
+  const [previewDoc, setPreviewDoc] = useState<RegDocument | null>(null);
 
   const selectedRequest = requests.find((request) => request.id === selectedRequestId) ?? requests[0] ?? null;
   const selectedStatus = String(selectedRequest?.status || '').toUpperCase();
@@ -104,6 +119,35 @@ export function TrialRequestsPanel() {
     }
   };
 
+  const loadDocuments = async (requestId: string) => {
+    setLoadingDocs(true);
+    try {
+      const res = await api.get<{ documents: RegDocument[] }>(`/tenant-governance/client-registrations/${requestId}/documents/admin`);
+      setRegDocs(res?.documents || []);
+    } catch {
+      setRegDocs([]);
+    } finally {
+      setLoadingDocs(false);
+    }
+  };
+
+  const handleReviewDocument = async (documentId: string, decision: 'APPROVED' | 'REJECTED') => {
+    if (!selectedRequest?.id) return;
+    setReviewingDocId(documentId);
+    try {
+      await api.post(`/tenant-governance/client-registrations/${selectedRequest.id}/documents/${documentId}/review`, {
+        decision,
+      });
+      showToast(`Document ${decision.toLowerCase()}.`, 'success');
+      await loadDocuments(selectedRequest.id);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err) || 'Failed to review document.';
+      showToast(message, 'error');
+    } finally {
+      setReviewingDocId(null);
+    }
+  };
+
   useEffect(() => {
     loadRequests();
   }, [statusFilter]);
@@ -111,9 +155,11 @@ export function TrialRequestsPanel() {
   useEffect(() => {
     if (!selectedRequest?.id) {
       setMessages([]);
+      setRegDocs([]);
       return;
     }
     loadMessages(selectedRequest.id);
+    loadDocuments(selectedRequest.id);
   }, [selectedRequest?.id]);
 
   const handleDecision = async (decision: 'CONTACTED' | 'APPROVED' | 'REJECTED') => {
@@ -246,7 +292,84 @@ export function TrialRequestsPanel() {
                 <p><span className="font-bold">Email:</span> {selectedRequest.owner_email}</p>
                 <p><span className="font-bold">Contact:</span> {selectedRequest.contact_number || 'Not provided'}</p>
                 <p><span className="font-bold">Staff Count:</span> {selectedRequest.staff_count ?? 'N/A'}</p>
-                <p><span className="font-bold">Modules:</span> {selectedModulesText}</p>
+              </div>
+
+              <div className="mt-4 rounded-2xl border border-[rgba(201,160,92,0.12)] bg-[#1C1C26] p-4">
+                <div className="mb-3 flex items-center gap-2">
+                  <Upload className="h-4 w-4 text-[#6B655C]" />
+                  <p className="text-sm font-bold text-[#EAE2D6]">Regulatory Documents</p>
+                  {regDocs.length > 0 && (
+                    <span className="rounded-full bg-[#C9A05C]/10 px-2 py-0.5 text-[10px] font-black text-[#C9A05C]">
+                      {regDocs.filter((d) => d.status === 'VERIFIED').length}/{regDocs.length} verified
+                    </span>
+                  )}
+                </div>
+
+                {loadingDocs ? (
+                  <div className="flex items-center gap-2 text-xs text-[#6B655C]">
+                    <Loader2 className="h-3 w-3 animate-spin" /> Loading documents...
+                  </div>
+                ) : regDocs.length === 0 ? (
+                  <p className="text-xs text-[#6B655C]">No documents uploaded yet.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {regDocs.map((doc) => {
+                      const isReviewing = reviewingDocId === doc.id;
+                      const statusColor = doc.status === 'VERIFIED'
+                        ? 'text-emerald-600 bg-emerald-50 border-emerald-200'
+                        : doc.status === 'REJECTED'
+                          ? 'text-rose-600 bg-rose-50 border-rose-200'
+                          : 'text-amber-600 bg-amber-50 border-amber-200';
+                      const canReview = doc.status !== 'VERIFIED' && doc.status !== 'REJECTED';
+
+                      return (
+                        <div key={doc.id} className="flex items-center justify-between gap-3 rounded-xl border border-[rgba(201,160,92,0.08)] bg-[#14141B] px-3 py-2">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-bold text-[#EAE2D6] truncate">{doc.document_type.replace(/_/g, ' ')}</p>
+                            <p className="text-[10px] text-[#6B655C] truncate">{doc.file_name}</p>
+                            {doc.rejection_reason && (
+                              <p className="mt-0.5 text-[10px] text-rose-400">{doc.rejection_reason}</p>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full border ${statusColor}`}>
+                              {doc.status}
+                            </span>
+                            {doc.file_url && (
+                              <button
+                                type="button"
+                                onClick={() => setPreviewDoc(doc)}
+                                className="rounded-lg border border-[rgba(201,160,92,0.2)] bg-[#C9A05C]/10 px-2 py-1 text-[9px] font-black uppercase text-[#C9A05C] hover:bg-[#C9A05C] hover:text-white"
+                              >
+                                View
+                              </button>
+                            )}
+                            {canReview && (
+                              <div className="flex gap-1">
+                                <button
+                                  type="button"
+                                  disabled={isReviewing}
+                                  onClick={() => handleReviewDocument(doc.id, 'APPROVED')}
+                                  className="rounded-lg border border-emerald-200 bg-emerald-50 px-2 py-1 text-[9px] font-black uppercase text-emerald-700 hover:bg-emerald-100 disabled:opacity-50"
+                                >
+                                  {isReviewing ? '...' : 'Approve'}
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={isReviewing}
+                                  onClick={() => handleReviewDocument(doc.id, 'REJECTED')}
+                                  className="rounded-lg border border-rose-200 bg-rose-50 px-2 py-1 text-[9px] font-black uppercase text-rose-700 hover:bg-rose-100 disabled:opacity-50"
+                                >
+                                  {isReviewing ? '...' : 'Reject'}
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
 
               <textarea
@@ -334,6 +457,59 @@ export function TrialRequestsPanel() {
           )}
         </article>
       </div>
+
+      {previewDoc && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm"
+          onClick={() => setPreviewDoc(null)}
+        >
+          <div
+            className="relative max-h-[90vh] max-w-[90vw] overflow-hidden rounded-2xl border border-[rgba(201,160,92,0.2)] bg-[#14141B] shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-[rgba(201,160,92,0.12)] px-6 py-3">
+              <div>
+                <p className="text-sm font-bold text-[#EAE2D6]">{previewDoc.document_type.replace(/_/g, ' ')}</p>
+                <p className="text-xs text-[#6B655C]">{previewDoc.file_name}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPreviewDoc(null)}
+                className="rounded-lg border border-[rgba(201,160,92,0.12)] p-1.5 text-[#6B655C] hover:bg-[#1C1C26] hover:text-[#EAE2D6]"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="flex items-center justify-center p-4" style={{ minHeight: '60vh' }}>
+              {/\.(jpg|jpeg|png|gif|webp|svg|bmp)(\?|$)/i.test(previewDoc.file_url) ? (
+                <img
+                  src={previewDoc.file_url}
+                  alt={previewDoc.file_name}
+                  className="max-h-[78vh] max-w-full rounded-lg object-contain"
+                />
+              ) : previewDoc.file_url.includes('.pdf') || previewDoc.file_url.includes('pdf') ? (
+                <iframe
+                  src={previewDoc.file_url}
+                  title={previewDoc.file_name}
+                  className="h-[78vh] w-[70vw] rounded-lg border border-[rgba(201,160,92,0.12)]"
+                />
+              ) : (
+                <div className="text-center">
+                  <p className="text-sm text-[#6B655C]">Preview not available for this file type.</p>
+                  <a
+                    href={previewDoc.file_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-3 inline-block rounded-xl bg-[#C9A05C] px-4 py-2 text-xs font-black uppercase text-white hover:bg-[#b8913f]"
+                  >
+                    Open in New Tab
+                  </a>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </section>
   );
 }

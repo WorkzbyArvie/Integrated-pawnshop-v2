@@ -153,8 +153,8 @@ export class TenantGovernanceService {
   }): Promise<void> {
     await this.prisma.$executeRaw`
       INSERT INTO public.tenant_audit_logs
-      (pawnshop_id, actor_user_id, action, metadata)
-      VALUES (${params.pawnshopId}::uuid, ${params.actorUserId}::uuid, ${params.action}, ${JSON.stringify(params.metadata)}::jsonb)
+      (id, pawnshop_id, actor_user_id, action, metadata)
+      VALUES (gen_random_uuid(), ${params.pawnshopId}::uuid, ${params.actorUserId}::uuid, ${params.action}, ${JSON.stringify(params.metadata)}::jsonb)
     `;
   }
 
@@ -606,7 +606,8 @@ export class TenantGovernanceService {
         LIMIT 200
       `;
       return rows;
-    } catch {
+    } catch (err) {
+      this.logger.warn(`getSupportAccessAudit query failed for pawnshopId=${scopedPawnshopId}: ${(err as Error).message}`);
       return [];
     }
   }
@@ -687,7 +688,8 @@ export class TenantGovernanceService {
         ORDER BY l.created_at DESC
         LIMIT ${safeLimit}
       `;
-    } catch {
+    } catch (err) {
+      this.logger.warn(`getTenantAuditHistory query failed for pawnshopId=${scopedPawnshopId}: ${(err as Error).message}`);
       return [];
     }
   }
@@ -1073,12 +1075,10 @@ export class TenantGovernanceService {
   ): Promise<Record<string, unknown>> {
     await this.ensureRegistrationChatTables();
 
-    const requestedModules = this.normalizeRequestedModules(dto.selectedModules);
-    if (requestedModules.length === 0) {
-      throw new BadRequestException('Please select at least one valid module option.');
-    }
-
-    const selectedModulesJson = JSON.stringify(requestedModules);
+    const requestedModules = this.normalizeRequestedModules(dto.selectedModules || []);
+    const selectedModulesJson = requestedModules.length > 0
+      ? JSON.stringify(requestedModules)
+      : '[]';
 
     const existing = await this.prisma.$queryRaw<Array<{ id: string; status: string }>>`
       SELECT id, status
@@ -1109,11 +1109,11 @@ export class TenantGovernanceService {
       (
         ${randomUUID()}::uuid,
         ${dto.pawnshopName},
-        ${dto.ownerName},
+        ${dto.ownerName ?? dto.ownerEmail},
         ${dto.ownerEmail},
         ${dto.contactNumber ?? null},
         ${selectedModulesJson}::jsonb,
-        ${dto.staffCount},
+        ${dto.staffCount ?? 5},
         ${dto.notes ?? null},
         'PENDING'
       )
@@ -1198,7 +1198,8 @@ export class TenantGovernanceService {
         LIMIT 100
       `;
       return rows;
-    } catch {
+    } catch (err) {
+      this.logger.warn(`listMyClientRegistrationRequests query failed for email=${ownerEmail}: ${(err as Error).message}`);
       return [];
     }
   }
@@ -1323,41 +1324,32 @@ export class TenantGovernanceService {
     }
 
     let createdPawnshop: Record<string, unknown> | null = null;
+    let activePawnshopId: string | null = null;
 
     if (decision === 'APPROVED') {
       const existingPawnshop = await this.prisma.pawnshop.findFirst({
         where: {
-          OR: [
-            { name: request.pawnshop_name },
-            { ownerEmail: request.owner_email },
-          ],
+          name: request.pawnshop_name,
         },
-        select: { id: true, name: true, ownerEmail: true },
+        select: { id: true, name: true, ownerEmail: true, status: true },
       });
 
       if (existingPawnshop) {
-        throw new BadRequestException(
-          'A pawnshop with this name or owner email already exists',
-        );
-      }
-
-      const requestedModules = this.normalizeRequestedModules(
-        request.selected_modules,
-      );
-      const configuredModuleKeys = this.toConfiguredFeatureKeys(requestedModules, {
-        excludeAuction: true,
-      });
-      const moduleFeatureSettings = this.buildPawnshopFeatureSettings(
-        configuredModuleKeys,
-      );
+        createdPawnshop = existingPawnshop as unknown as Record<string, unknown>;
+        activePawnshopId = existingPawnshop.id;
+      } else {
 
       const settingsPayload: Prisma.InputJsonValue = {
-        ...moduleFeatureSettings,
         onboardingSource: 'client_registration_request',
         ownerName: request.owner_name,
-        requestedModules,
-        approvedModules: configuredModuleKeys,
-        auctionExcludedAtApproval: requestedModules.includes('Auction House'),
+        isTrial: true,
+        vault_enabled: true,
+        finance_enabled: true,
+        crm_enabled: true,
+        hr_enabled: true,
+        auction_enabled: false,
+        decision_enabled: false,
+        alerts_enabled: true,
       };
 
       const pawnshop = await this.prisma.pawnshop.create({
@@ -1381,15 +1373,19 @@ export class TenantGovernanceService {
       });
 
       createdPawnshop = pawnshop as unknown as Record<string, unknown>;
+      activePawnshopId = pawnshop.id;
 
-      const selectedModules = JSON.stringify(configuredModuleKeys);
+      const allModules = JSON.stringify([
+        'Inventory Vault', 'Finance & Treasury', 'Customer CRM',
+        'Staff Matrix', 'Decision Support', 'Auto-Reminders', 'Auction House',
+      ]);
 
       await this.prisma.$executeRaw`
         INSERT INTO public.tenant_module_configs
         (pawnshop_id, selected_modules, staff_count, role_assignments, configured_by)
         VALUES (
           ${pawnshop.id}::uuid,
-          ${selectedModules}::jsonb,
+          ${allModules}::jsonb,
           ${request.staff_count},
           ${JSON.stringify({})}::jsonb,
           ${actorUserId}::uuid
@@ -1401,11 +1397,12 @@ export class TenantGovernanceService {
           configured_by = EXCLUDED.configured_by,
           updated_at = NOW()
       `;
+      }
 
       const existingOwnerInvite = await this.prisma.adminInvite.findFirst({
         where: {
           email: request.owner_email.toLowerCase(),
-          pawnshopId: pawnshop.id,
+          pawnshopId: activePawnshopId,
         },
         select: { id: true },
       });
@@ -1419,17 +1416,16 @@ export class TenantGovernanceService {
         await this.prisma.adminInvite.create({
           data: {
             email: request.owner_email.toLowerCase(),
-            pawnshopId: pawnshop.id,
+            pawnshopId: activePawnshopId,
             role: 'OWNER',
           },
         });
       }
 
-      // Activate owner account by linking profile to the approved pawnshop.
       await this.prisma.$executeRaw`
         UPDATE public.profiles
         SET
-          pawnshop_id = ${pawnshop.id}::uuid,
+          pawnshop_id = ${activePawnshopId}::uuid,
           role = 'OWNER',
           updated_at = NOW()
         WHERE email IS NOT NULL
@@ -1437,7 +1433,6 @@ export class TenantGovernanceService {
           AND upper(replace(COALESCE(role, ''), ' ', '_')) <> 'SUPER_ADMIN'
       `;
 
-      // Seed a 15-day trial subscription only once in tenant lifetime.
       const now = new Date();
       const trialEndDate = new Date(now);
       trialEndDate.setDate(trialEndDate.getDate() + 15);
@@ -1446,7 +1441,7 @@ export class TenantGovernanceService {
 
       const existingSub = await this.prisma.subscription.findFirst({
         where: {
-          pawnshopId: pawnshop.id,
+          pawnshopId: activePawnshopId,
           status: {
             in: [SubscriptionStatus.ACTIVE, SubscriptionStatus.TRIAL, SubscriptionStatus.PAST_DUE],
           },
@@ -1456,21 +1451,21 @@ export class TenantGovernanceService {
 
       const hasTrialHistory = await this.prisma.subscription.findFirst({
         where: {
-          pawnshopId: pawnshop.id,
+          pawnshopId: activePawnshopId,
           trialEndDate: { not: null },
         },
         select: { id: true },
       });
 
       const hasAnySubscriptionHistory = await this.prisma.subscription.findFirst({
-        where: { pawnshopId: pawnshop.id },
+        where: { pawnshopId: activePawnshopId },
         select: { id: true },
       });
 
       if (!existingSub && !hasTrialHistory && !hasAnySubscriptionHistory) {
         await this.prisma.subscription.create({
           data: {
-            pawnshopId: pawnshop.id,
+            pawnshopId: activePawnshopId,
             tier: SubscriptionTier.BASIC,
             status: SubscriptionStatus.TRIAL,
             billingInterval: BillingInterval.MONTHLY,
@@ -1481,9 +1476,11 @@ export class TenantGovernanceService {
             nextBillingDate: trialEndDate,
             maxBranches: 1,
             maxStaff: 3,
-            maxTransactions: 100,
+            maxTransactions: 50,
             autoRenew: false,
             features: {
+              pawn_ticketing: true,
+              loan_management: true,
               basic_analytics: true,
               queue_management: false,
               auction_access: false,
@@ -1493,6 +1490,15 @@ export class TenantGovernanceService {
             },
           },
         });
+      }
+
+      if (activePawnshopId) {
+        await this.prisma.$executeRaw`
+          UPDATE public.pawnshop_documents
+          SET pawnshop_id = ${activePawnshopId}::uuid, updated_at = NOW()
+          WHERE registration_request_id = ${request.id}::uuid
+            AND pawnshop_id IS NULL
+        `;
       }
     }
 
@@ -1703,6 +1709,183 @@ export class TenantGovernanceService {
       success: true,
       message: rows[0],
     };
+  }
+
+  async uploadRegistrationDocument(
+    actorUserId: string,
+    requestId: string,
+    dto: { documentType: string; fileName: string; fileUrl: string; fileSize?: number },
+  ): Promise<Record<string, unknown>> {
+    const actor = await this.getProfileOrThrow(actorUserId);
+    const ownerEmail = actor.email?.trim();
+    if (!ownerEmail) {
+      throw new BadRequestException('Your profile email is missing.');
+    }
+
+    const rows = await this.prisma.$queryRaw<Array<Record<string, unknown>>>`
+      SELECT id, owner_email, status FROM public.client_registration_requests
+      WHERE id = ${requestId}::uuid AND lower(owner_email) = lower(${ownerEmail})
+      LIMIT 1
+    `;
+
+    if (!rows || rows.length === 0) {
+      throw new NotFoundException('Registration request not found or not owned by you.');
+    }
+
+    const req = rows[0] as any;
+    const reqStatus = String(req.status).toUpperCase();
+    if (reqStatus === 'CANCELLED' || reqStatus === 'REJECTED') {
+      throw new BadRequestException('Cannot upload documents to a cancelled or rejected request.');
+    }
+
+    const docType = dto.documentType?.trim().toUpperCase();
+    const allowedTypes = [
+      'DTI_REGISTRATION', 'MAYORS_PERMIT', 'BIR_COR', 'BSP_LICENSE',
+      'AMLC_REGISTRATION', 'GOVERNMENT_ID', 'PROOF_OF_ADDRESS',
+    ];
+    if (!allowedTypes.includes(docType)) {
+      throw new BadRequestException(`Invalid document type. Allowed: ${allowedTypes.join(', ')}`);
+    }
+
+    const docRows = await this.prisma.$queryRaw<Array<Record<string, unknown>>>`
+      SELECT id FROM public.pawnshop_documents
+      WHERE registration_request_id = ${requestId}::uuid
+        AND document_type = ${docType}::"ComplianceDocType"
+        AND status IN ('UPLOADED', 'UNDER_REVIEW')
+      LIMIT 1
+    `;
+
+    if (docRows && docRows.length > 0) {
+      const existingId = String((docRows[0] as any).id);
+      await this.prisma.$queryRaw`
+        UPDATE public.pawnshop_documents
+        SET file_name = ${dto.fileName},
+            file_url = ${dto.fileUrl},
+            file_size = ${dto.fileSize || null}::int,
+            status = 'UPLOADED'::"ComplianceDocStatus",
+            rejection_reason = NULL,
+            updated_at = NOW()
+        WHERE id = ${existingId}::uuid
+      `;
+      const updated = await this.prisma.$queryRaw<Array<Record<string, unknown>>>`
+        SELECT id, document_type, file_name, file_url, file_size, status, created_at
+        FROM public.pawnshop_documents
+        WHERE id = ${existingId}::uuid
+      `;
+      return { success: true, document: updated[0] };
+    }
+
+    const newDocRows = await this.prisma.$queryRaw<Array<Record<string, unknown>>>`
+      INSERT INTO public.pawnshop_documents
+        (id, pawnshop_id, registration_request_id, document_type, file_name, file_url, file_size, status, uploaded_by, created_at, updated_at)
+      VALUES
+        (gen_random_uuid(), NULL::uuid, ${requestId}::uuid, ${docType}::"ComplianceDocType", ${dto.fileName}, ${dto.fileUrl}, ${dto.fileSize || null}::int, 'UPLOADED'::"ComplianceDocStatus", ${actorUserId}::uuid, NOW(), NOW())
+      RETURNING id, document_type, file_name, file_url, file_size, status, created_at
+    `;
+
+    return { success: true, document: newDocRows[0] };
+  }
+
+  async listRegistrationDocuments(
+    actorUserId: string,
+    requestId: string,
+  ): Promise<Record<string, unknown>> {
+    const actor = await this.getProfileOrThrow(actorUserId);
+    const ownerEmail = actor.email?.trim();
+    if (!ownerEmail) {
+      throw new BadRequestException('Your profile email is missing.');
+    }
+
+    const rows = await this.prisma.$queryRaw<Array<Record<string, unknown>>>`
+      SELECT id, owner_email FROM public.client_registration_requests
+      WHERE id = ${requestId}::uuid AND lower(owner_email) = lower(${ownerEmail})
+      LIMIT 1
+    `;
+
+    if (!rows || rows.length === 0) {
+      throw new NotFoundException('Registration request not found or not owned by you.');
+    }
+
+    const docs = await this.prisma.$queryRaw<Array<Record<string, unknown>>>`
+      SELECT id, document_type, file_name, file_url, file_size, status, rejection_reason, created_at
+      FROM public.pawnshop_documents
+      WHERE registration_request_id = ${requestId}::uuid
+      ORDER BY created_at DESC
+    `;
+
+    return { documents: docs };
+  }
+
+  async adminListRegistrationDocuments(
+    actorUserId: string,
+    requestId: string,
+  ): Promise<Record<string, unknown>> {
+    const actor = await this.getProfileOrThrow(actorUserId);
+    const role = this.normalizeRole(actor.role);
+    if (role !== 'SUPER_ADMIN') {
+      throw new BadRequestException('Only super admins can access this endpoint.');
+    }
+
+    const rows = await this.prisma.$queryRaw<Array<Record<string, unknown>>>`
+      SELECT id, pawnshop_name, owner_name, owner_email, status, created_at
+      FROM public.client_registration_requests
+      WHERE id = ${requestId}::uuid
+      LIMIT 1
+    `;
+    if (!rows || rows.length === 0) {
+      throw new NotFoundException('Registration request not found.');
+    }
+
+    const docs = await this.prisma.$queryRaw<Array<Record<string, unknown>>>`
+      SELECT id, document_type, file_name, file_url, file_size, status, rejection_reason, created_at
+      FROM public.pawnshop_documents
+      WHERE registration_request_id = ${requestId}::uuid
+      ORDER BY created_at DESC
+    `;
+
+    return { request: rows[0], documents: docs };
+  }
+
+  async reviewRegistrationDocument(
+    actorUserId: string,
+    requestId: string,
+    documentId: string,
+    dto: { decision: 'APPROVED' | 'REJECTED'; rejectionReason?: string },
+  ): Promise<Record<string, unknown>> {
+    const actor = await this.getProfileOrThrow(actorUserId);
+    const role = this.normalizeRole(actor.role);
+    if (role !== 'SUPER_ADMIN') {
+      throw new BadRequestException('Only super admins can review documents.');
+    }
+
+    const docRows = await this.prisma.$queryRaw<Array<Record<string, unknown>>>`
+      SELECT id, status FROM public.pawnshop_documents
+      WHERE id = ${documentId}::uuid AND registration_request_id = ${requestId}::uuid
+      LIMIT 1
+    `;
+    if (!docRows || docRows.length === 0) {
+      throw new NotFoundException('Document not found for this registration request.');
+    }
+
+    const currentStatus = String((docRows[0] as any).status).toUpperCase();
+    if (currentStatus === 'VERIFIED' || currentStatus === 'REJECTED') {
+      throw new BadRequestException(`Document has already been ${currentStatus.toLowerCase()}.`);
+    }
+
+    const newStatus = dto.decision === 'APPROVED' ? 'VERIFIED' : 'REJECTED';
+    const reason = dto.decision === 'REJECTED' ? (dto.rejectionReason || null) : null;
+
+    await this.prisma.$queryRaw`
+      UPDATE public.pawnshop_documents
+      SET status = ${newStatus}::"ComplianceDocStatus",
+          rejection_reason = ${reason},
+          verified_by = ${actorUserId}::uuid,
+          verified_at = NOW(),
+          updated_at = NOW()
+      WHERE id = ${documentId}::uuid
+    `;
+
+    return { success: true, status: newStatus };
   }
 
   async listBranches(
@@ -2326,5 +2509,419 @@ export class TenantGovernanceService {
       success: true,
       conversation: updatedRows[0],
     };
+  }
+
+  async togglePawnshopStatus(actorUserId: string, pawnshopId: string) {
+    const actor = await this.getProfileOrThrow(actorUserId);
+    this.assertRole(actor, ['SUPER_ADMIN']);
+
+    const rows = await this.prisma.$queryRaw<Array<{ id: string; is_active: boolean }>>`
+      SELECT id, is_active FROM public.pawnshops WHERE id = ${pawnshopId}::uuid LIMIT 1
+    `;
+    if (!rows.length) throw new NotFoundException('Pawnshop not found');
+
+    const currentActive = rows[0].is_active ?? true;
+    const updated = await this.prisma.$queryRaw<Array<{ id: string; is_active: boolean }>>`
+      UPDATE public.pawnshops SET is_active = ${!currentActive}, updated_at = NOW()
+      WHERE id = ${pawnshopId}::uuid
+      RETURNING id, is_active
+    `;
+
+    await this.logAudit({
+      pawnshopId,
+      actorUserId,
+      action: 'PAWNSHOP_STATUS_TOGGLED',
+      metadata: { previousActive: currentActive, newActive: !currentActive },
+    });
+
+    return { success: true, is_active: updated[0]?.is_active };
+  }
+
+  async updatePawnshopSettings(actorUserId: string, pawnshopId: string, settings: Record<string, unknown>) {
+    const actor = await this.getProfileOrThrow(actorUserId);
+    this.assertRole(actor, ['SUPER_ADMIN', 'OWNER', 'ADMIN']);
+
+    if (actor.role !== 'SUPER_ADMIN' && actor.pawnshopId !== pawnshopId) {
+      throw new ForbiddenException('You can only update settings for your own pawnshop');
+    }
+
+    const rows = await this.prisma.$queryRaw<Array<{ id: string }>>`
+      SELECT id FROM public.pawnshops WHERE id = ${pawnshopId}::uuid LIMIT 1
+    `;
+    if (!rows.length) throw new NotFoundException('Pawnshop not found');
+
+    await this.prisma.$executeRaw`
+      UPDATE public.pawnshops SET settings = ${JSON.stringify(settings)}::jsonb, updated_at = NOW()
+      WHERE id = ${pawnshopId}::uuid
+    `;
+
+    await this.logAudit({
+      pawnshopId,
+      actorUserId,
+      action: 'PAWNSHOP_SETTINGS_UPDATED',
+      metadata: { settingsKeys: Object.keys(settings) },
+    });
+
+    return { success: true };
+  }
+
+  async deletePawnshop(actorUserId: string, pawnshopId: string) {
+    const actor = await this.getProfileOrThrow(actorUserId);
+    this.assertRole(actor, ['SUPER_ADMIN']);
+
+    const rows = await this.prisma.$queryRaw<Array<{ id: string }>>`
+      SELECT id FROM public.pawnshops WHERE id = ${pawnshopId}::uuid LIMIT 1
+    `;
+    if (!rows.length) throw new NotFoundException('Pawnshop not found');
+
+    const ticketRows = await this.prisma.$queryRaw<Array<{ id: number }>>`
+      SELECT id FROM public.ticket WHERE pawnshop_id = ${pawnshopId}::uuid
+    `;
+    const ticketIds = ticketRows.map((t) => t.id);
+
+    if (ticketIds.length > 0) {
+      await this.prisma.$executeRaw`DELETE FROM public.loan WHERE ticketid = ANY(${ticketIds})`;
+      await this.prisma.$executeRaw`DELETE FROM public.inventory WHERE ticketid = ANY(${ticketIds})`;
+      await this.prisma.$executeRaw`DELETE FROM public.transaction WHERE ticketid = ANY(${ticketIds})`;
+      await this.prisma.$executeRaw`DELETE FROM public.ticket WHERE id = ANY(${ticketIds})`;
+    }
+
+    await this.prisma.$executeRaw`DELETE FROM public.admin_invites WHERE pawnshop_id = ${pawnshopId}::uuid`;
+    await this.prisma.$executeRaw`DELETE FROM public.profiles WHERE pawnshop_id = ${pawnshopId}::uuid`;
+    await this.prisma.$executeRaw`DELETE FROM public.customer WHERE pawnshop_id = ${pawnshopId}::uuid`;
+    await this.prisma.$executeRaw`DELETE FROM public.pawnshops WHERE id = ${pawnshopId}::uuid`;
+
+    await this.logAudit({
+      pawnshopId,
+      actorUserId,
+      action: 'PAWNSHOP_DELETED',
+      metadata: { deletedTickets: ticketIds.length },
+    });
+
+    return { success: true };
+  }
+
+  async createPawnshopDirect(actorUserId: string, dto: any) {
+    await this.assertSuperAdmin(actorUserId);
+
+    const existing = await this.prisma.pawnshop.findFirst({
+      where: {
+        OR: [
+          { name: dto.name },
+          { ownerEmail: dto.ownerEmail.toLowerCase() },
+        ],
+      },
+      select: { id: true, name: true },
+    });
+
+    if (existing) {
+      throw new BadRequestException(
+        `A pawnshop with this name or owner email already exists`,
+      );
+    }
+
+    const pawnshop = await this.prisma.pawnshop.create({
+      data: {
+        name: dto.name,
+        ownerEmail: dto.ownerEmail.toLowerCase(),
+        contactEmail: dto.ownerEmail.toLowerCase(),
+        contactPhone: dto.contactPhone || null,
+        status: 'ACTIVE',
+        isActive: true,
+        settings: {
+          onboardingSource: 'super_admin_direct',
+          ownerName: dto.ownerName || '',
+          address: dto.address || '',
+          isTrial: dto.activateTrial !== false,
+          vault_enabled: true,
+          finance_enabled: true,
+          crm_enabled: true,
+          hr_enabled: true,
+          auction_enabled: dto.activateTrial === false,
+          decision_enabled: dto.activateTrial === false,
+          alerts_enabled: true,
+        },
+      },
+      select: {
+        id: true,
+        name: true,
+        ownerEmail: true,
+        status: true,
+        createdAt: true,
+      },
+    });
+
+    await this.prisma.adminInvite.create({
+      data: {
+        email: dto.ownerEmail.toLowerCase(),
+        pawnshopId: pawnshop.id,
+        role: 'OWNER',
+      },
+    });
+
+    if (dto.activateTrial !== false) {
+      const trialEnd = new Date();
+      trialEnd.setDate(trialEnd.getDate() + 15);
+
+      await this.prisma.subscription.create({
+        data: {
+          pawnshopId: pawnshop.id,
+          tier: 'BASIC',
+          status: 'TRIAL',
+          billingInterval: 'MONTHLY',
+          price: 2999,
+          startDate: new Date(),
+          endDate: trialEnd,
+          trialEndDate: trialEnd,
+          maxBranches: 3,
+          maxStaff: 10,
+          maxTransactions: null,
+          features: {},
+          nextBillingDate: trialEnd,
+          autoRenew: false,
+        },
+      });
+    }
+
+    await this.logAudit({
+      pawnshopId: pawnshop.id,
+      actorUserId,
+      action: 'PAWNSHOP_CREATED_DIRECT',
+      metadata: { ownerEmail: dto.ownerEmail, trialActivated: dto.activateTrial !== false },
+    });
+
+    return pawnshop;
+  }
+
+  async inviteOwner(actorUserId: string, dto: any) {
+    await this.assertSuperAdmin(actorUserId);
+
+    const existingInvite = await this.prisma.adminInvite.findFirst({
+      where: {
+        email: dto.email.toLowerCase(),
+        role: 'OWNER',
+      },
+      select: { id: true },
+    });
+
+    if (existingInvite) {
+      throw new BadRequestException('An invitation has already been sent to this email');
+    }
+
+    const invite = await this.prisma.adminInvite.create({
+      data: {
+        email: dto.email.toLowerCase(),
+        role: 'OWNER',
+        pawnshopId: null,
+      },
+    });
+
+    await this.logAudit({
+      pawnshopId: null,
+      actorUserId,
+      action: 'OWNER_INVITED',
+      metadata: { email: dto.email, pawnshopName: dto.pawnshopName },
+    });
+
+    return {
+      success: true,
+      inviteId: invite.id,
+      message: `Invitation sent to ${dto.email}`,
+    };
+  }
+
+  async getPlatformAnalytics(actorUserId: string) {
+    await this.assertSuperAdmin(actorUserId);
+
+    const rows = await this.prisma.$queryRaw<Array<Record<string, bigint>>>`
+      SELECT
+        (SELECT COUNT(*) FROM public.pawnshops) AS total_pawnshops,
+        (SELECT COUNT(*) FROM public.pawnshops WHERE status = 'ACTIVE' AND is_active = true) AS active_pawnshops,
+        (SELECT COUNT(*) FROM public.pawnshops WHERE status = 'FROZEN') AS frozen_pawnshops,
+        (SELECT COUNT(*) FROM public.profiles) AS total_profiles,
+        (SELECT COUNT(*) FROM public.profiles WHERE role = 'OWNER') AS owner_count,
+        (SELECT COUNT(*) FROM public.subscriptions) AS total_subscriptions,
+        (SELECT COUNT(*) FROM public.subscriptions WHERE status = 'TRIAL') AS trial_subscriptions,
+        (SELECT COUNT(*) FROM public.subscriptions WHERE status = 'ACTIVE') AS active_subscriptions,
+        (SELECT COUNT(*) FROM public.ticket) AS total_tickets,
+        (SELECT COUNT(*) FROM public.ticket WHERE lifecycle_status IN ('ACTIVE', 'GRACE_PERIOD', 'OVERDUE')) AS active_tickets,
+        (SELECT COUNT(*) FROM public.loan) AS total_loans,
+        (SELECT COUNT(*) FROM public.loan WHERE status = 'ACTIVE') AS disbursed_loans,
+        (SELECT COALESCE(SUM(principalamount), 0) FROM public.loan WHERE status = 'ACTIVE') AS total_loan_value,
+        (SELECT COUNT(*) FROM public.client_registration_requests WHERE status = 'PENDING') AS pending_registrations
+    `;
+
+    const r = rows[0] || {};
+
+    return {
+      pawnshops: {
+        total: Number(r.total_pawnshops || 0),
+        active: Number(r.active_pawnshops || 0),
+        frozen: Number(r.frozen_pawnshops || 0),
+      },
+      users: {
+        total: Number(r.total_profiles || 0),
+        owners: Number(r.owner_count || 0),
+      },
+      subscriptions: {
+        total: Number(r.total_subscriptions || 0),
+        trial: Number(r.trial_subscriptions || 0),
+        active: Number(r.active_subscriptions || 0),
+      },
+      tickets: {
+        total: Number(r.total_tickets || 0),
+        active: Number(r.active_tickets || 0),
+      },
+      loans: {
+        total: Number(r.total_loans || 0),
+        disbursed: Number(r.disbursed_loans || 0),
+        totalValue: Number(r.total_loan_value || 0),
+      },
+      pendingRegistrations: Number(r.pending_registrations || 0),
+    };
+  }
+
+  async extendTrial(actorUserId: string, pawnshopId: string, dto: any) {
+    await this.assertSuperAdmin(actorUserId);
+
+    const subscription = await this.prisma.subscription.findFirst({
+      where: { pawnshopId },
+      select: { id: true, status: true, trialEndDate: true },
+    });
+
+    if (!subscription) {
+      throw new NotFoundException('No subscription found for this pawnshop');
+    }
+
+    if (subscription.status !== 'TRIAL') {
+      throw new BadRequestException('Can only extend active trials');
+    }
+
+    const currentEnd = subscription.trialEndDate || new Date();
+    const newEnd = new Date(currentEnd);
+    newEnd.setDate(newEnd.getDate() + dto.additionalDays);
+
+    await this.prisma.subscription.update({
+      where: { id: subscription.id },
+      data: { trialEndDate: newEnd },
+    });
+
+    await this.logAudit({
+      pawnshopId,
+      actorUserId,
+      action: 'TRIAL_EXTENDED',
+      metadata: { additionalDays: dto.additionalDays, newEndDate: newEnd.toISOString() },
+    });
+
+    return { success: true, newEndDate: newEnd };
+  }
+
+  async upgradeTier(actorUserId: string, pawnshopId: string, dto: any) {
+    await this.assertSuperAdmin(actorUserId);
+
+    const subscription = await this.prisma.subscription.findFirst({
+      where: { pawnshopId },
+      select: { id: true, tier: true, status: true },
+    });
+
+    if (!subscription) {
+      throw new NotFoundException('No subscription found for this pawnshop');
+    }
+
+    const tierLimits: Record<string, { maxBranches: number | null; maxStaff: number | null; maxTransactions: number | null }> = {
+      FREE: { maxBranches: 1, maxStaff: 3, maxTransactions: 50 },
+      BASIC: { maxBranches: 3, maxStaff: 10, maxTransactions: null },
+      PROFESSIONAL: { maxBranches: 10, maxStaff: 50, maxTransactions: null },
+      ENTERPRISE: { maxBranches: null, maxStaff: null, maxTransactions: null },
+    };
+
+    const limits = tierLimits[dto.tier] || tierLimits.BASIC;
+
+    await this.prisma.subscription.update({
+      where: { id: subscription.id },
+      data: {
+        tier: dto.tier,
+        status: 'ACTIVE',
+        maxBranches: limits.maxBranches,
+        maxStaff: limits.maxStaff,
+        maxTransactions: limits.maxTransactions,
+      },
+    });
+
+    await this.logAudit({
+      pawnshopId,
+      actorUserId,
+      action: 'TIER_UPGRADED',
+      metadata: { from: subscription.tier, to: dto.tier },
+    });
+
+    return { success: true, tier: dto.tier };
+  }
+
+  async adjustSubscriptionStatus(actorUserId: string, pawnshopId: string, dto: any) {
+    await this.assertSuperAdmin(actorUserId);
+
+    const subscription = await this.prisma.subscription.findFirst({
+      where: { pawnshopId },
+      select: { id: true, status: true },
+    });
+
+    if (!subscription) {
+      throw new NotFoundException('No subscription found for this pawnshop');
+    }
+
+    await this.prisma.subscription.update({
+      where: { id: subscription.id },
+      data: { status: dto.status },
+    });
+
+    await this.logAudit({
+      pawnshopId,
+      actorUserId,
+      action: 'SUBSCRIPTION_STATUS_CHANGED',
+      metadata: { from: subscription.status, to: dto.status, reason: dto.reason },
+    });
+
+    return { success: true, status: dto.status };
+  }
+
+  async requestTrialExtension(actorUserId: string, dto: any) {
+    const profile = await this.getProfileOrThrow(actorUserId);
+    if (!profile?.pawnshopId) {
+      throw new BadRequestException('No pawnshop associated with your account');
+    }
+
+    const subscription = await this.prisma.subscription.findFirst({
+      where: { pawnshopId: profile.pawnshopId },
+      select: { id: true, status: true, trialEndDate: true },
+    });
+
+    if (!subscription || subscription.status !== 'TRIAL') {
+      throw new BadRequestException('No active trial to extend');
+    }
+
+    const daysRemaining = Math.ceil(
+      (new Date(subscription.trialEndDate!).getTime() - Date.now()) / (1000 * 60 * 60 * 24),
+    );
+
+    await this.logAudit({
+      pawnshopId: profile.pawnshopId,
+      actorUserId,
+      action: 'TRIAL_EXTENSION_REQUESTED',
+      metadata: { daysRemaining, requestedAt: new Date().toISOString() },
+    });
+
+    return {
+      success: true,
+      message: 'Your trial extension request has been submitted to the platform administrator',
+      daysRemaining,
+    };
+  }
+
+  private async assertSuperAdmin(userId: string) {
+    const profile = await this.getProfileOrThrow(userId);
+    if (!profile || profile.role !== 'SUPER_ADMIN') {
+      throw new ForbiddenException('Super Admin access required');
+    }
   }
 }

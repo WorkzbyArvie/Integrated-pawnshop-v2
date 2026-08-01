@@ -16,9 +16,9 @@ export class CreateClientRegistrationDto {
   @IsString()
   pawnshopName: string;
 
-  @IsNotEmpty()
+  @IsOptional()
   @IsString()
-  ownerName: string;
+  ownerName?: string;
 
   @IsNotEmpty()
   @IsEmail()
@@ -28,7 +28,7 @@ export class CreateClientRegistrationDto {
   @IsString()
   contactNumber?: string;
 
-  @ArrayNotEmpty()
+  @IsOptional()
   @IsArray()
   @IsIn(
     [
@@ -42,12 +42,13 @@ export class CreateClientRegistrationDto {
     { each: true },
   )
   @IsString({ each: true })
-  selectedModules: string[];
+  selectedModules?: string[];
 
+  @IsOptional()
   @IsInt()
   @Min(1)
   @Max(10000)
-  staffCount: number;
+  staffCount?: number;
 
   @IsOptional()
   @IsString()
