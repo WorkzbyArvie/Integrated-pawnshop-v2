@@ -1,588 +1,474 @@
 import {
+  BadRequestException,
+  ForbiddenException,
   Injectable,
   Logger,
   NotFoundException,
-  BadRequestException,
-  ForbiddenException,
 } from '@nestjs/common';
+import { Cron, CronExpression } from '@nestjs/schedule';
+import { ComplianceDocStatus, ComplianceDocType, NotificationChannel, NotificationType } from '@prisma/client';
 import { PrismaService } from '../prisma.service';
-import { VerifyComplianceDto } from './dto/verify-compliance.dto';
-import { ReleaseItemDto } from './dto/release-item.dto';
-import { ComplianceStatus } from '@prisma/client';
+import { NotificationService } from '../notification/notification.service';
+import { UploadDocumentDto } from './dto/upload-document.dto';
+import { VerifyDocumentDto } from './dto/verify-document.dto';
+
+const REQUIRED_DOCUMENTS: ComplianceDocType[] = [
+  'DTI_REGISTRATION',
+  'MAYORS_PERMIT',
+  'BIR_COR',
+  'BSP_LICENSE',
+  'AMLC_REGISTRATION',
+  'GOVERNMENT_ID',
+  'PROOF_OF_ADDRESS',
+];
+
+const EXPIRY_WARNING_DAYS = [30, 14, 7];
 
 @Injectable()
 export class ComplianceService {
   private readonly logger = new Logger(ComplianceService.name);
 
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notificationService: NotificationService,
+  ) {}
 
-  private normalizeBranchId(branchId?: number | string | null): number | undefined {
-    if (branchId === undefined || branchId === null || branchId === '') {
-      return undefined;
+  async uploadDocument(userId: string, dto: UploadDocumentDto) {
+    const profile = await this.getProfileOrThrow(userId);
+    if (!profile.pawnshopId) {
+      throw new BadRequestException('No pawnshop associated with your account');
     }
 
-    const parsed = typeof branchId === 'string' ? Number(branchId) : branchId;
-    if (!Number.isFinite(parsed) || parsed <= 0) {
-      throw new BadRequestException('Invalid branchId');
-    }
-
-    return parsed;
-  }
-
-  /**
-   * Get all compliances for a pawnshop
-   */
-  async findAll(
-    pawnshopId: string,
-    status?: ComplianceStatus,
-    branchId?: number | string,
-  ): Promise<any> {
-    try {
-      const normalizedBranchId = this.normalizeBranchId(branchId);
-      const where: any = { pawnshopId };
-      if (status) where.status = status;
-      if (normalizedBranchId !== undefined) {
-        where.listing = { ticket: { branchId: normalizedBranchId } };
-      }
-
-      const compliances = await this.prisma.auctionWinnerCompliance.findMany({
-        where,
-        include: {
-          listing: {
-            include: {
-              ticket: true,
-              images: true,
-            },
-          },
-        },
-        orderBy: {
-          createdAt: 'desc',
-        },
-      });
-
-      return compliances;
-    } catch (error: any) {
-      this.logger.error(
-        `Failed to fetch compliances: ${error.message}`,
-        error.stack,
-      );
-      throw error;
-    }
-  }
-
-  /**
-   * Get a single compliance by ID
-   */
-  async findOne(pawnshopId: string, id: string): Promise<any> {
-    const compliance = await this.prisma.auctionWinnerCompliance.findFirst({
+    const existing = await this.prisma.pawnshopDocument.findFirst({
       where: {
-        id,
-        pawnshopId,
-      },
-      include: {
-        listing: {
-          include: {
-            ticket: true,
-            images: true,
-            bids: {
-              orderBy: { amount: 'desc' },
-              take: 1,
-            },
-          },
-        },
+        pawnshopId: profile.pawnshopId,
+        documentType: dto.documentType,
+        status: { in: ['UPLOADED', 'UNDER_REVIEW'] },
       },
     });
 
-    if (!compliance) {
-      throw new NotFoundException('Compliance record not found');
+    if (existing) {
+      throw new BadRequestException(
+        `A ${dto.documentType} document is already pending review. Wait for verification or rejection before uploading a new one.`,
+      );
     }
 
-    return compliance;
+    const document = await this.prisma.pawnshopDocument.create({
+      data: {
+        pawnshopId: profile.pawnshopId,
+        documentType: dto.documentType,
+        fileName: dto.fileName,
+        fileUrl: dto.fileUrl,
+        fileSize: dto.fileSize || null,
+        status: 'UPLOADED',
+        expiryDate: dto.expiryDate ? new Date(dto.expiryDate) : null,
+        uploadedBy: userId,
+      },
+    });
+
+    return document;
   }
 
-  /**
-   * Get winner's compliance records
-   */
-  async findByWinner(winnerId: string): Promise<any> {
-    const compliances = await this.prisma.auctionWinnerCompliance.findMany({
-      where: { winnerId },
-      include: {
-        listing: {
-          include: {
-            ticket: true,
-            images: true,
-          },
+  async getDocuments(userId: string, pawnshopId?: string) {
+    const profile = await this.getProfileOrThrow(userId);
+
+    let targetPawnshopId = profile.pawnshopId;
+    if (pawnshopId && profile.role === 'SUPER_ADMIN') {
+      targetPawnshopId = pawnshopId;
+    }
+
+    if (!targetPawnshopId) {
+      throw new BadRequestException('No pawnshop associated');
+    }
+
+    const documents = await this.prisma.pawnshopDocument.findMany({
+      where: { pawnshopId: targetPawnshopId },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return documents;
+  }
+
+  async verifyDocument(userId: string, documentId: string, dto: VerifyDocumentDto) {
+    const profile = await this.getProfileOrThrow(userId);
+    if (profile.role !== 'SUPER_ADMIN') {
+      throw new ForbiddenException('Only Super Admin can verify documents');
+    }
+
+    const document = await this.prisma.pawnshopDocument.findUnique({
+      where: { id: documentId },
+    });
+
+    if (!document) {
+      throw new NotFoundException('Document not found');
+    }
+
+    if (document.status !== 'UPLOADED' && document.status !== 'UNDER_REVIEW') {
+      throw new BadRequestException(`Document is already ${document.status}`);
+    }
+
+    const updated = await this.prisma.pawnshopDocument.update({
+      where: { id: documentId },
+      data: {
+        status: dto.status,
+        verifiedBy: userId,
+        verifiedAt: new Date(),
+        rejectionReason: dto.rejectionReason || null,
+      },
+    });
+
+    return updated;
+  }
+
+  async renewDocument(userId: string, documentId: string, dto: UploadDocumentDto) {
+    const profile = await this.getProfileOrThrow(userId);
+    if (!profile.pawnshopId) {
+      throw new BadRequestException('No pawnshop associated');
+    }
+
+    const oldDocument = await this.prisma.pawnshopDocument.findUnique({
+      where: { id: documentId },
+    });
+
+    if (!oldDocument) {
+      throw new NotFoundException('Document not found');
+    }
+
+    if (oldDocument.pawnshopId !== profile.pawnshopId) {
+      throw new ForbiddenException('Not your document');
+    }
+
+    await this.prisma.pawnshopDocument.update({
+      where: { id: documentId },
+      data: { status: 'EXPIRED' },
+    });
+
+    const newDocument = await this.prisma.pawnshopDocument.create({
+      data: {
+        pawnshopId: profile.pawnshopId,
+        documentType: oldDocument.documentType,
+        fileName: dto.fileName,
+        fileUrl: dto.fileUrl,
+        fileSize: dto.fileSize || null,
+        status: 'UPLOADED',
+        expiryDate: dto.expiryDate ? new Date(dto.expiryDate) : null,
+        uploadedBy: userId,
+      },
+    });
+
+    return newDocument;
+  }
+
+  async getComplianceScore(userId: string) {
+    const profile = await this.getProfileOrThrow(userId);
+
+    let targetPawnshopId = profile.pawnshopId;
+    if (profile.role === 'SUPER_ADMIN') {
+      return null;
+    }
+
+    if (!targetPawnshopId) {
+      throw new BadRequestException('No pawnshop associated');
+    }
+
+    return this.calculateComplianceScore(targetPawnshopId);
+  }
+
+  async calculateComplianceScore(pawnshopId: string) {
+    const [documents, subscription] = await Promise.all([
+      this.prisma.pawnshopDocument.findMany({ where: { pawnshopId } }),
+      this.prisma.subscription.findFirst({
+        where: { pawnshopId, status: { in: ['ACTIVE', 'TRIAL'] } },
+      }),
+    ]);
+
+    return this.computeComplianceScore(pawnshopId, documents, !!subscription);
+  }
+
+  private computeComplianceScore(pawnshopId: string, documents: any[], subscriptionActive: boolean) {
+    const totalRequired = REQUIRED_DOCUMENTS.length;
+
+    const latestByType = new Map<ComplianceDocType, typeof documents[0]>();
+    for (const doc of documents) {
+      const existing = latestByType.get(doc.documentType);
+      if (!existing || doc.createdAt > existing.createdAt) {
+        latestByType.set(doc.documentType, doc);
+      }
+    }
+
+    let uploaded = 0;
+    let verified = 0;
+    let notExpired = 0;
+
+    const docStatuses: Array<{
+      type: ComplianceDocType;
+      status: string;
+      expiryDate: Date | null;
+      daysUntilExpiry: number | null;
+      fileName: string;
+    }> = [];
+
+    for (const reqType of REQUIRED_DOCUMENTS) {
+      const doc = latestByType.get(reqType);
+      if (doc) {
+        uploaded++;
+        const isExpired = doc.expiryDate && doc.expiryDate < new Date();
+        const daysUntilExpiry = doc.expiryDate
+          ? Math.ceil((doc.expiryDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+          : null;
+
+        if (doc.status === 'VERIFIED' && !isExpired) verified++;
+        if (!isExpired) notExpired++;
+
+        docStatuses.push({
+          type: reqType,
+          status: isExpired ? 'EXPIRED' : doc.status,
+          expiryDate: doc.expiryDate,
+          daysUntilExpiry,
+          fileName: doc.fileName,
+        });
+      } else {
+        docStatuses.push({
+          type: reqType,
+          status: 'NOT_UPLOADED',
+          expiryDate: null,
+          daysUntilExpiry: null,
+          fileName: '',
+        });
+      }
+    }
+
+    const score = Math.round(
+      (uploaded / totalRequired) * 40 +
+      (verified / totalRequired) * 30 +
+      (notExpired / totalRequired) * 20 +
+      (subscriptionActive ? 10 : 0)
+    );
+
+    return {
+      score,
+      documents: docStatuses,
+      summary: {
+        totalRequired,
+        uploaded,
+        verified,
+        notExpired,
+        subscriptionActive,
+      },
+    };
+  }
+
+  async getExpiringDocuments(daysAhead: number = 30) {
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() + daysAhead);
+
+    const expiring = await this.prisma.pawnshopDocument.findMany({
+      where: {
+        status: 'VERIFIED',
+        expiryDate: {
+          lte: cutoff,
+          gte: new Date(),
         },
+      },
+      include: {
         pawnshop: {
-          select: {
-            id: true,
-            name: true,
-            address: true,
-            contactPhone: true,
-            contactEmail: true,
-          },
+          select: { id: true, name: true, ownerEmail: true },
         },
-      },
-      orderBy: {
-        createdAt: 'desc',
       },
     });
 
-    return compliances;
+    return expiring;
   }
 
-  /**
-   * Winner confirms compliance (payment made)
-   */
-  async submitCompliance(
-    winnerId: string,
-    complianceId: string,
-    dto: VerifyComplianceDto,
-  ): Promise<any> {
-    try {
-      const compliance = await this.prisma.auctionWinnerCompliance.findUnique({
-        where: { id: complianceId },
-      });
-
-      if (!compliance) {
-        throw new NotFoundException('Compliance record not found');
-      }
-
-      if (compliance.winnerId !== winnerId) {
-        throw new ForbiddenException(
-          'Not authorized to update this compliance',
-        );
-      }
-
-      if (compliance.status !== ComplianceStatus.PENDING_COMPLIANCE) {
-        throw new BadRequestException(
-          `Cannot submit compliance in status: ${compliance.status}`,
-        );
-      }
-
-      const updated = await this.prisma.auctionWinnerCompliance.update({
-        where: { id: complianceId },
-        data: {
-          status: ComplianceStatus.COMPLIED,
-          compliedAt: new Date(),
-          paymentProofUrl: dto.paymentProofUrl,
-          paymentReference: dto.paymentReference,
+  async getExpiredDocuments() {
+    const expired = await this.prisma.pawnshopDocument.findMany({
+      where: {
+        status: 'VERIFIED',
+        expiryDate: {
+          lt: new Date(),
         },
-        include: {
-          listing: true,
+      },
+      include: {
+        pawnshop: {
+          select: { id: true, name: true, ownerEmail: true },
         },
-      });
+      },
+    });
 
-      this.logger.log(
-        `Compliance ${complianceId} submitted by winner ${winnerId}`,
-      );
+    return expired;
+  }
 
-      return updated;
-    } catch (error: any) {
-      this.logger.error(
-        `Failed to submit compliance: ${error.message}`,
-        error.stack,
-      );
-      throw error;
+  async getPendingReviews() {
+    const pending = await this.prisma.pawnshopDocument.findMany({
+      where: {
+        status: { in: ['UPLOADED', 'UNDER_REVIEW'] },
+      },
+      select: {
+        id: true,
+        documentType: true,
+        fileName: true,
+        status: true,
+        rejectionReason: true,
+        createdAt: true,
+        pawnshop: {
+          select: { id: true, name: true, ownerEmail: true },
+        },
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    return pending;
+  }
+
+  async getAllPawnshopCompliance() {
+    const pawnshops = await this.prisma.pawnshop.findMany({
+      where: { status: 'ACTIVE', isActive: true },
+      select: { id: true, name: true },
+    });
+
+    if (pawnshops.length === 0) return [];
+
+    const pawnshopIds = pawnshops.map((ps) => ps.id);
+
+    const [allDocs, allSubscriptions] = await Promise.all([
+      this.prisma.pawnshopDocument.findMany({
+        where: { pawnshopId: { in: pawnshopIds } },
+        orderBy: { createdAt: 'asc' },
+      }),
+      this.prisma.subscription.findMany({
+        where: { pawnshopId: { in: pawnshopIds }, status: { in: ['ACTIVE', 'TRIAL'] } },
+        select: { pawnshopId: true },
+      }),
+    ]);
+
+    const docsByPawnshop = new Map<string, typeof allDocs>();
+    for (const doc of allDocs) {
+      const list = docsByPawnshop.get(doc.pawnshopId) || [];
+      list.push(doc);
+      docsByPawnshop.set(doc.pawnshopId, list);
     }
-  }
 
-  /**
-   * Pawnshop staff verifies compliance
-   */
-  async verifyCompliance(
-    pawnshopId: string,
-    complianceId: string,
-    verifiedBy: string,
-  ): Promise<any> {
-    try {
-      const compliance = await this.findOne(pawnshopId, complianceId);
+    const subscribedIds = new Set(allSubscriptions.map((s) => s.pawnshopId));
 
-      if (compliance.status !== ComplianceStatus.COMPLIED) {
-        throw new BadRequestException(
-          'Can only verify compliances in COMPLIED status',
-        );
-      }
-
-      const updated = await this.prisma.auctionWinnerCompliance.update({
-        where: { id: complianceId },
-        data: {
-          status: ComplianceStatus.READY_FOR_RELEASE,
-          verifiedBy,
-          verifiedAt: new Date(),
-        },
-      });
-
-      this.logger.log(
-        `Compliance ${complianceId} verified by staff ${verifiedBy}`,
-      );
-
-      return updated;
-    } catch (error: any) {
-      this.logger.error(
-        `Failed to verify compliance: ${error.message}`,
-        error.stack,
-      );
-      throw error;
-    }
-  }
-
-  /**
-   * Release item to winner
-   */
-  async releaseItem(
-    pawnshopId: string,
-    complianceId: string,
-    dto: ReleaseItemDto,
-  ): Promise<any> {
-    try {
-      const compliance = await this.findOne(pawnshopId, complianceId);
-
-      if (compliance.status !== ComplianceStatus.READY_FOR_RELEASE) {
-        throw new BadRequestException(
-          'Item can only be released when status is READY_FOR_RELEASE',
-        );
-      }
-
-      const updated = await this.prisma.auctionWinnerCompliance.update({
-        where: { id: complianceId },
-        data: {
-          status: ComplianceStatus.RELEASED,
-          releasedAt: new Date(),
-          releasedBy: dto.releasedBy,
-          releaseNotes: dto.releaseNotes,
-        },
-      });
-
-      // Update ticket status to SOLD
-      await this.prisma.ticket.update({
-        where: { id: compliance.listing.ticketId },
-        data: {
-          status: 'SOLD',
-        },
-      });
-
-      this.logger.log(
-        `Item released to winner for compliance ${complianceId} by ${dto.releasedBy}`,
-      );
-
-      return updated;
-    } catch (error: any) {
-      this.logger.error(
-        `Failed to release item: ${error.message}`,
-        error.stack,
-      );
-      throw error;
-    }
-  }
-
-  /**
-   * Extend compliance deadline
-   */
-  async extendDeadline(
-    pawnshopId: string,
-    complianceId: string,
-    additionalHours: number,
-  ): Promise<any> {
-    try {
-      const compliance = await this.findOne(pawnshopId, complianceId);
-
-      if (
-        ![
-          ComplianceStatus.PENDING_COMPLIANCE,
-          ComplianceStatus.REMINDER_SENT,
-        ].includes(compliance.status)
-      ) {
-        throw new BadRequestException(
-          'Can only extend deadline for pending compliances',
-        );
-      }
-
-      const newDeadline = new Date(compliance.complianceDeadline);
-      newDeadline.setHours(newDeadline.getHours() + additionalHours);
-
-      const updated = await this.prisma.auctionWinnerCompliance.update({
-        where: { id: complianceId },
-        data: {
-          complianceDeadline: newDeadline,
-        },
-      });
-
-      this.logger.log(
-        `Compliance ${complianceId} deadline extended by ${additionalHours} hours`,
-      );
-
-      return updated;
-    } catch (error: any) {
-      this.logger.error(
-        `Failed to extend deadline: ${error.message}`,
-        error.stack,
-      );
-      throw error;
-    }
-  }
-
-  /**
-   * Offer to the next highest bidder when current winner did not comply.
-   */
-  async offerToNextBidder(
-    pawnshopId: string,
-    complianceId: string,
-    promotedBy?: string,
-  ): Promise<any> {
-    try {
-      const compliance = await this.findOne(pawnshopId, complianceId);
-
-      if (
-        ![
-          ComplianceStatus.PENDING_COMPLIANCE,
-          ComplianceStatus.REMINDER_SENT,
-          ComplianceStatus.EXPIRED,
-        ].includes(compliance.status)
-      ) {
-        throw new BadRequestException(
-          `Cannot offer to next bidder from status: ${compliance.status}`,
-        );
-      }
-
-      const bids = await this.prisma.auctionBid.findMany({
-        where: {
-          listingId: compliance.listingId,
-        },
-        orderBy: [{ amount: 'desc' }, { createdAt: 'desc' }],
-      });
-
-      const seen = new Set<string>();
-      const uniqueRanked = bids.filter((bid) => {
-        if (seen.has(bid.bidderId)) return false;
-        seen.add(bid.bidderId);
-        return true;
-      });
-
-      const attemptedWinners = new Set<string>([compliance.winnerId]);
-      const existingAccessLog = Array.isArray(compliance.accessLog)
-        ? compliance.accessLog
-        : [];
-
-      for (const entry of existingAccessLog) {
-        if (!entry || typeof entry !== 'object') continue;
-        const prev = (entry as any).previousWinnerId;
-        const next = (entry as any).newWinnerId;
-        if (typeof prev === 'string' && prev) attemptedWinners.add(prev);
-        if (typeof next === 'string' && next) attemptedWinners.add(next);
-      }
-
-      const nextBidder = uniqueRanked.find(
-        (bid) => !attemptedWinners.has(bid.bidderId),
-      );
-
-      if (!nextBidder) {
-        throw new BadRequestException(
-          'No next eligible bidder found for this listing',
-        );
-      }
-
-      const winnerProfile = await this.prisma.profile.findUnique({
-        where: { id: nextBidder.bidderId },
-        include: { kyc: true },
-      });
-
-      const now = new Date();
-      const newDeadline = new Date(now.getTime() + 48 * 60 * 60 * 1000);
-      const prevWinnerId = compliance.winnerId;
-
-      const accessLog = Array.isArray(compliance.accessLog)
-        ? [...compliance.accessLog]
-        : [];
-
-      accessLog.push({
-        accessType: 'OFFER_NEXT_BIDDER',
-        timestamp: now.toISOString(),
-        accessedBy: promotedBy || 'system',
-        previousWinnerId: prevWinnerId,
-        newWinnerId: nextBidder.bidderId,
-      });
-
-      const updated = await this.prisma.auctionWinnerCompliance.update({
-        where: { id: complianceId },
-        data: {
-          winnerId: nextBidder.bidderId,
-          winningBid: nextBidder.amount,
-          status: ComplianceStatus.PENDING_COMPLIANCE,
-          complianceDeadline: newDeadline,
-          reminderSentAt: null,
-          lastReminderAt: null,
-          reminderCount: 0,
-          compliedAt: null,
-          paymentProofUrl: null,
-          paymentReference: null,
-          verifiedBy: null,
-          verifiedAt: null,
-          releasedAt: null,
-          releasedBy: null,
-          releaseNotes: null,
-          expiredAt: null,
-          expiryAction: 'NEXT_BIDDER',
-          winnerFullName:
-            winnerProfile?.kyc?.fullName ||
-            winnerProfile?.fullName ||
-            winnerProfile?.email ||
-            'Unknown',
-          winnerEmail: winnerProfile?.email,
-          winnerPhone: winnerProfile?.kyc?.phoneNumber || '',
-          winnerAddress: winnerProfile?.kyc?.address,
-          consentAcceptedAt: now,
-          accessLog,
-        },
-        include: {
-          listing: {
-            include: {
-              ticket: true,
-              images: true,
-            },
-          },
-        },
-      });
-
-      this.logger.log(
-        `Compliance ${complianceId} moved to next bidder ${nextBidder.bidderId} (prev winner ${prevWinnerId})`,
-      );
-
-      return updated;
-    } catch (error: any) {
-      this.logger.error(
-        `Failed to offer next bidder: ${error.message}`,
-        error.stack,
-      );
-      throw error;
-    }
-  }
-
-  /**
-   * Log access to winner information (privacy/audit)
-   */
-  async logAccess(
-    complianceId: string,
-    accessedBy: string,
-    accessType: string,
-  ): Promise<void> {
-    try {
-      const compliance = await this.prisma.auctionWinnerCompliance.findUnique({
-        where: { id: complianceId },
-      });
-
-      if (!compliance) return;
-
-      const accessLog = compliance.accessLog as any[];
-      accessLog.push({
-        accessedBy,
-        accessType,
-        timestamp: new Date().toISOString(),
-      });
-
-      await this.prisma.auctionWinnerCompliance.update({
-        where: { id: complianceId },
-        data: { accessLog },
-      });
-
-      this.logger.log(
-        `Winner info accessed for compliance ${complianceId} by ${accessedBy}`,
-      );
-    } catch (error: any) {
-      this.logger.error(`Failed to log access: ${error.message}`, error.stack);
-    }
-  }
-
-  /**
-   * Get compliance statistics
-   */
-  async getStatistics(
-    pawnshopId: string,
-    branchId?: number | string,
-  ): Promise<any> {
-    try {
-      const normalizedBranchId = this.normalizeBranchId(branchId);
-      const baseWhere: any = { pawnshopId };
-      if (normalizedBranchId !== undefined) {
-        baseWhere.listing = { ticket: { branchId: normalizedBranchId } };
-      }
-
-      const [
-        pending,
-        complied,
-        readyForRelease,
-        released,
-        expired,
-        compliedRecords,
-      ] = await Promise.all([
-        this.prisma.auctionWinnerCompliance.count({
-          where: {
-            ...baseWhere,
-            status: ComplianceStatus.PENDING_COMPLIANCE,
-          },
-        }),
-        this.prisma.auctionWinnerCompliance.count({
-          where: {
-            ...baseWhere,
-            status: ComplianceStatus.COMPLIED,
-          },
-        }),
-        this.prisma.auctionWinnerCompliance.count({
-          where: {
-            ...baseWhere,
-            status: ComplianceStatus.READY_FOR_RELEASE,
-          },
-        }),
-        this.prisma.auctionWinnerCompliance.count({
-          where: {
-            ...baseWhere,
-            status: ComplianceStatus.RELEASED,
-          },
-        }),
-        this.prisma.auctionWinnerCompliance.count({
-          where: {
-            ...baseWhere,
-            status: ComplianceStatus.EXPIRED,
-          },
-        }),
-        this.prisma.auctionWinnerCompliance.findMany({
-          where: {
-            ...baseWhere,
-            compliedAt: { not: null },
-          },
-          select: {
-            createdAt: true,
-            compliedAt: true,
-          },
-        }),
-      ]);
-
-      const avgComplianceHours = compliedRecords.length
-        ? Math.round(
-            compliedRecords.reduce((sum, record) => {
-              if (!record.compliedAt) return sum;
-              return sum + (record.compliedAt.getTime() - record.createdAt.getTime());
-            }, 0) /
-              compliedRecords.length /
-              (1000 * 60 * 60),
-          )
-        : 0;
-
+    return pawnshops.map((ps) => {
+      const docs = docsByPawnshop.get(ps.id) || [];
       return {
-        pending,
-        complied,
-        readyForRelease,
-        released,
-        expired,
-        total: pending + complied + readyForRelease + released + expired,
-        avgComplianceHours,
+        pawnshopId: ps.id,
+        pawnshopName: ps.name,
+        ...this.computeComplianceScore(ps.id, docs, subscribedIds.has(ps.id)),
       };
-    } catch (error: any) {
-      this.logger.error(
-        `Failed to get statistics: ${error.message}`,
-        error.stack,
-      );
-      throw error;
+    });
+  }
+
+  async getSuperAdminOverview() {
+    const [pendingReviews, allPawnshops, kycPending] = await Promise.all([
+      this.getPendingReviews(),
+      this.getAllPawnshopCompliance(),
+      this.prisma.bidderKyc.findMany({
+        where: { status: 'PENDING' },
+        select: {
+          id: true,
+          fullName: true,
+          idType: true,
+          idNumber: true,
+          dateOfBirth: true,
+          address: true,
+          phoneNumber: true,
+          idFrontUrl: true,
+          idBackUrl: true,
+          selfieUrl: true,
+          status: true,
+          createdAt: true,
+          verificationData: true,
+          profile: {
+            select: { email: true, fullName: true, role: true },
+          },
+        },
+        orderBy: { createdAt: 'asc' },
+      }),
+    ]);
+
+    return { pendingReviews, allPawnshops, kycPending };
+  }
+
+  @Cron(CronExpression.EVERY_DAY_AT_6AM)
+  async checkExpiringDocuments() {
+    this.logger.log('Checking for expiring documents...');
+
+    for (const days of EXPIRY_WARNING_DAYS) {
+      const expiring = await this.getExpiringDocuments(days);
+      for (const doc of expiring) {
+        const severity = days <= 7 ? 'CRITICAL' : days <= 14 ? 'WARNING' : 'INFO';
+        this.logger.warn(
+          `[${severity}] Document ${doc.documentType} for ${doc.pawnshop.name} expires in ${days} days`,
+        );
+
+        const ownerProfile = await this.prisma.profile.findFirst({
+          where: { pawnshopId: doc.pawnshop.id, role: 'OWNER' },
+        });
+
+        if (ownerProfile) {
+          try {
+            await this.notificationService.sendNotification({
+              recipientId: ownerProfile.id,
+              channel: NotificationChannel.IN_APP,
+              type: NotificationType.COMPLIANCE_REMINDER,
+              title: `Document Expiring Soon`,
+              body: `Your ${doc.documentType.replace(/_/g, ' ')} expires in ${days} days. Please upload a renewed copy.`,
+              data: {
+                documentType: doc.documentType,
+                pawnshopId: doc.pawnshop.id,
+                expiryDate: doc.expiryDate?.toISOString(),
+                daysUntilExpiry: days,
+              },
+            });
+          } catch (err: any) {
+            this.logger.error(`Failed to send expiry notification: ${err.message}`);
+          }
+        }
+      }
     }
+
+    const expired = await this.getExpiredDocuments();
+    for (const doc of expired) {
+      this.logger.error(
+        `Document ${doc.documentType} for ${doc.pawnshop.name} has EXPIRED`,
+      );
+
+      const ownerProfile = await this.prisma.profile.findFirst({
+        where: { pawnshopId: doc.pawnshop.id, role: 'OWNER' },
+      });
+
+      if (ownerProfile) {
+        try {
+          await this.notificationService.sendNotification({
+            recipientId: ownerProfile.id,
+            channel: NotificationChannel.IN_APP,
+              type: NotificationType.COMPLIANCE_REMINDER,
+              title: `Document Expired`,
+            body: `Your ${doc.documentType.replace(/_/g, ' ')} has expired. Upload a renewed copy to maintain compliance.`,
+            data: {
+              documentType: doc.documentType,
+              pawnshopId: doc.pawnshop.id,
+              expiryDate: doc.expiryDate?.toISOString(),
+              daysUntilExpiry: 0,
+            },
+          });
+        } catch (err: any) {
+          this.logger.error(`Failed to send expiry notification: ${err.message}`);
+        }
+      }
+    }
+  }
+
+  private async getProfileOrThrow(userId: string) {
+    const profile = await this.prisma.profile.findUnique({
+      where: { id: userId },
+      select: { id: true, role: true, pawnshopId: true, email: true },
+    });
+    if (!profile) {
+      throw new NotFoundException('Profile not found');
+    }
+    return profile;
   }
 }

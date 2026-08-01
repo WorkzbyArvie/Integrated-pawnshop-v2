@@ -7,6 +7,7 @@ import { PrismaModule } from './prisma.module';
 import { PawnshopGuard } from './common/guards/pawnshop.guard';
 import { RbacGuard } from './common/guards/rbac.guard';
 import { RateLimitGuard } from './common/guards/rate-limit.guard';
+import { ComplianceGuard } from './common/guards/compliance.guard';
 import { AuditLogInterceptor } from './common/interceptors/audit-log.interceptor';
 import { AnalyticsModule } from './analytics/analytics.module';
 import { AuctionModule } from './auction/auction.module';
@@ -64,6 +65,10 @@ import { CommonModule } from './common/common.module';
     {
       provide: APP_GUARD,
       useClass: RateLimitGuard,
+    },
+    {
+      provide: APP_GUARD,
+      useClass: ComplianceGuard,
     },
     {
       provide: APP_INTERCEPTOR,

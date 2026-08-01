@@ -55,7 +55,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import Swal from 'sweetalert2';
-import api from '@/lib/apiClient';
+import api, { getCurrentUserId } from '@/lib/apiClient';
 import useApi from '@/lib/useApi';
 import { formatCurrency, formatDateTime, formatDate, statusColor, humanizeStatus } from '@/lib/formatters';
 import type { AuctionWinnerCompliance, ComplianceStatistics, ComplianceStatus } from '@/lib/types';
@@ -137,7 +137,7 @@ export function ComplianceDashboard({ branchId: _branchId, activeBranchId }: Com
     if (!confirm.isConfirmed) return;
     try {
       await api.post(`/compliance/${selectedCompliance.id}/verify`, {
-        verifiedBy: localStorage.getItem('user_id') || 'admin',
+        verifiedBy: await getCurrentUserId(),
       });
       showToast('Compliance verified -- ready for release', 'success');
       setShowVerifyDialog(false);
@@ -203,7 +203,7 @@ export function ComplianceDashboard({ branchId: _branchId, activeBranchId }: Com
 
     try {
       await api.post(`/compliance/${compliance.id}/offer-next`, {
-        promotedBy: localStorage.getItem('user_id') || 'admin',
+        promotedBy: await getCurrentUserId(),
       });
       await Swal.fire({
         icon: 'success',
