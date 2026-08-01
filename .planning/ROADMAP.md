@@ -20,7 +20,7 @@ PawnGold is a full-stack SaaS pawnshop platform (React dashboard + NestJS + Pris
 
 **Phase Numbering:** Continuous across milestones. v1.0 ended at Phase 6; v2.0 starts at Phase 7. Decimal phases (e.g., 7.1) are reserved for urgent insertions.
 
-- [ ] **Phase 7: Permission Foundation & Schema Baseline** - Data-driven permission catalog + staffType-aware RbacGuard on top of one batched schema migration for all v2.0 additions
+- [x] **Phase 7: Permission Foundation & Schema Baseline** - Data-driven permission catalog + staffType-aware RbacGuard on top of one batched schema migration for all v2.0 additions
 - [ ] **Phase 8: Approval Workflows & Unified Approval Queue** - OWNER/ADMIN approval for appraisals and high-value redemptions with a unified queue and persistent audit trail
 - [ ] **Phase 9: KYC Verification & Disbursement Guardrail** - KYC verification gates ticket creation/approval/disbursement; KYC documents secured via RLS
 - [ ] **Phase 10: Onboarding Compliance Gate** - Docs-before-trial gate, view-before-approve review modal, REJECTED/ACTION_REQUIRED aggregation on owner + client dashboards
@@ -40,7 +40,8 @@ PawnGold is a full-stack SaaS pawnshop platform (React dashboard + NestJS + Pris
   2. Role→permission mapping is data-driven: editing a role's permission set in the seeded catalog changes enforcement with no code change.
   3. Users with staffType APPRAISER / CASHIER_TELLER / INVENTORY_CUSTODIAN / AUDITOR are evaluated by staffType permissions after role normalization (their checks no longer fail or bypass).
   4. SUPER_ADMIN retains full-access bypass across all guarded endpoints.
-**Plans**: TBD
+**Status**: ✅ Complete (2026-07-31, verified 2026-08-01)
+**Plans**: 07-01-PLAN (1 plan, 13 tasks, 5 waves)
 
 ### Phase 8: Approval Workflows & Unified Approval Queue
 **Goal**: Sensitive actions — creating an appraisal and releasing high-value redemptions — require OWNER/ADMIN sign-off, surfaced in one unified approval queue with a persisted, auditable decision trail.
@@ -153,7 +154,7 @@ PawnGold is a full-stack SaaS pawnshop platform (React dashboard + NestJS + Pris
 | 4. Frontend Integration | v1.0 | - | Complete | 2026-07-31 |
 | 5. Security & Polish | v1.0 | - | Complete | 2026-07-31 |
 | 6. Auction House Professionalization | v1.0 | - | Complete | 2026-07-31 |
-| 7. Permission Foundation & Schema Baseline | v2.0 | TBD | Not started | - |
+| 7. Permission Foundation & Schema Baseline | v2.0 | 1 | Complete | 2026-07-31 |
 | 8. Approval Workflows & Unified Approval Queue | v2.0 | TBD | Not started | - |
 | 9. KYC Verification & Disbursement Guardrail | v2.0 | TBD | Not started | - |
 | 10. Onboarding Compliance Gate | v2.0 | TBD | Not started | - |
