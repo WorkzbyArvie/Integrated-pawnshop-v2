@@ -1,10 +1,11 @@
 ---
 phase: 08
 slug: approval-workflows-unified-approval-queue
-status: draft
+status: approved
 shadcn_initialized: false
 preset: none
 created: 2026-08-01
+reviewed_at: 2026-08-01
 ---
 
 # Phase 8 — UI Design Contract
@@ -37,7 +38,7 @@ created: 2026-08-01
 
 | Token | Value | Usage in this phase |
 |-------|-------|---------------------|
-| xs | 4px | Icon-to-text gaps inside buttons (`gap-1.5`), badge padding (`px-2 py-0.5`) |
+| xs | 4px | Icon-to-text gaps inside buttons (`gap-1`), badge padding (`px-2 py-1`) |
 | sm | 8px | Compact element spacing (`space-y-2`), row internal gaps, table cell padding |
 | md | 16px | Default section gaps (`space-y-4`), card internal gaps, toolbar padding (`p-4`) |
 | lg | 24px | Card padding (`p-6`), dialog padding, `space-y-6` page rhythm |
@@ -45,7 +46,7 @@ created: 2026-08-01
 | 2xl | 48px | Page-level section breaks, detail panel spacing |
 | 3xl | 64px | Reserved — large empty-state spacing (`py-20` equivalent pattern) |
 
-Exceptions: icon-only touch targets (photo-nav chevrons in review dialog) at 32×32px (`h-8 w-8`) per existing pattern; reject-reason textarea fixed height 96px (`h-24`). No 44px exceptions — this is a desktop dashboard, existing buttons are 40–48px tall (`py-3`/`py-4` + text).
+Exceptions: icon-only touch targets (photo-nav chevrons in review dialog) at 32×32px (`h-8 w-8`) per existing pattern; reject-reason textarea fixed height 96px (`h-24`). No 44px exceptions — this is a desktop dashboard, existing buttons are 40–48px tall (`py-3`/`py-4` + text). Half-step utilities (`gap-1.5`, `py-0.5`, etc.) are forbidden — all spacing must be multiples of 4.
 
 ---
 
@@ -188,11 +189,11 @@ No third-party registries declared; registry vetting gate not applicable. All co
 
 ## Checker Sign-Off
 
-- [ ] Dimension 1 Copywriting: PASS
-- [ ] Dimension 2 Visuals: PASS
-- [ ] Dimension 3 Color: PASS
-- [ ] Dimension 4 Typography: PASS
-- [ ] Dimension 5 Spacing: PASS
-- [ ] Dimension 6 Registry Safety: PASS
+- [x] Dimension 1 Copywriting: PASS
+- [x] Dimension 2 Visuals: PASS
+- [x] Dimension 3 Color: PASS
+- [x] Dimension 4 Typography: PASS
+- [x] Dimension 5 Spacing: PASS
+- [x] Dimension 6 Registry Safety: PASS
 
-**Approval:** pending
+**Approval:** approved (2026-08-01)
