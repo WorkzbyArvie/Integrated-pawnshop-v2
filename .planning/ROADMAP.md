@@ -52,7 +52,10 @@ PawnGold is a full-stack SaaS pawnshop platform (React dashboard + NestJS + Pris
   2. Redemptions above the configured amount threshold require OWNER approval before release; redemptions below the threshold complete directly (fast walk-in flow preserved).
   3. Staff can open one unified approval queue showing all pending appraisal and redemption tasks and approve or reject each.
   4. Every approval decision is persisted to the approval-record model with approver identity and decision, forming an auditable trail.
-**Plans**: TBD
+**Plans**:
+- [ ] 08-01-PLAN.md — Schema payload + state-machine roles + RED test scaffolds
+- [ ] 08-02-PLAN.md — Approval backend: chokepoints, module, catalog, settings permission
+- [ ] 08-03-PLAN.md — Approval queue UI + threshold config in System Settings
 **UI hint**: yes
 
 ### Phase 9: KYC Verification & Disbursement Guardrail
@@ -155,7 +158,7 @@ PawnGold is a full-stack SaaS pawnshop platform (React dashboard + NestJS + Pris
 | 5. Security & Polish | v1.0 | - | Complete | 2026-07-31 |
 | 6. Auction House Professionalization | v1.0 | - | Complete | 2026-07-31 |
 | 7. Permission Foundation & Schema Baseline | v2.0 | 1 | Complete | 2026-07-31 |
-| 8. Approval Workflows & Unified Approval Queue | v2.0 | TBD | Not started | - |
+| 8. Approval Workflows & Unified Approval Queue | v2.0 | 3 | Not started | - |
 | 9. KYC Verification & Disbursement Guardrail | v2.0 | TBD | Not started | - |
 | 10. Onboarding Compliance Gate | v2.0 | TBD | Not started | - |
 | 11. Contract Management Upgrade | v2.0 | TBD | Not started | - |
