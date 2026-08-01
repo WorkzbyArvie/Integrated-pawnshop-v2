@@ -4,9 +4,9 @@ milestone: v2.0
 milestone_name: Advisor Compliance & RBAC Overhaul
 current_phase: 08
 current_phase_name: approval-workflows-unified-approval-queue
-status: ready-to-plan
+status: executing
 stopped_at: Phase 8 context gathered
-last_updated: "2026-08-01T05:44:35.248Z"
+last_updated: "2026-08-01T07:09:23.846Z"
 last_activity: 2026-08-01
 last_activity_desc: Phase 07 verified complete
 progress:
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-07-31)
 
 Phase: 08 (approval-workflows-unified-approval-queue) — READY TO PLAN
 Plan: 0 of 0 (not yet planned)
-Status: Phase 07 complete; Phase 08 planning next
+Status: Ready to execute
 Last activity: 2026-08-01 — Phase 07 verified complete
 
 Progress: [█░░░░░░░░░] 7%
