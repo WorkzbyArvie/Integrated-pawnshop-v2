@@ -470,22 +470,11 @@ payload: { appraisedValue, riskScore, recommendedLoanAmount, itemCondition, appr
 | A6 | `payload` column added as `Json?` on ApprovalRecord via new additive migration; no backfill needed (table is currently unused) | Schema | If any rows exist, migration is still safe (nullable) |
 | A7 | Settings edit path stays as-is (SUPER_ADMIN-gated at controller level) unless discussed otherwise | Pitfall 6 | D-07 assumes Owner can edit threshold; controller currently blocks non-SUPER_ADMIN |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **Settings endpoint ownership (D-07)**
-   - What we know: `PATCH /pawnshops/:id/settings` exists but is `@RequiresPermission(platform.manage)` = SUPER_ADMIN-only at the controller; the service asserts SUPER_ADMIN/OWNER/ADMIN.
-   - What's unclear: Should the threshold be editable by OWNER/ADMIN (broaden controller permission to `tenant.manage`) or remain SUPER_ADMIN-managed?
-   - Recommendation: Ask the user during plan-phase confirmation; default to broadening to `tenant.manage` so the pawnshop owner can self-configure (fits D-07 intent).
-
-2. **Appraisal approve → offer handoff (D-03)**
-   - What we know: `approveWithContract` accepts tickets in `APPRAISED` or `PENDING_APPROVAL` and generates the full offer (loan app + loan + contract + proof + notification). Queue approve must first apply payload data and transition to OFFER_MADE.
-   - What's unclear: Whether the queue approve should (a) itself invoke `approveWithContract` after applying payload (one-click), or (b) only transition to OFFER_MADE and require the separate existing offer action.
-   - Recommendation: (a) one-click approve → apply payload → call existing offer flow — matches D-03 "approval advances the ticket state so that existing offer action can run" with the least UI friction.
-
-3. **Redemption online (PayMongo) path**
-   - What we know: This phase's threshold gate lands in `redeemTicket`; online redemption flows through webhook/payment services.
-   - What's unclear: Whether the online redemption path also needs the threshold gate (per REQUIREMENTS.md RBAC-04 wording "before release").
-   - Recommendation: Gate at the shared release chokepoint if one exists; otherwise gate `redeemTicket` (in-person) now and note online path for verification.
+1. **Settings endpoint ownership (D-07)** — RESOLVED: broaden `PATCH /pawnshops/:id/settings` controller permission to `tenant.manage` so OWNER/ADMIN can self-configure the redemption threshold (user-confirmed during plan-phase).
+2. **Appraisal approve → offer handoff (D-03)** — RESOLVED: one-click approve → apply payload (loanAmount from recommendedLoanAmount) → invoke existing offer/contract flow (user-confirmed).
+3. **Redemption online (PayMongo) path** — RESOLVED: in-person `redeemTicket` ONLY this phase; online (PayMongo) redemptions NOT gated this phase — explicitly deferred by user because mobile also supports redeem/pay online (handled in a later phase).
 
 ## Environment Availability
 
