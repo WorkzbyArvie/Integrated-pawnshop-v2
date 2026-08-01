@@ -14,6 +14,7 @@ import { calculatePawnCharges } from './finance/pawn-charge-calculator';
 import {
   assertValidKycDocumentUrl,
   assertValidSelfieCaptureTimestamp,
+  assertNameNotSuspicious,
   normalizeAndValidateKycIdNumber,
   normalizeAndValidatePhoneNumber,
   normalizeKycFullName,
@@ -120,7 +121,9 @@ export class AppService {
     const actionLabel =
       params.purpose === 'BIDDER_REGISTRATION'
         ? 'complete your registration'
-        : 'create the staff/admin account';
+        : params.purpose === 'OWNER_REGISTRATION'
+          ? 'create your owner account'
+          : 'create the staff/admin account';
 
     return [
       'PawnGold Authentication Code',
@@ -142,7 +145,9 @@ export class AppService {
     const actionLabel =
       params.purpose === 'BIDDER_REGISTRATION'
         ? 'complete your registration'
-        : 'create the staff/admin account';
+        : params.purpose === 'OWNER_REGISTRATION'
+          ? 'create your owner account'
+          : 'create the staff/admin account';
 
     return `
       <div style="font-family: Arial, sans-serif; background:#f6f8fc; padding:24px;">
@@ -598,7 +603,7 @@ export class AppService {
       throw new Error('Invalid email format');
     }
 
-    const allowedPurposes = ['BIDDER_REGISTRATION', 'STAFF_ACCOUNT_CREATE'];
+    const allowedPurposes = ['BIDDER_REGISTRATION', 'STAFF_ACCOUNT_CREATE', 'OWNER_REGISTRATION'];
     if (!allowedPurposes.includes(purpose)) {
       throw new Error(
         `Invalid auth code purpose. Allowed: ${allowedPurposes.join(', ')}`,
@@ -618,7 +623,7 @@ export class AppService {
       attempts: 0,
     });
 
-    console.log(`[auth-code] ${purpose} for ${email}: ${code}`);
+    console.log(`[auth-code] ${purpose} for ${email}: [REDACTED]`);
 
     let deliveryMethod: 'EMAIL' | 'IN_APP' = 'EMAIL';
     let deliveryWarning: string | null = null;
@@ -814,6 +819,16 @@ export class AppService {
     });
     if (!profile || !this.hasAdminAccess(profile.role)) {
       throw new Error('Insufficient permissions — admin access required');
+    }
+  }
+
+  async requireSuperAdmin(userId: string): Promise<void> {
+    const profile = await this.prisma.profile.findUnique({
+      where: { id: userId },
+      select: { role: true },
+    });
+    if (!profile || this.normalizeRole(profile.role) !== 'SUPER_ADMIN') {
+      throw new Error('Insufficient permissions — Super Admin access required');
     }
   }
 
@@ -1215,6 +1230,148 @@ export class AppService {
     }
   }
 
+  async registerOwner(data: any) {
+    const email = String(data?.email || '')
+      .trim()
+      .toLowerCase();
+    const password = String(data?.password || '');
+    const full_name = String(data?.full_name || '')
+      .trim()
+      .replace(/\s+/g, ' ');
+    const displayName = full_name || email.split('@')[0];
+
+    console.log('📥 [registerOwner] Request received:', { email, full_name });
+
+    if (!email || !password) {
+      throw new Error('Email and password are required');
+    }
+    if (password.length < 8) {
+      throw new Error('Password must be at least 8 characters');
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      throw new Error('Invalid email format');
+    }
+    if (full_name.length > 100) {
+      throw new Error('Full name is too long');
+    }
+
+    this.consumeAuthVerification(data, 'OWNER_REGISTRATION');
+
+    const syncOwnerProfile = async (userId: string) => {
+      try {
+        await this.prisma.profile.upsert({
+          where: { id: userId },
+          update: {
+            email,
+            fullName: displayName,
+          },
+          create: {
+            id: userId,
+            email,
+            fullName: displayName,
+            role: 'OWNER',
+          },
+        });
+        console.log(`✅ [registerOwner] Profile synced for ${email}`);
+      } catch (profileErr: any) {
+        console.warn(
+          `⚠️ [registerOwner] Profile sync failed but auth user exists: ${profileErr.message}`,
+        );
+      }
+    };
+
+    try {
+      const { data: authUser, error: authError } =
+        await this.supabaseAdmin.auth.admin.createUser({
+          email,
+          password,
+          email_confirm: true,
+          user_metadata: {
+            fullName: displayName,
+            role: 'OWNER',
+          },
+        });
+
+      if (authError) {
+        console.error(
+          '❌ [registerOwner] Supabase auth error:',
+          authError.message,
+        );
+        if (authError.message?.includes('already been registered')) {
+          const { data: signInData, error: signInError } =
+            await this.supabaseAdmin.auth.signInWithPassword({
+              email,
+              password,
+            });
+
+          if (signInError || !signInData?.user?.id) {
+            throw new Error(
+              'An account with this email already exists. Please login instead.',
+            );
+          }
+
+          await syncOwnerProfile(signInData.user.id);
+
+          return {
+            success: true,
+            recovered: true,
+            user: {
+              id: signInData.user.id,
+              email: signInData.user.email,
+              full_name: displayName,
+              role: 'OWNER',
+            },
+          };
+        }
+        throw new Error(`Registration failed: ${authError.message}`);
+      }
+
+      if (!authUser?.user?.id) {
+        throw new Error('User creation succeeded but no user ID returned');
+      }
+
+      console.log(`✅ [registerOwner] Auth user created: ${authUser.user.id}`);
+
+      await syncOwnerProfile(authUser.user.id);
+
+      const { data: signInResult, error: signInErr } =
+        await this.supabaseAdmin.auth.signInWithPassword({
+          email,
+          password,
+        });
+
+      if (signInErr || !signInResult?.session) {
+        return {
+          success: true,
+          user: {
+            id: authUser.user.id,
+            email: authUser.user.email,
+            full_name: displayName,
+            role: 'OWNER',
+          },
+        };
+      }
+
+      return {
+        success: true,
+        user: {
+          id: authUser.user.id,
+          email: authUser.user.email,
+          full_name: displayName,
+          role: 'OWNER',
+        },
+        session: {
+          access_token: signInResult.session.access_token,
+          refresh_token: signInResult.session.refresh_token,
+        },
+      };
+    } catch (err: any) {
+      console.error('❌ [registerOwner] Error:', err.message);
+      throw err;
+    }
+  }
+
   // Create a new tenant user in Supabase Auth + profile
   async createBranchAdmin(actorUserId: string, data: any) {
     const { email, password, role, pawnshop_id, full_name, branch_id, staff_type } = data;
@@ -1320,18 +1477,8 @@ export class AppService {
         `🔐 [createBranchAdmin] Service role key verified, proceeding...`,
       );
       console.log(
-        `🔐 [createBranchAdmin] Supabase URL:`,
-        process.env.VITE_SUPABASE_URL,
-      );
-      console.log(
         `🔐 [createBranchAdmin] Attempting to create Supabase auth user for: ${email}`,
       );
-
-      // Step 1: Create user in Supabase Auth with service role key (admin API)
-      console.log(
-        `[createBranchAdmin] Calling Supabase auth.admin.createUser...`,
-      );
-      console.log(`[createBranchAdmin] Email: ${email.toLowerCase()}`);
 
       const { data: authUser, error: authError } =
         await this.supabaseAdmin.auth.admin.createUser({
@@ -1352,27 +1499,7 @@ export class AppService {
         });
 
       if (authError) {
-        console.error('❌ [createBranchAdmin] Supabase API Error Response:');
-        console.error('   Error:', authError);
-        console.error('   Status:', authError.status);
-        console.error('   Message:', authError.message);
-
-        // Check if it's a key issue
-        if (authError.message && authError.message.includes('API key')) {
-          console.error('\n⚠️  SERVICE ROLE KEY ISSUE:');
-          console.error('   Your SUPABASE_SERVICE_ROLE_KEY may be:');
-          console.error('   - Invalid or malformed');
-          console.error('   - Expired (keys have expiration dates)');
-          console.error(
-            "   - Wrong key (make sure it's the SERVICE_ROLE, not ANON)",
-          );
-          console.error(
-            '\n   Solution: Get a fresh key from Supabase dashboard',
-          );
-          console.error(
-            '   https://app.supabase.com → Settings → API → Service Role',
-          );
-        }
+        console.error('❌ [createBranchAdmin] Supabase API Error:', authError.message, authError.status);
 
         const msg = `Supabase auth failed: ${authError.message || 'Unknown error'}`;
         throw new Error(msg);
@@ -1704,6 +1831,7 @@ export class AppService {
       select: {
         id: true,
         name: true,
+        isActive: true,
         address: true,
         latitude: true,
         longitude: true,
@@ -1846,25 +1974,7 @@ export class AppService {
     });
 
     // Auto-approval mode: legacy pending rows should no longer block access.
-    if (kyc?.status === 'PENDING') {
-      kyc = await this.prisma.bidderKyc.update({
-        where: { profileId: userId },
-        data: {
-          status: 'VERIFIED',
-          reviewedAt: new Date(),
-          rejectionReason: null,
-        },
-        select: {
-          id: true,
-          status: true,
-          fullName: true,
-          idType: true,
-          rejectionReason: true,
-          createdAt: true,
-          reviewedAt: true,
-        },
-      });
-    }
+    // REMOVED: KYC now requires manual admin review for security.
 
     return {
       kycStatus: kyc?.status ?? 'NOT_SUBMITTED',
@@ -1929,6 +2039,7 @@ export class AppService {
     }
 
     const normalizedFullName = normalizeKycFullName(fullName);
+    assertNameNotSuspicious(normalizedFullName);
     const normalizedPhoneNumber = normalizeAndValidatePhoneNumber(phoneNumber);
     const normalizedIdNumber = normalizeAndValidateKycIdNumber(idType, idNumber);
 
@@ -1980,6 +2091,32 @@ export class AppService {
       throw new Error('Your KYC is already verified');
     }
 
+    const ocrNameMatch = data?.ocrNameMatch === true;
+    const ocrConfidence = Math.min(100, Math.max(0, Number(data?.ocrConfidence) || 0));
+    const faceMatched = data?.faceMatched === true;
+    const faceMatchScore = Math.min(1, Math.max(0, Number(data?.faceMatchScore) || 0));
+    const tamperClean = data?.tamperClean === true;
+
+    const verificationData = {
+      ocr: {
+        nameMatch: ocrNameMatch,
+        idNumberMatch: data?.ocrIdNumberMatch === true,
+        confidence: ocrConfidence,
+        extractedName: String(data?.ocrExtractedName || ''),
+        extractedIdNumber: String(data?.ocrExtractedIdNumber || ''),
+      },
+      face: {
+        matched: faceMatched,
+        score: faceMatchScore,
+      },
+      tamper: {
+        clean: tamperClean,
+        flags: Array.isArray(data?.tamperFlags) ? data.tamperFlags : [],
+      },
+      submittedAt: new Date().toISOString(),
+      clientIp: null,
+    };
+
     const kycData = {
       fullName: normalizedFullName,
       dateOfBirth: parsedDateOfBirth,
@@ -1990,14 +2127,14 @@ export class AppService {
       idFrontUrl,
       idBackUrl,
       selfieUrl,
-      status: 'VERIFIED' as const,
+      verificationData: JSON.parse(JSON.stringify(verificationData)),
+      status: 'PENDING' as 'PENDING',
       rejectionReason: null,
       reviewedBy: null,
-      reviewedAt: new Date(),
+      reviewedAt: null,
     };
 
     if (existing) {
-      // Re-submit replaces old KYC data and auto-verifies immediately.
       const updated = await this.prisma.bidderKyc.update({
         where: { profileId: userId },
         data: kycData,
@@ -2026,6 +2163,17 @@ export class AppService {
         },
       },
       orderBy: { createdAt: 'asc' },
+    });
+  }
+
+  async listAllKyc() {
+    return this.prisma.bidderKyc.findMany({
+      include: {
+        profile: {
+          select: { email: true, fullName: true, role: true },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
     });
   }
 

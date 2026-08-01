@@ -3,6 +3,27 @@ const DOB_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 export const KYC_MAX_SELFIE_AGE_MS = 60 * 60 * 1000;
 export const KYC_MAX_FUTURE_SKEW_MS = 30 * 60 * 1000;
 
+const SUSPICIOUS_NAME_PATTERNS = [
+  /^(test|fake|sample|dummy|john doe|jane doe|foo bar|asdf|qwerty)/i,
+  /^(a{3,}|b{3,}|c{3,}|d{3,}|e{3,}|f{3,})\s/i,
+  /^.{0,3}\s.{0,3}$/,
+];
+
+export function assertNameNotSuspicious(fullName: string): void {
+  const lower = fullName.toLowerCase().trim();
+  for (const pattern of SUSPICIOUS_NAME_PATTERNS) {
+    if (pattern.test(lower)) {
+      throw new Error('Please enter your real full legal name. Suspicious name patterns are not allowed.');
+    }
+  }
+
+  const words = lower.split(/\s+/).filter(Boolean);
+  const uniqueChars = new Set(lower.replace(/\s/g, '')).size;
+  if (words.length >= 2 && uniqueChars < 4) {
+    throw new Error('Name appears too simple. Please enter your full legal name.');
+  }
+}
+
 export function normalizeKycFullName(input: string): string {
   const normalized = String(input || '')
     .trim()
@@ -105,8 +126,8 @@ export function normalizeAndValidateKycIdNumber(
     throw new Error('ID number appears invalid');
   }
 
-  if (idType === 'NATIONAL_ID' && !/^\d{12}$/.test(compareValue)) {
-    throw new Error('National ID must contain exactly 12 digits');
+  if (idType === 'NATIONAL_ID' && !/^\d{16}$/.test(compareValue)) {
+    throw new Error('National ID must contain exactly 16 digits');
   }
 
   if (
