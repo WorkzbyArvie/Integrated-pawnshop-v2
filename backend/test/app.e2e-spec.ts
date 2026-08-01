@@ -20,6 +20,18 @@ describe('AppController (e2e)', () => {
     return request(app.getHttpServer())
       .get('/')
       .expect(200)
-      .expect('Hello World!');
+      .expect({ success: true, service: 'pawngold-backend', status: 'ok' });
+  });
+
+  it('/pawn-tickets/pending-approval (GET) without Authorization returns 401', () => {
+    return request(app.getHttpServer())
+      .get('/pawn-tickets/pending-approval')
+      .expect(401);
+  });
+
+  it('/compliance/documents (GET) without Authorization returns 401', () => {
+    return request(app.getHttpServer())
+      .get('/compliance/documents')
+      .expect(401);
   });
 });

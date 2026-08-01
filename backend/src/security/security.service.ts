@@ -1,9 +1,10 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 import { createClient } from '@supabase/supabase-js';
 
 @Injectable()
 export class SecurityService {
+  private readonly logger = new Logger(SecurityService.name);
   constructor(private readonly prisma: PrismaService) {}
 
   private get supabaseAdmin() {
@@ -65,8 +66,8 @@ export class SecurityService {
           success,
         },
       });
-    } catch {
-      // Non-blocking logging.
+    } catch (err) {
+      this.logger.error(`Failed to write security log: action=${action} profileId=${profileId}`, (err as Error).stack);
     }
   }
 }

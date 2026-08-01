@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 import { StorageService } from '../common/storage/storage.service';
 import * as Handlebars from 'handlebars';
@@ -6,6 +6,7 @@ import PDFDocument from 'pdfkit';
 
 @Injectable()
 export class ContractRendererService {
+  private readonly logger = new Logger(ContractRendererService.name);
   constructor(
     private readonly prisma: PrismaService,
     private readonly storage: StorageService,
@@ -161,7 +162,10 @@ export class ContractRendererService {
         try {
           doc.image(signatures.customerSignature, 50, doc.y, { width: 200, height: 60 });
           doc.moveDown(3);
-        } catch { doc.moveDown(0.5); }
+        } catch (err) {
+          this.logger.warn(`Failed to embed customer signature image: ${(err as Error).message}`);
+          doc.moveDown(0.5);
+        }
       }
       doc.fontSize(10).font('Helvetica');
       const customerDate = signatures?.customerSignedAt ? new Date(signatures.customerSignedAt).toLocaleDateString('en-PH') : '_______________';
@@ -172,7 +176,10 @@ export class ContractRendererService {
         try {
           doc.image(signatures.staffSignature, 50, doc.y, { width: 200, height: 60 });
           doc.moveDown(3);
-        } catch { doc.moveDown(0.5); }
+        } catch (err) {
+          this.logger.warn(`Failed to embed staff signature image: ${(err as Error).message}`);
+          doc.moveDown(0.5);
+        }
       }
       const staffDate = signatures?.staffSignedAt ? new Date(signatures.staffSignedAt).toLocaleDateString('en-PH') : '_______________';
       doc.text(`Pawnshop Representative: _________________________  Date: ${staffDate}`);

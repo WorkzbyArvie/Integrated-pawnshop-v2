@@ -28,9 +28,17 @@ export class ReceiptService {
   }) {
     const totalAmount = params.amount + (params.taxAmount || 0);
     const receiptNumber = this.buildReceiptNumber(params.pawnshopId);
+
+    const [shop, staff] = await Promise.all([
+      this.prisma.pawnshop.findUnique({ where: { id: params.pawnshopId } }),
+      this.prisma.profile.findUnique({ where: { id: params.generatedBy } }),
+    ]);
+
     const pdfBuffer = await this.generateReceiptPdf({
       receiptNumber,
-      pawnshopName: params.pawnshopId,
+      pawnshopName: shop?.name || 'PawnGold Pawnshop',
+      pawnshopAddress: shop?.address || undefined,
+      staffName: staff?.fullName || undefined,
       customerName: params.customerName,
       customerAddress: params.customerAddress,
       amount: params.amount,
@@ -108,10 +116,35 @@ export class ReceiptService {
     return receipt;
   }
 
-  async getPdf(id: string) {
+  async getPdfInfo(id: string) {
     const receipt = await this.get(id);
-    const pdfUrl = await this.storage.getDownloadUrl(receipt.pdfUrl);
-    return { pdfUrl, receiptNumber: receipt.receiptNumber };
+    return { receiptId: receipt.id, receiptNumber: receipt.receiptNumber };
+  }
+
+  async getPdfBuffer(id: string): Promise<Buffer> {
+    const receipt = await this.prisma.receipt.findUnique({
+      where: { id },
+      include: { pawnshop: true },
+    });
+    if (!receipt) throw new NotFoundException('Receipt not found');
+
+    const profile = await this.prisma.profile.findUnique({
+      where: { id: receipt.generatedBy },
+    });
+
+    return this.generateReceiptPdf({
+      receiptNumber: receipt.receiptNumber,
+      pawnshopName: receipt.pawnshop?.name || 'PawnGold Pawnshop',
+      pawnshopAddress: receipt.pawnshop?.address || '',
+      customerName: receipt.customerName,
+      customerAddress: receipt.customerAddress || undefined,
+      staffName: profile?.fullName || 'Unknown Staff',
+      amount: receipt.amount,
+      taxAmount: receipt.taxAmount,
+      totalAmount: receipt.totalAmount,
+      lineItems: (receipt.lineItems as any[]) || [],
+      receiptType: receipt.receiptType,
+    });
   }
 
   async findByReference(referenceType: string, referenceId: string) {
@@ -138,8 +171,10 @@ export class ReceiptService {
   private generateReceiptPdf(data: {
     receiptNumber: string;
     pawnshopName: string;
+    pawnshopAddress?: string;
     customerName: string;
     customerAddress?: string;
+    staffName?: string;
     amount: number;
     taxAmount: number;
     totalAmount: number;
@@ -158,68 +193,105 @@ export class ReceiptService {
       doc.on('end', () => resolve(Buffer.concat(buffers)));
       doc.on('error', reject);
 
-      doc
-        .fontSize(18)
-        .font('Helvetica-Bold')
-        .text('OFFICIAL RECEIPT', { align: 'center' });
-      doc.moveDown(0.5);
-      doc
-        .fontSize(10)
-        .font('Helvetica')
-        .text(`Receipt #: ${data.receiptNumber}`, { align: 'right' });
-      doc.text(`Date: ${new Date().toLocaleDateString('en-PH')}`, {
-        align: 'right',
-      });
-      doc.text(`Type: ${data.receiptType}`, { align: 'right' });
-      doc.moveDown(1);
+      const pw = doc.page.width;
 
-      doc.fontSize(11).font('Helvetica-Bold').text('Customer:');
-      doc.fontSize(10).font('Helvetica').text(data.customerName);
-      if (data.customerAddress) doc.text(data.customerAddress);
-      doc.moveDown(1);
-
-      doc
-        .fontSize(11)
-        .font('Helvetica-Bold')
-        .text('Items:', { underline: true });
+      doc.fontSize(20).font('Helvetica-Bold').text(data.pawnshopName, { align: 'center' });
+      if (data.pawnshopAddress) {
+        doc.fontSize(9).font('Helvetica').fillColor('#555')
+          .text(data.pawnshopAddress, { align: 'center' });
+      }
+      doc.fillColor('#000');
       doc.moveDown(0.3);
 
+      doc.moveTo(50, doc.y).lineTo(pw - 50, doc.y).strokeColor('#C9A05C').lineWidth(1.5).stroke();
+      doc.moveDown(0.7);
+
+      doc.fontSize(16).font('Helvetica-Bold').text('OFFICIAL RECEIPT', { align: 'center' });
+      doc.moveDown(0.7);
+
+      doc.fontSize(9).font('Helvetica');
+      const rightX = pw - 50;
+      doc.text(`Receipt #: ${data.receiptNumber}`, 50, doc.y, { align: 'right' });
+      doc.text(`Date: ${new Date().toLocaleDateString('en-PH', { year: 'numeric', month: 'long', day: 'numeric' })}`, { align: 'right' });
+      doc.text(`Type: ${data.receiptType.replace(/_/g, ' ')}`, { align: 'right' });
+      doc.moveDown(1);
+
+      doc.moveTo(50, doc.y).lineTo(pw - 50, doc.y).strokeColor('#CCC').lineWidth(0.5).stroke();
+      doc.moveDown(0.5);
+
+      doc.fontSize(10).font('Helvetica-Bold').text('CUSTOMER DETAILS');
+      doc.fontSize(9).font('Helvetica');
+      doc.text(`Name: ${data.customerName}`);
+      if (data.customerAddress) doc.text(`Address: ${data.customerAddress}`);
+      doc.moveDown(0.3);
+      if (data.staffName) {
+        doc.text(`Processed By: ${data.staffName}`);
+      }
+      doc.moveDown(0.5);
+
+      doc.moveTo(50, doc.y).lineTo(pw - 50, doc.y).strokeColor('#CCC').lineWidth(0.5).stroke();
+      doc.moveDown(0.5);
+
+      doc.fontSize(10).font('Helvetica-Bold').text('LINE ITEMS');
+      doc.moveDown(0.2);
+
       if (data.lineItems.length > 0) {
+        const tableTop = doc.y;
+        const col1 = 50;
+        const col2 = pw - 150;
+        const col3 = pw - 50;
+
+        doc.fontSize(8).font('Helvetica-Bold').fillColor('#666');
+        doc.text('DESCRIPTION', col1, tableTop);
+        doc.text('QTY', col2, tableTop, { width: 40, align: 'center' });
+        doc.text('AMOUNT', col3, tableTop, { width: 100, align: 'right' });
+
+        doc.moveDown(0.5);
+        doc.moveTo(50, doc.y).lineTo(pw - 50, doc.y).strokeColor('#DDD').lineWidth(0.5).stroke();
+        doc.moveDown(0.2);
+
+        const startY = doc.y;
+        doc.fontSize(9).font('Helvetica').fillColor('#000');
+        let rowY = startY;
         for (const item of data.lineItems) {
           const qty = item.quantity || 1;
-          doc
-            .fontSize(10)
-            .font('Helvetica')
-            .text(`${item.description} x${qty}`, { continued: true });
-          doc.text(`PHP ${(item.amount * qty).toFixed(2)}`, { align: 'right' });
+          doc.text(item.description, col1, rowY, { width: col2 - col1 - 10 });
+          doc.text(String(qty), col2, rowY, { width: 40, align: 'center' });
+          doc.text(`PHP ${(item.amount * qty).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, col3, rowY, { width: 100, align: 'right' });
+          rowY += 18;
         }
+
+        doc.y = rowY;
         doc.moveDown(0.3);
+        doc.moveTo(50, doc.y).lineTo(pw - 50, doc.y).strokeColor('#CCC').lineWidth(0.5).stroke();
+        doc.moveDown(0.5);
       }
 
-      doc.moveDown(0.5);
-      doc
-        .fontSize(10)
-        .font('Helvetica')
-        .text(`Subtotal: PHP ${data.amount.toFixed(2)}`, { align: 'right' });
+      const fmt = (n: number) => n.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      const sumRow = (label: string, value: string, bold = false) => {
+        const y = doc.y;
+        const valX = pw - 150;
+        const valW = 100;
+        doc.font(bold ? 'Helvetica-Bold' : 'Helvetica').fontSize(bold ? 12 : 10);
+        doc.text(label, 50, y, { width: valX - 60 });
+        doc.text(value, valX, y, { width: valW, align: 'right' });
+        doc.moveDown(bold ? 0.4 : 0.2);
+      };
+      sumRow('Subtotal:', `PHP ${fmt(data.amount)}`);
       if (data.taxAmount > 0) {
-        doc.text(`Tax: PHP ${data.taxAmount.toFixed(2)}`, { align: 'right' });
+        sumRow('Tax:', `PHP ${fmt(data.taxAmount)}`);
       }
-      doc
-        .fontSize(12)
-        .font('Helvetica-Bold')
-        .text(`Total: PHP ${data.totalAmount.toFixed(2)}`, { align: 'right' });
+      doc.moveDown(0.1);
+      doc.moveTo(50, doc.y).lineTo(pw - 50, doc.y).strokeColor('#C9A05C').lineWidth(1).stroke();
+      doc.moveDown(0.2);
+      sumRow('TOTAL:', `PHP ${fmt(data.totalAmount)}`, true);
 
       doc.moveDown(2);
-      doc
-        .fontSize(8)
-        .fillColor('#999')
-        .font('Helvetica')
-        .text(
-          'This is a computer-generated receipt. No signature required.',
-          50,
-          doc.page.height - 80,
-          { align: 'center' },
-        );
+      doc.fontSize(8).fillColor('#999').font('Helvetica').text(
+        'This is a computer-generated receipt. No signature required.',
+        50, doc.page.height - 80,
+        { align: 'center' },
+      );
 
       doc.end();
     });

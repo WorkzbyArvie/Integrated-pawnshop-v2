@@ -79,8 +79,9 @@ export class FinanceController {
 
       await this.prisma.$executeRaw`
         INSERT INTO public.tenant_audit_logs
-        (pawnshop_id, actor_user_id, action, metadata)
+        (id, pawnshop_id, actor_user_id, action, metadata)
         VALUES (
+          gen_random_uuid(),
           ${pawnshopId}::uuid,
           ${actorUserId}::uuid,
           'SUPPORT_ACCESS_USED',

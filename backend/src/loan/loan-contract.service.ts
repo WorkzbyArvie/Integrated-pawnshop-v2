@@ -74,6 +74,7 @@ export class LoanContractService {
       const fileName = `loan-${contractNumber}.pdf`;
       pdfUrl = await this.storage.uploadPdf(pdfBuffer, 'contracts', fileName);
     } catch (e) {
+      console.error(`Failed to generate/upload loan contract PDF for ${contractNumber}:`, e);
       pdfUrl = `contracts/loan/${contractNumber}.pdf`;
     }
 

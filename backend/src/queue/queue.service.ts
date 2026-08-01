@@ -17,17 +17,24 @@ import {
   NotificationType,
   MessageSenderRole,
 } from '@prisma/client';
-import { createClient } from '@supabase/supabase-js';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { NotificationService } from '../notification/notification.service';
 
 @Injectable()
 export class QueueService {
   private readonly logger = new Logger(QueueService.name);
+  private readonly supabase: SupabaseClient;
 
   constructor(
     private prisma: PrismaService,
     private notificationService: NotificationService,
-  ) {}
+  ) {
+    const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    if (supabaseUrl && serviceRoleKey) {
+      this.supabase = createClient(supabaseUrl, serviceRoleKey);
+    }
+  }
 
   /**
    * Generate a unique queue number for the pawnshop
@@ -101,13 +108,18 @@ export class QueueService {
    */
   async create(pawnshopId: string, dto: CreateQueueTicketDto): Promise<any> {
     try {
-      // Verify customer belongs to this pawnshop
-      const customer = await this.prisma.customer.findFirst({
-        where: {
-          id: dto.customerId,
-          pawnshopId,
-        },
-      });
+      const [customer, existingTicket] = await Promise.all([
+        this.prisma.customer.findFirst({
+          where: { id: dto.customerId, pawnshopId },
+        }),
+        this.prisma.queueTicket.findFirst({
+          where: {
+            customerId: dto.customerId,
+            pawnshopId,
+            status: { in: [QueueStatus.WAITING, QueueStatus.SERVING] },
+          },
+        }),
+      ]);
 
       if (!customer) {
         throw new ForbiddenException(
@@ -115,37 +127,22 @@ export class QueueService {
         );
       }
 
-      // Check if customer already has an active ticket
-      const existingTicket = await this.prisma.queueTicket.findFirst({
-        where: {
-          customerId: dto.customerId,
-          pawnshopId,
-          status: {
-            in: [QueueStatus.WAITING, QueueStatus.SERVING],
-          },
-        },
-      });
-
       if (existingTicket) {
         throw new BadRequestException(
           'Customer already has an active queue ticket',
         );
       }
 
-      // Generate queue number
-      const queueNumber = await this.generateQueueNumber(
-        pawnshopId,
-        dto.queueType,
-      );
-
-      // Calculate estimated wait based on queue position
-      const waitingCount = await this.prisma.queueTicket.count({
-        where: {
-          pawnshopId,
-          branchId: dto.branchId,
-          status: QueueStatus.WAITING,
-        },
-      });
+      const [queueNumber, waitingCount] = await Promise.all([
+        this.generateQueueNumber(pawnshopId, dto.queueType),
+        this.prisma.queueTicket.count({
+          where: {
+            pawnshopId,
+            branchId: dto.branchId,
+            status: QueueStatus.WAITING,
+          },
+        }),
+      ]);
 
       const estimatedWaitMinutes = Math.max(5, waitingCount * 15); // 15 min per ticket
 
@@ -297,10 +294,15 @@ export class QueueService {
     dto: UpdateQueueTicketDto,
   ): Promise<any> {
     try {
-      // Verify ticket belongs to pawnshop
-      const existing = await this.findOne(pawnshopId, id);
+      const existing = await this.prisma.queueTicket.findFirst({
+        where: { id, pawnshopId },
+        select: { id: true, status: true, customerId: true, queueNumber: true },
+      });
 
-      // Validate status transitions
+      if (!existing) {
+        throw new NotFoundException('Queue ticket not found');
+      }
+
       if (dto.status) {
         this.validateStatusTransition(existing.status, dto.status);
       }
@@ -375,60 +377,59 @@ export class QueueService {
 
       if (branchId) where.branchId = branchId;
 
-      // Get next ticket by priority and time
-      const nextTicket = await this.prisma.queueTicket.findFirst({
-        where,
-        orderBy: [{ priority: 'desc' }, { joinedAt: 'asc' }],
-        include: {
-          customer: true,
-        },
-      });
+      const result = await this.prisma.$transaction(async (tx) => {
+        const nextTicket = await tx.queueTicket.findFirst({
+          where,
+          orderBy: [{ priority: 'desc' }, { joinedAt: 'asc' }],
+          include: { customer: true },
+        });
 
-      if (!nextTicket) {
-        throw new NotFoundException('No waiting tickets in queue');
-      }
+        if (!nextTicket) {
+          throw new NotFoundException('No waiting tickets in queue');
+        }
 
-      // Update ticket to SERVING
-      const ticket = await this.prisma.queueTicket.update({
-        where: { id: nextTicket.id },
-        data: {
-          status: QueueStatus.SERVING,
-          assignedStaffId: staffId,
-          counterNumber,
-          calledAt: new Date(),
-          servedAt: new Date(),
-        },
-        include: {
-          customer: {
-            select: {
-              id: true,
-              fullName: true,
-              contactNumber: true,
+        const ticket = await tx.queueTicket.update({
+          where: { id: nextTicket.id },
+          data: {
+            status: QueueStatus.SERVING,
+            assignedStaffId: staffId,
+            counterNumber,
+            calledAt: new Date(),
+            servedAt: new Date(),
+          },
+          include: {
+            customer: {
+              select: {
+                id: true,
+                fullName: true,
+                contactNumber: true,
+              },
             },
           },
-        },
+        });
+
+        return ticket;
       });
 
       this.logger.log(
-        `Queue ticket ${ticket.queueNumber} called by staff ${staffId} at counter ${counterNumber}`,
+        `Queue ticket ${result.queueNumber} called by staff ${staffId} at counter ${counterNumber}`,
       );
 
-      // Send QUEUE_READY notification to the customer
       await this.sendInAppQueueNotification({
-        recipientId: ticket.customerId,
+        recipientId: result.customerId,
         type: NotificationType.QUEUE_READY,
         title: 'Your Turn Is Ready!',
-        body: `Queue ticket ${ticket.queueNumber} has been called. Please proceed to Counter ${counterNumber}.`,
+        body: `Queue ticket ${result.queueNumber} has been called. Please proceed to Counter ${counterNumber}.`,
         data: {
-          queueTicketId: ticket.id,
-          queueNumber: ticket.queueNumber,
+          queueTicketId: result.id,
+          queueNumber: result.queueNumber,
           counterNumber,
           staffId,
-          queueType: ticket.queueType,
+          queueType: result.queueType,
         },
       });
 
-      return ticket;
+      return result;
     } catch (error: any) {
       this.logger.error(
         `Failed to call next ticket: ${error.message}`,
@@ -466,16 +467,13 @@ export class QueueService {
     if (scheme?.toLowerCase() !== 'bearer' || !token)
       throw new UnauthorizedException('Invalid auth format');
 
-    const supabaseUrl = process.env.VITE_SUPABASE_URL;
-    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-    if (!supabaseUrl || !serviceRoleKey)
-      throw new Error('Supabase config missing');
+    if (!this.supabase)
+      throw new Error('Supabase not configured');
 
-    const supabase = createClient(supabaseUrl, serviceRoleKey);
     const {
       data: { user },
       error,
-    } = await supabase.auth.getUser(token);
+    } = await this.supabase.auth.getUser(token);
     if (error || !user)
       throw new UnauthorizedException('Invalid or expired token');
     const userId = user.id;
@@ -618,18 +616,14 @@ export class QueueService {
     }
     const token = authHeader.replace('Bearer ', '');
 
-    const supabaseUrl =
-      process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
-    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-    if (!supabaseUrl || !supabaseServiceKey) {
+    if (!this.supabase) {
       throw new UnauthorizedException('Supabase not configured');
     }
 
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
     const {
       data: { user },
       error,
-    } = await supabase.auth.getUser(token);
+    } = await this.supabase.auth.getUser(token);
     if (error || !user) {
       throw new UnauthorizedException('Invalid or expired token');
     }
@@ -665,18 +659,14 @@ export class QueueService {
     }
     const token = authHeader.replace('Bearer ', '');
 
-    const supabaseUrl =
-      process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
-    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-    if (!supabaseUrl || !supabaseServiceKey) {
+    if (!this.supabase) {
       throw new UnauthorizedException('Supabase not configured');
     }
 
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
     const {
       data: { user },
       error,
-    } = await supabase.auth.getUser(token);
+    } = await this.supabase.auth.getUser(token);
     if (error || !user) {
       throw new UnauthorizedException('Invalid or expired token');
     }
@@ -747,79 +737,56 @@ export class QueueService {
    * Get queue statistics for dashboard
    */
   async getStatistics(pawnshopId: string, branchId?: number): Promise<any> {
-    const where: any = { pawnshopId };
-    if (branchId) where.branchId = branchId;
-
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    const [
-      waiting,
-      serving,
-      completedToday,
-      noShowToday,
-      cancelledToday,
-      totalToday,
-      avgWaitTime,
-    ] = await Promise.all([
-      this.prisma.queueTicket.count({
-        where: { ...where, status: QueueStatus.WAITING },
+    const baseWhere: any = { pawnshopId };
+    if (branchId) baseWhere.branchId = branchId;
+
+    const [statusGroups, todayCount, avgResult, typeGroups] = await Promise.all([
+      this.prisma.queueTicket.groupBy({
+        by: ['status'],
+        where: baseWhere,
+        _count: true,
       }),
       this.prisma.queueTicket.count({
-        where: { ...where, status: QueueStatus.SERVING },
-      }),
-      this.prisma.queueTicket.count({
-        where: {
-          ...where,
-          status: QueueStatus.COMPLETED,
-          completedAt: { gte: today },
-        },
-      }),
-      this.prisma.queueTicket.count({
-        where: {
-          ...where,
-          status: QueueStatus.NO_SHOW,
-          joinedAt: { gte: today },
-        },
-      }),
-      this.prisma.queueTicket.count({
-        where: {
-          ...where,
-          status: QueueStatus.CANCELLED,
-          joinedAt: { gte: today },
-        },
-      }),
-      this.prisma.queueTicket.count({
-        where: {
-          ...where,
-          joinedAt: { gte: today },
-        },
+        where: { ...baseWhere, joinedAt: { gte: today } },
       }),
       this.prisma.queueTicket.aggregate({
         where: {
-          ...where,
+          ...baseWhere,
           status: QueueStatus.COMPLETED,
           completedAt: { gte: today, not: null },
           servedAt: { not: null },
         },
-        _avg: {
-          estimatedWaitMinutes: true,
-        },
+        _avg: { estimatedWaitMinutes: true },
+      }),
+      this.prisma.queueTicket.groupBy({
+        by: ['queueType'],
+        where: { ...baseWhere, joinedAt: { gte: today } },
+        _count: true,
       }),
     ]);
 
+    const statusMap = new Map(statusGroups.map((r) => [r.status, r._count]));
+    const byType: Record<string, number> = {};
+    for (const row of typeGroups) {
+      byType[row.queueType] = row._count;
+    }
+
+    const waiting = statusMap.get('WAITING') || 0;
+    const serving = statusMap.get('SERVING') || 0;
+
     return {
-      totalToday,
+      totalToday: todayCount,
       waiting,
       serving,
-      completed: completedToday,
-      noShow: noShowToday,
-      cancelled: cancelledToday,
-      averageWaitMinutes: Math.round(
-        avgWaitTime._avg.estimatedWaitMinutes || 0,
-      ),
+      completed: statusMap.get('COMPLETED') || 0,
+      noShow: statusMap.get('NO_SHOW') || 0,
+      cancelled: statusMap.get('CANCELLED') || 0,
+      averageWaitMinutes: Math.round(avgResult._avg.estimatedWaitMinutes || 0),
       averageServiceMinutes: 0,
-      byType: {},
+      byType,
       totalActive: waiting + serving,
     };
   }
@@ -868,17 +835,15 @@ export class QueueService {
       );
     }
     const token = authHeader.replace('Bearer ', '');
-    const supabaseUrl =
-      process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
-    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-    if (!supabaseUrl || !supabaseServiceKey) {
+
+    if (!this.supabase) {
       throw new UnauthorizedException('Supabase not configured');
     }
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
     const {
       data: { user },
       error,
-    } = await supabase.auth.getUser(token);
+    } = await this.supabase.auth.getUser(token);
     if (error || !user) {
       throw new UnauthorizedException('Invalid or expired token');
     }

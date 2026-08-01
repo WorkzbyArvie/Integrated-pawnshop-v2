@@ -28,15 +28,16 @@ export class AuditLogInterceptor implements NestInterceptor {
 
     const request = context.switchToHttp().getRequest();
     const user = request.user;
-    const { method, path } = request;
+    const { method, path, headers } = request;
+    const headerPawnshopId = headers?.['pawnshop-id'] as string | undefined;
 
     return next.handle().pipe(
       tap({
         next: () => {
-          this.logAudit(action, user, method, path, true);
+          this.logAudit(action, user, method, path, true, undefined, headerPawnshopId);
         },
         error: (error) => {
-          this.logAudit(action, user, method, path, false, error?.message);
+          this.logAudit(action, user, method, path, false, error?.message, headerPawnshopId);
         },
       }),
     );
@@ -49,6 +50,7 @@ export class AuditLogInterceptor implements NestInterceptor {
     path: string,
     success: boolean,
     errorMessage?: string,
+    headerPawnshopId?: string,
   ) {
     if (!user?.id) return;
     try {
@@ -62,6 +64,43 @@ export class AuditLogInterceptor implements NestInterceptor {
     } catch (err) {
       this.logger.warn(
         `Failed to write audit log for ${action}: ${(err as Error).message}`,
+      );
+    }
+
+    let pawnshopId = user.pawnshopId || headerPawnshopId;
+    this.logger.log(`[AuditLog] action=${action} user=${user?.id} userPawnshop=${user?.pawnshopId} header=${headerPawnshopId} resolved=${pawnshopId}`);
+
+    if (!pawnshopId) {
+      try {
+        const profile = await this.prisma.profile.findUnique({
+          where: { id: user.id },
+          select: { pawnshopId: true },
+        });
+        pawnshopId = profile?.pawnshopId || null;
+        this.logger.log(`[AuditLog] DB fallback pawnshopId=${pawnshopId} for user=${user?.id}`);
+      } catch {
+        return;
+      }
+    }
+    if (!pawnshopId) {
+      this.logger.warn(`[AuditLog] Skipping tenant audit for ${action}: no pawnshopId for user ${user?.id}`);
+      return;
+    }
+    try {
+      await this.prisma.$executeRaw`
+        INSERT INTO public.tenant_audit_logs
+        (id, pawnshop_id, actor_user_id, action, metadata)
+        VALUES (
+          gen_random_uuid(),
+          ${pawnshopId}::uuid,
+          ${user.id}::uuid,
+          ${action},
+          ${JSON.stringify({ method, path, success, error: errorMessage || null })}::jsonb
+        )
+      `;
+    } catch (err) {
+      this.logger.warn(
+        `Failed to write tenant audit log for ${action}: ${(err as Error).message}`,
       );
     }
   }

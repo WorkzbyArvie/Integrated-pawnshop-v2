@@ -1,5 +1,5 @@
 import { randomUUID } from 'crypto';
-import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ForbiddenException, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 import { LegalProofService } from './legal-proof.service';
 import { LoanContractService } from './loan-contract.service';
@@ -14,6 +14,8 @@ import { LedgerEntryType, LedgerCategory, NotificationChannel, NotificationType,
 
 @Injectable()
 export class PawnTicketService {
+  private readonly logger = new Logger(PawnTicketService.name);
+
   constructor(
     private prisma: PrismaService,
     private legalProofService: LegalProofService,
@@ -409,6 +411,24 @@ export class PawnTicketService {
       },
     });
 
+    try {
+      await this.receiptService.generateReceipt({
+        pawnshopId: this.assertPawnshopId(ticket),
+        receiptType: 'APPRAISAL_CERTIFICATE' as any,
+        referenceType: 'TICKET',
+        referenceId: String(ticket.id),
+        amount: dto.appraisedValue,
+        customerName: ticket.customer?.fullName || 'Customer',
+        lineItems: [
+          { description: `Appraised Value — ${ticket.category}`, amount: dto.appraisedValue },
+          { description: `Recommended Loan Amount`, amount: dto.recommendedLoanAmount || ticket.loanAmount },
+        ],
+        generatedBy: appraisedBy,
+      });
+    } catch (receiptErr) {
+      console.error('Failed to generate appraisal certificate receipt:', receiptErr);
+    }
+
     return {
       id: updatedTicket.id,
       ticketNumber: updatedTicket.ticketNumber,
@@ -516,8 +536,8 @@ export class PawnTicketService {
       await this.receiptService.generateReceipt({
         pawnshopId,
         receiptType: 'REDEMPTION',
-        referenceType: 'PAYMENT',
-        referenceId: payment.id,
+        referenceType: 'TICKET',
+        referenceId: String(ticket.id),
         amount: dto.amountPaid,
         customerName: ticket.customer?.fullName || 'Customer',
         lineItems: [
@@ -669,6 +689,52 @@ export class PawnTicketService {
     });
     const tier = customer?.loyaltyTier || 'Standard';
     return { tier, redeemedCount: count };
+  }
+
+  async sendToAuction(ticketId: number, userId: string, userRole?: string) {
+    const ticket = await this.prisma.ticket.findUnique({
+      where: { id: ticketId },
+      include: { customer: true },
+    });
+
+    if (!ticket) throw new NotFoundException('Ticket not found');
+    if (ticket.status !== 'ACTIVE') {
+      throw new BadRequestException(`Ticket must be ACTIVE to send to auction. Current status: ${ticket.status}`);
+    }
+
+    const pawnshopId = this.assertPawnshopId(ticket);
+
+    const updated = await this.prisma.ticket.update({
+      where: { id: ticketId },
+      data: { status: 'AUCTION', lifecycleStatus: 'FORFEITED' },
+    });
+
+    try {
+      await this.legalProofService.createProof({
+        pawnshopId,
+        recordType: 'AUCTION_SETTLEMENT_PROOF',
+        title: `Ticket sent to auction: ${ticket.ticketNumber}`,
+        summary: `Ticket ${ticket.ticketNumber} (${ticket.category}) sent to auction by ${userId}.`,
+        createdBy: userId,
+        ticketId: ticket.id,
+        payload: {
+          ticketId: ticket.id,
+          ticketNumber: ticket.ticketNumber,
+          category: ticket.category,
+          previousStatus: 'ACTIVE',
+          action: 'SEND_TO_AUCTION',
+        },
+      });
+    } catch (proofErr) {
+      this.logger.warn(`Failed to create auction proof for ticket ${ticketId}: ${(proofErr as Error).message}`);
+    }
+
+    return {
+      id: updated.id,
+      ticketNumber: updated.ticketNumber,
+      status: updated.status,
+      lifecycleStatus: updated.lifecycleStatus,
+    };
   }
 
   private assertPawnshopId(ticket: { pawnshopId?: string | null }): string {

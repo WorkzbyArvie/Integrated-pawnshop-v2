@@ -5,6 +5,53 @@ import { PrismaService } from '../prisma.service';
 export class AnalyticsService {
   constructor(private prisma: PrismaService) {}
 
+  async getBatchBranchStats(pawnshopIds: string[]) {
+    if (!pawnshopIds.length) return [];
+
+    const rows = await this.prisma.$queryRaw<Array<Record<string, unknown>>>`
+      SELECT
+        p.id AS pawnshop_id,
+        p.name,
+        COALESCE(t.active_count, 0) AS active_tickets,
+        COALESCE(t.total_principal, 0) AS total_principal,
+        COALESCE(t.projected_interest, 0) AS projected_interest,
+        COALESCE(c.client_count, 0) AS client_count,
+        COALESCE(s.staff_count, 0) AS staff_on_duty
+      FROM public.pawnshops p
+      LEFT JOIN LATERAL (
+        SELECT
+          COUNT(*) FILTER (WHERE status = 'ACTIVE') AS active_count,
+          COALESCE(SUM(loan_amount) FILTER (WHERE status = 'ACTIVE'), 0) AS total_principal,
+          COALESCE(SUM((loan_amount * interest_rate) / 100) FILTER (WHERE status = 'ACTIVE'), 0) AS projected_interest
+        FROM public.ticket
+        WHERE pawnshop_id = p.id
+      ) t ON true
+      LEFT JOIN LATERAL (
+        SELECT COUNT(*) AS client_count
+        FROM public.customer
+        WHERE pawnshop_id = p.id
+      ) c ON true
+      LEFT JOIN LATERAL (
+        SELECT COUNT(*) AS staff_count
+        FROM public.profiles
+        WHERE pawnshop_id = p.id
+      ) s ON true
+      WHERE p.id = ANY(${pawnshopIds}::uuid[])
+    `;
+
+    return rows.map((r: any) => ({
+      pawnshopId: r.pawnshop_id,
+      name: r.name,
+      activeTickets: Number(r.active_tickets),
+      totalPrincipal: Number(r.total_principal),
+      projectedInterest: Number(r.projected_interest),
+      clientCount: Number(r.client_count),
+      staffOnDuty: Number(r.staff_on_duty),
+      vaultCapacity: Math.min(100, Math.round((Number(r.active_tickets) / 200) * 100)),
+      totalEarnings: 0,
+    }));
+  }
+
   async getDashboardStats() {
     // We use 'ACTIVE' in all caps to satisfy the Prisma Enum type requirement
     const [totalCustomers, activeTickets, loanSum] = await Promise.all([

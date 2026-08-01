@@ -18,6 +18,8 @@ type ProofInput = {
   ledgerEntryId?: string;
   ticketId?: number;
   contractId?: string;
+  auctionListingId?: number;
+  auctionBidId?: number;
 };
 
 @Injectable()
@@ -69,6 +71,8 @@ export class LegalProofService {
         ledgerEntryId: input.ledgerEntryId,
         ticketId: input.ticketId,
         contractId: input.contractId,
+        auctionListingId: input.auctionListingId,
+        auctionBidId: input.auctionBidId,
       },
     });
   }

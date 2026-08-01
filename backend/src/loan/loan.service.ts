@@ -136,8 +136,8 @@ export class LoanService {
             pawnshopId,
             receiptType:
               dto.paymentType === 'PENALTY_FEE'
-                ? 'PENALTY_RECEIPT'
-                : 'PAYMENT_RECEIPT',
+                ? 'PENALTY'
+                : 'PAYMENT',
             referenceType: 'PAYMENT',
             referenceId: payment.id,
             amount: dto.amount,

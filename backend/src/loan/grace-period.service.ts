@@ -3,6 +3,7 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../prisma.service';
 import { StateMachineService } from '../common/state-machine/state-machine.service';
 import { NotificationService } from '../notification/notification.service';
+import { LegalProofService } from './legal-proof.service';
 import { NotificationChannel, NotificationType } from '@prisma/client';
 
 @Injectable()
@@ -14,6 +15,7 @@ export class GracePeriodService {
     private prisma: PrismaService,
     private stateMachine: StateMachineService,
     private notificationService: NotificationService,
+    private legalProofService: LegalProofService,
   ) {}
 
   @Cron(CronExpression.EVERY_DAY_AT_6AM)
@@ -73,6 +75,27 @@ export class GracePeriodService {
           where: { ticketId: ticket.id },
           data: { status: 'GRACE_PERIOD' },
         });
+
+        try {
+          await this.legalProofService.createProof({
+            pawnshopId: ticket.pawnshopId || '',
+            recordType: 'GRACE_PERIOD_ENTRY',
+            title: `Grace period started: ${ticket.ticketNumber}`,
+            summary: `Ticket ${ticket.ticketNumber} entered grace period. Customer has 30 days to redeem before forfeiture.`,
+            createdBy: 'system',
+            ticketId: ticket.id,
+            payload: {
+              ticketId: ticket.id,
+              ticketNumber: ticket.ticketNumber,
+              gracePeriodEnd: gracePeriodEnd.toISOString(),
+              forfeitureDate: forfeitureDate.toISOString(),
+              daysOverdue,
+              previousStatus: 'OVERDUE',
+            },
+          });
+        } catch (proofErr) {
+          this.logger.warn(`Failed to create grace period proof for ticket #${ticket.id}: ${(proofErr as Error).message}`);
+        }
 
         if (ticket.customerId) {
           try {
