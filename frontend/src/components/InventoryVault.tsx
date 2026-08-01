@@ -13,10 +13,13 @@ import {
   X,
   ChevronLeft,
   ChevronRight,
+  Receipt,
 } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
+import { api } from '../lib/apiClient';
 import { useToast } from '../App';
 import { formatCurrency } from '../lib/formatters';
+import { ReceiptViewer } from './ReceiptViewer';
 import Swal from 'sweetalert2';
 
 interface InventoryItem {
@@ -58,6 +61,8 @@ export function InventoryVault({ branchId, activeBranchId }: InventoryVaultProps
   const [isSavingPhoto, setIsSavingPhoto] = useState(false);
   const [modalPhotoIndex, setModalPhotoIndex] = useState(0);
   const [cardPhotoIndexes, setCardPhotoIndexes] = useState<Record<string, number>>({});
+  const [receiptTicketId, setReceiptTicketId] = useState<string | null>(null);
+  const [showReceipt, setShowReceipt] = useState(false);
   
   // Active branch context
   const activePawnshopId = branchId ?? null;
@@ -312,24 +317,7 @@ export function InventoryVault({ branchId, activeBranchId }: InventoryVaultProps
 
     setUpdatingId(item.id);
     try {
-      let updateQuery = supabase
-        .from('ticket')
-        .update({ status: 'AUCTION' })
-        .eq('id', item.id);
-
-      if (activePawnshopId) {
-        updateQuery = updateQuery.eq('pawnshop_id', activePawnshopId as any);
-      }
-      if (hasActiveOperationalBranch) {
-        updateQuery = updateQuery.eq('branch_id', activeOperationalBranchId as any);
-      }
-
-      const { data, error } = await updateQuery.select();
-
-      if (error) throw error;
-      if (!data || data.length === 0) {
-        throw new Error('Update blocked or record not found.');
-      }
+      const result = await api.post(`/pawn-tickets/${item.id}/send-to-auction`);
 
       setItems(prev => prev.map(entry => (entry.id === item.id ? { ...entry, status: 'AUCTION' } : entry)));
       showToast(`Ticket ${item.ticketNumber} queued for auction`, 'success');
@@ -708,7 +696,7 @@ export function InventoryVault({ branchId, activeBranchId }: InventoryVaultProps
                 </div>
 
                 <div className="pt-4">
-                  <div className={`grid gap-3 ${item.contractId ? 'grid-cols-4' : 'grid-cols-3'}`}>
+                  <div className={`grid gap-3 ${item.status === 'REDEEMED' ? 'grid-cols-4' : item.contractId ? 'grid-cols-4' : 'grid-cols-3'}`}>
                     <button
                       onClick={() => handleQuickPhotoChange(item)}
                       disabled={updatingId === item.id}
@@ -734,17 +722,27 @@ export function InventoryVault({ branchId, activeBranchId }: InventoryVaultProps
                         Contract
                       </button>
                     ) : null}
-                    <button
-                      onClick={() => handleMarkForAuction(item)}
-                      disabled={item.status !== 'ACTIVE' || updatingId === item.id}
-                      className="w-full text-[10px] font-black uppercase tracking-widest rounded-2xl px-4 py-3 border transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed bg-slate-900 text-white hover:bg-slate-800"
-                    >
-                      {updatingId === item.id ? (
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                      ) : (
-                        'Mark for Auction'
-                      )}
-                    </button>
+                    {item.status === 'REDEEMED' ? (
+                      <button
+                        onClick={() => { setReceiptTicketId(item.id); setShowReceipt(true); }}
+                        className="w-full text-[10px] font-black uppercase tracking-widest rounded-2xl px-4 py-3 border border-[rgba(201,160,92,0.12)] transition-all flex items-center justify-center gap-2 bg-[#14141B] text-[#C9A05C] hover:bg-[#1C1C26] hover:text-[#EAE2D6]"
+                      >
+                        <Receipt className="w-4 h-4" />
+                        Receipt
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => handleMarkForAuction(item)}
+                        disabled={item.status !== 'ACTIVE' || updatingId === item.id}
+                        className="w-full text-[10px] font-black uppercase tracking-widest rounded-2xl px-4 py-3 border transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed bg-slate-900 text-white hover:bg-slate-800"
+                      >
+                        {updatingId === item.id ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          'Mark for Auction'
+                        )}
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
@@ -891,6 +889,15 @@ export function InventoryVault({ branchId, activeBranchId }: InventoryVaultProps
             </div>
           </div>
         </div>
+      )}
+
+      {showReceipt && receiptTicketId && (
+        <ReceiptViewer
+          referenceType="TICKET"
+          referenceId={receiptTicketId}
+          open={showReceipt}
+          onClose={() => setShowReceipt(false)}
+        />
       )}
     </div>
   );

@@ -282,7 +282,7 @@ export function FinanceLedger({ branchId: _branchId, activeBranchId }: FinanceLe
       const {
         data: { session },
       } = await supabase.auth.getSession();
-      const approvedBy = session?.user?.id || localStorage.getItem('user_id') || '';
+      const approvedBy = session?.user?.id || '';
       if (!approvedBy) {
         showToast('Unable to identify approver account', 'error');
         return;
@@ -309,7 +309,7 @@ export function FinanceLedger({ branchId: _branchId, activeBranchId }: FinanceLe
     setRejectLoading(true);
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      const rejectedBy = session?.user?.id || localStorage.getItem('user_id') || '';
+      const rejectedBy = session?.user?.id || '';
       if (!rejectedBy) {
         showToast('Unable to identify approver account', 'error');
         setRejectLoading(false);

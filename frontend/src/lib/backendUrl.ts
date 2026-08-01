@@ -62,3 +62,10 @@ export function getAuctionFrontendUrl(): string {
     configuredAuctionFallbackUrl,
   );
 }
+
+export function getSiteUrl(): string {
+  const configuredSiteUrl = import.meta.env.VITE_SITE_URL?.replace(/\/$/, '') || '';
+  if (configuredSiteUrl) return configuredSiteUrl;
+  if (typeof window !== 'undefined') return window.location.origin;
+  return 'http://localhost:5173';
+}

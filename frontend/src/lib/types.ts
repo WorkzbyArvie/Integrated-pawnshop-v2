@@ -323,6 +323,7 @@ export interface SubscriptionPlan {
   features: Record<string, boolean>;
   limits: Record<string, number | null>;
   description?: string;
+  tagline?: string;
 }
 
 export interface SubscriptionLimits {

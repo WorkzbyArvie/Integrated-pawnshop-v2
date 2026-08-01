@@ -1,21 +1,25 @@
 ﻿
 import { PlatformControl } from './PlatformControl';
+import { PlatformAnalytics } from './PlatformAnalytics';
 import { SystemSettings } from './SystemSettings';
 import { TrialRequestsPanel } from './TrialRequestsPanel';
-import { Zap, ShieldCheck, Building2, Settings, ClipboardList } from 'lucide-react'; 
+import SuperAdminComplianceOverview from './SuperAdminComplianceOverview';
+import { Zap, ShieldCheck, Building2, Settings, ClipboardList, Shield } from 'lucide-react'; 
 
 interface SuperAdminDashboardProps {
   setActiveTab: (tab: string) => void;
   activeTab: string; 
   globalConfig: any; 
   setGlobalConfig: (config: any) => void;
+  onManageBranches?: (pawnshopId: string, pawnshopName: string) => void;
 }
 
 export function SuperAdminDashboard({ 
   setActiveTab, 
   activeTab, 
   globalConfig, 
-  setGlobalConfig 
+  setGlobalConfig,
+  onManageBranches,
 }: SuperAdminDashboardProps) {
 
   // Role constant aligned with your profiles table schema [cite: 2026-01-22]
@@ -114,15 +118,40 @@ export function SuperAdminDashboard({
                 </div>
               </button>
 
+              {/* ACTION: COMPLIANCE OVERVIEW */}
+              <button 
+                onClick={() => setActiveTab('platform-compliance')}
+                className="bg-[#14141B] p-10 rounded-[48px] border border-[rgba(201,160,92,0.08)] shadow-2xl shadow-amber-100/40 hover:shadow-amber-200/60 hover:-translate-y-1 transition-all group text-left relative overflow-hidden"
+              >
+                <div className="absolute top-0 right-0 p-8 opacity-5 group-hover:scale-110 transition-transform">
+                  <Shield size={120} />
+                </div>
+                <div className="relative z-10">
+                  <div className="p-4 w-fit bg-amber-50 rounded-2xl text-amber-700 mb-6 group-hover:bg-amber-600 group-hover:text-white transition-colors">
+                    <Shield size={32} />
+                  </div>
+                  <h3 className="text-2xl font-black text-[#EAE2D6] mb-2 uppercase tracking-tighter">Compliance</h3>
+                  <p className="text-sm text-[#6B655C] font-bold mb-8 leading-relaxed uppercase tracking-tight opacity-80">
+                    Review pawnshop documents, verify regulatory compliance, and manage document lifecycle.
+                  </p>
+                  <div className="text-[10px] font-black uppercase tracking-[0.2em] text-amber-700 flex items-center gap-2">
+                    Open Compliance <span className="group-hover:translate-x-2 transition-transform">â†’</span>
+                  </div>
+                </div>
+              </button>
+
             </div>
           </div>
         </div>
       )}
 
-      {/* 2. TAB: PLATFORM CONTROL */}
+      {/* 1B. TAB: PLATFORM ANALYTICS */}
+      {activeTab === 'platform-analytics' && <PlatformAnalytics />}
+
       {activeTab === 'platform-control' && (
         <PlatformControl 
-          userRole={SUPER_ADMIN_ROLE} 
+          userRole={SUPER_ADMIN_ROLE}
+          onManageBranches={onManageBranches}
         />
       )}
 
@@ -139,6 +168,9 @@ export function SuperAdminDashboard({
 
       {/* 4. TAB: TRIAL REQUESTS */}
       {activeTab === 'trial-requests' && <TrialRequestsPanel />}
+
+      {/* 5. TAB: COMPLIANCE OVERVIEW */}
+      {activeTab === 'platform-compliance' && <SuperAdminComplianceOverview />}
     </div>
   );
 }

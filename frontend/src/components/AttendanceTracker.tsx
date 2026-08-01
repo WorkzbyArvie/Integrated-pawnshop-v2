@@ -239,7 +239,7 @@ export function AttendanceTracker({ branchId: _branchId, activeBranchId, userRol
       } = await supabase.auth.getSession();
 
       const verifiedBy =
-        session?.user?.id || localStorage.getItem('user_id') || '';
+        session?.user?.id || '';
 
       if (!verifiedBy) {
         showToast('Unable to identify verifier account', 'error');

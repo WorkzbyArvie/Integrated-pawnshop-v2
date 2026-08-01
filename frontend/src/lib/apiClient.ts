@@ -156,4 +156,13 @@ export const api = {
   del: <T = unknown>(path: string) => request<T>('DELETE', path),
 };
 
+export async function getCurrentUserId(): Promise<string> {
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    return session?.user?.id ?? '';
+  } catch {
+    return '';
+  }
+}
+
 export default api;

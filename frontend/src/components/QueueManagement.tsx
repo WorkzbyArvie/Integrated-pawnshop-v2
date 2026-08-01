@@ -52,7 +52,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import api from '@/lib/apiClient';
+import api, { getCurrentUserId } from '@/lib/apiClient';
 import useApi from '@/lib/useApi';
 import { formatTime, formatDateTime, statusColor, humanizeStatus } from '@/lib/formatters';
 import type { QueueTicket, QueueStatistics, QueueType, QueueStatus } from '@/lib/types';
@@ -129,7 +129,7 @@ export function QueueManagement({ branchId: _branchId }: QueueManagementProps) {
     setChatInput('');
     try {
       await api.post(`/queue/tickets/${chatTicket.id}/messages`, {
-        senderId: localStorage.getItem('user_id') || 'staff',
+        senderId: await getCurrentUserId(),
         message: text,
       });
       await loadChatMessages(chatTicket.id);
@@ -196,7 +196,7 @@ export function QueueManagement({ branchId: _branchId }: QueueManagementProps) {
     setCallingNext(true);
     try {
       const result = await api.post<QueueTicket>('/queue/call-next', {
-        staffId: localStorage.getItem('user_id') || 'staff',
+        staffId: await getCurrentUserId(),
         counterNumber: '1',
       });
       showToast(`Now serving: ${(result as any)?.queueNumber || 'Next customer'}`, 'success');

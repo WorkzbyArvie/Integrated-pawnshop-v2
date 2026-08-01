@@ -27,6 +27,8 @@ import {
   ClipboardList,
   LogIn,
   LogOut as LogOutIcon,
+  BarChart3,
+  Shield,
 } from 'lucide-react';
 
 // Import Libs
@@ -45,6 +47,7 @@ import { DecisionSupport } from './components/DecisionSupport';
 import { Redemption } from './components/Redemption';
 import { AuctionQueue } from './components/AuctionQueue';
 import { AuctionMarketplace } from './components/AuctionMarketplace';
+import { AuctionSettlements } from './components/AuctionSettlements';
 import { BranchManagement } from './components/BranchManagement';
 import { SuperAdminDashboard } from './pages/admin/SuperAdminDashboard';
 import { SystemSettings } from './pages/admin/SystemSettings';
@@ -56,13 +59,14 @@ import { QueueManagement } from './components/QueueManagement';
 import { FinanceLedger } from './components/FinanceLedger';
 import { AttendanceTracker } from './components/AttendanceTracker';
 import { PayrollManagement } from './components/PayrollManagement';
-import { ComplianceDashboard } from './components/ComplianceDashboard';
 import { NotificationCenter } from './components/NotificationCenter';
 import { SubscriptionManager } from './components/SubscriptionManager';
 import { MultiBranchManagement } from './components/MultiBranchManagement';
 import { SupportChat } from './components/SupportChat';
 import { AuditHistory } from './components/AuditHistory';
 import { PendingAccessDashboard } from './components/PendingAccessDashboard';
+import OwnerComplianceDashboard from './pages/admin/OwnerComplianceDashboard';
+import BidderKycReview from './components/BidderKycReview';
 import { LoanHistoryPage } from './pages/loans/LoanHistoryPage';
 import LandingPage from './pages/LandingPage';
 
@@ -129,6 +133,7 @@ const TAB_TO_PATH: Record<string, string> = {
   'system-settings': '/system-settings',
   'branches': '/branches',
   'trial-requests': '/trial-requests',
+  'platform-compliance': '/platform-compliance',
   'pending-access': '/pending-access',
   'frozen-access': '/frozen-access',
   'branch-system-settings': '/branch-system-settings',
@@ -207,6 +212,9 @@ function App() {
   const [currentBranchId, setCurrentBranchId] = useState<string | null>(null);
   const [ownerBranches, setOwnerBranches] = useState<BranchOption[]>([]);
   const [ownerRegistrationStatus, setOwnerRegistrationStatus] = useState<string>('NONE');
+  const [ownerRegistrationChecked, setOwnerRegistrationChecked] = useState(false);
+  const [selectedPawnshopId, setSelectedPawnshopId] = useState<string | null>(null);
+  const [selectedPawnshopName, setSelectedPawnshopName] = useState<string>('');
   const [activeOperationalBranchName, setActiveOperationalBranchName] = useState<string | null>(null);
   const [activeOperationalBranchId, setActiveOperationalBranchId] = useState<number | null>(() => {
     const stored = localStorage.getItem('active_branch_id');
@@ -301,7 +309,6 @@ function App() {
     const metaRole =
       session?.user?.user_metadata?.role ||
       session?.user?.app_metadata?.role ||
-      localStorage.getItem('user_role') ||
       null;
     const resolvedRole = normalizeRole(metaRole);
 
@@ -526,11 +533,10 @@ function App() {
     initializeAuth();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, newSession) => {
-      console.debug('onAuthStateChange event, session:', newSession);
+      if (_event === 'TOKEN_REFRESHED') return;
+      console.debug('onAuthStateChange event, session:', _event, newSession);
       setSession(newSession);
-      // If a new session exists, fetch profile but do not force sign-out if profile fetch fails.
       if (newSession) {
-        // Mark user as online
         supabase.from('profiles').update({ is_online: true, last_seen_at: new Date().toISOString() }).eq('id', newSession.user.id).then();
         (async () => {
           try {
@@ -540,7 +546,6 @@ function App() {
               const role = resolveDisplayRole(profile.role, profile.staff_type);
               setUserRole(role);
               localStorage.setItem('user_role', role);
-              if (role === 'Super Admin') setActiveTab('platform-control');
               const finalBranchId = role === 'Super Admin' ? null : (profile.pawnshop_id || null);
               setCurrentBranchId(finalBranchId);
               if (finalBranchId) localStorage.setItem('active_pawnshop_id', finalBranchId);
@@ -559,7 +564,6 @@ function App() {
               setCurrentBranchId(resolvedBranch);
               localStorage.setItem('user_role', resolvedRole);
               if (resolvedBranch) localStorage.setItem('active_pawnshop_id', resolvedBranch);
-              if (resolvedRole === 'Super Admin') setActiveTab('platform-control');
             }
           } catch (err) {
             console.error('onAuthStateChange profile fetch error:', err);
@@ -568,11 +572,9 @@ function App() {
             setCurrentBranchId(resolvedBranch);
             localStorage.setItem('user_role', resolvedRole);
             if (resolvedBranch) localStorage.setItem('active_pawnshop_id', resolvedBranch);
-            if (resolvedRole === 'Super Admin') setActiveTab('platform-control');
           }
         })();
       } else {
-        // Clear client-side stored state when session ends
         localStorage.clear();
         setUserRole('Staff');
         setCurrentBranchId(null);
@@ -708,6 +710,7 @@ function App() {
       };
 
       setOwnerRegistrationStatus('LOADING');
+      setOwnerRegistrationChecked(false);
 
       try {
         const rows = await api.get<OwnerRegistrationRequest[]>(
@@ -768,6 +771,8 @@ function App() {
 
         setOwnerRegistrationStatus('NONE');
         clearOwnerOperationalContext();
+      } finally {
+        setOwnerRegistrationChecked(true);
       }
     };
 
@@ -864,6 +869,13 @@ function App() {
         return;
       }
 
+      // Skip subscription fetch for pending owners (no pawnshop assigned yet)
+      if (ownerRegistrationStatus !== 'APPROVED') {
+        setSubscriptionTier('FREE');
+        setSubscriptionTierLoaded(true);
+        return;
+      }
+
       try {
         setSubscriptionTierLoaded(false);
         const sub = await api.get('/subscriptions/current');
@@ -887,11 +899,18 @@ function App() {
     };
 
     loadSubscription();
-  }, [session, userRole, currentBranchId]);
+  }, [session, userRole, currentBranchId, ownerRegistrationStatus]);
 
   useEffect(() => {
     const loadSubscriptionAccessStatus = async () => {
       if (!session || userRole === 'Super Admin') {
+        setSubscriptionAccessFrozen(false);
+        setSubscriptionAccessChecked(true);
+        return;
+      }
+
+      // Skip for pending owners (no pawnshop assigned yet)
+      if (userRole === 'Owner' && ownerRegistrationStatus !== 'APPROVED') {
         setSubscriptionAccessFrozen(false);
         setSubscriptionAccessChecked(true);
         return;
@@ -917,7 +936,7 @@ function App() {
     };
 
     loadSubscriptionAccessStatus();
-  }, [session, userRole, currentBranchId]);
+  }, [session, userRole, currentBranchId, ownerRegistrationStatus]);
 
   useEffect(() => {
     const checkSupportAccess = async () => {
@@ -1024,7 +1043,7 @@ function App() {
   const ownerHasApprovedAccess =
     userRole !== 'Owner'
       ? true
-      : true;
+      : ownerRegistrationStatus === 'APPROVED';
 
   const isPendingLimitedMode =
     userRole === 'Owner' && !ownerHasApprovedAccess;
@@ -1165,9 +1184,11 @@ function App() {
   const allNavItems = [
     // PLATFORM-level (Super Admin only)
     { id: 'platform-control', label: 'Platform Control', icon: Globe, roles: ['Super Admin'], type: 'PLATFORM' },
+    { id: 'platform-analytics', label: 'Platform Analytics', icon: BarChart3, roles: ['Super Admin'], type: 'PLATFORM' },
     { id: 'system-settings', label: 'System Control', icon: Settings2, roles: ['Super Admin'], type: 'PLATFORM' },
-    { id: 'branches', label: 'Pawnshop Management', icon: Warehouse, roles: ['Super Admin'], type: 'PLATFORM' },
+    { id: 'branches', label: selectedPawnshopName ? `${selectedPawnshopName} — Branches` : 'Tenant Branches', icon: Warehouse, roles: ['Super Admin'], type: 'PLATFORM' },
     { id: 'trial-requests', label: 'Trial Requests', icon: ClipboardList, roles: ['Super Admin'], type: 'PLATFORM' },
+    { id: 'platform-compliance', label: 'Compliance', icon: Shield, roles: ['Super Admin'], type: 'PLATFORM' },
     { id: 'support-chat', label: 'Support Hub', icon: Users2, roles: ['Super Admin'], type: 'PLATFORM' },
 
     // Owner onboarding limited mode
@@ -1189,6 +1210,8 @@ function App() {
     { id: 'finance', label: 'Finance & Treasury', icon: Wallet, roles: ['Owner', 'Admin', 'Manager'], type: 'OPERATIONAL', feature: 'finance_enabled' },
     { id: 'hr', label: 'Staff Matrix', icon: Users, roles: ['Owner', 'Admin', 'HR'], type: 'OPERATIONAL', feature: 'hr_enabled' },
     { id: 'auction-queue', label: 'Auction Queue', icon: Gavel, roles: ['Owner', 'Admin', 'Manager'], type: 'OPERATIONAL', feature: 'auction_enabled' },
+    { id: 'auction-settlements', label: 'Auction Settlements', icon: Gavel, roles: ['Owner', 'Admin', 'Manager'], type: 'OPERATIONAL', feature: 'auction_enabled' },
+    { id: 'bidder-kyc', label: 'Bidder KYC Review', icon: Shield, roles: ['Super Admin'], type: 'OPERATIONAL', feature: 'auction_enabled' },
     { id: 'auction-live', label: 'Live Auctions', icon: Gavel, roles: ['Owner', 'Admin', 'Manager'], type: 'OPERATIONAL', feature: 'auction_enabled' },
     { id: 'decision', label: 'Decision Support', icon: BrainCircuit, roles: ['Owner', 'Admin', 'Manager'], type: 'OPERATIONAL', feature: 'decision_enabled' },
     { id: 'loan-history', label: 'Loan History', icon: History, roles: ['Owner', 'Admin', 'Manager', 'Staff', 'Cashier/Teller', 'Appraiser', 'Auditor'], type: 'OPERATIONAL' },
@@ -1196,7 +1219,7 @@ function App() {
     { id: 'finance-ledger', label: 'Finance Ledger', icon: BookOpen, roles: ['Owner', 'Admin', 'Manager', 'Auditor'], type: 'OPERATIONAL', feature: 'finance_enabled' },
     { id: 'attendance', label: 'Attendance', icon: Clock, roles: ['Owner', 'Admin', 'Manager', 'HR'], type: 'OPERATIONAL' },
     { id: 'payroll', label: 'Payroll', icon: Receipt, roles: ['Owner', 'Admin', 'HR'], type: 'OPERATIONAL' },
-    { id: 'compliance', label: 'Compliance', icon: FileCheck2, roles: ['Owner', 'Admin', 'Manager', 'HR', 'Auditor'], type: 'OPERATIONAL', feature: 'auction_enabled' },
+    { id: 'compliance', label: 'Compliance', icon: FileCheck2, roles: ['Owner', 'Admin', 'Manager', 'HR', 'Auditor'], type: 'OPERATIONAL' },
     { id: 'subscription', label: 'Subscription', icon: CreditCard, roles: ['Owner'], type: 'OPERATIONAL' },
     { id: 'support-chat', label: 'Support Chat', icon: Users2, roles: ['Owner', 'Admin'], type: 'OPERATIONAL' },
   ];
@@ -1218,11 +1241,15 @@ function App() {
 
   const TRIAL_RESTRICTED_OWNER_NAV = new Set([
     'branch-system-settings',
-    'queue-mgmt',
+    'multi-branches',
+    'auction-queue',
+    'auction-settlements',
+    'auction-live',
+    'decision',
   ]);
 
   const filteredNavItems = allNavItems.filter(item => {
-    if (isPendingLimitedMode) {
+    if (isPendingLimitedMode && ownerRegistrationChecked) {
       return item.id === 'pending-access';
     }
 
@@ -1285,7 +1312,7 @@ function App() {
     if (item.id === 'hr' || item.id === 'attendance') {
       return 'People';
     }
-    if (item.id === 'auction-queue' || item.id === 'auction-live' || item.id === 'compliance') {
+    if (item.id === 'auction-queue' || item.id === 'auction-settlements' || item.id === 'auction-live' || item.id === 'compliance') {
       return 'Auctions';
     }
     if (item.id === 'support-chat') {
@@ -1323,10 +1350,10 @@ function App() {
       return;
     }
 
-    if (hasOnboardingIntent || isPendingLimitedMode) {
+    if (hasOnboardingIntent || (isPendingLimitedMode && ownerRegistrationChecked)) {
       setActiveTab('pending-access');
     }
-  }, [session?.user?.id, userRole, hasOnboardingIntent, isPendingLimitedMode]);
+  }, [session?.user?.id, userRole, hasOnboardingIntent, isPendingLimitedMode, ownerRegistrationChecked]);
 
   useEffect(() => {
     if (!session || userRole === 'Super Admin' || !isSubscriptionFrozen) {
@@ -1563,10 +1590,18 @@ function App() {
                   <div>
                     <h2 className="text-xl text-[#EAE2D6] tracking-tight" style={{ fontFamily: "'Syne', sans-serif" }}>Subscription Required</h2>
                     <p className="text-sm text-[#999186] mt-2 max-w-2xl leading-relaxed">
-                      This tenant is currently frozen because there is no active subscription. All operational modules are locked for every branch until the owner re-subscribes.
+                      Your subscription has expired or has been cancelled. All operational modules are locked for every branch until a new subscription is activated.
                     </p>
+                    <div className="mt-4 p-4 rounded-lg bg-[#1C1C26] border border-[rgba(201,160,92,0.15)]">
+                      <p className="text-sm text-[#C9A05C] font-semibold">To regain access:</p>
+                      <ol className="text-xs text-[#999186] mt-2 space-y-1 list-decimal list-inside">
+                        <li>Go to <span className="text-[#C9A05C] font-medium">Subscription & Billing</span> in the sidebar</li>
+                        <li>Choose a plan and complete payment</li>
+                        <li>Access will be restored immediately after payment confirmation</li>
+                      </ol>
+                    </div>
                     <p className="text-xs text-[#6B655C] mt-4 uppercase tracking-wider font-semibold">
-                      Contact your owner to reactivate access.
+                      Only the pawnshop owner can reactivate access.
                     </p>
                   </div>
                 </div>
@@ -1590,8 +1625,20 @@ function App() {
             {activeTab === 'inventory' && <InventoryVault branchId={currentBranchId} activeBranchId={activeOperationalBranchId} />}
             {activeTab === 'decision' && <DecisionSupport branchId={currentBranchId} activeBranchId={activeOperationalBranchId} />}
             {activeTab === 'auction-queue' && <AuctionQueue branchId={currentBranchId} activeBranchId={activeOperationalBranchId} />}
+            {activeTab === 'auction-settlements' && <AuctionSettlements branchId={currentBranchId} activeBranchId={activeOperationalBranchId} />}
+            {activeTab === 'bidder-kyc' && <BidderKycReview />}
             {activeTab === 'auction-live' && <AuctionMarketplace branchId={currentBranchId} activeBranchId={activeOperationalBranchId} />}
-            {activeTab === 'branches' && <BranchManagement />}
+            {activeTab === 'branches' && (
+              <BranchManagement
+                pawnshopId={selectedPawnshopId || undefined}
+                pawnshopName={selectedPawnshopName}
+                onBack={() => {
+                  setSelectedPawnshopId(null);
+                  setSelectedPawnshopName('');
+                  setActiveTab('platform-control');
+                }}
+              />
+            )}
             {activeTab === 'finance' && <FinanceTreasury branchId={currentBranchId} activeBranchId={activeOperationalBranchId} />}
             {activeTab === 'hr' && (
               <StaffMatrix
@@ -1605,12 +1652,7 @@ function App() {
             {activeTab === 'finance-ledger' && <FinanceLedger branchId={currentBranchId} activeBranchId={activeOperationalBranchId} />}
             {activeTab === 'attendance' && <AttendanceTracker branchId={currentBranchId} activeBranchId={activeOperationalBranchId} userRole={userRole} />}
             {activeTab === 'payroll' && <PayrollManagement branchId={currentBranchId} activeBranchId={activeOperationalBranchId} />}
-            {activeTab === 'compliance' && (
-              <ComplianceDashboard
-                branchId={currentBranchId}
-                activeBranchId={activeOperationalBranchId}
-              />
-            )}
+            {activeTab === 'compliance' && <OwnerComplianceDashboard />}
             {activeTab === 'subscription' && userRole === 'Owner' && <SubscriptionManager branchId={currentBranchId} />}
             {activeTab === 'support-chat' && ['Owner', 'Admin', 'Super Admin'].includes(userRole) && (
               <SupportChat pawnshopId={currentBranchId} userRole={userRole} />
@@ -1646,13 +1688,18 @@ function App() {
               />
             )}
             
-            {(activeTab === 'platform-control' || activeTab === 'system-settings' || activeTab === 'trial-requests') && 
+            {(activeTab === 'platform-control' || activeTab === 'system-settings' || activeTab === 'trial-requests' || activeTab === 'platform-compliance' || activeTab === 'platform-analytics') && 
              userRole === 'Super Admin' && (
               <SuperAdminDashboard 
                 setActiveTab={setActiveTab} 
                 activeTab={activeTab}
                 globalConfig={systemConfig} 
-                setGlobalConfig={setSystemConfig} 
+                setGlobalConfig={setSystemConfig}
+                onManageBranches={(id, name) => {
+                  setSelectedPawnshopId(id);
+                  setSelectedPawnshopName(name);
+                  setActiveTab('branches');
+                }}
               />
             )}
           </div>

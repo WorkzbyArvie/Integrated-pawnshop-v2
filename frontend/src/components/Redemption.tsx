@@ -11,6 +11,7 @@ import { useToast } from '../App';
 import { supabase } from '../lib/supabaseClient';
 import api from '../lib/apiClient';
 import { formatCurrency } from '../lib/formatters';
+import { ReceiptViewer } from './ReceiptViewer';
 import Swal from 'sweetalert2';
 
 const tierColors: Record<string, string> = {
@@ -44,6 +45,8 @@ export function Redemption({ branchId, activeBranchId }: RedemptionProps) {
   const [selectedItem, setSelectedItem] = useState<RedemptionItem | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isFetching, setIsFetching] = useState(true);
+  const [redeemedTicketId, setRedeemedTicketId] = useState<string | null>(null);
+  const [showReceipt, setShowReceipt] = useState(false);
 
   const { showToast } = useToast();
 
@@ -138,40 +141,15 @@ export function Redemption({ branchId, activeBranchId }: RedemptionProps) {
     setIsLoading(true);
     try {
       const totalDue = calculateTotal(selectedItem.loanAmount).total;
-      const result = await api.post<{
-        ticketId: number;
-        ticketNumber: string;
-        lifecycleStatus: string;
-        amountPaid: number;
-        paymentId: number;
-        message: string;
-      }>(
+      await api.post(
         `/pawn-tickets/${id}/redeem`,
         { amountPaid: totalDue, paymentMethod: 'CASH', notes: `In-person redemption` }
       );
 
+      showToast(`Ticket #${selectedItem.ticketId} redeemed! ${formatCurrency(totalDue)} collected.`, "success");
       setItems(prev => prev.filter(item => item.id !== id));
-      showToast(
-        `Ticket #${selectedItem.ticketId} redeemed! ${formatCurrency(result.amountPaid || selectedItem.loanAmount)} collected.`,
-        "success"
-      );
-
-      await Swal.fire({
-        title: 'Redemption Complete',
-        html: `
-          <div style="text-align:left; font-size: 13px;">
-            <p><strong>Ticket:</strong> ${selectedItem.ticketId}</p>
-            <p><strong>Customer:</strong> ${selectedItem.customerName}</p>
-            <p><strong>Item:</strong> ${selectedItem.itemDetails}</p>
-            <p><strong>Amount Paid:</strong> ${formatCurrency(result.amountPaid || selectedItem.loanAmount)}</p>
-            <p style="margin-top:10px; color:#666; font-size:11px;">Payment receipt and legal proof have been generated and recorded.</p>
-          </div>
-        `,
-        icon: 'success',
-        confirmButtonColor: '#C9A05C',
-        confirmButtonText: 'Done',
-      });
-
+      setRedeemedTicketId(id);
+      setShowReceipt(true);
       setSelectedItem(null);
       
     } catch (error: any) {
@@ -342,6 +320,14 @@ export function Redemption({ branchId, activeBranchId }: RedemptionProps) {
           )}
         </div>
       </div>
+      {showReceipt && redeemedTicketId && (
+        <ReceiptViewer
+          referenceType="TICKET"
+          referenceId={redeemedTicketId}
+          open={showReceipt}
+          onClose={() => setShowReceipt(false)}
+        />
+      )}
     </div>
   );
 }

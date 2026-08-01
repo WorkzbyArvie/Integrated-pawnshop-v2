@@ -1,7 +1,6 @@
 ﻿import { useEffect, useMemo, useState } from 'react';
 import { Filter, Loader2, Search, Shield } from 'lucide-react';
 import api from '../lib/apiClient';
-import { supabase } from '../lib/supabaseClient';
 import { useToast } from '../App';
 
 type AuditLogRow = {
@@ -114,36 +113,12 @@ export function AuditHistory({ branchId, userRole }: AuditHistoryProps) {
 
     setLoading(true);
     try {
-      const [tenantData, secResult] = await Promise.all([
-        api.get<AuditLogRow[]>('/tenant-governance/audit/history', {
-          pawnshopId: branchId,
-          limit: 300,
-        }).catch(() => []),
-        supabase
-          .from('security_logs')
-          .select('id, profile_id, action, success, created_at')
-          .order('created_at', { ascending: false })
-          .limit(200),
-      ]);
+      const tenantData = await api.get<AuditLogRow[]>('/tenant-governance/audit/history', {
+        pawnshopId: branchId,
+        limit: 300,
+      });
 
-      const tenantRows: AuditLogRow[] = Array.isArray(tenantData) ? tenantData : [];
-
-      const secRows: AuditLogRow[] = (secResult.data || []).map((log: any) => ({
-        id: log.id,
-        pawnshop_id: branchId!,
-        actor_user_id: log.profile_id,
-        actor_email: null,
-        actor_name: null,
-        action: String(log.action || '').replace(/^AUDIT:/, ''),
-        metadata: log.success === false ? { success: false } : null,
-        created_at: log.created_at,
-      }));
-
-      const merged = [...tenantRows, ...secRows].sort(
-        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
-      );
-
-      setRows(merged);
+      setRows(Array.isArray(tenantData) ? tenantData : []);
     } catch (error: any) {
       showToast(error?.message || 'Failed to load audit history', 'error');
     } finally {

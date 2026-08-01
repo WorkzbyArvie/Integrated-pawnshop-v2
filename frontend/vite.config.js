@@ -63,11 +63,6 @@ export default defineConfig({
         changeOrigin: true,
         secure: false
       },
-      '/compliance': {
-        target: 'http://localhost:3000',
-        changeOrigin: true,
-        secure: false
-      },
       '/notifications': {
         target: 'http://localhost:3000',
         changeOrigin: true,

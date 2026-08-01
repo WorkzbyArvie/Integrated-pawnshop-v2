@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabaseClient';
+import { getSiteUrl } from '../../lib/backendUrl';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Loader2, Lock, Mail, AlertTriangle, ChevronLeft } from "lucide-react";
 
@@ -154,7 +155,7 @@ export default function Login() {
     setSuccessMessage(null);
 
     try {
-      const redirectTo = `${window.location.origin}/reset-password?type=recovery`;
+      const redirectTo = `${getSiteUrl()}/reset-password?type=recovery`;
       const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, { redirectTo });
 
       if (resetError) {

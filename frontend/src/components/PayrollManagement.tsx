@@ -347,7 +347,7 @@ export function PayrollManagement({ branchId: _branchId, activeBranchId }: Payro
       } = await supabase.auth.getSession();
 
       await api.post(`/payroll/payslips/${payslipId}/approve`, {
-        approvedBy: session?.user?.id || localStorage.getItem('user_id') || undefined,
+        approvedBy: session?.user?.id || undefined,
       });
       showToast('Payslip approved', 'success');
       refetchAll();
@@ -374,7 +374,7 @@ export function PayrollManagement({ branchId: _branchId, activeBranchId }: Payro
       } = await supabase.auth.getSession();
 
       await api.post(`/payroll/payslips/${payslipId}/reject`, {
-        rejectedBy: session?.user?.id || localStorage.getItem('user_id') || 'system',
+        rejectedBy: session?.user?.id || 'system',
       });
       showToast('Payslip rejected', 'success');
       refetchAll();

@@ -7,13 +7,13 @@ import {
   LogOut,
   ShieldCheck,
   Banknote,
-  Building2,
   Settings,
   RotateCcw,
   Wallet,
   UserSquare2,
   Gavel,
   BrainCircuit,
+  GitBranch,
 } from 'lucide-react';
 
 type Role = string;
@@ -34,7 +34,7 @@ interface NavItem {
 
 const allNavItems: NavItem[] = [
   { id: 'dashboard',     label: 'Dashboard',        icon: LayoutDashboard, roles: ['ADMIN', 'STAFF', 'OWNER', 'MANAGER'] },
-  { id: 'branches',      label: 'Platform Control', icon: Building2,       roles: ['SUPER_ADMIN'] },
+  { id: 'branches',      label: 'Tenant Branches', icon: GitBranch,       roles: ['SUPER_ADMIN'] },
   { id: 'system',        label: 'System Control',   icon: Settings,        roles: ['SUPER_ADMIN'] },
   { id: 'loans',         label: 'Loan Management',  icon: Banknote,        roles: ['ADMIN', 'STAFF', 'OWNER', 'MANAGER'] },
   { id: 'customers',     label: 'Customers',        icon: Users,           roles: ['ADMIN', 'STAFF', 'OWNER', 'MANAGER'] },
