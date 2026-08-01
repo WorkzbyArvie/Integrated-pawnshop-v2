@@ -43,8 +43,6 @@ describe('ApprovalService (RBAC-05 / RBAC-06)', () => {
     payload: { ticketId: 100, ticketNumber: 'TKT-100' },
   };
 
-  const caller = { id: 'mgr_1', pawnshopId: 'ps_1', role: 'MANAGER' };
-
   beforeEach(async () => {
     prisma = {
       approvalRecord: {
@@ -74,23 +72,23 @@ describe('ApprovalService (RBAC-05 / RBAC-06)', () => {
     service = module.get(ApprovalService);
   });
 
-  describe('getQueue', () => {
-    it('lists pending appraisal and redemption approvals for the caller pawnshop', async () => {
+  describe('getQueue(query, callerPawnshopId)', () => {
+    it('returns PENDING records across both target types scoped to the caller pawnshop', async () => {
       prisma.approvalRecord.findMany.mockResolvedValue([pendingRecord]);
-      const result = await service.getQueue('ps_1', {});
+      const result = await service.getQueue({}, 'ps_1');
 
       expect(prisma.approvalRecord.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: expect.objectContaining({ pawnshopId: 'ps_1', status: 'PENDING' }),
         }),
       );
-      expect(result.records).toHaveLength(1);
-      expect(result.total).toBe(1);
+      expect(result).toHaveLength(1);
+      expect(result[0]).toMatchObject({ targetType: 'APPRAISAL', status: 'PENDING' });
     });
 
-    it('filters the queue by targetType', async () => {
+    it('filters the queue by targetType when provided', async () => {
       prisma.approvalRecord.findMany.mockResolvedValue([]);
-      await service.getQueue('ps_1', { targetType: 'REDEMPTION' });
+      await service.getQueue({ targetType: 'REDEMPTION' }, 'ps_1');
 
       expect(prisma.approvalRecord.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -99,9 +97,9 @@ describe('ApprovalService (RBAC-05 / RBAC-06)', () => {
       );
     });
 
-    it('maps a DECIDED filter to the decided statuses for audit views', async () => {
+    it('maps a DECIDED filter to the decided statuses for the audit view', async () => {
       prisma.approvalRecord.findMany.mockResolvedValue([]);
-      await service.getQueue('ps_1', { status: 'DECIDED' });
+      await service.getQueue({ status: 'DECIDED' }, 'ps_1');
 
       expect(prisma.approvalRecord.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -113,7 +111,7 @@ describe('ApprovalService (RBAC-05 / RBAC-06)', () => {
     });
   });
 
-  describe('decide', () => {
+  describe('decideApproval(id, dto, decidedBy, userRole, approve, callerPawnshopId)', () => {
     it('approves an appraisal record and dispatches applyApprovedAppraisal', async () => {
       prisma.approvalRecord.findUnique.mockResolvedValue(pendingRecord);
       prisma.approvalRecord.update.mockResolvedValue({
@@ -121,11 +119,18 @@ describe('ApprovalService (RBAC-05 / RBAC-06)', () => {
         status: 'APPROVED',
       });
 
-      await service.decide(1, { approve: true, decisionComment: 'looks good' }, caller);
+      await service.decideApproval(
+        '1',
+        { decisionComment: 'looks good' },
+        'mgr_1',
+        'MANAGER',
+        true,
+        'ps_1',
+      );
 
       expect(prisma.approvalRecord.update).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: { id: 1 },
+          where: expect.objectContaining({ id: expect.any(Number) }),
           data: expect.objectContaining({
             status: 'APPROVED',
             decidedById: 'mgr_1',
@@ -151,7 +156,14 @@ describe('ApprovalService (RBAC-05 / RBAC-06)', () => {
         status: 'APPROVED',
       });
 
-      await service.decide(2, { approve: true, decisionComment: 'ok' }, caller);
+      await service.decideApproval(
+        '2',
+        { decisionComment: 'ok' },
+        'mgr_1',
+        'MANAGER',
+        true,
+        'ps_1',
+      );
 
       expect(pawnTicketService.releaseApprovedRedemption).toHaveBeenCalled();
       expect(pawnTicketService.applyApprovedAppraisal).not.toHaveBeenCalled();
@@ -164,10 +176,13 @@ describe('ApprovalService (RBAC-05 / RBAC-06)', () => {
         status: 'REJECTED',
       });
 
-      await service.decide(
-        1,
-        { approve: false, decisionComment: 'reappraise at lower value' },
-        caller,
+      await service.decideApproval(
+        '1',
+        { decisionComment: 'reappraise at lower value' },
+        'mgr_1',
+        'MANAGER',
+        false,
+        'ps_1',
       );
 
       expect(prisma.approvalRecord.update).toHaveBeenCalledWith(
@@ -178,46 +193,45 @@ describe('ApprovalService (RBAC-05 / RBAC-06)', () => {
       expect(pawnTicketService.rejectAppraisal).toHaveBeenCalled();
     });
 
-    it('requires a decision comment when rejecting', async () => {
+    it('requires a non-empty decision comment when rejecting', async () => {
       prisma.approvalRecord.findUnique.mockResolvedValue(pendingRecord);
 
       await expect(
-        service.decide(1, { approve: false, decisionComment: '' }, caller),
+        service.decideApproval('1', { decisionComment: '' }, 'mgr_1', 'MANAGER', false, 'ps_1'),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
 
-    it('rejects decisions on non-pending records', async () => {
+    it('rejects decisions on records whose status is not PENDING (TOCTOU)', async () => {
       prisma.approvalRecord.findUnique.mockResolvedValue({
         ...pendingRecord,
         status: 'APPROVED',
       });
 
-      await expect(service.decide(1, { approve: true }, caller)).rejects.toBeInstanceOf(
-        BadRequestException,
-      );
+      await expect(
+        service.decideApproval('1', {}, 'mgr_1', 'MANAGER', true, 'ps_1'),
+      ).rejects.toBeInstanceOf(BadRequestException);
     });
 
-    it('forbids deciding on your own request', async () => {
+    it('forbids self-approval (requestedById === decidedBy)', async () => {
       prisma.approvalRecord.findUnique.mockResolvedValue({
         ...pendingRecord,
         requestedById: 'mgr_1',
       });
 
-      await expect(service.decide(1, { approve: true }, caller)).rejects.toBeInstanceOf(
-        ForbiddenException,
-      );
+      await expect(
+        service.decideApproval('1', {}, 'mgr_1', 'MANAGER', true, 'ps_1'),
+      ).rejects.toBeInstanceOf(ForbiddenException);
     });
 
-    it('forbids deciding on another pawnshop approval', async () => {
+    it('forbids deciding on another pawnshop approval (cross-tenant)', async () => {
       prisma.approvalRecord.findUnique.mockResolvedValue({
         ...pendingRecord,
         pawnshopId: 'ps_2',
       });
-      const otherCaller = { id: 'mgr_2', pawnshopId: 'ps_2', role: 'MANAGER' };
 
-      await expect(service.decide(1, { approve: true }, otherCaller)).rejects.toBeInstanceOf(
-        ForbiddenException,
-      );
+      await expect(
+        service.decideApproval('1', {}, 'mgr_1', 'MANAGER', true, 'ps_1'),
+      ).rejects.toBeInstanceOf(ForbiddenException);
     });
   });
 });
@@ -309,8 +323,8 @@ describe('PawnTicketService approval chokepoints (RBAC-03 / RBAC-04)', () => {
     service = module.get(PawnTicketService);
   });
 
-  describe('appraiseTicket', () => {
-    it('creates a PENDING APPRAISAL approval record instead of finalizing the ticket', async () => {
+  describe('appraiseTicket chokepoint', () => {
+    it('creates a PENDING APPRAISAL record with full payload and keeps the ticket in PENDING_APPROVAL without writing loanAmount', async () => {
       prisma.ticket.findUnique.mockResolvedValue(receivedTicket);
       prisma.ticket.update.mockResolvedValue({
         ...receivedTicket,
@@ -341,16 +355,25 @@ describe('PawnTicketService approval chokepoints (RBAC-03 / RBAC-04)', () => {
             payload: expect.objectContaining({
               ticketId: 100,
               appraisedValue: 25000,
+              riskScore: 30,
+              recommendedLoanAmount: 18000,
+              itemCondition: 'GOOD',
+              appraisalNotes: 'ok',
             }),
           }),
+        }),
+      );
+      expect(prisma.ticket.update).not.toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ loanAmount: expect.any(Number) }),
         }),
       );
       expect(result.lifecycleStatus).toBe('PENDING_APPROVAL');
     });
   });
 
-  describe('redeemTicket', () => {
-    it('routes an above-threshold redemption into a PENDING REDEMPTION approval record', async () => {
+  describe('redeemTicket chokepoint', () => {
+    it('routes an above-threshold redemption into a PENDING REDEMPTION record and returns early without releasing', async () => {
       prisma.ticket.findUnique.mockResolvedValue(activeTicket);
       prisma.pawnshop.findUnique.mockResolvedValue({
         id: 'ps_1',

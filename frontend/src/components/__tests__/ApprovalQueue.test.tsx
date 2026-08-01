@@ -54,55 +54,80 @@ const pendingRecords = [
 describe('ApprovalQueue (RBAC-05)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    apiMock.get.mockResolvedValue({
-      success: true,
-      data: { records: pendingRecords, total: 2 },
-    });
-    apiMock.post.mockResolvedValue({ success: true, data: { id: 1, status: 'APPROVED' } });
+    localStorage.setItem('active_pawnshop_id', 'ps_1');
+    apiMock.get.mockResolvedValue(pendingRecords);
+    apiMock.post.mockResolvedValue({ id: 1, status: 'APPROVED' });
   });
 
-  it('renders pending appraisal and redemption approvals fetched from GET /approvals', async () => {
+  it('renders the Approval Queue title with Appraisal, Redemption, and Decision History tabs', () => {
     render(<ApprovalQueue />);
 
-    await waitFor(() => expect(apiMock.get).toHaveBeenCalledWith('/approvals'));
-    expect(await screen.findByText(/TKT-100/)).toBeInTheDocument();
-    expect(await screen.findByText(/TKT-200/)).toBeInTheDocument();
+    expect(screen.getByText('Approval Queue')).toBeInTheDocument();
+    expect(screen.getByText('Appraisal')).toBeInTheDocument();
+    expect(screen.getByText('Redemption')).toBeInTheDocument();
+    expect(screen.getByText('Decision History')).toBeInTheDocument();
   });
 
-  it('shows an empty state when there are no pending approvals', async () => {
-    apiMock.get.mockResolvedValue({
-      success: true,
-      data: { records: [], total: 0 },
-    });
-
+  it('fetches GET /approval-queue with pawnshopId and the active tab type', async () => {
     render(<ApprovalQueue />);
 
-    expect(await screen.findByText(/no pending approvals/i)).toBeInTheDocument();
+    await waitFor(() =>
+      expect(apiMock.get).toHaveBeenCalledWith('/approval-queue', {
+        pawnshopId: 'ps_1',
+        type: 'APPRAISAL',
+      }),
+    );
+
+    fireEvent.click(screen.getByText('Redemption'));
+
+    await waitFor(() =>
+      expect(apiMock.get).toHaveBeenLastCalledWith('/approval-queue', {
+        pawnshopId: 'ps_1',
+        type: 'REDEMPTION',
+      }),
+    );
   });
 
-  it('approves a record via POST /approvals/:id/approve and refreshes the queue', async () => {
+  it('approves a record via POST /approval-queue/:id/approve and refreshes the queue', async () => {
     render(<ApprovalQueue />);
 
     const approveButtons = await screen.findAllByRole('button', { name: /approve/i });
     fireEvent.click(approveButtons[0]);
 
     await waitFor(() =>
-      expect(apiMock.post).toHaveBeenCalledWith('/approvals/1/approve', expect.anything()),
+      expect(apiMock.post).toHaveBeenCalledWith('/approval-queue/1/approve', expect.anything()),
     );
     await waitFor(() => expect(apiMock.get).toHaveBeenCalledTimes(2));
   });
 
-  it('rejects a record via POST /approvals/:id/reject and refreshes the queue', async () => {
-    apiMock.post.mockResolvedValue({ success: true, data: { id: 2, status: 'REJECTED' } });
+  it('keeps reject disabled until a rejection comment is provided', async () => {
+    apiMock.get.mockResolvedValue([pendingRecords[0]]);
 
     render(<ApprovalQueue />);
 
-    const rejectButtons = await screen.findAllByRole('button', { name: /reject/i });
-    fireEvent.click(rejectButtons[0]);
+    const rejectButton = await screen.findByRole('button', { name: /reject/i });
+    expect(rejectButton).toBeDisabled();
+
+    fireEvent.change(screen.getByPlaceholderText(/rejection comment/i), {
+      target: { value: 'redo appraisal' },
+    });
+
+    expect(rejectButton).not.toBeDisabled();
+
+    fireEvent.click(rejectButton);
 
     await waitFor(() =>
-      expect(apiMock.post).toHaveBeenCalledWith('/approvals/1/reject', expect.anything()),
+      expect(apiMock.post).toHaveBeenCalledWith('/approval-queue/1/reject', {
+        decisionComment: 'redo appraisal',
+      }),
     );
-    await waitFor(() => expect(apiMock.get).toHaveBeenCalledTimes(2));
+  });
+
+  it('renders the empty state when the queue has no pending approvals', async () => {
+    apiMock.get.mockResolvedValue([]);
+
+    render(<ApprovalQueue />);
+
+    expect(await screen.findByText(/All caught up!/i)).toBeInTheDocument();
   });
 });

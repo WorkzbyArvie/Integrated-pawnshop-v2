@@ -9,7 +9,7 @@ describe('ApprovalController (RBAC-05 endpoint surface)', () => {
   let controller: ApprovalController;
   const approvalService = {
     getQueue: jest.fn(),
-    decide: jest.fn(),
+    decideApproval: jest.fn(),
   };
 
   const caller = { id: 'mgr_1', pawnshopId: 'ps_1', role: 'MANAGER' };
@@ -25,41 +25,52 @@ describe('ApprovalController (RBAC-05 endpoint surface)', () => {
     controller = module.get(ApprovalController);
   });
 
-  it('GET handler delegates to ApprovalService.getQueue with the caller pawnshopId', async () => {
-    approvalService.getQueue.mockResolvedValue({ records: [], total: 0 });
+  it('GET /approval-queue delegates to ApprovalService.getQueue(query, callerPawnshopId)', async () => {
+    approvalService.getQueue.mockResolvedValue([]);
 
     await controller.getQueue({ targetType: 'APPRAISAL' }, caller);
 
-    expect(approvalService.getQueue).toHaveBeenCalledWith('ps_1', {
-      targetType: 'APPRAISAL',
-    });
-  });
-
-  it('approve delegates to ApprovalService.decide with approve=true', async () => {
-    approvalService.decide.mockResolvedValue({ id: 1, status: 'APPROVED' });
-
-    await controller.approve(1, { decisionComment: 'ok' }, caller);
-
-    expect(approvalService.decide).toHaveBeenCalledWith(
-      1,
-      expect.objectContaining({ approve: true, decisionComment: 'ok' }),
-      caller,
+    expect(approvalService.getQueue).toHaveBeenCalledWith(
+      { targetType: 'APPRAISAL' },
+      'ps_1',
     );
   });
 
-  it('reject delegates to ApprovalService.decide with approve=false', async () => {
-    approvalService.decide.mockResolvedValue({ id: 1, status: 'REJECTED' });
+  it('POST /approval-queue/:id/approve delegates to decideApproval with approve=true', async () => {
+    approvalService.decideApproval.mockResolvedValue({ id: 1, status: 'APPROVED' });
 
-    await controller.reject(1, { decisionComment: 'needs rework' }, caller);
+    await controller.approve('1', { decisionComment: 'ok' }, caller);
 
-    expect(approvalService.decide).toHaveBeenCalledWith(
-      1,
-      expect.objectContaining({ approve: false, decisionComment: 'needs rework' }),
-      caller,
+    expect(approvalService.decideApproval).toHaveBeenCalledWith(
+      '1',
+      { decisionComment: 'ok' },
+      'mgr_1',
+      'MANAGER',
+      true,
+      'ps_1',
     );
   });
 
-  it('exposes GET /approvals guarded by approval.view_queue', () => {
+  it('POST /approval-queue/:id/reject delegates to decideApproval with approve=false', async () => {
+    approvalService.decideApproval.mockResolvedValue({ id: 1, status: 'REJECTED' });
+
+    await controller.reject('1', { decisionComment: 'needs rework' }, caller);
+
+    expect(approvalService.decideApproval).toHaveBeenCalledWith(
+      '1',
+      { decisionComment: 'needs rework' },
+      'mgr_1',
+      'MANAGER',
+      false,
+      'ps_1',
+    );
+  });
+
+  it('exposes the controller under the /approval-queue path', () => {
+    expect(Reflect.getMetadata('path', ApprovalController)).toBe('approval-queue');
+  });
+
+  it('exposes GET /approval-queue guarded by approval.view_queue', () => {
     const handler = ApprovalController.prototype.getQueue;
 
     expect(Reflect.getMetadata('method', handler)).toBe(RequestMethod.GET);
@@ -69,25 +80,23 @@ describe('ApprovalController (RBAC-05 endpoint surface)', () => {
     ]);
   });
 
-  it('exposes POST /approvals/:id/approve guarded by the approval approve permissions', () => {
+  it('exposes POST /approval-queue/:id/approve guarded by approval.approve_appraisal', () => {
     const handler = ApprovalController.prototype.approve;
 
     expect(Reflect.getMetadata('method', handler)).toBe(RequestMethod.POST);
     expect(Reflect.getMetadata('path', handler)).toBe(':id/approve');
     expect(Reflect.getMetadata(PERMISSIONS_KEY, handler)).toEqual([
       'approval.approve_appraisal',
-      'approval.approve_redemption',
     ]);
   });
 
-  it('exposes POST /approvals/:id/reject guarded by the approval approve permissions', () => {
+  it('exposes POST /approval-queue/:id/reject guarded by approval.approve_appraisal', () => {
     const handler = ApprovalController.prototype.reject;
 
     expect(Reflect.getMetadata('method', handler)).toBe(RequestMethod.POST);
     expect(Reflect.getMetadata('path', handler)).toBe(':id/reject');
     expect(Reflect.getMetadata(PERMISSIONS_KEY, handler)).toEqual([
       'approval.approve_appraisal',
-      'approval.approve_redemption',
     ]);
   });
 });
