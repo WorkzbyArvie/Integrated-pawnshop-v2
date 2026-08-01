@@ -58,8 +58,9 @@ export class AuctionService {
     try {
       await this.prisma.$executeRaw`
         INSERT INTO public.tenant_audit_logs
-        (pawnshop_id, actor_user_id, action, metadata)
+        (id, pawnshop_id, actor_user_id, action, metadata)
         VALUES (
+          gen_random_uuid(),
           ${params.pawnshopId}::uuid,
           ${params.actorUserId}::uuid,
           ${params.action},
@@ -806,25 +807,12 @@ export class AuctionService {
     }
 
     // Require KYC verification for bidders.
-    // Auto-approval mode: treat legacy pending rows as verified.
     let kyc: { status: string } | null = null;
     try {
       kyc = await this.prisma.bidderKyc.findUnique({
         where: { profileId: actorId },
         select: { status: true },
       });
-
-      if (kyc?.status === 'PENDING') {
-        await this.prisma.bidderKyc.update({
-          where: { profileId: actorId },
-          data: {
-            status: 'VERIFIED',
-            reviewedAt: new Date(),
-            rejectionReason: null,
-          },
-        });
-        kyc = { status: 'VERIFIED' };
-      }
     } catch (error: any) {
       this.logger.error(`Failed KYC lookup for bidder ${actorId}: ${error?.message || error}`);
       throw new BadRequestException(
@@ -836,7 +824,9 @@ export class AuctionService {
       const statusMsg =
         !kyc || kyc.status === 'NOT_SUBMITTED'
           ? 'You must complete ID verification (KYC) before placing bids.'
-          : 'Your ID verification was rejected. Please re-submit with valid documents.';
+          : kyc.status === 'PENDING'
+            ? 'Your ID verification is under review. Please wait for admin approval before placing bids.'
+            : 'Your ID verification was rejected. Please re-submit with valid documents.';
       throw new ForbiddenException(statusMsg);
     }
 
@@ -1060,17 +1050,39 @@ export class AuctionService {
 
   async acceptBidderTos(
     actorId: string,
-    listingId: number,
+    listingId?: number,
     ipAddress?: string,
     userAgent?: string,
   ) {
-    const listing = await this.prisma.auctionListing.findUnique({
-      where: { id: listingId },
-      select: { pawnshopId: true },
-    });
+    let pawnshopId: string | null = null;
 
-    if (!listing) {
-      throw new NotFoundException('Auction listing not found');
+    if (listingId && listingId > 0) {
+      const listing = await this.prisma.auctionListing.findUnique({
+        where: { id: listingId },
+        select: { pawnshopId: true },
+      });
+      pawnshopId = listing?.pawnshopId ?? null;
+    }
+
+    if (!pawnshopId) {
+      const profile = await this.prisma.profile.findUnique({
+        where: { id: actorId },
+        select: { pawnshopId: true },
+      });
+      pawnshopId = profile?.pawnshopId ?? null;
+    }
+
+    if (!pawnshopId) {
+      const anyListing = await this.prisma.auctionListing.findFirst({
+        where: { status: 'LIVE' },
+        select: { pawnshopId: true },
+        orderBy: { id: 'desc' },
+      });
+      pawnshopId = anyListing?.pawnshopId ?? null;
+    }
+
+    if (!pawnshopId) {
+      throw new BadRequestException('Unable to determine pawnshop for TOS acceptance');
     }
 
     const templates = await this.contractTemplateService.listTemplates('AUCTION_BIDDER_AGREEMENT');
@@ -1079,7 +1091,7 @@ export class AuctionService {
 
     return this.tosService.acceptTOS({
       profileId: actorId,
-      pawnshopId: listing.pawnshopId,
+      pawnshopId,
       contractType: 'AUCTION_BIDDER_AGREEMENT',
       tosVersion,
       ipAddress,
@@ -1526,7 +1538,115 @@ export class AuctionService {
       status: w.status,
       createdAt: w.createdAt,
       compliedAt: w.compliedAt,
+      complianceDeadline: w.complianceDeadline,
       paymentReference: w.paymentReference,
+      contractSignedAt: w.contractSignedAt,
+      signedName: w.signedName,
     }));
+  }
+
+  async listSettlements(
+    pawnshopId: string,
+    status?: string,
+    limit = 20,
+    offset = 0,
+  ) {
+    const where: any = { pawnshopId };
+    if (status) where.status = status;
+
+    const [data, total] = await Promise.all([
+      this.prisma.auctionWinnerCompliance.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        take: limit,
+        skip: offset,
+        include: {
+          listing: {
+            select: { id: true, title: true, status: true, endAt: true },
+          },
+        },
+      }),
+      this.prisma.auctionWinnerCompliance.count({ where }),
+    ]);
+
+    return { data, total, limit, offset };
+  }
+
+  async releaseCompliance(id: string, releasedBy: string, notes?: string) {
+    const compliance = await this.prisma.auctionWinnerCompliance.findUnique({
+      where: { id },
+    });
+    if (!compliance) throw new NotFoundException('Compliance record not found');
+
+    if (!['COMPLIED', 'READY_FOR_RELEASE'].includes(compliance.status)) {
+      throw new BadRequestException(
+        `Cannot release item with status ${compliance.status}. Must be COMPLIED or READY_FOR_RELEASE.`,
+      );
+    }
+
+    return this.prisma.auctionWinnerCompliance.update({
+      where: { id },
+      data: {
+        status: 'RELEASED',
+        releasedAt: new Date(),
+        releasedBy,
+        releaseNotes: notes || null,
+      },
+    });
+  }
+
+  async manualSettle(dto: {
+    listingId: number;
+    winnerId: string;
+    winnerFullName: string;
+    winnerPhone: string;
+    winningBid: number;
+  }) {
+    const listing = await this.prisma.auctionListing.findUnique({
+      where: { id: dto.listingId },
+    });
+    if (!listing) throw new NotFoundException('Listing not found');
+
+    const existing = await this.prisma.auctionWinnerCompliance.findUnique({
+      where: { listingId: dto.listingId },
+    });
+    if (existing) {
+      throw new ConflictException('Listing already has a compliance record');
+    }
+
+    const deadline = new Date();
+    deadline.setDate(deadline.getDate() + 3);
+
+    return this.prisma.auctionWinnerCompliance.create({
+      data: {
+        listingId: dto.listingId,
+        winnerId: dto.winnerId,
+        pawnshopId: listing.pawnshopId,
+        winningBid: dto.winningBid,
+        status: 'PENDING_COMPLIANCE',
+        complianceDeadline: deadline,
+        winnerFullName: dto.winnerFullName,
+        winnerPhone: dto.winnerPhone,
+      },
+    });
+  }
+
+  async signContract(id: string, signedName: string) {
+    const compliance = await this.prisma.auctionWinnerCompliance.findUnique({
+      where: { id },
+    });
+    if (!compliance) throw new NotFoundException('Compliance record not found');
+
+    if (compliance.contractSignedAt) {
+      throw new BadRequestException('Contract already signed');
+    }
+
+    return this.prisma.auctionWinnerCompliance.update({
+      where: { id },
+      data: {
+        contractSignedAt: new Date(),
+        signedName,
+      },
+    });
   }
 }

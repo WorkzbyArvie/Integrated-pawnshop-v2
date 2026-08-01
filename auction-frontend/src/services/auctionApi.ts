@@ -200,7 +200,10 @@ export interface MyWinningItem {
   status: string;
   createdAt: string;
   compliedAt: string | null;
+  complianceDeadline: string;
   paymentReference: string | null;
+  contractSignedAt: string | null;
+  signedName: string | null;
 }
 
 export async function fetchMyWinnings(accessToken: string): Promise<MyWinningItem[]> {
@@ -238,6 +241,27 @@ export async function createPaymentCheckout(
 
   const json = await response.json();
   return json?.data ?? json;
+}
+
+export async function signContract(
+  complianceId: string,
+  signedName: string,
+  accessToken: string,
+): Promise<void> {
+  const response = await fetch(`${backendUrl}/auction/settlements/${complianceId}/sign-contract`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: JSON.stringify({ signedName }),
+  });
+
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    throw new Error(data.message || 'Failed to sign contract');
+  }
 }
 
 export async function simulatePaymentWebhook(

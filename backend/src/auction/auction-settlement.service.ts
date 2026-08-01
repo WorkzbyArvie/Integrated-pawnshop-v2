@@ -3,7 +3,9 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../prisma.service';
 import { AuctionStatus, ComplianceStatus } from '@prisma/client';
 import { ContractTemplateService } from '../contract/contract-template.service';
-import { createHash, randomUUID } from 'crypto';
+import { LegalProofService } from '../loan/legal-proof.service';
+import { ReceiptService } from '../receipt/receipt.service';
+import { randomUUID } from 'crypto';
 
 @Injectable()
 export class AuctionSettlementService {
@@ -12,12 +14,10 @@ export class AuctionSettlementService {
   constructor(
     private prisma: PrismaService,
     private contractTemplateService: ContractTemplateService,
+    private legalProofService: LegalProofService,
+    private receiptService: ReceiptService,
   ) {}
 
-  /**
-   * Check for ended auctions and settle them
-   * Runs every minute to ensure timely processing
-   */
   @Cron(CronExpression.EVERY_MINUTE)
   async settleEndedAuctions(): Promise<void> {
     if (!(await this.prisma.ensureConnected('auction settlement cron'))) {
@@ -27,7 +27,6 @@ export class AuctionSettlementService {
     try {
       const now = new Date();
 
-      // Find all LIVE auctions that have passed their end time
       const endedAuctions = await this.prisma.auctionListing.findMany({
         where: {
           status: AuctionStatus.LIVE,
@@ -43,6 +42,7 @@ export class AuctionSettlementService {
             take: 1,
           },
           ticket: true,
+          pawnshop: true,
         },
       });
 
@@ -63,9 +63,6 @@ export class AuctionSettlementService {
     }
   }
 
-  /**
-   * Settle a single auction
-   */
   private async settleAuction(auction: any): Promise<void> {
     try {
       const hasWinner =
@@ -75,13 +72,11 @@ export class AuctionSettlementService {
       if (hasWinner) {
         const winningBid = auction.bids[0];
 
-        // Update auction status to ENDED
         await this.prisma.auctionListing.update({
           where: { id: auction.id },
           data: { status: AuctionStatus.ENDED },
         });
 
-        // Get winner profile information
         const winnerProfile = await this.prisma.profile.findUnique({
           where: { id: winningBid.bidderId },
           include: {
@@ -89,9 +84,8 @@ export class AuctionSettlementService {
           },
         });
 
-        // Create winner compliance record with deadline
         const complianceDeadline = new Date();
-        complianceDeadline.setHours(complianceDeadline.getHours() + 48); // 48-hour default
+        complianceDeadline.setHours(complianceDeadline.getHours() + 48);
 
         await this.prisma.auctionWinnerCompliance.create({
           data: {
@@ -107,7 +101,7 @@ export class AuctionSettlementService {
             winnerEmail: winnerProfile?.email,
             winnerPhone: winnerProfile?.kyc?.phoneNumber || '',
             winnerAddress: winnerProfile?.kyc?.address,
-            consentAcceptedAt: new Date(), // Assume consent was part of bidding T&C
+            consentAcceptedAt: new Date(),
           },
         });
 
@@ -117,11 +111,51 @@ export class AuctionSettlementService {
           winnerProfile,
         );
 
+        if (auction.pawnshopId) {
+          try {
+            await this.receiptService.generateReceipt({
+              pawnshopId: auction.pawnshopId,
+              receiptType: 'AUCTION_SALE',
+              referenceType: 'AUCTION',
+              referenceId: String(auction.id),
+              amount: winningBid.amount,
+              customerName: winnerProfile?.kyc?.fullName || winnerProfile?.fullName || 'Winner',
+              lineItems: [
+                { description: `Auction Sale — ${auction.title}`, amount: winningBid.amount },
+              ],
+              generatedBy: 'system',
+            });
+          } catch (receiptErr) {
+            this.logger.warn(`Failed to generate seller receipt for auction ${auction.id}: ${(receiptErr as Error).message}`);
+          }
+
+          try {
+            await this.legalProofService.createProof({
+              pawnshopId: auction.pawnshopId,
+              recordType: 'AUCTION_SELLER_PROOF',
+              title: `Auction sold: ${auction.title}`,
+              summary: `Auction ${auction.id} won by ${winnerProfile?.kyc?.fullName || 'bidder'} for ₱${winningBid.amount.toFixed(2)}.`,
+              createdBy: winningBid.bidderId,
+              auctionListingId: auction.id,
+              ticketId: auction.ticketId,
+              payload: {
+                auctionId: auction.id,
+                ticketId: auction.ticketId,
+                winnerId: winningBid.bidderId,
+                winningBid: winningBid.amount,
+                listingTitle: auction.title,
+                reservePrice: auction.reservePrice,
+              },
+            });
+          } catch (proofErr) {
+            this.logger.warn(`Failed to generate seller proof for auction ${auction.id}: ${(proofErr as Error).message}`);
+          }
+        }
+
         this.logger.log(
           `Auction ${auction.id} settled - Winner: ${winningBid.bidderId}, Amount: ${winningBid.amount}`,
         );
       } else {
-        // No winner or reserve not met - return to unpublished queue
         await this.prisma.auctionListing.update({
           where: { id: auction.id },
           data: {
@@ -129,13 +163,54 @@ export class AuctionSettlementService {
           },
         });
 
-        // Mark ticket as available for re-auction
         await this.prisma.ticket.update({
           where: { id: auction.ticketId },
           data: {
-            status: 'FORFEITED', // Back to available for auction
+            status: 'FORFEITED',
           },
         });
+
+        if (auction.pawnshopId) {
+          try {
+            await this.legalProofService.createProof({
+              pawnshopId: auction.pawnshopId,
+              recordType: 'AUCTION_UNSOLD_PROOF',
+              title: `Auction unsold: ${auction.title}`,
+              summary: `Auction ${auction.id} ended without a qualifying bid. Reserve price: ₱${(auction.reservePrice || 0).toFixed(2)}.`,
+              createdBy: 'system',
+              auctionListingId: auction.id,
+              ticketId: auction.ticketId,
+              payload: {
+                auctionId: auction.id,
+                ticketId: auction.ticketId,
+                listingTitle: auction.title,
+                reservePrice: auction.reservePrice,
+                highestBid: auction.bids.length > 0 ? auction.bids[0].amount : 0,
+                totalBids: auction.bids.length,
+              },
+            });
+          } catch (proofErr) {
+            this.logger.warn(`Failed to create auction unsold proof for auction ${auction.id}: ${(proofErr as Error).message}`);
+          }
+
+          try {
+            await this.receiptService.generateReceipt({
+              pawnshopId: auction.pawnshopId,
+              receiptType: 'AUCTION_UNSOLD' as any,
+              referenceType: 'AUCTION',
+              referenceId: String(auction.id),
+              amount: 0,
+              customerName: 'N/A',
+              lineItems: [
+                { description: `Auction Unsold — ${auction.title}`, amount: 0 },
+                { description: `Reserve Price Not Met`, amount: auction.reservePrice || 0 },
+              ],
+              generatedBy: 'system',
+            });
+          } catch (receiptErr) {
+            this.logger.warn(`Failed to create auction unsold receipt for auction ${auction.id}: ${(receiptErr as Error).message}`);
+          }
+        }
 
         this.logger.log(
           `Auction ${auction.id} ended without winner - Ticket returned to queue`,
@@ -171,28 +246,14 @@ export class AuctionSettlementService {
         wonAt: new Date().toISOString(),
       };
 
-      const payload = {
+      await this.legalProofService.createProof({
+        pawnshopId: auction.pawnshopId,
         recordType: 'BIDDER_AGREEMENT_PROOF',
         title: `Won Auction Contract - ${auction.title}`,
         summary: `Contract for won auction ${auction.id} - Winner: ${winningBid.bidderId}, Amount: ${winningBid.amount}`,
-        payload: contractData,
         createdBy: winningBid.bidderId,
-        pawnshopId: auction.pawnshopId,
         auctionListingId: auction.id,
-      };
-
-      await this.prisma.legalProof.create({
-        data: {
-          proofNumber: `PROOF-${Date.now().toString(36).toUpperCase()}-${randomUUID().slice(0, 8).toUpperCase()}`,
-          pawnshopId: payload.pawnshopId,
-          recordType: payload.recordType as any,
-          title: payload.title,
-          summary: payload.summary,
-          payload: payload.payload as any,
-          sourceHash: createHash('sha256').update(JSON.stringify(payload.payload)).digest('hex'),
-          createdBy: payload.createdBy,
-          auctionListingId: payload.auctionListingId,
-        },
+        payload: contractData,
       });
 
       this.logger.log(`Won-auction contract generated for auction ${auction.id}`);
@@ -201,10 +262,6 @@ export class AuctionSettlementService {
     }
   }
 
-  /**
-   * Check for expired compliance deadlines
-   * Runs every hour
-   */
   @Cron(CronExpression.EVERY_HOUR)
   async checkExpiredCompliances(): Promise<void> {
     if (!(await this.prisma.ensureConnected('expired compliance cron'))) {
@@ -228,7 +285,7 @@ export class AuctionSettlementService {
                 ticket: true,
                 bids: {
                   orderBy: { amount: 'desc' },
-                  take: 2, // Get top 2 bids in case we want to offer to second bidder
+                  take: 2,
                 },
               },
             },
@@ -249,7 +306,6 @@ export class AuctionSettlementService {
         );
 
         if (!nextBidder) {
-          // No fallback bidders left -> mark expired and requeue
           await this.prisma.auctionWinnerCompliance.update({
             where: { id: compliance.id },
             data: {
@@ -336,9 +392,6 @@ export class AuctionSettlementService {
         this.logger.log(
           `Compliance ${compliance.id} moved automatically from ${compliance.winnerId} to next bidder ${nextBidder.bidderId}`,
         );
-
-        // TODO: Send expiry notification to winner
-        // TODO: Send notification to pawnshop
       }
     } catch (error: any) {
       this.logger.error(
@@ -380,9 +433,6 @@ export class AuctionSettlementService {
     return attempted;
   }
 
-  /**
-   * Manually settle an auction (admin override)
-   */
   async manualSettle(
     auctionId: number,
     winnerId: string,
@@ -401,13 +451,11 @@ export class AuctionSettlementService {
         throw new Error('Auction not found');
       }
 
-      // Update auction status
       await this.prisma.auctionListing.update({
         where: { id: auctionId },
         data: { status: AuctionStatus.ENDED },
       });
 
-      // Get winner profile
       const winnerProfile = await this.prisma.profile.findUnique({
         where: { id: winnerId },
         include: { kyc: true },
@@ -433,6 +481,25 @@ export class AuctionSettlementService {
           consentAcceptedAt: new Date(),
         },
       });
+
+      if (auction.pawnshopId) {
+        try {
+          await this.receiptService.generateReceipt({
+            pawnshopId: auction.pawnshopId,
+            receiptType: 'AUCTION_SALE',
+            referenceType: 'AUCTION',
+            referenceId: String(auction.id),
+            amount: finalAmount,
+            customerName: winnerProfile?.kyc?.fullName || winnerProfile?.fullName || 'Winner',
+            lineItems: [
+              { description: `Auction Sale — ${auction.title}`, amount: finalAmount },
+            ],
+            generatedBy: 'system',
+          });
+        } catch (receiptErr) {
+          this.logger.warn(`Failed to generate manual settlement receipt: ${(receiptErr as Error).message}`);
+        }
+      }
 
       this.logger.log(
         `Manual settlement of auction ${auctionId} - Winner: ${winnerId}, Amount: ${finalAmount}`,

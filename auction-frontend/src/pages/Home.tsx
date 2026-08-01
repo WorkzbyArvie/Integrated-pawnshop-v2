@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useBranding } from '../context/BrandingContext';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
+import Swal from 'sweetalert2';
 import '../App.css';
 import type { AuctionListing } from '../types';
 import { fetchListings } from '../services/auctionApi';
@@ -31,7 +32,6 @@ const formatCountdown = (endAt: string | null | undefined, now: number) => {
 export default function Home() {
   const { user, signIn, requestAuthCode, signUp, signOut, loading: authLoading, kycStatus } = useAuth();
   const { branding } = useBranding();
-  const navigate = useNavigate();
   const initialPawnshopId = useMemo(
     () => new URLSearchParams(window.location.search).get('pawnshopId'),
     [],
@@ -48,9 +48,9 @@ export default function Home() {
   const [authPassword, setAuthPassword] = useState('');
   const [authName, setAuthName] = useState('');
   const [authCode, setAuthCode] = useState('');
-  const [authError, setAuthError] = useState<string | null>(null);
-  const [authInfo, setAuthInfo] = useState<string | null>(null);
   const [authSubmitting, setAuthSubmitting] = useState(false);
+  const notifyError = (msg: string) => Swal.fire({ icon: 'error', title: 'Error', text: msg, confirmButtonColor: '#C9A05C', background: '#1C1C26', color: '#EAE2D6' });
+  const notifySuccess = (msg: string) => Swal.fire({ icon: 'success', title: 'Success', text: msg, confirmButtonColor: '#C9A05C', background: '#1C1C26', color: '#EAE2D6' });
   const [now, setNow] = useState(Date.now());
   const [featuredImageIndex, setFeaturedImageIndex] = useState(0);
 
@@ -157,7 +157,7 @@ export default function Home() {
             {kycStatus === 'VERIFIED' ? (
               <span className="status-verified">Verified</span>
             ) : (
-              <Link to="/kyc" className="auth-nav-link" style={{ color: kycStatus === 'REJECTED' ? 'var(--red)' : 'var(--gold)' }}>
+              <Link to="/profile" className="auth-nav-link" style={{ color: kycStatus === 'REJECTED' ? 'var(--red)' : 'var(--gold)' }}>
                 {kycStatus === 'PENDING' ? 'KYC Pending' : kycStatus === 'REJECTED' ? 'KYC Rejected' : 'Verify ID'}
               </Link>
             )}
@@ -172,7 +172,7 @@ export default function Home() {
             </button>
           </div>
         ) : (
-          <button className="primary-button" onClick={() => { setLoginOpen(true); setAuthTab('login'); setAuthError(null); }}>
+          <button className="primary-button" onClick={() => { setLoginOpen(true); setAuthTab('login'); }}>
             Sign In
           </button>
         )}
@@ -356,14 +356,14 @@ export default function Home() {
               <button
                 className={authTab === 'login' ? 'primary-button' : 'ghost-button'}
                 style={{ flex: 1, padding: '0.5rem', textAlign: 'center' }}
-                onClick={() => { setAuthTab('login'); setAuthError(null); setAuthInfo(null); }}
+                onClick={() => { setAuthTab('login'); }}
               >
                 Login
               </button>
               <button
                 className={authTab === 'signup' ? 'primary-button' : 'ghost-button'}
                 style={{ flex: 1, padding: '0.5rem', textAlign: 'center' }}
-                onClick={() => { setAuthTab('signup'); setAuthError(null); setAuthInfo(null); }}
+                onClick={() => { setAuthTab('signup'); }}
               >
                 Sign Up
               </button>
@@ -372,19 +372,26 @@ export default function Home() {
             <form
               onSubmit={async (e) => {
                 e.preventDefault();
-                setAuthError(null);
-                setAuthInfo(null);
 
                 if (authTab === 'signup') {
                   if (!authCode.trim()) {
-                    setAuthError('Enter your verification code before creating an account.');
+                    notifyError('Enter your verification code before creating an account.');
                     return;
                   }
 
-                  const confirmed = window.confirm(
-                    'Create owner account now using this verification code?',
-                  );
-                  if (!confirmed) return;
+                  const { isConfirmed } = await Swal.fire({
+                    title: 'Confirm Registration',
+                    text: 'Create your bidder account now?',
+                    icon: 'question',
+                    showCancelButton: true,
+                    confirmButtonColor: '#C9A05C',
+                    cancelButtonColor: '#6B655C',
+                    confirmButtonText: 'Yes, Create Account',
+                    cancelButtonText: 'Cancel',
+                    background: '#1C1C26',
+                    color: '#EAE2D6',
+                  });
+                  if (!isConfirmed) return;
                 }
 
                 setAuthSubmitting(true);
@@ -399,17 +406,17 @@ export default function Home() {
                 setAuthSubmitting(false);
 
                 if (result.error) {
-                  setAuthError(result.error);
+                  notifyError(result.error);
                 } else {
                   setLoginOpen(false);
                   setAuthEmail('');
                   setAuthPassword('');
                   setAuthName('');
                   setAuthCode('');
-                  setAuthError(null);
-                  setAuthInfo(null);
                   if (authTab === 'signup') {
-                    navigate('/kyc');
+                    notifySuccess('Account created! Browse auctions and verify your identity in Profile to start bidding.');
+                  } else {
+                    notifySuccess('Welcome back! Start browsing live auctions.');
                   }
                 }
               }}
@@ -451,24 +458,18 @@ export default function Home() {
                       type="button"
                       className="ghost-button"
                       onClick={async () => {
-                        setAuthError(null);
-                        setAuthInfo(null);
                         if (!authEmail) {
-                          setAuthError('Enter your email before requesting auth code');
+                          notifyError('Enter your email before requesting a verification code.');
                           return;
                         }
                         const response = await requestAuthCode(authEmail, 'BIDDER_REGISTRATION');
                         if (response.error) {
-                          setAuthError(response.error);
+                          notifyError(response.error);
                           return;
                         }
-                        if (response.authCode) {
-                          setAuthInfo(`Dev auth code: ${response.authCode}`);
-                          return;
-                        }
-                        setAuthInfo(
+                        notifySuccess(
                           response.message ||
-                            'Authentication code sent. Check your email and continue signup.',
+                            'Verification code sent. Check your email and continue signup.',
                         );
                       }}
                     >
@@ -476,18 +477,6 @@ export default function Home() {
                     </button>
                   </div>
                 </div>
-              )}
-
-              {authInfo && (
-                <p className="status-success" style={{ margin: 0 }}>
-                  {authInfo}
-                </p>
-              )}
-
-              {authError && (
-                <p className="status-error" style={{ margin: 0 }}>
-                  {authError}
-                </p>
               )}
 
               <button

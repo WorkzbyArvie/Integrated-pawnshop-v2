@@ -3,6 +3,7 @@ import { PrismaService } from '../prisma.service';
 import { PaymongoService } from '../subscription/paymongo.service';
 import { FinanceService } from '../finance/finance.service';
 import { ReceiptService } from '../receipt/receipt.service';
+import { LegalProofService } from '../loan/legal-proof.service';
 
 @Injectable()
 export class AuctionPaymentService {
@@ -13,6 +14,7 @@ export class AuctionPaymentService {
     private paymongo: PaymongoService,
     private finance: FinanceService,
     private receipt: ReceiptService,
+    private legalProofService: LegalProofService,
   ) {}
 
   async createCheckout(complianceId: string, winnerId: string, returnUrl?: string) {
@@ -109,23 +111,20 @@ export class AuctionPaymentService {
     });
 
     if (compliance.pawnshopId) {
-      await this.prisma.legalProof.create({
-        data: {
-          proofNumber: `PROOF-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).substring(2, 8)}`,
-          pawnshopId: compliance.pawnshopId,
-          recordType: 'RECEIPT_PROOF',
-          title: `Auction payment — ${compliance.winnerFullName}`,
-          summary: `Payment of ₱${compliance.winningBid.toFixed(2)} for auction listing #${compliance.listingId}`,
-          payload: {
-            complianceId,
-            listingId: compliance.listingId,
-            amount: compliance.winningBid,
-            transactionId,
-            status: 'COMPLIED',
-          },
-          sourceHash: this.hashPayload({ complianceId, transactionId }),
-          createdBy: 'system',
+      await this.legalProofService.createProof({
+        pawnshopId: compliance.pawnshopId,
+        recordType: 'RECEIPT_PROOF',
+        title: `Auction payment — ${compliance.winnerFullName}`,
+        summary: `Payment of ₱${compliance.winningBid.toFixed(2)} for auction listing #${compliance.listingId}`,
+        payload: {
+          complianceId,
+          listingId: compliance.listingId,
+          amount: compliance.winningBid,
+          transactionId,
+          status: 'COMPLIED',
         },
+        createdBy: 'system',
+        auctionListingId: compliance.listingId,
       });
 
       try {
@@ -154,8 +153,4 @@ export class AuctionPaymentService {
     return updated;
   }
 
-  private hashPayload(data: any): string {
-    const crypto = require('crypto');
-    return crypto.createHash('sha256').update(JSON.stringify(data)).digest('hex');
-  }
 }

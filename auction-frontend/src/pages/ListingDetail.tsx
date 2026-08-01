@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
+import Swal from 'sweetalert2';
 import type { AuctionListing } from '../types';
 import { fetchListing, checkTosStatus, acceptBidderTos, placeBid } from '../services/auctionApi';
 import { useAuth } from '../context/AuthContext';
@@ -62,8 +63,6 @@ export default function ListingDetail() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [bidAmount, setBidAmount] = useState('');
-  const [bidError, setBidError] = useState<string | null>(null);
-  const [bidSuccess, setBidSuccess] = useState<string | null>(null);
   const [bidding, setBidding] = useState(false);
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [tosAccepted, setTosAccepted] = useState(false);
@@ -189,8 +188,8 @@ export default function ListingDetail() {
                           ? 'Your ID verification was rejected. Please re-submit.'
                           : 'You must verify your identity before placing bids.'}
                     </p>
-                    <Link to="/kyc" className="primary-button" style={{ display: 'inline-block' }}>
-                      {kycStatus === 'NOT_SUBMITTED' ? 'Verify Identity' : kycStatus === 'REJECTED' ? 'Re-submit KYC' : 'View Status'}
+                    <Link to="/profile" className="primary-button" style={{ display: 'inline-block' }}>
+                      {kycStatus === 'NOT_SUBMITTED' ? 'Verify Identity' : kycStatus === 'REJECTED' ? 'Re-submit' : 'View Status'}
                     </Link>
                   </div>
                   <p className="status-muted" style={{ margin: 0 }}>
@@ -212,7 +211,7 @@ export default function ListingDetail() {
                   </p>
                   <div style={{ display: 'flex', gap: '0.5rem', flexDirection: 'column' }}>
                     <Link
-                      to="/terms"
+                      to={`/terms?listingId=${listing.id}`}
                       className="ghost-button"
                       style={{
                         textAlign: 'center',
@@ -233,7 +232,7 @@ export default function ListingDetail() {
                           await acceptBidderTos(listing.id, session.access_token);
                           setTosAccepted(true);
                         } catch {
-                          setBidError('Failed to accept terms. Please try again.');
+                          Swal.fire({ icon: 'error', title: 'Error', text: 'Failed to accept terms. Please try again.', confirmButtonColor: '#C9A05C', background: '#1C1C26', color: '#EAE2D6' });
                         } finally {
                           setAcceptingTos(false);
                         }
@@ -253,7 +252,7 @@ export default function ListingDetail() {
                     <p className="status-verified" style={{ margin: 0 }}>
                       Terms accepted
                     </p>
-                    <Link to="/terms" className="ghost-button" style={{ padding: '0.3rem 0.7rem', fontSize: '0.7rem' }}>
+                    <Link to={`/terms?listingId=${listing.id}`} className="ghost-button" style={{ padding: '0.3rem 0.7rem', fontSize: '0.7rem' }}>
                       v{tosVersion || '?'} &middot; View
                     </Link>
                   </div>
@@ -274,8 +273,6 @@ export default function ListingDetail() {
                         const value = e.target.value;
                         if (value.startsWith('-')) return;
                         setBidAmount(value);
-                        setBidError(null);
-                        setBidSuccess(null);
                       }}
                       style={{
                         flex: 1,
@@ -289,47 +286,46 @@ export default function ListingDetail() {
                       }}
                     />
                   </div>
-                  {bidError && <p className="status-error" style={{ margin: 0 }}>{bidError}</p>}
-                  {bidSuccess && <p className="status-success" style={{ margin: 0 }}>{bidSuccess}</p>}
                   <div className="cta-row">
                     <button
                       className="primary-button"
                       disabled={bidding}
                       onClick={async () => {
                         if (!session?.access_token) {
-                          setBidError('Your session expired. Please log in again.');
+                          Swal.fire({ icon: 'error', title: 'Session Expired', text: 'Your session expired. Please log in again.', confirmButtonColor: '#C9A05C', background: '#1C1C26', color: '#EAE2D6' });
                           return;
                         }
                         if (String(listing.status || '').toUpperCase() !== 'LIVE') {
-                          setBidError('This listing is not live for bidding.');
+                          Swal.fire({ icon: 'error', title: 'Not Available', text: 'This listing is not live for bidding.', confirmButtonColor: '#C9A05C', background: '#1C1C26', color: '#EAE2D6' });
                           return;
                         }
-                        setBidError(null);
-                        setBidSuccess(null);
                         const amount = Number(bidAmount);
-                        if (!amount || amount <= 0) {
-                          setBidError('Put Valid Amount');
+                        if (!amount || amount <= 0 || amount < minBid) {
+                          Swal.fire({ icon: 'warning', title: 'Invalid Amount', text: `Minimum bid is ${formatCurrency(minBid)}`, confirmButtonColor: '#C9A05C', background: '#1C1C26', color: '#EAE2D6' });
                           return;
                         }
-                        if (amount < minBid) {
-                          setBidError('Put Valid Amount');
-                          return;
-                        }
+                        const { isConfirmed } = await Swal.fire({
+                          title: 'Confirm Bid',
+                          text: `Place a bid of ${formatCurrency(amount)}?`,
+                          icon: 'question',
+                          showCancelButton: true,
+                          confirmButtonColor: '#C9A05C',
+                          cancelButtonColor: '#6B655C',
+                          confirmButtonText: 'Yes, Place Bid',
+                          cancelButtonText: 'Cancel',
+                          background: '#1C1C26',
+                          color: '#EAE2D6',
+                        });
+                        if (!isConfirmed) return;
                         setBidding(true);
                         try {
                           const data = await placeBid(listing.id, amount, session.access_token);
-                          setBidSuccess(`Bid placed! New bid: ${formatCurrency(data.currentBid)}`);
+                          Swal.fire({ icon: 'success', title: 'Bid Placed!', text: `New bid: ${formatCurrency(data.currentBid)}`, confirmButtonColor: '#C9A05C', background: '#1C1C26', color: '#EAE2D6' });
                           setBidAmount('');
                           fetchListing(listingId).then(setListing).catch(() => {});
                         } catch (err: unknown) {
                           const message = err instanceof Error ? err.message : 'Unable to place bid right now. Please try again.';
-                          setBidError(
-                            message.toLowerCase().includes('valid amount')
-                              ? 'Put Valid Amount'
-                              : message.toLowerCase().includes('internal server')
-                                ? 'Unable to place bid right now. Please try again.'
-                                : message,
-                          );
+                          Swal.fire({ icon: 'error', title: 'Bid Failed', text: message.toLowerCase().includes('valid amount') ? 'Put Valid Amount' : message.toLowerCase().includes('internal server') ? 'Unable to place bid right now. Please try again.' : message, confirmButtonColor: '#C9A05C', background: '#1C1C26', color: '#EAE2D6' });
                         } finally {
                           setBidding(false);
                         }

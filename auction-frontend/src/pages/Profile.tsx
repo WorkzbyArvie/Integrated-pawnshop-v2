@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import Swal from 'sweetalert2';
 import { useAuth } from '../context/AuthContext';
 import { checkTosStatus } from '../services/auctionApi';
 import '../App.css';
 
 export default function Profile() {
-  const { user, session, kycStatus, signOut } = useAuth();
+  const { user, session, kycStatus, refreshKycStatus, signOut } = useAuth();
   const navigate = useNavigate();
   const [tosInfo, setTosInfo] = useState<{
     accepted: boolean;
@@ -16,6 +17,7 @@ export default function Profile() {
 
   useEffect(() => {
     if (!session?.access_token) return;
+    refreshKycStatus();
 
     let mounted = true;
     setTosLoading(true);
@@ -36,6 +38,19 @@ export default function Profile() {
   }, [session?.access_token]);
 
   const handleSignOut = async () => {
+    const { isConfirmed } = await Swal.fire({
+      title: 'Sign Out?',
+      text: 'You will be returned to the home page.',
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonColor: '#C9A05C',
+      cancelButtonColor: '#6B655C',
+      confirmButtonText: 'Sign Out',
+      cancelButtonText: 'Cancel',
+      background: '#1C1C26',
+      color: '#EAE2D6',
+    });
+    if (!isConfirmed) return;
     await signOut();
     navigate('/');
   };
@@ -111,11 +126,18 @@ export default function Profile() {
               </p>
             </div>
 
-            <div>
-              <p className="status-muted" style={{ margin: '0 0 0.25rem', fontSize: '0.8rem' }}>
-                ID Verification (KYC)
-              </p>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            <div style={{
+              background: kycStatus === 'VERIFIED' ? 'rgba(74,222,128,0.06)' : kycStatus === 'PENDING' ? 'rgba(201,160,92,0.06)' : kycStatus === 'REJECTED' ? 'rgba(239,68,68,0.06)' : 'rgba(201,160,92,0.04)',
+              border: `1px solid ${kycStatus === 'VERIFIED' ? 'rgba(74,222,128,0.2)' : kycStatus === 'PENDING' ? 'rgba(201,160,92,0.2)' : kycStatus === 'REJECTED' ? 'rgba(239,68,68,0.2)' : 'rgba(201,160,92,0.1)'}`,
+              borderRadius: '16px',
+              padding: '1.25rem',
+              display: 'grid',
+              gap: '0.75rem',
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <p className="status-muted" style={{ margin: 0, fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+                  Identity Verification
+                </p>
                 <span
                   style={{
                     display: 'inline-block',
@@ -129,12 +151,33 @@ export default function Profile() {
                 >
                   {badge.label}
                 </span>
-                {kycStatus !== 'VERIFIED' && (
-                  <Link to="/kyc" className="ghost-button" style={{ padding: '0.3rem 0.7rem', fontSize: '0.75rem' }}>
-                    {kycStatus === 'REJECTED' ? 'Re-submit' : 'Complete'}
-                  </Link>
-                )}
               </div>
+              {kycStatus === 'VERIFIED' ? (
+                <p style={{ margin: 0, fontSize: '0.85rem', color: '#4ade80' }}>
+                  You are verified. You can place bids on all auctions.
+                </p>
+              ) : kycStatus === 'PENDING' ? (
+                <p style={{ margin: 0, fontSize: '0.85rem', color: '#f1d27a' }}>
+                  Your verification is under review. You'll be able to bid once approved.
+                </p>
+              ) : kycStatus === 'REJECTED' ? (
+                <p style={{ margin: 0, fontSize: '0.85rem', color: '#ff8a7c' }}>
+                  Your verification was rejected. Please re-submit with valid documents.
+                </p>
+              ) : (
+                <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--muted)' }}>
+                  Verify your identity to place bids on auctions.
+                </p>
+              )}
+              {kycStatus !== 'VERIFIED' && (
+                <Link
+                  to="/kyc"
+                  className="primary-button"
+                  style={{ textAlign: 'center', display: 'block', padding: '0.65rem', fontSize: '0.85rem' }}
+                >
+                  {kycStatus === 'REJECTED' ? 'Re-submit Verification' : kycStatus === 'PENDING' ? 'View Status' : 'Verify Identity'}
+                </Link>
+              )}
             </div>
           </div>
 

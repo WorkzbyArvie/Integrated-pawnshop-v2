@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
   fetchTosTemplate,
@@ -22,6 +22,8 @@ function renderTemplateContent(content: string): string {
 
 export default function Terms() {
   const { user, session } = useAuth();
+  const [searchParams] = useSearchParams();
+  const listingIdParam = searchParams.get('listingId');
   const [template, setTemplate] = useState<TosTemplate | null>(null);
   const [clauses, setClauses] = useState<TosClause[]>([]);
   const [loading, setLoading] = useState(true);
@@ -68,7 +70,8 @@ export default function Terms() {
     setAccepting(true);
     setError(null);
     try {
-      await acceptBidderTos(0, session.access_token, signedName.trim());
+      const listingId = listingIdParam ? Number(listingIdParam) : 0;
+      await acceptBidderTos(listingId, session.access_token, signedName.trim());
       setAccepted(true);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to accept terms');
