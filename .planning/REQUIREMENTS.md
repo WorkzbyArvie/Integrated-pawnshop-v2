@@ -41,10 +41,10 @@ milestone closes every gap. Audit summary:
 
 - [ ] **RBAC-01**: Permission catalog (enum) plus role→permission mapping replaces hardcoded `@Roles('OWNER','MANAGER')` role strings; endpoints declare `@RequiresPermission(...)` and RbacGuard evaluates permissions.
 - [ ] **RBAC-02**: RbacGuard honors `staffType` so APPRAISER/CASHIER_TELLER/INVENTORY_CUSTODIAN/AUDITOR checks work after the role-normalization migration.
-- [ ] **RBAC-03**: Creating an appraisal (`CREATE_APPRAISAL`) generates an approval task; the ticket does not advance to APPRAISED/OFFER until OWNER/ADMIN approves.
-- [ ] **RBAC-04**: Redemptions above a configured amount threshold (`APPROVE_REDEMPTION`) require OWNER approval before release; redemptions below the threshold remain direct (fast walk-in flow).
-- [ ] **RBAC-05**: Approval tasks surface in one unified approval queue UI (mount/consolidate existing `PendingApprovalPanel` / `AppraisalApproval`) with a clear approver audit trail.
-- [ ] **RBAC-06**: Approval decisions are persisted to a dedicated approval-record model (activate the dead `LoanApproval` table or add `PawnTicketApproval`).
+- [x] **RBAC-03**: Creating an appraisal (`CREATE_APPRAISAL`) generates an approval task; the ticket does not advance to APPRAISED/OFFER until OWNER/ADMIN approves.
+- [x] **RBAC-04**: Redemptions above a configured amount threshold (`APPROVE_REDEMPTION`) require OWNER approval before release; redemptions below the threshold remain direct (fast walk-in flow).
+- [x] **RBAC-05**: Approval tasks surface in one unified approval queue UI (mount/consolidate existing `PendingApprovalPanel` / `AppraisalApproval`) with a clear approver audit trail.
+- [x] **RBAC-06**: Approval decisions are persisted to a dedicated approval-record model (activate the dead `LoanApproval` table or add `PawnTicketApproval`).
 
 ### KYC · Client Verification & Loan Disbursement Guardrail
 
@@ -89,10 +89,10 @@ milestone closes every gap. Audit summary:
 | CTR-03 | Phase 11 | Pending |
 | RBAC-01 | Phase 7 | Pending |
 | RBAC-02 | Phase 7 | Pending |
-| RBAC-03 | Phase 8 | Pending |
-| RBAC-04 | Phase 8 | Pending |
-| RBAC-05 | Phase 8 | Pending |
-| RBAC-06 | Phase 8 | Pending |
+| RBAC-03 | Phase 8 | Complete |
+| RBAC-04 | Phase 8 | Complete |
+| RBAC-05 | Phase 8 | Complete |
+| RBAC-06 | Phase 8 | Complete |
 | KYC-01 | Phase 9 | Pending |
 | KYC-02 | Phase 9 | Pending |
 | KYC-03 | Phase 9 | Pending |

@@ -61,7 +61,7 @@ PawnGold is a full-stack SaaS pawnshop platform (React dashboard + NestJS + Pris
 **Plans**:
 **Wave 1**
 
-- [ ] 08-01-PLAN.md — Schema payload + state-machine roles + RED test scaffolds
+- [x] 08-01-PLAN.md — Schema payload + state-machine roles + RED test scaffolds
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
@@ -192,7 +192,7 @@ PawnGold is a full-stack SaaS pawnshop platform (React dashboard + NestJS + Pris
 | 5. Security & Polish | v1.0 | - | Complete | 2026-07-31 |
 | 6. Auction House Professionalization | v1.0 | - | Complete | 2026-07-31 |
 | 7. Permission Foundation & Schema Baseline | v2.0 | 1 | Complete | 2026-07-31 |
-| 8. Approval Workflows & Unified Approval Queue | v2.0 | 3 | Not started | - |
+| 8. Approval Workflows & Unified Approval Queue | v2.0 | 1/3 | In Progress|  |
 | 9. KYC Verification & Disbursement Guardrail | v2.0 | TBD | Not started | - |
 | 10. Onboarding Compliance Gate | v2.0 | TBD | Not started | - |
 | 11. Contract Management Upgrade | v2.0 | TBD | Not started | - |

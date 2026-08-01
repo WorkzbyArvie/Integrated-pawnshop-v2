@@ -5,15 +5,15 @@ milestone_name: Advisor Compliance & RBAC Overhaul
 current_phase: 08
 current_phase_name: approval-workflows-unified-approval-queue
 status: executing
-stopped_at: Phase 8 context gathered
-last_updated: "2026-08-01T07:09:23.846Z"
+stopped_at: Completed 08-01-PLAN.md
+last_updated: "2026-08-01T12:46:06.914Z"
 last_activity: 2026-08-01
-last_activity_desc: Phase 07 verified complete
+last_activity_desc: Phase 08 execution started
 progress:
   total_phases: 13
   completed_phases: 0
-  total_plans: 1
-  completed_plans: 0
+  total_plans: 4
+  completed_plans: 1
   percent: 0
 ---
 
@@ -28,12 +28,12 @@ See: .planning/PROJECT.md (updated 2026-07-31)
 
 ## Current Position
 
-Phase: 08 (approval-workflows-unified-approval-queue) — READY TO PLAN
-Plan: 0 of 0 (not yet planned)
+Phase: 08 (approval-workflows-unified-approval-queue) — EXECUTING
+Plan: 2 of 3
 Status: Ready to execute
-Last activity: 2026-08-01 — Phase 07 verified complete
+Last activity: 2026-08-01 — Phase 08 execution started
 
-Progress: [█░░░░░░░░░] 7%
+Progress: [███░░░░░░░] 25%
 
 ## Milestone Progress (v2.0)
 
@@ -62,9 +62,18 @@ Progress: [█░░░░░░░░░] 7%
 - Phase 12 only needs Phase 7's schema; it consumes data produced by Phases 8-11
 - Phase 7 executed outside the tracked GSD flow but verified complete (2026-08-01): migration applied, DB up-to-date, guard/catalog/service specs green, all 63 endpoints converted, tsc clean
 - Working tree carries ~100 uncommitted files (owner registration, KYC, tenant governance) unrelated to the committed Phase 7 work — left untouched
+- [Phase ?]: T3 RED scaffolds locked to the plan Interface Contract (getQueue(query, callerPawnshopId) returning ApprovalQueueItem[]; decideApproval(id, dto, decidedBy, userRole, approve, callerPawnshopId); routes /approval-queue; permissions approval.view_queue / approval.approve_appraisal) so 08-02/08-03 implement without changing test expectations
+- [Phase ?]: Migration file is the deliverable when dev DB unreachable (getaddrinfo ENOTFOUND base); all Phase 8 specs use mocked Prisma - no live-DB dependency
+- [Phase ?]: Redemption threshold contract: redeemTicket reads pawnshop.settings.redemptionApprovalThreshold via prisma.pawnshop.findUnique; above -> PENDING REDEMPTION record, at/below -> direct release
 
 ## Session Continuity
 
-Last session: 2026-08-01T05:44:35.236Z
-Stopped at: Phase 8 context gathered
-Resume file: .planning/phases/08-approval-workflows-unified-approval-queue/08-CONTEXT.md
+Last session: 2026-08-01T12:46:06.899Z
+Stopped at: Completed 08-01-PLAN.md
+Resume file: None
+
+## Performance Metrics
+
+| Plan | Duration | Tasks | Files |
+|------|----------|-------|-------|
+| Phase 08 P01 | 13 | 3 tasks | 7 files |
