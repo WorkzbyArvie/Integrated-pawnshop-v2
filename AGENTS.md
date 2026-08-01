@@ -61,11 +61,11 @@
 - [x] Forfeiture -> Auction queue handoff
 - [x] Renewal flow endpoint
 
-### Phase 2.5: PROCESS FLOW COMPLETION (In Progress)
-- [ ] Appraisal endpoint (`POST /pawn-tickets/:id/appraise`) — RECEIVED → APPRAISED with valuation
-- [ ] Grace period auto-entry cron — OVERDUE → GRACE_PERIOD after 5 days
-- [ ] In-person redemption endpoint (`POST /pawn-tickets/:id/redeem`) — staff walk-in payment
-- [ ] NotificationModule wiring — alerts for overdue, grace period, forfeiture, redemption
+### Phase 2.5: PROCESS FLOW COMPLETION ✅
+- [x] Appraisal endpoint (`POST /pawn-tickets/:id/appraise`) — RECEIVED → APPRAISED with valuation, LegalProof, receipt
+- [x] Grace period auto-entry cron — OVERDUE → GRACE_PERIOD after 5 days with notification + LegalProof
+- [x] In-person redemption endpoint (`POST /pawn-tickets/:id/redeem`) — staff walk-in payment with receipt + LegalProof
+- [x] NotificationModule wiring — alerts for overdue, grace period, forfeiture, redemption
 
 ### Phase 3: SECURITY HARDENING ✅
 - [x] @Roles() decorator + RbacGuard (RBAC enforcement at every endpoint)
@@ -117,6 +117,10 @@
 | Gilded Reserve color sweep (39+49 files, 70+ patterns) | Done |
 
 ---
+
+### Additional Fixes
+- **Receipt modal after redemption** — ReceiptViewer now opens automatically after redeem, and a "Receipt" button appears in Inventory Vault for redeemed items (2026-07-24)
+- **Audit history fix** — Changed controller from `@Roles('SUPER_ADMIN')` to `@Roles('SUPER_ADMIN', 'OWNER', 'ADMIN')` so owners/admins can see their tenant's audit logs. Removed insecure Supabase `security_logs` fallback that leaked cross-tenant data (2026-07-24)
 
 ## Recent Architectural Decisions
 1. **ECC installed at user-level** - provides skills, agents, security scanning, memory hooks

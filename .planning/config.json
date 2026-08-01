@@ -9,6 +9,14 @@
   "codebase_map_dir": ".planning/codebase",
   "created_at": "2026-07-17",
   "thesis_deadline": "less_than_2_weeks",
-  "priority_order": ["fix_bugs", "legality", "system_flow", "security"],
-  "legality_format": "standard_philippine_pawnshop"
+  "priority_order": [
+    "fix_bugs",
+    "legality",
+    "system_flow",
+    "security"
+  ],
+  "legality_format": "standard_philippine_pawnshop",
+  "workflow": {
+    "_auto_chain_active": false
+  }
 }
