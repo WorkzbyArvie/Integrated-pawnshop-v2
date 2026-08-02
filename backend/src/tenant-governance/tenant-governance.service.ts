@@ -2747,7 +2747,6 @@ export class TenantGovernanceService {
         (SELECT COUNT(*) FROM public.ticket WHERE lifecycle_status IN ('ACTIVE', 'GRACE_PERIOD', 'OVERDUE')) AS active_tickets,
         (SELECT COUNT(*) FROM public.loan) AS total_loans,
         (SELECT COUNT(*) FROM public.loan WHERE status = 'ACTIVE') AS disbursed_loans,
-        (SELECT COALESCE(SUM(principalamount), 0) FROM public.loan WHERE status = 'ACTIVE') AS total_loan_value,
         (SELECT COUNT(*) FROM public.client_registration_requests WHERE status = 'PENDING') AS pending_registrations
     `;
 
@@ -2775,7 +2774,6 @@ export class TenantGovernanceService {
       loans: {
         total: Number(r.total_loans || 0),
         disbursed: Number(r.disbursed_loans || 0),
-        totalValue: Number(r.total_loan_value || 0),
       },
       pendingRegistrations: Number(r.pending_registrations || 0),
     };

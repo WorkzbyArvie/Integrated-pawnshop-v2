@@ -22,6 +22,23 @@ const LEGACY_ROLES = new Set([
   'AUDITOR',
 ]);
 
+const SUPER_ADMIN_PERMISSIONS = new Set<string>([
+  'platform.manage',
+  'tenant.view_audit',
+  'compliance.view',
+  'compliance.manage_documents',
+]);
+
+const SUPER_ADMIN_GOVERNANCE_PREFIXES = [
+  '/auth/kyc',
+  '/compliance',
+  '/tenant-governance',
+  '/security',
+  '/pawnshops',
+  '/profile',
+  '/notifications',
+];
+
 @Injectable()
 export class RbacGuard implements CanActivate {
   private readonly logger = new Logger(RbacGuard.name);
@@ -86,13 +103,46 @@ export class RbacGuard implements CanActivate {
       };
     };
 
-    if ((!requiredRoles || requiredRoles.length === 0) &&
-        (!requiredPermissions || requiredPermissions.length === 0)) {
+    if (userRole === SUPER_ADMIN) {
       setUser();
+
+      const hasRequirements =
+        (requiredRoles && requiredRoles.length > 0) ||
+        (requiredPermissions && requiredPermissions.length > 0);
+
+      if (hasRequirements) {
+        if (requiredRoles && !requiredRoles.includes(SUPER_ADMIN)) {
+          throw new ForbiddenException(
+            `Access denied. Required role(s): ${requiredRoles.join(', ')}. Your role: ${userRole}`,
+          );
+        }
+        if (
+          requiredPermissions &&
+          !requiredPermissions.every((permission) =>
+            SUPER_ADMIN_PERMISSIONS.has(permission as string),
+          )
+        ) {
+          throw new ForbiddenException(
+            `Access denied. Super admin is not granted permission(s): ${requiredPermissions.join(', ')}`,
+          );
+        }
+        return true;
+      }
+
+      const pathName = (request as { path?: string }).path || '';
+      const isGovernanceRoute = SUPER_ADMIN_GOVERNANCE_PREFIXES.some((prefix) =>
+        pathName.startsWith(prefix),
+      );
+      if (!isGovernanceRoute) {
+        throw new ForbiddenException(
+          'Access denied. Super admin may only access platform governance routes.',
+        );
+      }
       return true;
     }
 
-    if (userRole === SUPER_ADMIN) {
+    if ((!requiredRoles || requiredRoles.length === 0) &&
+        (!requiredPermissions || requiredPermissions.length === 0)) {
       setUser();
       return true;
     }

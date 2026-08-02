@@ -14,7 +14,11 @@ describe('RbacGuard', () => {
   let authUser: { getUserIdFromAuthHeader: jest.Mock };
   let permissionService: { resolveEffectivePermissions: jest.Mock };
   let metadata: Record<string, unknown>;
-  let request: { headers: Record<string, string | undefined>; user?: unknown };
+  let request: {
+    headers: Record<string, string | undefined>;
+    path: string;
+    user?: unknown;
+  };
 
   const reflector = {
     getAllAndOverride: jest.fn((key: string) => metadata[key]),
@@ -36,7 +40,7 @@ describe('RbacGuard', () => {
 
   beforeEach(() => {
     metadata = {};
-    request = { headers: { authorization: 'Bearer token' } };
+    request = { headers: { authorization: 'Bearer token' }, path: '' };
     prisma = { profile: { findUnique: jest.fn() } };
     authUser = { getUserIdFromAuthHeader: jest.fn().mockResolvedValue('user-1') };
     permissionService = { resolveEffectivePermissions: jest.fn() };
@@ -63,7 +67,7 @@ describe('RbacGuard', () => {
     });
   });
 
-  it('(c) bypasses permission lookup for SUPER_ADMIN on @RequiresPermission endpoints', async () => {
+  it('(c) allows SUPER_ADMIN when it holds the required @RequiresPermission', async () => {
     metadata[PERMISSIONS_KEY] = ['platform.manage'];
     prisma.profile.findUnique.mockResolvedValue({
       role: 'SUPER_ADMIN',
@@ -75,14 +79,55 @@ describe('RbacGuard', () => {
     expect(request.user).toMatchObject({ role: 'SUPER_ADMIN', staffType: null });
   });
 
-  it('(d) bypasses for SUPER_ADMIN on @Roles endpoints', async () => {
+  it('(d) denies SUPER_ADMIN on @Roles endpoints that exclude it', async () => {
     metadata[ROLES_KEY] = ['OWNER'];
     prisma.profile.findUnique.mockResolvedValue({
       role: 'SUPER_ADMIN',
       staffType: null,
       pawnshopId: 'ps-1',
     });
+    await expect(buildGuard().canActivate(context as never)).rejects.toThrow(ForbiddenException);
+  });
+
+  it('(m) allows SUPER_ADMIN on @Roles endpoints that include it', async () => {
+    metadata[ROLES_KEY] = ['SUPER_ADMIN'];
+    prisma.profile.findUnique.mockResolvedValue({
+      role: 'SUPER_ADMIN',
+      staffType: null,
+      pawnshopId: 'ps-1',
+    });
     await expect(buildGuard().canActivate(context as never)).resolves.toBe(true);
+  });
+
+  it('(n) denies SUPER_ADMIN on @RequiresPermission it does not hold', async () => {
+    metadata[PERMISSIONS_KEY] = ['pawn_ticket.approve'];
+    prisma.profile.findUnique.mockResolvedValue({
+      role: 'SUPER_ADMIN',
+      staffType: null,
+      pawnshopId: 'ps-1',
+    });
+    await expect(buildGuard().canActivate(context as never)).rejects.toThrow(ForbiddenException);
+  });
+
+  it('(o) allows SUPER_ADMIN on ungated platform governance routes', async () => {
+    request.path = '/tenant-governance/pawnshops/metadata';
+    prisma.profile.findUnique.mockResolvedValue({
+      role: 'SUPER_ADMIN',
+      staffType: null,
+      pawnshopId: null,
+    });
+    await expect(buildGuard().canActivate(context as never)).resolves.toBe(true);
+    expect(request.user).toMatchObject({ role: 'SUPER_ADMIN', pawnshopId: null });
+  });
+
+  it('(p) denies SUPER_ADMIN on ungated non-governance routes (deny-by-default)', async () => {
+    request.path = '/analytics/branch-stats/batch?ids=a,b';
+    prisma.profile.findUnique.mockResolvedValue({
+      role: 'SUPER_ADMIN',
+      staffType: null,
+      pawnshopId: null,
+    });
+    await expect(buildGuard().canActivate(context as never)).rejects.toThrow(ForbiddenException);
   });
 
   it('(e) normalizes legacy role=CASHIER_TELLER before permission resolution', async () => {

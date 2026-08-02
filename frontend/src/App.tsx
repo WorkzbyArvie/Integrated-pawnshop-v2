@@ -48,7 +48,6 @@ import { Redemption } from './components/Redemption';
 import { AuctionQueue } from './components/AuctionQueue';
 import { AuctionMarketplace } from './components/AuctionMarketplace';
 import { AuctionSettlements } from './components/AuctionSettlements';
-import { BranchManagement } from './components/BranchManagement';
 import { SuperAdminDashboard } from './pages/admin/SuperAdminDashboard';
 import { SystemSettings } from './pages/admin/SystemSettings';
 import { StaffMatrix } from './components/StaffMatrix';
@@ -131,7 +130,6 @@ const DEFAULT_SIDEBAR_BRANDING: SidebarBranding = {
 const TAB_TO_PATH: Record<string, string> = {
   'platform-control': '/platform-control',
   'system-settings': '/system-settings',
-  'branches': '/branches',
   'trial-requests': '/trial-requests',
   'platform-compliance': '/platform-compliance',
   'pending-access': '/pending-access',
@@ -213,8 +211,6 @@ function App() {
   const [ownerBranches, setOwnerBranches] = useState<BranchOption[]>([]);
   const [ownerRegistrationStatus, setOwnerRegistrationStatus] = useState<string>('NONE');
   const [ownerRegistrationChecked, setOwnerRegistrationChecked] = useState(false);
-  const [selectedPawnshopId, setSelectedPawnshopId] = useState<string | null>(null);
-  const [selectedPawnshopName, setSelectedPawnshopName] = useState<string>('');
   const [activeOperationalBranchName, setActiveOperationalBranchName] = useState<string | null>(null);
   const [activeOperationalBranchId, setActiveOperationalBranchId] = useState<number | null>(() => {
     const stored = localStorage.getItem('active_branch_id');
@@ -1186,7 +1182,6 @@ function App() {
     { id: 'platform-control', label: 'Platform Control', icon: Globe, roles: ['Super Admin'], type: 'PLATFORM' },
     { id: 'platform-analytics', label: 'Platform Analytics', icon: BarChart3, roles: ['Super Admin'], type: 'PLATFORM' },
     { id: 'system-settings', label: 'System Control', icon: Settings2, roles: ['Super Admin'], type: 'PLATFORM' },
-    { id: 'branches', label: selectedPawnshopName ? `${selectedPawnshopName} — Branches` : 'Tenant Branches', icon: Warehouse, roles: ['Super Admin'], type: 'PLATFORM' },
     { id: 'trial-requests', label: 'Trial Requests', icon: ClipboardList, roles: ['Super Admin'], type: 'PLATFORM' },
     { id: 'platform-compliance', label: 'Compliance', icon: Shield, roles: ['Super Admin'], type: 'PLATFORM' },
     { id: 'support-chat', label: 'Support Hub', icon: Users2, roles: ['Super Admin'], type: 'PLATFORM' },
@@ -1300,7 +1295,6 @@ function App() {
     if (
       item.id === 'branch-system-settings' ||
       item.id === 'multi-branches' ||
-      item.id === 'branches' ||
       item.id === 'system-settings' ||
       item.id === 'trial-requests'
     ) {
@@ -1628,17 +1622,6 @@ function App() {
             {activeTab === 'auction-settlements' && <AuctionSettlements branchId={currentBranchId} activeBranchId={activeOperationalBranchId} />}
             {activeTab === 'bidder-kyc' && <BidderKycReview />}
             {activeTab === 'auction-live' && <AuctionMarketplace branchId={currentBranchId} activeBranchId={activeOperationalBranchId} />}
-            {activeTab === 'branches' && (
-              <BranchManagement
-                pawnshopId={selectedPawnshopId || undefined}
-                pawnshopName={selectedPawnshopName}
-                onBack={() => {
-                  setSelectedPawnshopId(null);
-                  setSelectedPawnshopName('');
-                  setActiveTab('platform-control');
-                }}
-              />
-            )}
             {activeTab === 'finance' && <FinanceTreasury branchId={currentBranchId} activeBranchId={activeOperationalBranchId} />}
             {activeTab === 'hr' && (
               <StaffMatrix
@@ -1695,11 +1678,6 @@ function App() {
                 activeTab={activeTab}
                 globalConfig={systemConfig} 
                 setGlobalConfig={setSystemConfig}
-                onManageBranches={(id, name) => {
-                  setSelectedPawnshopId(id);
-                  setSelectedPawnshopName(name);
-                  setActiveTab('branches');
-                }}
               />
             )}
           </div>

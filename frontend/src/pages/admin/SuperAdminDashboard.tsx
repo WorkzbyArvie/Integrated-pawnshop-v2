@@ -11,7 +11,6 @@ interface SuperAdminDashboardProps {
   activeTab: string; 
   globalConfig: any; 
   setGlobalConfig: (config: any) => void;
-  onManageBranches?: (pawnshopId: string, pawnshopName: string) => void;
 }
 
 export function SuperAdminDashboard({ 
@@ -19,7 +18,6 @@ export function SuperAdminDashboard({
   activeTab, 
   globalConfig, 
   setGlobalConfig,
-  onManageBranches,
 }: SuperAdminDashboardProps) {
 
   // Role constant aligned with your profiles table schema [cite: 2026-01-22]
@@ -171,10 +169,9 @@ export function SuperAdminDashboard({
       {activeTab === 'platform-analytics' && <PlatformAnalytics />}
 
       {activeTab === 'platform-control' && (
-        <PlatformControl 
-          userRole={SUPER_ADMIN_ROLE}
-          onManageBranches={onManageBranches}
-        />
+            <PlatformControl
+              userRole={userRole}
+            />
       )}
 
       {/* 3. TAB: SYSTEM SETTINGS */}

@@ -185,6 +185,10 @@ const MATRIX: Record<string, { tuple: string[]; permission: string }> = {
     tuple: ['OWNER', 'MANAGER'],
     permission: 'tenant.manage_branches',
   },
+  'tenant-governance.controller.ts::listBranches': {
+    tuple: ['OWNER', 'MANAGER'],
+    permission: 'tenant.manage_branches',
+  },
   'tenant-governance.controller.ts::updateBranch': {
     tuple: ['OWNER', 'MANAGER'],
     permission: 'tenant.manage_branches',
@@ -374,7 +378,7 @@ describe('permission catalog consistency', () => {
   });
 });
 
-describe('63-site equivalence scan', () => {
+describe('64-site equivalence scan', () => {
   const files = findControllerFiles(srcRoot)
     .filter((file) => !file.includes('\\common\\') && !file.includes('/common/'))
     .sort();
@@ -386,12 +390,12 @@ describe('63-site equivalence scan', () => {
     }
   });
 
-  it('finds all 63 migrated endpoints across the 6 controllers', () => {
+  it('finds all 64 migrated endpoints across the 6 controllers', () => {
     const total = [...sitesByFile.values()].reduce((sum, sites) => {
       const withAny = sites.filter((s) => s.roles || s.permissions);
       return sum + withAny.length;
     }, 0);
-    expect(total).toBe(63);
+    expect(total).toBe(64);
   });
 
   it('matrix tuples match the current @Roles tuples (RED-phase calibration)', () => {

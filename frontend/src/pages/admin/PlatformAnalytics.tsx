@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import {
-  Building2, Users, Activity, CreditCard, TrendingUp,
+  Building2, Users, Activity, CreditCard,
   AlertTriangle, Clock, DollarSign, Loader2, RefreshCcw,
   Plus, Send, UserPlus, ChevronDown, ChevronUp,
   BarChart3, PieChart, ArrowUpRight, ArrowDownRight,
@@ -157,7 +157,6 @@ export function PlatformAnalytics({ onNavigate }: PlatformAnalyticsProps) {
     { label: 'Active Pawnshops', value: analytics?.pawnshops?.active || 0, icon: Activity, color: 'text-emerald-400', bg: 'bg-emerald-400/10' },
     { label: 'Total Users', value: analytics?.users?.total || 0, icon: Users, color: 'text-blue-400', bg: 'bg-blue-400/10' },
     { label: 'Active Loans', value: analytics?.loans?.disbursed || 0, icon: DollarSign, color: 'text-purple-400', bg: 'bg-purple-400/10' },
-    { label: 'Total Loan Value', value: `₱${(analytics?.loans?.totalValue || 0).toLocaleString()}`, icon: TrendingUp, color: 'text-amber-400', bg: 'bg-amber-400/10' },
     { label: 'Pending Requests', value: analytics?.pendingRegistrations || 0, icon: Clock, color: 'text-rose-400', bg: 'bg-rose-400/10' },
   ];
 

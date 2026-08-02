@@ -279,6 +279,7 @@ export class TenantGovernanceController {
   }
 
   @Get('branches')
+  @RequiresPermission(PERMISSIONS['tenant.manage_branches'])
   async listBranches(
     @Headers('authorization') authHeader: string | undefined,
     @Query('pawnshopId') pawnshopId?: string,

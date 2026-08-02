@@ -3,18 +3,13 @@ import {
   CanActivate,
   ExecutionContext,
   BadRequestException,
-  Logger,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { Request } from 'express';
 import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
-import { PrismaService } from '../../prisma.service';
-import { AuthUserService } from '../auth-user.service';
 
 @Injectable()
 export class PawnshopGuard implements CanActivate {
-  private readonly logger = new Logger(PawnshopGuard.name);
-
   private readonly UUID_REGEX =
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -39,20 +34,19 @@ export class PawnshopGuard implements CanActivate {
     '/tenant-governance/analytics',
     '/tenant-governance/invitations',
     '/tenant-governance/subscriptions',
+    '/tenant-governance/audit',
+    '/tenant-governance/support-access',
+    '/tenant-governance/onboarding',
     '/analytics/branch/',
     '/analytics/branch-stats',
-    '/notifications/user/',
+    '/notifications',
     '/pawn-tickets/pending-approval',
     '/pawnshops',
     '/security',
     '/profile',
   ];
 
-  constructor(
-    private reflector: Reflector,
-    private prisma: PrismaService,
-    private authUser: AuthUserService,
-  ) {}
+  constructor(private reflector: Reflector) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest<Request>();
@@ -68,20 +62,6 @@ export class PawnshopGuard implements CanActivate {
 
     if (this.EXEMPT_PREFIXES.some((prefix) => pathName.startsWith(prefix))) {
       return true;
-    }
-
-    const authHeader = request.headers?.authorization as string | undefined;
-    try {
-      const userId = await this.authUser.getUserIdFromAuthHeader(authHeader);
-      const profile = await this.prisma.profile.findUnique({
-        where: { id: userId },
-        select: { role: true },
-      });
-      if (profile && profile.role === 'SUPER_ADMIN') {
-        return true;
-      }
-    } catch {
-      // If auth fails, fall through to pawnshop-id check below
     }
 
     const pawnshopId = request.headers['pawnshop-id'] as string;

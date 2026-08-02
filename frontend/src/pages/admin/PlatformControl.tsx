@@ -1,24 +1,20 @@
 ﻿import { useState, useEffect } from 'react';
 import {
   Building2, Globe, Loader2,
-  X, Trash2, AlertTriangle, Search,
-  TrendingUp, Users, Activity, CalendarDays, GitBranch, CreditCard, ArrowRight
+  X, Trash2, AlertTriangle, Search, TrendingUp, CreditCard
 } from 'lucide-react';
 import Swal from 'sweetalert2';
 import api from '../../lib/apiClient';
-import { BranchAnalytics } from '../../components/BranchAnalytics';
 
 interface PlatformControlProps {
   userRole: string;
-  onManageBranches?: (pawnshopId: string, pawnshopName: string) => void;
 }
 
-export function PlatformControl({ userRole, onManageBranches }: PlatformControlProps) {
+export function PlatformControl({ userRole }: PlatformControlProps) {
   const [pawnshops, setPawnshops] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [shopToDelete, setShopToDelete] = useState<any>(null);
   const [selectedShop, setSelectedShop] = useState<any>(null);
-  const [analyticsShop, setAnalyticsShop] = useState<any>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
   const isSuperAdmin = userRole === 'SUPER' || userRole === 'SUPER_ADMIN' || userRole === 'Super Admin';
@@ -58,32 +54,14 @@ export function PlatformControl({ userRole, onManageBranches }: PlatformControlP
           .map((row) => [String(row.id), row]),
       );
 
-      let statsMap = new Map<string, any>();
-      try {
-        const ids = shops.map((s: any) => s.id).filter(Boolean);
-        if (ids.length > 0) {
-          const batchStats = await api.get<any[]>(`/analytics/branch-stats/batch?ids=${ids.join(',')}`);
-          if (Array.isArray(batchStats)) {
-            statsMap = new Map(batchStats.map((s: any) => [String(s.pawnshopId), s]));
-          }
-        }
-      } catch (err) {
-        console.warn('Unable to load batch branch stats:', err);
-      }
-
       const enrichedData = shops.map((shop: any) => {
         const metadata = metadataById.get(String(shop.id));
-        const stats = statsMap.get(String(shop.id)) || {};
         return {
           ...shop,
-          clientCount: stats.clientCount || 0,
-          activeTickets: stats.activeTickets || 0,
-          avgTicketsPerDay: Math.max(0, Number(((stats.activeTickets || 0) / 30).toFixed(1))),
           subscriptionPlan:
             metadata?.subscription_tier ||
             shop.settings?.subscription_plan ||
             'FREE',
-          loanValue: stats.totalPrincipal || 0,
         };
       });
       setPawnshops(enrichedData);
@@ -116,18 +94,6 @@ export function PlatformControl({ userRole, onManageBranches }: PlatformControlP
       showNotification((err instanceof Error ? err.message : String(err)) || "Failed to update status", "error");
     }
   };
-
-  if (analyticsShop) {
-    return (
-      <div className="p-8">
-        <BranchAnalytics
-          branchId={analyticsShop.id}
-          branchName={analyticsShop.name}
-          onBack={() => setAnalyticsShop(null)}
-        />
-      </div>
-    );
-  }
 
   const filteredShops = pawnshops.filter(shop =>
     (shop.name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -179,23 +145,10 @@ export function PlatformControl({ userRole, onManageBranches }: PlatformControlP
             <h3 className="font-bold text-2xl text-[#EAE2D6] mb-1 tracking-tight">{shop.name}</h3>
             <p className="text-sm text-[#6B655C] font-medium mb-6 italic">{shop.contactEmail || 'No email'}</p>
 
-            <div className="grid grid-cols-2 gap-3 mb-6">
-              <div className="bg-[#1C1C26] p-3 rounded-2xl border border-[rgba(201,160,92,0.08)]">
-                <p className="text-[9px] font-black text-[#6B655C] uppercase tracking-widest mb-1">Active Tickets</p>
-                <p className="font-bold text-[#EAE2D6] text-xs">{shop.activeTickets || 0}</p>
-              </div>
-              <div className="bg-[#1C1C26] p-3 rounded-2xl border border-[rgba(201,160,92,0.08)]">
-                <p className="text-[9px] font-black text-[#6B655C] uppercase tracking-widest mb-1">Clients</p>
-                <p className="font-bold text-[#EAE2D6] text-xs">{shop.clientCount || 0}</p>
-              </div>
-              <div className="bg-[#1C1C26] p-3 rounded-2xl border border-[rgba(201,160,92,0.08)]">
-                <p className="text-[9px] font-black text-[#6B655C] uppercase tracking-widest mb-1">Loan Value</p>
-                <p className="font-bold text-[#EAE2D6] text-xs">₱{(shop.loanValue || 0).toLocaleString()}</p>
-              </div>
-              <div className="bg-[#1C1C26] p-3 rounded-2xl border border-[rgba(201,160,92,0.08)]">
-                <p className="text-[9px] font-black text-[#6B655C] uppercase tracking-widest mb-1">Plan</p>
-                <p className="font-bold text-[#C9A05C] text-xs">{shop.subscriptionPlan}</p>
-              </div>
+            <div className="inline-flex items-center gap-2 px-4 py-2 bg-[#1C1C26] rounded-xl border border-[rgba(201,160,92,0.08)] mb-6">
+              <CreditCard size={14} className="text-[#C9A05C]" />
+              <span className="text-[10px] font-black text-[#6B655C] uppercase tracking-widest">Plan</span>
+              <span className="font-bold text-[#C9A05C] text-xs">{shop.subscriptionPlan}</span>
             </div>
 
             <div className="pt-6 border-t border-slate-50 flex items-center justify-between">
@@ -234,27 +187,10 @@ export function PlatformControl({ userRole, onManageBranches }: PlatformControlP
               <button onClick={() => setSelectedShop(null)} className="p-4 bg-[#1C1C26] rounded-2xl hover:text-rose-500 transition-all"><X size={24} /></button>
             </div>
 
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-10">
-              <div className="p-6 bg-[#1C1C26] rounded-[24px] border border-[rgba(201,160,92,0.08)] text-center">
-                <Users className="mx-auto text-[#C9A05C] mb-2" size={24} />
-                <p className="text-2xl font-black text-[#EAE2D6]">{selectedShop.clientCount || 0}</p>
-                <p className="text-[9px] font-black text-[#6B655C] uppercase tracking-widest mt-1">Clients</p>
-              </div>
-              <div className="p-6 bg-[#1C1C26] rounded-[24px] border border-[rgba(201,160,92,0.08)] text-center">
-                <Activity className="mx-auto text-emerald-500 mb-2" size={24} />
-                <p className="text-2xl font-black text-[#EAE2D6]">{selectedShop.activeTickets || 0}</p>
-                <p className="text-[9px] font-black text-[#6B655C] uppercase tracking-widest mt-1">Active Tickets</p>
-              </div>
-              <div className="p-6 bg-[#1C1C26] rounded-[24px] border border-[rgba(201,160,92,0.08)] text-center">
-                <CalendarDays className="mx-auto text-blue-500 mb-2" size={24} />
-                <p className="text-2xl font-black text-[#EAE2D6]">{selectedShop.avgTicketsPerDay || 0}</p>
-                <p className="text-[9px] font-black text-[#6B655C] uppercase tracking-widest mt-1">Avg / Day</p>
-              </div>
-              <div className="p-6 bg-[#1C1C26] rounded-[24px] border border-[rgba(201,160,92,0.08)] text-center">
-                <CreditCard className="mx-auto text-[#C9A05C] mb-2" size={24} />
-                <p className="text-lg font-black text-[#C9A05C]">{selectedShop.subscriptionPlan}</p>
-                <p className="text-[9px] font-black text-[#6B655C] uppercase tracking-widest mt-1">Plan</p>
-              </div>
+            <div className="flex items-center gap-3 p-6 bg-[#1C1C26] rounded-[24px] border border-[rgba(201,160,92,0.08)] mb-10">
+              <CreditCard className="text-[#C9A05C]" size={24} />
+              <p className="text-[10px] font-black text-[#6B655C] uppercase tracking-widest">Plan</p>
+              <p className="text-lg font-black text-[#C9A05C]">{selectedShop.subscriptionPlan}</p>
             </div>
 
             <div className="grid grid-cols-2 gap-4 mb-10 text-left">
@@ -270,27 +206,6 @@ export function PlatformControl({ userRole, onManageBranches }: PlatformControlP
                 <p className="text-[9px] font-black text-[#6B655C] uppercase tracking-widest mb-1">Address</p>
                 <p className="text-sm font-bold text-[#EAE2D6]">{selectedShop.address || 'No address set'}</p>
               </div>
-            </div>
-
-            <div className="flex gap-4">
-              <button
-                onClick={() => {
-                  setAnalyticsShop(selectedShop);
-                  setSelectedShop(null);
-                }}
-                className="flex-1 py-5 bg-[#1C1C26] text-[#EAE2D6] rounded-[24px] font-black uppercase text-xs tracking-[0.15em] flex items-center justify-center gap-3 hover:bg-[#222228] transition-all"
-              >
-                <TrendingUp size={18} /> Analytics
-              </button>
-              <button
-                onClick={() => {
-                  setSelectedShop(null);
-                  onManageBranches?.(selectedShop.id, selectedShop.name);
-                }}
-                className="flex-1 py-5 bg-[#C9A05C] text-white rounded-[24px] font-black uppercase text-xs tracking-[0.15em] flex items-center justify-center gap-3 hover:brightness-110 transition-all"
-              >
-                <GitBranch size={18} /> Manage Branches <ArrowRight size={14} />
-              </button>
             </div>
           </div>
         </div>
