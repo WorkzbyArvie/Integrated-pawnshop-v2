@@ -140,6 +140,28 @@ export function SuperAdminDashboard({
                 </div>
               </button>
 
+              {/* ACTION: BIDDER KYC REVIEW (Super Admin Access) */}
+              <button
+                onClick={() => setActiveTab('bidder-kyc')}
+                className="bg-[#14141B] p-10 rounded-[48px] border border-[rgba(201,160,92,0.08)] shadow-2xl shadow-purple-100/40 hover:shadow-purple-200/60 hover:-translate-y-1 transition-all group text-left relative overflow-hidden"
+              >
+                <div className="absolute top-0 right-0 p-8 opacity-5 group-hover:scale-110 transition-transform">
+                  <Shield size={120} />
+                </div>
+                <div className="relative z-10">
+                  <div className="p-4 w-fit bg-purple-50 rounded-2xl text-purple-700 mb-6 group-hover:bg-purple-600 group-hover:text-white transition-colors">
+                    <Shield size={32} />
+                  </div>
+                  <h3 className="text-2xl font-black text-[#EAE2D6] mb-2 uppercase tracking-tighter">Bidder KYC Review</h3>
+                  <p className="text-sm text-[#6B655C] font-bold mb-8 leading-relaxed uppercase tracking-tight opacity-80">
+                    Review auction bidder identity submissions, OCR/face verification results, and approve or reject KYC applications.
+                  </p>
+                  <div className="text-[10px] font-black uppercase tracking-[0.2em] text-purple-700 flex items-center gap-2">
+                    Open Reviews <span className="group-hover:translate-x-2 transition-transform">â†’</span>
+                  </div>
+                </div>
+              </button>
+
             </div>
           </div>
         </div>

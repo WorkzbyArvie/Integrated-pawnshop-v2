@@ -1211,7 +1211,7 @@ function App() {
     { id: 'hr', label: 'Staff Matrix', icon: Users, roles: ['Owner', 'Admin', 'HR'], type: 'OPERATIONAL', feature: 'hr_enabled' },
     { id: 'auction-queue', label: 'Auction Queue', icon: Gavel, roles: ['Owner', 'Admin', 'Manager'], type: 'OPERATIONAL', feature: 'auction_enabled' },
     { id: 'auction-settlements', label: 'Auction Settlements', icon: Gavel, roles: ['Owner', 'Admin', 'Manager'], type: 'OPERATIONAL', feature: 'auction_enabled' },
-    { id: 'bidder-kyc', label: 'Bidder KYC Review', icon: Shield, roles: ['Super Admin'], type: 'OPERATIONAL', feature: 'auction_enabled' },
+    { id: 'bidder-kyc', label: 'Bidder KYC Review', icon: Shield, roles: ['Super Admin'], type: 'PLATFORM' },
     { id: 'auction-live', label: 'Live Auctions', icon: Gavel, roles: ['Owner', 'Admin', 'Manager'], type: 'OPERATIONAL', feature: 'auction_enabled' },
     { id: 'decision', label: 'Decision Support', icon: BrainCircuit, roles: ['Owner', 'Admin', 'Manager'], type: 'OPERATIONAL', feature: 'decision_enabled' },
     { id: 'loan-history', label: 'Loan History', icon: History, roles: ['Owner', 'Admin', 'Manager', 'Staff', 'Cashier/Teller', 'Appraiser', 'Auditor'], type: 'OPERATIONAL' },
