@@ -1,47 +1,25 @@
-# Deferred Items — Phase 08 Plan 01
+# Deferred Items — Phase 08 Plan 2
 
-Out-of-scope pre-existing failures observed during 08-01 execution. Per the
-execution scope boundary (only auto-fix issues directly caused by the current
-task's changes), these were logged, not fixed.
+Out-of-scope discoveries logged during execution of 08-02 (not fixed, per scope boundary rule).
 
-## Backend (8 jest suites) — pre-existing mock debt
+## Pre-existing failing test suites (baseline, unrelated to 08-02)
 
-`npm test` in backend/ fails on suites untouched by 08-01 (`git diff HEAD~4..HEAD`
-touches only the 7 plan files):
+The following suites fail on `npm test` in the backend and were failing before this plan's commits
+(confirmed: none of their files appear in `git diff --name-only` for this plan; full-suite failure
+counts are identical before and after the 08-02 commits `0c2baf5`, `1e16aed`, `2b4abe4`):
 
-- `src/kyc/kyc-validation.spec.ts`
-- `src/subscription/subscription.service.spec.ts`
-- `src/attendance/attendance.service.spec.ts`
-- `src/notification/notification.service.spec.ts`
-- `src/queue/queue.service.spec.ts`
-- `src/loan/loan-contract.service.spec.ts`
-- `src/auction/auction-settlement.service.spec.ts`
-- `src/loan/loan-history.service.spec.ts`
+| Suite | Failure signature |
+|-------|-------------------|
+| `kyc/kyc-validation.spec.ts` | mock delegate `findUnique` undefined at call time |
+| `attendance/attendance.service.spec.ts` | `this.prisma.ensureConnected is not a function` |
+| `notification/notification.service.spec.ts` | `this.prisma.ensureConnected is not a function` / mock `findUnique` undefined |
+| `subscription/subscription.service.spec.ts` | tier/status/maxBranches expectations vs pre-existing working-copy changes in `subscription.service.ts` (out-of-scope uncommitted file) |
+| `queue/queue.service.spec.ts` | mock `findUnique` undefined |
+| `loan/loan-contract.service.spec.ts` | TestingModule never provides `StorageService`, which `LoanContractService`'s constructor now requires (index 3) |
+| `loan/loan-history.service.spec.ts` | TestingModule compile failure (same dependency resolution family) |
+| `auction/auction-settlement.service.spec.ts` | `expect(...).toThrow` mismatch / tier update noise |
 
-Observed root causes (sampled runs):
-
-- `TypeError: this.prisma.ensureConnected is not a function` — the services call
-  `PrismaService.ensureConnected` (exists at `backend/src/prisma.service.ts:151`)
-  but the specs' mocked PrismaService objects do not define it.
-- `TypeError: Cannot read properties of undefined (reading 'findUnique')` — spec
-  prisma mocks are missing nested model delegates the service touches.
-
-Fix owner: a future test-hygiene pass (repair the specs' PrismaService mocks),
-NOT part of Phase 8 RBAC work.
-
-## Frontend (2 vitest cases) — pre-existing failures
-
-- `src/components/__tests__/AuctionQueue.test.tsx` — "returns an item to the vault":
-  `Auction queue fetch error: TypeError: Cannot read properties of undefined (reading 'getItem')`
-  (localStorage not stubbed for the component's fetch path)
-- `src/components/__tests__/InventoryVault.test.tsx` — "marks active items for auction":
-  `supabase.from(...).select(...).in is not a function` (mock chain incomplete)
-
-Both are unrelated to the new `ApprovalQueue.test.tsx` scaffold.
-
-## Expected RED (NOT deferred — closes in 08-02/08-03)
-
-- backend: `src/approval/approval.service.spec.ts` + `approval.controller.spec.ts`
-  (`Cannot find module './approval.service' / './approval.controller'`)
-- frontend: `src/components/__tests__/ApprovalQueue.test.tsx`
-  (`Failed to resolve import "../ApprovalQueue"`)
+Suggested remediation (future plan): update the loan-contract / loan-history specs to provide
+`StorageService`; reconcile `PrismaService.ensureConnected` mocking for attendance/notification;
+decide whether the uncommitted `subscription.service.ts` working-copy changes are wanted, then align
+its spec. These are all test-infrastructure debts, not phase-08 regressions.

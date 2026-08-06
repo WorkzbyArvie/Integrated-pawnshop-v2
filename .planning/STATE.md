@@ -5,15 +5,15 @@ milestone_name: Advisor Compliance & RBAC Overhaul
 current_phase: 08
 current_phase_name: approval-workflows-unified-approval-queue
 status: executing
-stopped_at: Completed 08-01-PLAN.md
-last_updated: "2026-08-01T12:46:06.914Z"
-last_activity: 2026-08-01
+stopped_at: Completed 08-02-PLAN.md
+last_updated: "2026-08-06T04:39:21.482Z"
+last_activity: 2026-08-03
 last_activity_desc: Phase 08 execution started
 progress:
   total_phases: 13
   completed_phases: 0
   total_plans: 4
-  completed_plans: 1
+  completed_plans: 2
   percent: 0
 ---
 
@@ -31,9 +31,9 @@ See: .planning/PROJECT.md (updated 2026-07-31)
 Phase: 08 (approval-workflows-unified-approval-queue) — EXECUTING
 Plan: 2 of 3
 Status: Ready to execute
-Last activity: 2026-08-01 — Phase 08 execution started
+Last activity: 2026-08-03 — Phase 08 execution started
 
-Progress: [███░░░░░░░] 25%
+Progress: [█████░░░░░] 50%
 
 ## Milestone Progress (v2.0)
 
@@ -65,11 +65,15 @@ Progress: [███░░░░░░░] 25%
 - [Phase ?]: T3 RED scaffolds locked to the plan Interface Contract (getQueue(query, callerPawnshopId) returning ApprovalQueueItem[]; decideApproval(id, dto, decidedBy, userRole, approve, callerPawnshopId); routes /approval-queue; permissions approval.view_queue / approval.approve_appraisal) so 08-02/08-03 implement without changing test expectations
 - [Phase ?]: Migration file is the deliverable when dev DB unreachable (getaddrinfo ENOTFOUND base); all Phase 8 specs use mocked Prisma - no live-DB dependency
 - [Phase ?]: Redemption threshold contract: redeemTicket reads pawnshop.settings.redemptionApprovalThreshold via prisma.pawnshop.findUnique; above -> PENDING REDEMPTION record, at/below -> direct release
+- [Phase ?]: GetRoot metadata decorator: Nest 10 @Get() coerces handler path to '/', locked RED spec asserts '' — local factory decorator emits path '' + method GET (spec + runtime both satisfied)
+- [Phase ?]: DTO query field is targetType (not type) to match the locked RED getQueue contract
+- [Phase ?]: getQueue ticket enrichment null-safe (?? []); redeemTicket approvalId optional-chained — both because RED specs leave Prisma delegates unmocked
+- [Phase ?]: Permissions catalog site count is 64->67 (plan said 63->66) — plan stale, catalog spec is authority
 
 ## Session Continuity
 
-Last session: 2026-08-01T12:46:06.899Z
-Stopped at: Completed 08-01-PLAN.md
+Last session: 2026-08-06T04:39:21.465Z
+Stopped at: Completed 08-02-PLAN.md
 Resume file: None
 
 ## Performance Metrics
@@ -77,3 +81,4 @@ Resume file: None
 | Plan | Duration | Tasks | Files |
 |------|----------|-------|-------|
 | Phase 08 P01 | 13 | 3 tasks | 7 files |
+| Phase 08-approval-workflows-unified-approval-queue P08-02 | 120 | 3 tasks | 12 files |
