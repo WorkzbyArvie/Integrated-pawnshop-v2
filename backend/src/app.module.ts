@@ -16,6 +16,7 @@ import { NotificationModule } from './notification/notification.module';
 import { ComplianceModule } from './compliance/compliance.module';
 import { FinanceModule } from './finance/finance.module';
 import { AttendanceModule } from './attendance/attendance.module';
+import { ApprovalModule } from './approval/approval.module';
 import { PayrollModule } from './payroll/payroll.module';
 import { SubscriptionModule } from './subscription/subscription.module';
 import { LoanModule } from './loan/loan.module';
@@ -40,6 +41,7 @@ import { CommonModule } from './common/common.module';
     ComplianceModule,
     FinanceModule,
     AttendanceModule,
+    ApprovalModule,
     PayrollModule,
     SubscriptionModule,
     LoanModule,

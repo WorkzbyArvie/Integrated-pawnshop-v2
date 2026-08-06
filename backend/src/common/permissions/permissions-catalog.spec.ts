@@ -198,8 +198,8 @@ const MATRIX: Record<string, { tuple: string[]; permission: string }> = {
     permission: 'platform.manage',
   },
   'tenant-governance.controller.ts::updatePawnshopSettings': {
-    tuple: ['SUPER_ADMIN'],
-    permission: 'platform.manage',
+    tuple: ['OWNER'],
+    permission: 'tenant.manage',
   },
   'tenant-governance.controller.ts::deletePawnshop': {
     tuple: ['SUPER_ADMIN'],
@@ -236,6 +236,18 @@ const MATRIX: Record<string, { tuple: string[]; permission: string }> = {
   'app.controller.ts::findAllPawnshops': {
     tuple: ['SUPER_ADMIN'],
     permission: 'platform.manage',
+  },
+  'approval.controller.ts::getQueue': {
+    tuple: ['OWNER', 'ADMIN', 'MANAGER', 'CASHIER_TELLER', 'APPRAISER'],
+    permission: 'approval.view_queue',
+  },
+  'approval.controller.ts::approve': {
+    tuple: ['OWNER', 'ADMIN'],
+    permission: 'approval.approve_appraisal',
+  },
+  'approval.controller.ts::reject': {
+    tuple: ['OWNER', 'ADMIN'],
+    permission: 'approval.approve_appraisal',
   },
   'compliance.controller.ts::uploadDocument': {
     tuple: ['OWNER', 'STAFF', 'SUPER_ADMIN'],
@@ -378,7 +390,7 @@ describe('permission catalog consistency', () => {
   });
 });
 
-describe('64-site equivalence scan', () => {
+describe('67-site equivalence scan', () => {
   const files = findControllerFiles(srcRoot)
     .filter((file) => !file.includes('\\common\\') && !file.includes('/common/'))
     .sort();
@@ -390,12 +402,12 @@ describe('64-site equivalence scan', () => {
     }
   });
 
-  it('finds all 64 migrated endpoints across the 6 controllers', () => {
+  it('finds all 67 migrated endpoints across the 7 controllers', () => {
     const total = [...sitesByFile.values()].reduce((sum, sites) => {
       const withAny = sites.filter((s) => s.roles || s.permissions);
       return sum + withAny.length;
     }, 0);
-    expect(total).toBe(64);
+    expect(total).toBe(67);
   });
 
   it('matrix tuples match the current @Roles tuples (RED-phase calibration)', () => {

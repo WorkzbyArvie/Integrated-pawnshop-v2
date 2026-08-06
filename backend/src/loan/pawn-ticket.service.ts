@@ -510,7 +510,7 @@ export class PawnTicketService {
         ticketNumber: ticket.ticketNumber,
         lifecycleStatus: 'PENDING_APPROVAL',
         requiresApproval: true,
-        approvalId: approvalRecord.id,
+        approvalId: approvalRecord?.id,
         approvalStatus: 'PENDING',
         message: 'Approval required for high-value redemption',
       };

@@ -130,7 +130,7 @@ describe('ApprovalService (RBAC-05 / RBAC-06)', () => {
 
       expect(prisma.approvalRecord.update).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: expect.objectContaining({ id: expect.any(Number) }),
+          where: expect.objectContaining({ id: expect.any(String) }),
           data: expect.objectContaining({
             status: 'APPROVED',
             decidedById: 'mgr_1',
@@ -348,9 +348,8 @@ describe('PawnTicketService approval chokepoints (RBAC-03 / RBAC-04)', () => {
         expect.objectContaining({
           data: expect.objectContaining({
             pawnshopId: 'ps_1',
-            targetType: 'TICKET',
-            targetId: 100,
-            recordType: 'APPRAISAL',
+            targetType: 'APPRAISAL',
+            targetId: '100',
             status: 'PENDING',
             payload: expect.objectContaining({
               ticketId: 100,
@@ -391,9 +390,8 @@ describe('PawnTicketService approval chokepoints (RBAC-03 / RBAC-04)', () => {
         expect.objectContaining({
           data: expect.objectContaining({
             pawnshopId: 'ps_1',
-            targetType: 'TICKET',
-            targetId: 900,
-            recordType: 'REDEMPTION',
+            targetType: 'REDEMPTION',
+            targetId: '900',
             status: 'PENDING',
             payload: expect.objectContaining({ amountPaid: 60000 }),
           }),

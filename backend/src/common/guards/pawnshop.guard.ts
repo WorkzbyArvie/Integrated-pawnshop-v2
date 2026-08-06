@@ -41,6 +41,7 @@ export class PawnshopGuard implements CanActivate {
     '/analytics/branch-stats',
     '/notifications',
     '/pawn-tickets/pending-approval',
+    '/approval-queue',
     '/pawnshops',
     '/security',
     '/profile',
