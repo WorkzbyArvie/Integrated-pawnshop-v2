@@ -1,10 +1,11 @@
 ---
 phase: 09
 slug: kyc-verification-disbursement-guardrail
-status: draft
+status: approved
 shadcn_initialized: false
 preset: none
 created: 2026-08-06
+reviewed_at: 2026-08-06
 ---
 
 # Phase 9 — UI Design Contract
@@ -59,7 +60,7 @@ Exactly 4 sizes, exactly 2 weights. Syne `font-black` (800) for everything empha
 | Micro label | 10px | 800 | 1.2 | Syne — `uppercase tracking-widest` (eyebrows, dialog section labels, tab labels, review readout) |
 | Body | 14px | 400 | 1.5 | DM Sans — descriptions, list rows, dialog content, empty-state body |
 | Heading | 18px | 800 | 1.2 | Syne — dialog title `text-lg`, row name emphasis |
-| Display | 24px | 400→800 | 1.2 | Syne — page title `text-2xl font-black uppercase tracking-tight` with gold accent word |
+| Display | 24px | 800 | 1.2 | Syne — page title `text-2xl font-black uppercase tracking-tight` with gold accent word |
 
 Notes (locked):
 - **Micro label is the canonical Gilded Reserve label voice** — `text-[10px] font-black uppercase tracking-widest`, muted `#6B655C` (eyebrows) or gold (emphasis). Do not add new 9px/11px labels.
@@ -175,13 +176,14 @@ id, fullName, contactNumber, address, idType, idNumber, idFrontUrl, idBackUrl?, 
 
 ## UI Considerations
 
-Applicable state considerations resolved: 8 covered, 2 backstop, 0 unresolved
+Applicable state considerations resolved: 10 covered, 2 backstop, 0 unresolved
 
 | Category | Element(s) | Status | Resolution / Reason |
 |----------|------------|--------|---------------------|
 | empty | review list, per-tab | ✅ covered | "No pending KYC submissions" / "No KYC records found" (see Copywriting) |
 | loading | review list | ✅ covered | Centered muted "Loading KYC records..." text, BidderKycReview pattern |
 | error | review list fetch | ✅ covered | Inline error card + Retry + `showToast(error.message, 'error')` |
+| error | Verify/Reject action failure | ✅ covered | PATCH non-2xx → `showToast(error.message, 'error')`; `actionLoading` clears; dialog stays open with entered values; list reloads on success |
 | populated | review list at volume | ✅ covered | Card rows with `space-y-2`; stable row height via truncation |
 | partial | one tab empty, other populated | ✅ covered | Per-tab empty states render independently; pills never hide |
 | zero-one-many | tab pills, pending count | ✅ covered | Live count in the Pending pill (BidderKycReview pattern) |
@@ -189,6 +191,7 @@ Applicable state considerations resolved: 8 covered, 2 backstop, 0 unresolved
 | overflow | review dialog on small viewports | 🧪 backstop | `max-h-[90vh] overflow-y-auto`; held-out check |
 | a11y | icon-only buttons, color-coded badges, focus | ✅ covered | `aria-label` on icon buttons (close, refresh); badges carry text + color (non-color signal); gold focus rings |
 | media | signed doc links in dialog | ✅ covered | Signed-URL links via `getSignedKycDocUrl` (D-13); opens in new tab with `rel="noopener noreferrer"` |
+| media | signed-URL generation failure | ✅ covered | `getSignedKycDocUrl` throw → link renders disabled/muted with label + "Document unavailable" tooltip; no dead `<a href>` |
 
 ---
 
@@ -205,11 +208,11 @@ No third-party registries declared; registry vetting gate not applicable. All co
 
 ## Checker Sign-Off
 
-- [ ] Dimension 1 Copywriting: PASS
-- [ ] Dimension 2 Visuals: PASS
-- [ ] Dimension 3 Color: PASS
-- [ ] Dimension 4 Typography: PASS
-- [ ] Dimension 5 Spacing: PASS
-- [ ] Dimension 6 Registry Safety: PASS
+- [x] Dimension 1 Copywriting: PASS
+- [x] Dimension 2 Visuals: PASS
+- [x] Dimension 3 Color: PASS
+- [x] Dimension 4 Typography: PASS
+- [x] Dimension 5 Spacing: PASS
+- [x] Dimension 6 Registry Safety: PASS
 
-**Approval:** pending
+**Approval:** approved — 2026-08-06
