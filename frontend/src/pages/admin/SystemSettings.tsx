@@ -10,6 +10,7 @@ import {
   BellRing,
   BrainCircuit,
   Users2,
+  Undo2,
   ShieldAlert,
   X,
   AlertTriangle,
@@ -66,6 +67,7 @@ export function SystemSettings({ config, setConfig, userRole, branchId, onBrandi
   const [branding, setBranding] = useState<BrandingPayload>(DEFAULT_BRANDING);
   const [loadingBranding, setLoadingBranding] = useState(false);
   const [savingBranding, setSavingBranding] = useState(false);
+  const [redemptionThreshold, setRedemptionThreshold] = useState<number>(50000);
   
   const normalizedRole = (userRole || '').toUpperCase().replace(/[_\s]/g, '');
   const isSuperAdmin = normalizedRole === 'SUPERADMIN' || normalizedRole === 'SUPER';
@@ -88,6 +90,7 @@ export function SystemSettings({ config, setConfig, userRole, branchId, onBrandi
           }
 
           if (data?.settings) {
+            setRedemptionThreshold(Number(data.settings.redemptionApprovalThreshold) || 50000);
             const globalOverrides = data.settings.global_overrides;
             if (globalOverrides) {
               setConfig((prev: any) => ({ ...prev, ...globalOverrides }));
@@ -111,7 +114,8 @@ export function SystemSettings({ config, setConfig, userRole, branchId, onBrandi
           }
 
           if (data?.settings) {
-            const { global_overrides, ...localSettings } = data.settings;
+            const { global_overrides, redemptionApprovalThreshold, ...localSettings } = data.settings;
+            setRedemptionThreshold(Number(redemptionApprovalThreshold) || 50000);
             // Set local config (what the Branch Admin sees/edits)
             setConfig((prev: any) => ({ ...prev, ...localSettings }));
             // Set global overrides for the "Restricted" badge / grey-out check
@@ -195,7 +199,19 @@ export function SystemSettings({ config, setConfig, userRole, branchId, onBrandi
   // ASYNC SAVE HANDLER
   const handleConfirmSave = async () => {
     setIsSaving(true);
-    
+
+    const threshold = Number(redemptionThreshold);
+    if (!Number.isFinite(threshold) || threshold <= 0) {
+      setIsSaving(false);
+      await Swal.fire({
+        icon: 'warning',
+        title: 'Invalid Redemption Threshold',
+        text: 'Enter a valid amount greater than zero.',
+        confirmButtonColor: '#ef4444',
+      });
+      return;
+    }
+
     try {
       if (isSuperAdmin) {
         // â”€â”€ Super Admin: write global_overrides to ALL pawnshops â”€â”€
@@ -241,7 +257,9 @@ export function SystemSettings({ config, setConfig, userRole, branchId, onBrandi
 
         // Merge: update local keys, preserve global_overrides
         const updatedSettings = {
+          ...currentSettings,
           ...sanitizedConfig,
+          redemptionApprovalThreshold: threshold,
           global_overrides: currentSettings.global_overrides || {},
         };
 
@@ -427,6 +445,33 @@ export function SystemSettings({ config, setConfig, userRole, branchId, onBrandi
             </div>
           );
         })}
+      </div>
+
+      <div className="bg-[#14141B] rounded-[2.8rem] p-8 border-2 border-[rgba(201,160,92,0.08)] shadow-xl">
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#C9A05C]">Redemption Policy</p>
+            <h3 className="text-2xl font-black text-[#EAE2D6] mt-1 flex items-center gap-2">
+              <Undo2 className="w-6 h-6 text-[#C9A05C]" />
+              Redemption Approval Threshold
+            </h3>
+            <p className="text-sm text-[#6B655C] mt-2">
+              Redemption requests above this amount require owner approval in the Approval Queue.
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-3 max-w-md">
+          <span className="text-lg font-black text-[#C9A05C]">PHP</span>
+          <input
+            type="number"
+            min={1}
+            step={1}
+            value={redemptionThreshold}
+            onChange={(event) => setRedemptionThreshold(Number(event.target.value))}
+            className="w-full rounded-2xl border border-[rgba(201,160,92,0.12)] px-4 py-3 text-sm font-semibold text-[#EAE2D6]"
+            placeholder="50000"
+          />
+        </div>
       </div>
 
       {!isSuperAdmin && (
