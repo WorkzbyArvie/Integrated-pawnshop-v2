@@ -3,7 +3,13 @@ import { describe, it, vi, beforeEach } from 'vitest';
 
 import ApprovalQueue from '../ApprovalQueue';
 
-const apiMock = { get: vi.fn(), post: vi.fn(), put: vi.fn(), patch: vi.fn(), delete: vi.fn() };
+const apiMock = vi.hoisted(() => ({
+  get: vi.fn(),
+  post: vi.fn(),
+  put: vi.fn(),
+  patch: vi.fn(),
+  delete: vi.fn(),
+}));
 
 vi.mock('../../lib/apiClient', () => ({
   api: apiMock,
@@ -78,7 +84,7 @@ describe('ApprovalQueue (RBAC-05)', () => {
       }),
     );
 
-    fireEvent.click(screen.getByText('Redemption'));
+    fireEvent.mouseDown(screen.getByText('Redemption'));
 
     await waitFor(() =>
       expect(apiMock.get).toHaveBeenLastCalledWith('/approval-queue', {
