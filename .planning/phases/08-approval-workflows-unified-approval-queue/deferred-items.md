@@ -46,10 +46,10 @@ Suggested remediation (future plan): add a `window.matchMedia` stub to `frontend
 
 ## Query-param mismatch between the RED frontend scaffold and the backend DTO
 
-The 08-01 RED scaffold (executable contract) asserts `GET /approval-queue` is called with
-`{ pawnshopId, type: 'APPRAISAL'|'REDEMPTION' }`, but the backend `ApprovalQueueQueryDto`
-declares the field `targetType` (08-02 decision). The server silently drops the unknown `type`
-param; the ApprovalQueue component filters client-side by `record.targetType`, so tabs remain
-correct. Not blocking — recommend aligning the query param (`type` → `targetType` in both the
-scaffold and the component) in a future cleanup plan.
+RESOLVED in commit `013f12e`: the backend `ApprovalQueueQueryDto` now declares BOTH `type`
+(the locked 08-01 frontend contract param) and `targetType` (the RED controller-spec param);
+`ApprovalService.getQueue` honors `query.targetType ?? query.type`, so the server-side type
+filter works for real frontend requests (which send `type`) instead of being silently dropped
+by the whitelist ValidationPipe. Regression test added to `approval.service.spec.ts`. The
+client-side tab filtering in the ApprovalQueue component remains as harmless redundancy.
 

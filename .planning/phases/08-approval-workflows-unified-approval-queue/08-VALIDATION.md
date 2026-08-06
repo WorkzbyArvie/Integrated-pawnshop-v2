@@ -40,13 +40,13 @@ created: 2026-08-01
 
 | Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
-| 08-01-01 | 01 | 0 | RBAC-03 | T-08-02 | appraiseTicket creates ApprovalRecord(APPRAISAL, PENDING, payload); ticket stays PENDING_APPROVAL; loanAmount NOT written | unit | `npm test -- approval` | ❌ W0 | ⬜ pending |
-| 08-01-02 | 01 | 0 | RBAC-04 | T-08-03 | redeemTicket with amountPaid > threshold creates REDEMPTION record and returns early; ≤ threshold runs direct release | unit | `npm test -- approval` | ❌ W0 | ⬜ pending |
-| 08-01-03 | 01 | 0 | RBAC-06 | T-08-04 | decide writes decidedById/decidedAt/decisionComment/status for approve AND reject | unit | `npm test -- approval` | ❌ W0 | ⬜ pending |
-| 08-02-01 | 01 | 1 | RBAC-05 | T-08-01 | GET /approval-queue returns pending records across both types, permission-gated | unit | `npm test -- approval` | ❌ W0 | ⬜ pending |
-| 08-02-02 | 01 | 1 | RBAC-03/04 | — | state-machine transition specs cover PENDING_APPROVAL→RECEIVED and ADMIN roles | unit | `npm test -- state-machine` | ✅ edit | ⬜ pending |
-| 08-02-03 | 01 | 1 | — | — | permissions-catalog.spec.ts updated with approval.controller sites + counts | unit | `npm test -- permissions-catalog` | ✅ edit | ⬜ pending |
-| 08-03-01 | 01 | 2 | RBAC-05 | T-08-01 | ApprovalQueue page renders tabs, calls GET /approval-queue, comment-required-on-reject | integration | `npm test -- ApprovalQueue` (frontend) | ❌ W0 | ⬜ pending |
+| 08-01-01 | 01 | 0 | RBAC-03 | T-08-02 | appraiseTicket creates ApprovalRecord(APPRAISAL, PENDING, payload); ticket stays PENDING_APPROVAL; loanAmount NOT written | unit | `npm test -- approval` | ✅ | ✅ green |
+| 08-01-02 | 01 | 0 | RBAC-04 | T-08-03 | redeemTicket with amountPaid > threshold creates REDEMPTION record and returns early; ≤ threshold runs direct release | unit | `npm test -- approval` | ✅ | ✅ green |
+| 08-01-03 | 01 | 0 | RBAC-06 | T-08-04 | decide writes decidedById/decidedAt/decisionComment/status for approve AND reject | unit | `npm test -- approval` | ✅ | ✅ green |
+| 08-02-01 | 01 | 1 | RBAC-05 | T-08-01 | GET /approval-queue returns pending records across both types, permission-gated | unit | `npm test -- approval` | ✅ | ✅ green |
+| 08-02-02 | 01 | 1 | RBAC-03/04 | — | state-machine transition specs cover PENDING_APPROVAL→RECEIVED and ADMIN roles | unit | `npm test -- state-machine` | ✅ (pawn-lifecycle.spec.ts) | ✅ green |
+| 08-02-03 | 01 | 1 | — | — | permissions-catalog.spec.ts updated with approval.controller sites + counts | unit | `npm test -- permissions-catalog` | ✅ | ✅ green |
+| 08-03-01 | 01 | 2 | RBAC-05 | T-08-01 | ApprovalQueue page renders tabs, calls GET /approval-queue, comment-required-on-reject | integration | `npm test -- ApprovalQueue` (frontend) | ✅ | ✅ green |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
