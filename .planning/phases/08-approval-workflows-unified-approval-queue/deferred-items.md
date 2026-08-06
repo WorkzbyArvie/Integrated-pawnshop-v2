@@ -23,3 +23,33 @@ Suggested remediation (future plan): update the loan-contract / loan-history spe
 `StorageService`; reconcile `PrismaService.ensureConnected` mocking for attendance/notification;
 decide whether the uncommitted `subscription.service.ts` working-copy changes are wanted, then align
 its spec. These are all test-infrastructure debts, not phase-08 regressions.
+
+---
+
+# Deferred Items — Phase 08 Plan 3 (frontend)
+
+Out-of-scope discoveries logged during execution of 08-03 (not fixed, per scope boundary rule).
+
+## Pre-existing failing frontend suites (baseline, unrelated to 08-03)
+
+Fail on `npm test` in frontend/ and were failing before 08-03's commits (confirmed: neither file
+appears in `git diff --name-only` for 08-03; suite totals identical before/after `da39236`,
+`30d7b12`, `a960273`):
+
+| Suite | Failure signature |
+|-------|-------------------|
+| `frontend/src/components/__tests__/AuctionQueue.test.tsx` | `returns an item to the vault` — SweetAlert2 crashes at `window.matchMedia('(prefers-color-scheme: dark)').addEventListener(...)` under jsdom (matchMedia not implemented) |
+| `frontend/src/components/__tests__/InventoryVault.test.tsx` | "Gold Necklace" expectation mismatch (pre-existing) |
+
+Suggested remediation (future plan): add a `window.matchMedia` stub to `frontend/src/test/setup.ts`
+(alongside the localStorage polyfill) and reconcile the InventoryVault fixture.
+
+## Query-param mismatch between the RED frontend scaffold and the backend DTO
+
+The 08-01 RED scaffold (executable contract) asserts `GET /approval-queue` is called with
+`{ pawnshopId, type: 'APPRAISAL'|'REDEMPTION' }`, but the backend `ApprovalQueueQueryDto`
+declares the field `targetType` (08-02 decision). The server silently drops the unknown `type`
+param; the ApprovalQueue component filters client-side by `record.targetType`, so tabs remain
+correct. Not blocking — recommend aligning the query param (`type` → `targetType` in both the
+scaffold and the component) in a future cleanup plan.
+

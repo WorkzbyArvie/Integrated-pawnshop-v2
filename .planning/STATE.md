@@ -5,16 +5,16 @@ milestone_name: Advisor Compliance & RBAC Overhaul
 current_phase: 08
 current_phase_name: approval-workflows-unified-approval-queue
 status: executing
-stopped_at: Completed 08-02-PLAN.md
-last_updated: "2026-08-06T04:39:21.482Z"
+stopped_at: Completed 08-03-PLAN.md
+last_updated: "2026-08-06T05:27:10.591Z"
 last_activity: 2026-08-03
 last_activity_desc: Phase 08 execution started
 progress:
   total_phases: 13
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 4
-  completed_plans: 2
-  percent: 0
+  completed_plans: 3
+  percent: 8
 ---
 
 # STATE.md — PawnGold Project State
@@ -28,19 +28,19 @@ See: .planning/PROJECT.md (updated 2026-07-31)
 
 ## Current Position
 
-Phase: 08 (approval-workflows-unified-approval-queue) — EXECUTING
-Plan: 2 of 3
-Status: Ready to execute
+Phase: 08 (approval-workflows-unified-approval-queue) — COMPLETE
+Plan: 3 of 3 (all delivered)
+Status: Ready for Phase 09
 Last activity: 2026-08-03 — Phase 08 execution started
 
-Progress: [█████░░░░░] 50%
+Progress: [████████░░] 75%
 
 ## Milestone Progress (v2.0)
 
 | Phase | Status | Notes |
 |-------|--------|-------|
 | Phase 7: Permission Foundation & Schema Baseline | ✅ Complete | RBAC-01, RBAC-02 + batched schema baseline (verified 2026-08-01) |
-| Phase 8: Approval Workflows & Unified Approval Queue | ○ Not started | RBAC-03..06 |
+| Phase 8: Approval Workflows & Unified Approval Queue | ✅ Complete | RBAC-03..06: chokepoints + approval API (08-02) + unified queue UI + threshold config (08-03, verified 2026-08-06) |
 | Phase 9: KYC Verification & Disbursement Guardrail | ○ Not started | KYC-01..05 |
 | Phase 10: Onboarding Compliance Gate | ○ Not started | ONB-01..04 |
 | Phase 11: Contract Management Upgrade | ○ Not started | CTR-01..03 |
@@ -69,11 +69,15 @@ Progress: [█████░░░░░] 50%
 - [Phase ?]: DTO query field is targetType (not type) to match the locked RED getQueue contract
 - [Phase ?]: getQueue ticket enrichment null-safe (?? []); redeemTicket approvalId optional-chained — both because RED specs leave Prisma delegates unmocked
 - [Phase ?]: Permissions catalog site count is 64->67 (plan said 63->66) — plan stale, catalog spec is authority
+- [Phase ?]: 08-03: RED test scaffold is the executable contract - approve POSTs on click (no Swal gate), reject comment is an inline Textarea with disabled-until-non-empty Reject
+- [Phase ?]: 08-03: Radix Tabs v2 activates on onMouseDown, not click - tab-switch tests dispatch fireEvent.mouseDown
+- [Phase ?]: 08-03: SystemSettings branch-admin save spreads currentSettings FIRST (merge-on-write) so threshold-only saves cannot wipe finance/payroll keys
+- [Phase ?]: 08-03: threshold is branch-level local state; super-admin global_overrides path unchanged
 
 ## Session Continuity
 
-Last session: 2026-08-06T04:39:21.465Z
-Stopped at: Completed 08-02-PLAN.md
+Last session: 2026-08-06T05:27:10.577Z
+Stopped at: Completed 08-03-PLAN.md
 Resume file: None
 
 ## Performance Metrics
@@ -82,3 +86,4 @@ Resume file: None
 |------|----------|-------|-------|
 | Phase 08 P01 | 13 | 3 tasks | 7 files |
 | Phase 08-approval-workflows-unified-approval-queue P08-02 | 120 | 3 tasks | 12 files |
+| Phase 08 P08-03 | 150 | 3 tasks | 5 files |
