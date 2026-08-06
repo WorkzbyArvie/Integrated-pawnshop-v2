@@ -17,6 +17,7 @@ import {
   Users2,
   LogOut,
   Loader2,
+  ListChecks,
   ListOrdered,
   BookOpen,
   Clock,
@@ -53,7 +54,7 @@ import { SystemSettings } from './pages/admin/SystemSettings';
 import { StaffMatrix } from './components/StaffMatrix';
 import { FinanceTreasury } from './components/FinanceTreasury';
 import { LoanManagement } from './pages/loans/LoanManagement';
-import { AppraisalApproval } from './components/AppraisalApproval';
+import { ApprovalQueue } from './components/ApprovalQueue';
 import { QueueManagement } from './components/QueueManagement';
 import { FinanceLedger } from './components/FinanceLedger';
 import { AttendanceTracker } from './components/AttendanceTracker';
@@ -139,7 +140,7 @@ const TAB_TO_PATH: Record<string, string> = {
   'dashboard': '/dashboard',
   'sales': '/sales',
   'pending-approval': '/pending-approval',
-  'appraisal-approval': '/appraisal-approval',
+  'approval-queue': '/approval-queue',
   'audit-history': '/audit-history',
   'crm': '/crm',
   'inventory': '/inventory',
@@ -1197,7 +1198,7 @@ function App() {
     { id: 'branch-system-settings', label: 'System Control', icon: Settings2, roles: ['Owner', 'Admin'], type: 'OPERATIONAL' },
     { id: 'multi-branches', label: 'Multi-Branch', icon: GitBranch, roles: ['Owner'], type: 'OPERATIONAL' },
     { id: 'sales', label: 'New Appraisal', icon: BadgePercent, roles: ['Owner', 'Admin', 'Manager', 'Staff', 'Cashier/Teller', 'Appraiser'], type: 'OPERATIONAL' },
-    { id: 'appraisal-approval', label: 'Appraisal Approval', icon: ShieldCheck, roles: ['Owner', 'Admin', 'Manager'], type: 'OPERATIONAL' },
+    { id: 'approval-queue', label: 'Approval Queue', icon: ListChecks, roles: ['Owner', 'Admin', 'Manager'], type: 'OPERATIONAL' },
     { id: 'audit-history', label: 'Audit History', icon: History, roles: ['Owner', 'Admin'], type: 'OPERATIONAL' },
     { id: 'crm', label: 'Customers', icon: Users2, roles: ['Owner', 'Admin', 'Manager', 'Staff', 'Cashier/Teller', 'Appraiser'], type: 'OPERATIONAL', feature: 'crm_enabled' },
     { id: 'inventory', label: 'Inventory & Vault', icon: Warehouse, roles: ['Owner', 'Admin', 'Manager', 'Inventory Custodian'], type: 'OPERATIONAL', feature: 'vault_enabled' },
@@ -1224,7 +1225,7 @@ function App() {
     'multi-branches',
     'dashboard',
     'sales',
-    'appraisal-approval',
+    'approval-queue',
     'audit-history',
     'loan-history',
     'redemption',
@@ -1610,7 +1611,7 @@ function App() {
               />
             )}
             {activeTab === 'sales' && <LoanManagement branchId={currentBranchId} activeBranchId={activeOperationalBranchId} />}
-            {activeTab === 'appraisal-approval' && <AppraisalApproval branchId={currentBranchId} activeBranchId={activeOperationalBranchId} userRole={userRole} />}
+            {activeTab === 'approval-queue' && <ApprovalQueue branchId={currentBranchId} activeBranchId={activeOperationalBranchId} userRole={userRole} />}
             {activeTab === 'audit-history' && (effectiveUserRole === 'Owner' || effectiveUserRole === 'Admin') && (
               <AuditHistory branchId={currentBranchId} userRole={effectiveUserRole} />
             )}
