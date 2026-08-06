@@ -376,7 +376,7 @@ export class TenantGovernanceController {
   }
 
   @Patch('pawnshops/:id/settings')
-  @RequiresPermission(PERMISSIONS['platform.manage'])
+  @RequiresPermission(PERMISSIONS['tenant.manage'])
   async updatePawnshopSettings(
     @Headers('authorization') authHeader: string | undefined,
     @Param('id') id: string,
