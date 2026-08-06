@@ -28,7 +28,7 @@ export class ApprovalService {
           ? { in: ['APPROVED', 'REJECTED', 'CANCELLED'] }
           : 'PENDING',
     };
-    if (query.targetType) where.targetType = query.targetType;
+    if (query.targetType ?? query.type) where.targetType = query.targetType ?? query.type;
 
     const records = await this.prisma.approvalRecord.findMany({
       where,

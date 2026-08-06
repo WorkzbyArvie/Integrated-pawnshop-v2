@@ -97,6 +97,17 @@ describe('ApprovalService (RBAC-05 / RBAC-06)', () => {
       );
     });
 
+    it('honors the type alias used by the frontend contract', async () => {
+      prisma.approvalRecord.findMany.mockResolvedValue([]);
+      await service.getQueue({ type: 'REDEMPTION' }, 'ps_1');
+
+      expect(prisma.approvalRecord.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ targetType: 'REDEMPTION' }),
+        }),
+      );
+    });
+
     it('maps a DECIDED filter to the decided statuses for the audit view', async () => {
       prisma.approvalRecord.findMany.mockResolvedValue([]);
       await service.getQueue({ status: 'DECIDED' }, 'ps_1');

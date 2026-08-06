@@ -4,6 +4,10 @@ import { ApprovalTargetType } from '@prisma/client';
 export class ApprovalQueueQueryDto {
   @IsOptional()
   @IsEnum(ApprovalTargetType)
+  type?: ApprovalTargetType;
+
+  @IsOptional()
+  @IsEnum(ApprovalTargetType)
   targetType?: ApprovalTargetType;
 
   @IsOptional()
