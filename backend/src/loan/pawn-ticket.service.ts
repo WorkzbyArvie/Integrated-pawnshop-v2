@@ -10,7 +10,7 @@ import { RedeemTicketDto } from './dto/redeem-ticket.dto';
 import { ReceiptService } from '../receipt/receipt.service';
 import { FinanceService } from '../finance/finance.service';
 import { NotificationService } from '../notification/notification.service';
-import { LedgerEntryType, LedgerCategory, NotificationChannel, NotificationType, PaymentMethod } from '@prisma/client';
+import { LedgerEntryType, LedgerCategory, NotificationChannel, NotificationType, PaymentMethod, Prisma } from '@prisma/client';
 
 @Injectable()
 export class PawnTicketService {
@@ -377,17 +377,36 @@ export class PawnTicketService {
     await this.stateMachine.transition(
       'TICKET_LIFECYCLE',
       ticket.lifecycleStatus,
-      'APPRAISED',
+      'PENDING_APPROVAL',
       { userRole },
     );
 
     const updatedTicket = await this.prisma.ticket.update({
       where: { id: ticket.id },
       data: {
-        lifecycleStatus: 'APPRAISED',
-        loanAmount: dto.recommendedLoanAmount || ticket.loanAmount,
+        lifecycleStatus: 'PENDING_APPROVAL',
         isHighRisk: (dto.riskScore ?? 0) > 40,
         updatedAt: new Date(),
+      },
+    });
+
+    await this.prisma.approvalRecord.create({
+      data: {
+        pawnshopId: this.assertPawnshopId(ticket),
+        targetType: 'APPRAISAL',
+        targetId: String(ticket.id),
+        status: 'PENDING',
+        amount: dto.appraisedValue,
+        requestedById: appraisedBy,
+        payload: {
+          ticketId: ticket.id,
+          ticketNumber: ticket.ticketNumber,
+          appraisedValue: dto.appraisedValue,
+          riskScore: dto.riskScore ?? 0,
+          recommendedLoanAmount: dto.recommendedLoanAmount,
+          itemCondition: dto.itemCondition,
+          appraisalNotes: dto.appraisalNotes,
+        } as Prisma.InputJsonValue,
       },
     });
 
@@ -395,7 +414,7 @@ export class PawnTicketService {
       pawnshopId: this.assertPawnshopId(ticket),
       recordType: 'APPLICATION_SUBMITTED',
       title: `Item appraised: ${ticket.ticketNumber}`,
-      summary: `Ticket ${ticket.ticketNumber} appraised at ₱${dto.appraisedValue.toFixed(2)}. Recommended loan: ₱${(dto.recommendedLoanAmount || ticket.loanAmount).toFixed(2)}.`,
+      summary: `Ticket ${ticket.ticketNumber} appraised at ₱${dto.appraisedValue.toFixed(2)}. Awaiting approval before a loan offer is made.`,
       createdBy: appraisedBy,
       ticketId: ticket.id,
       payload: {
@@ -403,7 +422,7 @@ export class PawnTicketService {
         ticketNumber: ticket.ticketNumber,
         appraisedValue: dto.appraisedValue,
         riskScore: dto.riskScore,
-        recommendedLoanAmount: dto.recommendedLoanAmount || ticket.loanAmount,
+        recommendedLoanAmount: dto.recommendedLoanAmount,
         itemCondition: dto.itemCondition,
         appraisalNotes: dto.appraisalNotes,
         appraisedBy,
@@ -432,16 +451,20 @@ export class PawnTicketService {
     return {
       id: updatedTicket.id,
       ticketNumber: updatedTicket.ticketNumber,
-      lifecycleStatus: 'APPRAISED',
+      lifecycleStatus: 'PENDING_APPROVAL',
       appraisedValue: dto.appraisedValue,
-      recommendedLoanAmount: dto.recommendedLoanAmount || ticket.loanAmount,
+      recommendedLoanAmount: dto.recommendedLoanAmount,
     };
   }
 
   async redeemTicket(ticketId: number, dto: RedeemTicketDto, processedBy: string, userRole?: string) {
     const ticket = await this.prisma.ticket.findUnique({
       where: { id: ticketId },
-      include: { customer: true, loans: true },
+      include: {
+        customer: true,
+        loans: true,
+        pawnshop: { select: { settings: true } },
+      },
     });
 
     if (!ticket) throw new NotFoundException('Ticket not found');
@@ -456,6 +479,53 @@ export class PawnTicketService {
     const loan = ticket.loans?.[0];
     if (!loan) throw new BadRequestException('No loan found for this ticket');
 
+    const pawnshopId = this.assertPawnshopId(ticket);
+
+    const settings = (ticket.pawnshop?.settings as Record<string, unknown> | null) ?? {};
+    const approvalThreshold = Number(settings.redemptionApprovalThreshold ?? 50000);
+    if (dto.amountPaid > approvalThreshold) {
+      const approvalRecord = await this.prisma.approvalRecord.create({
+        data: {
+          pawnshopId,
+          targetType: 'REDEMPTION',
+          targetId: String(ticket.id),
+          status: 'PENDING',
+          amount: dto.amountPaid,
+          requestedById: processedBy,
+          payload: {
+            ticketId: ticket.id,
+            ticketNumber: ticket.ticketNumber,
+            loanId: loan.id,
+            amountPaid: dto.amountPaid,
+            paymentMethod: dto.paymentMethod || 'CASH',
+            referenceNumber: dto.referenceNumber,
+            notes: dto.notes,
+            processedBy,
+          } as Prisma.InputJsonValue,
+        },
+      });
+
+      return {
+        ticketId: ticket.id,
+        ticketNumber: ticket.ticketNumber,
+        lifecycleStatus: 'PENDING_APPROVAL',
+        requiresApproval: true,
+        approvalId: approvalRecord.id,
+        approvalStatus: 'PENDING',
+        message: 'Approval required for high-value redemption',
+      };
+    }
+
+    return this.performRedemptionRelease(ticket, loan, dto, processedBy, userRole);
+  }
+
+  private async performRedemptionRelease(
+    ticket: any,
+    loan: any,
+    dto: RedeemTicketDto,
+    processedBy: string,
+    userRole?: string,
+  ) {
     const pawnshopId = this.assertPawnshopId(ticket);
 
     await this.stateMachine.transition(
@@ -581,6 +651,113 @@ export class PawnTicketService {
       amountPaid: dto.amountPaid,
       paymentId: payment.id,
       message: 'Ticket redeemed successfully',
+    };
+  }
+
+  async applyApprovedAppraisal(
+    ticketId: number,
+    payload: Record<string, unknown>,
+    decidedBy: string,
+    userRole?: string,
+  ) {
+    const ticket = await this.prisma.ticket.findUnique({
+      where: { id: ticketId },
+      include: { customer: true, pawnshop: { include: { legalEntity: true } } },
+    });
+    if (!ticket) throw new NotFoundException('Ticket not found');
+    if (ticket.lifecycleStatus !== 'PENDING_APPROVAL') {
+      throw new BadRequestException(
+        `Cannot approve appraisal in status: ${ticket.lifecycleStatus}. Must be PENDING_APPROVAL.`,
+      );
+    }
+
+    const recommended = Number(payload.recommendedLoanAmount);
+    const appraised = Number(payload.appraisedValue);
+    const finalAmount =
+      Number.isFinite(recommended) && recommended > 0
+        ? recommended
+        : Number.isFinite(appraised) && appraised > 0
+          ? appraised
+          : ticket.loanAmount;
+
+    const updatedTicket = await this.prisma.ticket.update({
+      where: { id: ticket.id },
+      data: {
+        loanAmount: finalAmount,
+        isHighRisk: (Number(payload.riskScore) || 0) > 40,
+        updatedAt: new Date(),
+      },
+    });
+
+    const offer = await this.approveWithContract(ticketId, decidedBy, userRole);
+
+    return {
+      ...offer,
+      id: updatedTicket.id,
+      ticketNumber: updatedTicket.ticketNumber,
+      loanAmount: finalAmount,
+    };
+  }
+
+  async releaseApprovedRedemption(
+    ticketId: number,
+    dto: RedeemTicketDto,
+    decidedBy: string,
+    userRole?: string,
+  ) {
+    const ticket = await this.prisma.ticket.findUnique({
+      where: { id: ticketId },
+      include: {
+        customer: true,
+        loans: true,
+        pawnshop: { select: { settings: true } },
+      },
+    });
+    if (!ticket) throw new NotFoundException('Ticket not found');
+
+    const redeemableStates = ['ACTIVE', 'GRACE_PERIOD'];
+    if (!redeemableStates.includes(ticket.lifecycleStatus)) {
+      throw new BadRequestException(
+        `Cannot release redemption for ticket in status: ${ticket.lifecycleStatus}. Must be ACTIVE or GRACE_PERIOD.`,
+      );
+    }
+
+    const loan = ticket.loans?.[0];
+    if (!loan) throw new BadRequestException('No loan found for this ticket');
+
+    return this.performRedemptionRelease(ticket, loan, dto, decidedBy, userRole);
+  }
+
+  async rejectAppraisal(ticketId: number, userRole?: string) {
+    const ticket = await this.prisma.ticket.findUnique({
+      where: { id: ticketId },
+    });
+    if (!ticket) throw new NotFoundException('Ticket not found');
+    if (ticket.lifecycleStatus !== 'PENDING_APPROVAL') {
+      throw new BadRequestException(
+        `Cannot reject appraisal in status: ${ticket.lifecycleStatus}. Must be PENDING_APPROVAL.`,
+      );
+    }
+
+    await this.stateMachine.transition(
+      'TICKET_LIFECYCLE',
+      ticket.lifecycleStatus,
+      'RECEIVED',
+      { userRole },
+    );
+
+    const updatedTicket = await this.prisma.ticket.update({
+      where: { id: ticket.id },
+      data: {
+        lifecycleStatus: 'RECEIVED',
+        updatedAt: new Date(),
+      },
+    });
+
+    return {
+      id: updatedTicket.id,
+      ticketNumber: updatedTicket.ticketNumber,
+      lifecycleStatus: 'RECEIVED',
     };
   }
 
