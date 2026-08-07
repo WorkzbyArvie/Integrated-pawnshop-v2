@@ -130,9 +130,11 @@ const DEFAULT_SIDEBAR_BRANDING: SidebarBranding = {
 
 const TAB_TO_PATH: Record<string, string> = {
   'platform-control': '/platform-control',
+  'platform-analytics': '/platform-analytics',
   'system-settings': '/system-settings',
   'trial-requests': '/trial-requests',
   'platform-compliance': '/platform-compliance',
+  'bidder-kyc': '/bidder-kyc',
   'pending-access': '/pending-access',
   'frozen-access': '/frozen-access',
   'branch-system-settings': '/branch-system-settings',
@@ -1065,6 +1067,15 @@ function App() {
     if (userRole === 'Super Admin' && !isImpersonating) return true;
     // Global override: if Super Admin turned it off, it's off for all branches
     if (globalOverrides[featureKey] === false) return false;
+    // Subscription-gated: paid tiers that include auction access get the module even
+    // if the local toggle was left off from an earlier trial setup.
+    if (
+      featureKey === 'auction_enabled' &&
+      effectiveUserRole === 'Owner' &&
+      (subscriptionTier === 'PROFESSIONAL' || subscriptionTier === 'ENTERPRISE')
+    ) {
+      return true;
+    }
     return (systemConfig as any)[featureKey];
   };
 
