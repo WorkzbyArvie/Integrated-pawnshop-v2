@@ -233,8 +233,9 @@ export class LoanService {
    * Get payment history for a customer
    */
   async getCustomerPaymentHistory(customerId: string) {
+    const resolvedId = await this.resolveCustomerIdentifier(customerId);
     const payments = await this.prisma.payment.findMany({
-      where: { customerId },
+      where: { customerId: resolvedId },
       orderBy: { processedAt: 'desc' },
       include: {
         loan: {
@@ -255,7 +256,7 @@ export class LoanService {
     const totalPaid = payments.reduce((sum, p) => sum + p.amount, 0);
 
     return {
-      customerId,
+      customerId: resolvedId,
       payments,
       summary: {
         totalPaid,
@@ -513,9 +514,10 @@ export class LoanService {
   }
 
   async getCustomerDashboard(customerId: string) {
+    const resolvedId = await this.resolveCustomerIdentifier(customerId);
     const [loans, payments] = await Promise.all([
       this.prisma.loan.findMany({
-        where: { application: { customerId } },
+        where: { application: { customerId: resolvedId } },
         include: {
           ticket: {
             select: {
@@ -534,7 +536,7 @@ export class LoanService {
         },
       }),
       this.prisma.payment.findMany({
-        where: { customerId },
+        where: { customerId: resolvedId },
         orderBy: { processedAt: 'desc' },
         include: {
           loan: { select: { id: true, principalAmount: true } },
@@ -576,7 +578,7 @@ export class LoanService {
         .sort((a, b) => a.dueDate.getTime() - b.dueDate.getTime())[0] || null;
 
     const recentProofs = await this.prisma.legalProof.findMany({
-      where: { loan: { application: { customerId } } },
+      where: { loan: { application: { customerId: resolvedId } } },
       orderBy: { createdAt: 'desc' },
       take: 10,
       select: {
@@ -589,12 +591,12 @@ export class LoanService {
     });
 
     const customer = await this.prisma.customer.findUnique({
-      where: { id: customerId },
+      where: { id: resolvedId },
       select: { loyaltyTier: true },
     });
 
     return {
-      customerId,
+      customerId: resolvedId,
       tier: customer?.loyaltyTier || 'Standard',
       summary: {
         totalLoans: loans.length,
@@ -886,9 +888,10 @@ export class LoanService {
    * Get full history for a customer: all loans, payments, contracts, and proofs
    */
   async getCustomerFullHistory(customerId: string) {
+    const resolvedId = await this.resolveCustomerIdentifier(customerId);
     const [loans, payments, allProofs] = await Promise.all([
       this.prisma.loan.findMany({
-        where: { application: { customerId } },
+        where: { application: { customerId: resolvedId } },
         include: {
           application: {
             include: {
@@ -900,7 +903,7 @@ export class LoanService {
         orderBy: { createdAt: 'desc' },
       }),
       this.prisma.payment.findMany({
-        where: { customerId },
+        where: { customerId: resolvedId },
         orderBy: { processedAt: 'desc' },
         include: {
           loan: { select: { id: true, principalAmount: true } },
@@ -909,7 +912,7 @@ export class LoanService {
       }),
       this.prisma.legalProof.findMany({
         where: {
-          loan: { application: { customerId } },
+          loan: { application: { customerId: resolvedId } },
         },
         orderBy: { createdAt: 'desc' },
       }),
@@ -1003,7 +1006,7 @@ export class LoanService {
     ]);
 
     return {
-      customerId,
+      customerId: resolvedId,
       summary: {
         totalLoans: loans.length,
         totalPaid,
@@ -1021,6 +1024,53 @@ export class LoanService {
       },
       timeline: customerTimeline,
     };
+  }
+
+  /**
+   * Helper: resolve a customer identifier to a valid UUID.
+   * Accepts a raw UUID, or a searchable term (full name / contact number /
+   * partial customer id) and returns the matching customer's UUID.
+   */
+  private async resolveCustomerIdentifier(identifier: string): Promise<string> {
+    const raw = (identifier || '').trim();
+    if (!raw) {
+      throw new BadRequestException('Customer identifier is required');
+    }
+
+    const isUuid =
+      /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(
+        raw,
+      );
+
+    if (isUuid) {
+      const existing = await this.prisma.customer.findUnique({
+        where: { id: raw },
+        select: { id: true },
+      });
+      if (!existing) {
+        throw new NotFoundException(`Customer ${raw} not found`);
+      }
+      return existing.id;
+    }
+
+    const byLookup = await this.prisma.customer.findFirst({
+      where: {
+        OR: [
+          { fullName: { contains: raw, mode: 'insensitive' } },
+          { contactNumber: { contains: raw } },
+        ],
+      },
+      orderBy: { createdAt: 'asc' },
+      select: { id: true, fullName: true },
+    });
+
+    if (!byLookup) {
+      throw new NotFoundException(
+        `Customer not found for "${raw}". Try a full name, contact number, or customer ID.`,
+      );
+    }
+
+    return byLookup.id;
   }
 
   /**
