@@ -7,11 +7,21 @@ const backendUrl = getBackendUrl();
 
 export type KycStatus = 'NOT_SUBMITTED' | 'PENDING' | 'VERIFIED' | 'REJECTED';
 
+export interface KycProfile {
+  id?: string;
+  fullName?: string;
+  address?: string;
+  phoneNumber?: string;
+  idType?: string;
+  status?: string;
+}
+
 interface AuthContextType {
   user: User | null;
   session: Session | null;
   loading: boolean;
   kycStatus: KycStatus;
+  kycProfile: KycProfile | null;
   kycLoading: boolean;
   signIn: (email: string, password: string) => Promise<{ error?: string }>;
   requestAuthCode: (
@@ -36,6 +46,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [kycStatus, setKycStatus] = useState<KycStatus>('NOT_SUBMITTED');
+  const [kycProfile, setKycProfile] = useState<KycProfile | null>(null);
   const [kycLoading, setKycLoading] = useState(false);
 
   const parseKycStatus = (raw: any): KycStatus => {
@@ -68,12 +79,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (res.ok) {
         const data = await res.json();
         setKycStatus(parseKycStatus(data));
+        const kyc = data?.kyc ?? data?.data?.kyc ?? null;
+        if (kyc && typeof kyc === 'object') {
+          setKycProfile({
+            id: kyc.id,
+            fullName: kyc.fullName,
+            address: kyc.address,
+            phoneNumber: kyc.phoneNumber,
+            idType: kyc.idType,
+            status: kyc.status,
+          });
+        } else {
+          setKycProfile(null);
+        }
       } else {
         setKycStatus('NOT_SUBMITTED');
+        setKycProfile(null);
       }
     } catch {
       // Silently fail — user stays NOT_SUBMITTED
       setKycStatus('NOT_SUBMITTED');
+      setKycProfile(null);
     } finally {
       setKycLoading(false);
     }
@@ -99,6 +125,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         fetchKycStatus(newSession.access_token);
       } else {
         setKycStatus('NOT_SUBMITTED');
+        setKycProfile(null);
       }
     });
 
@@ -110,6 +137,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await fetchKycStatus(session.access_token);
     }
   }, [session, fetchKycStatus]);
+
+  useEffect(() => {
+    if (!session?.access_token) return;
+
+    const refresh = () => refreshKycStatus();
+
+    const handleFocus = () => refresh();
+    window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    const interval = window.setInterval(refresh, 30_000);
+
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.clearInterval(interval);
+    };
+  }, [session?.access_token, refreshKycStatus]);
+
+  function handleVisibilityChange() {
+    if (document.visibilityState === 'visible') {
+      refreshKycStatus();
+    }
+  }
 
   const signIn = async (email: string, password: string): Promise<{ error?: string }> => {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
@@ -196,10 +247,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
     setSession(null);
     setKycStatus('NOT_SUBMITTED');
+    setKycProfile(null);
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, loading, kycStatus, kycLoading, signIn, requestAuthCode, signUp, signOut, refreshKycStatus }}>
+    <AuthContext.Provider value={{ user, session, loading, kycStatus, kycProfile, kycLoading, signIn, requestAuthCode, signUp, signOut, refreshKycStatus }}>
       {children}
     </AuthContext.Provider>
   );
