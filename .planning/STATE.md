@@ -5,8 +5,8 @@ milestone_name: Advisor Compliance & RBAC Overhaul
 current_phase: 08
 current_phase_name: approval-workflows-unified-approval-queue
 status: executing
-stopped_at: Phase 9 context gathered
-last_updated: "2026-08-06T08:00:07.928Z"
+stopped_at: Phase 9 UI-SPEC approved
+last_updated: "2026-08-06T09:11:40.405Z"
 last_activity: 2026-08-03
 last_activity_desc: Phase 08 execution started
 progress:
@@ -76,9 +76,9 @@ Progress: [████████░░] 75%
 
 ## Session Continuity
 
-Last session: 2026-08-06T08:00:07.916Z
-Stopped at: Phase 9 context gathered
-Resume file: .planning/phases/09-kyc-verification-disbursement-guardrail/09-CONTEXT.md
+Last session: 2026-08-06T09:11:40.378Z
+Stopped at: Phase 9 UI-SPEC approved
+Resume file: .planning/phases/09-kyc-verification-disbursement-guardrail/09-UI-SPEC.md
 
 ## Performance Metrics
 
