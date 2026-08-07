@@ -12,6 +12,7 @@ import {
   type TosTemplate,
   type TosClause,
 } from '../services/auctionApi';
+import { renderAgreementTemplate, winningBidText, agreementNumberFor } from '../lib/agreementTemplate';
 import '../App.css';
 
 const formatCurrency = (value: number) =>
@@ -69,19 +70,25 @@ function CountdownTimer({ deadline }: { deadline: string }) {
   );
 }
 
-function renderTemplateContent(content: string): string {
-  return content
-    .replace(/\{\{agreementNumber\}\}/g, 'AGREEMENT-XXXXX')
-    .replace(/\{\{generatedDate\}\}/g, new Date().toLocaleDateString('en-PH'))
-    .replace(/\{\{pawnshopLegalName\}\}/g, 'PawnGold')
-    .replace(/\{\{bidderName\}\}/g, '[Your Full Name]')
-    .replace(/\{\{bidderId\}\}/g, '[Your Account ID]')
-    .replace(/\{\{complianceHours\}\}/g, '48')
-    .replace(/\{\{(\w+)\}\}/g, '[$1]');
+function renderTemplateContent(
+  content: string,
+  item: MyWinningItem,
+  bidderName: string | undefined,
+  bidderAddress: string | undefined,
+): string {
+  return renderAgreementTemplate(content, {
+    agreementNumber: agreementNumberFor(item.id),
+    bidderName,
+    bidderAddress,
+    bidderId: item.id,
+    pawnshopName: item.pawnshopName,
+    listingTitle: item.listingTitle,
+    winningBid: winningBidText(item.winningBid),
+  });
 }
 
 export default function MyWinnings() {
-  const { user, session } = useAuth();
+  const { user, session, kycProfile } = useAuth();
   const [winnings, setWinnings] = useState<MyWinningItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [payingId, setPayingId] = useState<string | null>(null);
@@ -458,7 +465,14 @@ export default function MyWinnings() {
               }}
             >
               {contractModal.template?.content
-                ? renderTemplateContent(contractModal.template.content)
+                ? renderTemplateContent(
+                    contractModal.template.content,
+                    contractModal.item,
+                    user?.user_metadata?.fullName ||
+                      contractModal.signedName ||
+                      user?.email,
+                    kycProfile?.address,
+                  )
                 : 'No contract content available.'}
             </div>
 

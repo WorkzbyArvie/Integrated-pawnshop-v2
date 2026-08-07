@@ -7,21 +7,22 @@ import {
   type TosTemplate,
   type TosClause,
 } from '../services/auctionApi';
+import { renderAgreementTemplate } from '../lib/agreementTemplate';
 import '../App.css';
 
-function renderTemplateContent(content: string): string {
-  return content
-    .replace(/\{\{agreementNumber\}\}/g, 'AGREEMENT-XXXXX')
-    .replace(/\{\{generatedDate\}\}/g, new Date().toLocaleDateString('en-PH'))
-    .replace(/\{\{pawnshopLegalName\}\}/g, '[Pawnshop Name]')
-    .replace(/\{\{bidderName\}\}/g, '[Your Full Name]')
-    .replace(/\{\{bidderId\}\}/g, '[Your Account ID]')
-    .replace(/\{\{complianceHours\}\}/g, '48')
-    .replace(/\{\{(\w+)\}\}/g, '[$1]');
+function renderTemplateContent(
+  content: string,
+  bidderName: string | undefined,
+  bidderAddress: string | undefined,
+): string {
+  return renderAgreementTemplate(content, {
+    bidderName,
+    bidderAddress,
+  });
 }
 
 export default function Terms() {
-  const { user, session } = useAuth();
+  const { user, session, kycProfile } = useAuth();
   const [searchParams] = useSearchParams();
   const listingIdParam = searchParams.get('listingId');
   const [template, setTemplate] = useState<TosTemplate | null>(null);
@@ -162,7 +163,11 @@ export default function Terms() {
                   }}
                 >
                   {template?.content
-                    ? renderTemplateContent(template.content)
+                    ? renderTemplateContent(
+                        template.content,
+                        user.user_metadata?.fullName || user.email,
+                        kycProfile?.address,
+                      )
                     : 'No agreement content available.'}
                 </div>
 

@@ -1966,6 +1966,8 @@ export class AppService {
         id: true,
         status: true,
         fullName: true,
+        address: true,
+        phoneNumber: true,
         idType: true,
         rejectionReason: true,
         createdAt: true,
