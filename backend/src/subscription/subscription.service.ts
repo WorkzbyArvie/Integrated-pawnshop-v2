@@ -458,6 +458,8 @@ export class SubscriptionService {
         }
       }
 
+      await this.syncTenantAuctionModule(pawnshopId, dto.tier);
+
       this.logger.log(
         `Subscription created for pawnshop ${pawnshopId}: ${dto.tier} (${dto.billingInterval})` +
           (paymongoSubscriptionId
@@ -873,6 +875,8 @@ export class SubscriptionService {
         },
       });
 
+      await this.syncTenantAuctionModule(pawnshopId, newTier);
+
       this.logger.log(
         `Subscription ${current.id} upgraded from ${current.tier} to ${newTier}`,
       );
@@ -1264,6 +1268,43 @@ export class SubscriptionService {
   }
 
   /**
+   * Toggle the tenant-level `auction_enabled` module switch whenever a paid tier
+   * that includes auction access becomes active. Pawnshops created during a trial
+   * keep `auction_enabled: false` in their settings, so without this sync an
+   * upgraded Enterprise/Professional subscriber would never see auction modules.
+   */
+  private async syncTenantAuctionModule(
+    pawnshopId: string,
+    tier: SubscriptionTier,
+  ): Promise<void> {
+    const tierConfig = TIER_CONFIG[tier];
+    if (!tierConfig?.features?.auction_access) return;
+
+    try {
+      const rows = await this.prisma.$queryRaw<Array<{ settings: unknown }>>`
+        SELECT settings
+        FROM public.pawnshops
+        WHERE id = ${pawnshopId}::uuid
+        LIMIT 1
+      `;
+      const current = (rows[0]?.settings as Record<string, unknown> | undefined) || {};
+      const merged = { ...current, auction_enabled: true };
+      await this.prisma.$executeRaw`
+        UPDATE public.pawnshops
+        SET settings = ${JSON.stringify(merged)}::jsonb, updated_at = NOW()
+        WHERE id = ${pawnshopId}::uuid
+      `;
+      this.logger.log(
+        `Enabled auction_enabled module for pawnshop ${pawnshopId} (${tier})`,
+      );
+    } catch (error) {
+      this.logger.warn(
+        `Failed to sync auction module for pawnshop ${pawnshopId}: ${(error as Error).message}`,
+      );
+    }
+  }
+
+  /**
    * Check if within usage limits
    */
   async checkLimits(pawnshopId: string, actorUserId?: string): Promise<{
@@ -1614,6 +1655,10 @@ export class SubscriptionService {
           where: { id: subscription.id },
           data: updateData,
         });
+
+        const appliedTier =
+          pendingTier || (subscription.tier as SubscriptionTier);
+        await this.syncTenantAuctionModule(subscription.pawnshopId, appliedTier);
 
         const amount = (attrs.amount || 0) / 100; // centavos → PHP
         await this.prisma.subscriptionPayment.create({

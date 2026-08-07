@@ -2565,6 +2565,31 @@ export class TenantGovernanceService {
     return { success: true };
   }
 
+  private async enableAuctionModuleForPawnshop(pawnshopId: string): Promise<void> {
+    try {
+      const rows = await this.prisma.$queryRaw<Array<{ settings: unknown }>>`
+        SELECT settings
+        FROM public.pawnshops
+        WHERE id = ${pawnshopId}::uuid
+        LIMIT 1
+      `;
+      const current = (rows[0]?.settings as Record<string, unknown> | undefined) || {};
+      const merged = { ...current, auction_enabled: true };
+      await this.prisma.$executeRaw`
+        UPDATE public.pawnshops
+        SET settings = ${JSON.stringify(merged)}::jsonb, updated_at = NOW()
+        WHERE id = ${pawnshopId}::uuid
+      `;
+      this.logger.log(
+        `Enabled auction_enabled module for pawnshop ${pawnshopId} via tier upgrade`,
+      );
+    } catch (error) {
+      this.logger.warn(
+        `Failed to enable auction module for pawnshop ${pawnshopId}: ${(error as Error).message}`,
+      );
+    }
+  }
+
   async deletePawnshop(actorUserId: string, pawnshopId: string) {
     const actor = await this.getProfileOrThrow(actorUserId);
     this.assertRole(actor, ['SUPER_ADMIN']);
@@ -2833,7 +2858,53 @@ export class TenantGovernanceService {
       ENTERPRISE: { maxBranches: null, maxStaff: null, maxTransactions: null },
     };
 
+    const tierFeatures: Record<string, Record<string, boolean>> = {
+      FREE: {
+        pawn_ticketing: true,
+        loan_management: true,
+        basic_analytics: true,
+        queue_management: false,
+        auction_access: false,
+        api_access: false,
+        priority_support: false,
+        custom_branding: false,
+      },
+      BASIC: {
+        pawn_ticketing: true,
+        loan_management: true,
+        basic_analytics: true,
+        queue_management: true,
+        auction_access: false,
+        api_access: false,
+        priority_support: false,
+        custom_branding: false,
+      },
+      PROFESSIONAL: {
+        pawn_ticketing: true,
+        loan_management: true,
+        basic_analytics: true,
+        advanced_analytics: true,
+        queue_management: true,
+        auction_access: true,
+        api_access: true,
+        priority_support: true,
+        custom_branding: false,
+      },
+      ENTERPRISE: {
+        pawn_ticketing: true,
+        loan_management: true,
+        basic_analytics: true,
+        advanced_analytics: true,
+        queue_management: true,
+        auction_access: true,
+        api_access: true,
+        priority_support: true,
+        custom_branding: true,
+      },
+    };
+
     const limits = tierLimits[dto.tier] || tierLimits.BASIC;
+    const features = tierFeatures[dto.tier] || tierFeatures.BASIC;
 
     await this.prisma.subscription.update({
       where: { id: subscription.id },
@@ -2843,8 +2914,13 @@ export class TenantGovernanceService {
         maxBranches: limits.maxBranches,
         maxStaff: limits.maxStaff,
         maxTransactions: limits.maxTransactions,
+        features,
       },
     });
+
+    if (features.auction_access) {
+      await this.enableAuctionModuleForPawnshop(pawnshopId);
+    }
 
     await this.logAudit({
       pawnshopId,

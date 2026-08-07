@@ -169,9 +169,9 @@ export function SuperAdminDashboard({
       {activeTab === 'platform-analytics' && <PlatformAnalytics />}
 
       {activeTab === 'platform-control' && (
-            <PlatformControl
-              userRole={userRole}
-            />
+        <PlatformControl
+          userRole={SUPER_ADMIN_ROLE}
+        />
       )}
 
       {/* 3. TAB: SYSTEM SETTINGS */}
