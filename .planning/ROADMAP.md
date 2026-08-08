@@ -90,8 +90,13 @@ PawnGold is a full-stack SaaS pawnshop platform (React dashboard + NestJS + Pris
 **UI hint**: yes
 
 Plans:
+**Wave 1**
+
 - [ ] 09-01-PLAN.md — KycModule (upsert/list/review) + MANAGER grant + 12-digit National ID fix
 - [ ] 09-02-PLAN.md — KYC gates: ticket creation, approval, disbursement + mobile path
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
 - [ ] 09-03-PLAN.md — Frontend: Customer KYC Review screen + SalesPos badge + signed-URL docs
 - [ ] 09-04-PLAN.md — KYC-05 storage/RLS security SQL + demo seed
 

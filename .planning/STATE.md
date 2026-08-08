@@ -2,13 +2,13 @@
 gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Advisor Compliance & RBAC Overhaul
-current_phase: 08
-current_phase_name: approval-workflows-unified-approval-queue
-status: executing
-stopped_at: Phase 9 UI-SPEC approved
-last_updated: "2026-08-06T09:11:40.405Z"
-last_activity: 2026-08-03
-last_activity_desc: Phase 08 execution started
+current_phase: 09
+current_phase_name: kyc-verification-disbursement-guardrail
+status: ready
+stopped_at: Phase 9 plans created and verified
+last_updated: "2026-08-08T00:00:00.000Z"
+last_activity: 2026-08-08
+last_activity_desc: Phase 09 planning completed
 progress:
   total_phases: 13
   completed_phases: 1
@@ -24,14 +24,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-07-31)
 
 **Core value:** Close every tech-advisor gap for thesis B defense — compliance/onboarding gate, contract upgrades, permission-based RBAC with approval chains, KYC disbursement guardrail, unified customer history with volume-based tiering.
-**Current focus:** Phase 08 — approval-workflows-unified-approval-queue
+**Current focus:** Phase 09 — kyc-verification-disbursement-guardrail
 
 ## Current Position
 
-Phase: 08 (approval-workflows-unified-approval-queue) — COMPLETE
-Plan: 3 of 3 (all delivered)
-Status: Ready for Phase 09
-Last activity: 2026-08-03 — Phase 08 execution started
+Phase: 09 (kyc-verification-disbursement-guardrail) — PLANNED
+Plan: 4 of 4 (all created and verified)
+Status: Ready to execute
+Last activity: 2026-08-08 — Phase 09 planning completed
 
 Progress: [████████░░] 75%
 
@@ -41,7 +41,7 @@ Progress: [████████░░] 75%
 |-------|--------|-------|
 | Phase 7: Permission Foundation & Schema Baseline | ✅ Complete | RBAC-01, RBAC-02 + batched schema baseline (verified 2026-08-01) |
 | Phase 8: Approval Workflows & Unified Approval Queue | ✅ Complete | RBAC-03..06: chokepoints + approval API (08-02) + unified queue UI + threshold config (08-03, verified 2026-08-06) |
-| Phase 9: KYC Verification & Disbursement Guardrail | ○ Not started | KYC-01..05 |
+| Phase 9: KYC Verification & Disbursement Guardrail | 🔵 Planned | KYC-01..05 — 4 plans (2 waves), plan-checker verified 2026-08-08 |
 | Phase 10: Onboarding Compliance Gate | ○ Not started | ONB-01..04 |
 | Phase 11: Contract Management Upgrade | ○ Not started | CTR-01..03 |
 | Phase 12: Customer History & Volume-Based Tiering | ○ Not started | CUST-01..04 |
@@ -76,9 +76,10 @@ Progress: [████████░░] 75%
 
 ## Session Continuity
 
-Last session: 2026-08-06T09:11:40.378Z
-Stopped at: Phase 9 UI-SPEC approved
-Resume file: .planning/phases/09-kyc-verification-disbursement-guardrail/09-UI-SPEC.md
+Last session: 2026-08-08
+Stopped at: Phase 9 plans created and verified (4 plans, 2 waves)
+Resume file: .planning/phases/09-kyc-verification-disbursement-guardrail/09-01-PLAN.md
+Next: /gsd-execute-phase 9
 
 ## Performance Metrics
 
