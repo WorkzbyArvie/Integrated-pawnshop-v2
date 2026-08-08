@@ -47,8 +47,8 @@ created: 2026-08-08
 | TBD | 01 | 1 | KYC-02 | — | MANAGER grants kyc.view + kyc.verify | unit | `npm test -- permissions-catalog` | ✅ | ⬜ pending |
 | TBD | 01 | 1 | KYC-03 | T-09-05 | createTicket rejects non-VERIFIED with 409 | unit | `npm test -- pawn-ticket.service` | ✅ (extend) | ⬜ pending |
 | TBD | 01 | 1 | KYC-03 | T-09-05 | approveWithContract rejects non-VERIFIED with 409 | unit | `npm test -- pawn-ticket.service` | ✅ (extend) | ⬜ pending |
-| TBD | 01 | 1 | KYC-03 | T-09-05 | Mobile ticket path gates on KYC | unit | `npm test -- app.service` | ✅ (extend) | ⬜ pending |
-| TBD | 01 | 1 | KYC-04 | T-09-05 | disburseLoan rejects non-VERIFIED with 409 | unit | `npm test -- loan.service` | ✅ (extend) | ⬜ pending |
+| TBD | 01 | 1 | KYC-03 | T-09-05 | Mobile ticket path gates on KYC | unit | `npm test -- app.service` | ❌ NEW (Wave 0) | ⬜ pending |
+| TBD | 01 | 1 | KYC-04 | T-09-05 | disburseLoan rejects non-VERIFIED with 409 | unit | `npm test -- loan.service` | ❌ NEW (Wave 0) | ⬜ pending |
 | TBD | 01 | 1 | KYC-05 | T-09-01 | Signed-URL helper parses stored public URL to path | unit | `cd frontend && npx vitest run kycDocs` | ❌ 09-03 Task 1 | ⬜ pending |
 | TBD | 01 | 1 | KYC-05 | T-09-01/02 | RLS SQL + bucket flip (manual Supabase run) | manual | manual | n/a | ⬜ pending |
 
@@ -61,8 +61,8 @@ created: 2026-08-08
 - [ ] `backend/src/kyc/kyc.service.spec.ts` — KYC-01 upsert + KYC-02 review dual-column sync + tenant scoping
 - [ ] `backend/src/kyc/kyc.controller.spec.ts` — route + `@RequiresPermission` decorators (KYC-02)
 - [ ] `backend/src/loan/pawn-ticket.service.spec.ts` — extend for KYC-03 gate (create + approve)
-- [ ] `backend/src/loan/loan.service.spec.ts` — extend for KYC-04 disburse gate
-- [ ] `backend/src/app.service.spec.ts` — extend for mobile ticket path gate
+- [ ] `backend/src/loan/loan.service.spec.ts` — NEW for KYC-04 disburse gate (does not exist today)
+- [ ] `backend/src/app.service.spec.ts` — NEW for mobile ticket path gate (does not exist today)
 - [ ] `backend/src/common/permissions/permissions-catalog.spec.ts` — update MANAGER tuple
 - [ ] `backend/src/kyc/kyc-validation.spec.ts` — 16 → 12 digit fix greens existing 2 RED tests
 

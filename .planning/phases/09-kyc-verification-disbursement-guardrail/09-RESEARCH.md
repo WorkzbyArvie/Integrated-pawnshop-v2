@@ -486,22 +486,16 @@ if (idType === 'NATIONAL_ID' && !/^\d{12}$/.test(compareValue)) {
 | A5 | `permissions-catalog.spec.ts` asserts exact per-role tuples and must be updated when MANAGER gains `kyc.view`/`kyc.verify` | MANAGER grant | If the catalog spec auto-derives from the const, no update needed; if it hard-codes tuples, it will go red — verify during planning |
 | A6 | Signed-URL TTL ≤ 7 days (604800s) is acceptable for the review screens; helper uses 3600s default | Signed-URL helper | If reviewer sessions exceed 1h, links expire mid-review — use 3600s + re-mint on open, or 86400s (1 day) |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **KYC capture UI — is there a form to collect customer KYC at the counter?**
-   - What we know: `SalesPos.tsx` exists and surfaces ticket creation; CONTEXT says staff capture at the counter; decision D-01 requires an upsert endpoint.
-   - What's unclear: whether `SalesPos.tsx` (or another screen) has an input form for fullName/contactNumber/address/idType/idNumber/document URLs, or whether Phase 9 must also add the capture UI (CONTEXT integration points say "KYC status surfaced in SalesPos so staff know when capture is needed" — implies minimal UI work, but the actual form fields may not exist).
-   - Recommendation: Planner should include a small capture form/modal in the phase (staff-assisted capture is a phase deliverable per the phase boundary) — flag for user confirmation of scope.
+   - RESOLVED: Phase 9 adds a minimal staff capture form in `SalesPos.tsx` (09-03 Task 3) wiring `POST /kyc/customers` with staff-entered ID details + upload→`getPublicUrl`; the 09-04 seed adds a PENDING demo row so the review flow is demonstrable. See 09-03-PLAN.md Task 3 and 09-04-PLAN.md Task 2.
 
 2. **How are KYC document files uploaded today, and where is the upload code?**
-   - What we know: `bidder_kyc` rows store full public URLs (app.service.ts submitKyc :1996-2131); frontend uploads via `supabase.storage.from(bucket).upload(...)` (SalesPos.tsx:114, InventoryVault.tsx:156 use getPublicUrl after upload).
-   - What's unclear: whether the customer-KYC capture path reuses the same storage bucket/upload flow or needs new upload code in the capture UI.
-   - Recommendation: Reuse the existing upload→getPublicUrl pattern for new captures (store the public URL as today); only the *render* path changes to signed URLs.
+   - RESOLVED: Customer-KYC capture reuses the existing upload→`getPublicUrl` pattern (SalesPos.tsx:114, InventoryVault.tsx:156 precedent); only the *render* path changes to signed URLs via `getSignedKycDocUrl` (09-03 Task 3/4).
 
 3. **Mobile ticket path (`POST /tickets/mobile`) — how does it resolve the customer?**
-   - What we know: app.controller.ts:313 exists and must gate on KYC (D-09); `createTicket` uses `resolveCustomerId` (pawn-ticket.service.ts:784).
-   - What's unclear: whether the mobile path calls `PawnTicketService.createTicket` internally (then gating it once suffices) or builds tickets independently (then a separate gate is needed).
-   - Recommendation: Verify the mobile service implementation during planning; if it delegates to `createTicket`, the single gate covers it.
+   - RESOLVED: Verified the mobile path does NOT delegate to `createTicket` — it builds tickets independently and needs its own KYC gate (09-02 Task 3 adds the gate inline at the mobile create site).
 
 ## Environment Availability
 
@@ -541,8 +535,8 @@ if (idType === 'NATIONAL_ID' && !/^\d{12}$/.test(compareValue)) {
 | KYC-02 | MANAGER role grants `kyc.view` + `kyc.verify` | unit | `npm test -- permissions-catalog` | ✅ `backend/src/common/permissions/permissions-catalog.spec.ts` (update expectations) |
 | KYC-03 | `createTicket` rejects non-VERIFIED customer with 409 | unit (mocked Prisma) | `npm test -- pawn-ticket.service` | ✅ spec exists (extend) |
 | KYC-03 | `approveWithContract` rejects non-VERIFIED customer with 409 | unit | `npm test -- pawn-ticket.service` | ✅ spec exists (extend) |
-| KYC-03 | Mobile ticket path gates on KYC | unit | `npm test -- app.service` | ✅ spec exists (extend) |
-| KYC-04 | `disburseLoan` rejects non-VERIFIED customer with 409 | unit | `npm test -- loan.service` | ✅ `loan.service.spec.ts` exists (extend) |
+| KYC-03 | Mobile ticket path gates on KYC | unit | `npm test -- app.service` | ❌ `app.service.spec.ts` does not exist — create NEW (Wave 0) |
+| KYC-04 | `disburseLoan` rejects non-VERIFIED customer with 409 | unit | `npm test -- loan.service` | ❌ `loan.service.spec.ts` does not exist — create NEW (Wave 0) |
 | KYC-05 | RLS SQL applies (manual) + signed-URL helper parses stored public URL to path | unit (helper) + manual SQL | `npm test -- kycSignedUrl` (if helper in repo) / manual Supabase run | ❌ Wave 0 (helper spec) |
 
 ### Sampling Rate
