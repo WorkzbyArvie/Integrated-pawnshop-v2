@@ -49,7 +49,7 @@ created: 2026-08-08
 | TBD | 01 | 1 | KYC-03 | T-09-05 | approveWithContract rejects non-VERIFIED with 409 | unit | `npm test -- pawn-ticket.service` | ✅ (extend) | ⬜ pending |
 | TBD | 01 | 1 | KYC-03 | T-09-05 | Mobile ticket path gates on KYC | unit | `npm test -- app.service` | ✅ (extend) | ⬜ pending |
 | TBD | 01 | 1 | KYC-04 | T-09-05 | disburseLoan rejects non-VERIFIED with 409 | unit | `npm test -- loan.service` | ✅ (extend) | ⬜ pending |
-| TBD | 01 | 1 | KYC-05 | T-09-01 | Signed-URL helper parses stored public URL to path | unit | `npm test -- kycSignedUrl` | ❌ Wave 0 | ⬜ pending |
+| TBD | 01 | 1 | KYC-05 | T-09-01 | Signed-URL helper parses stored public URL to path | unit | `cd frontend && npx vitest run kycDocs` | ❌ 09-03 Task 1 | ⬜ pending |
 | TBD | 01 | 1 | KYC-05 | T-09-01/02 | RLS SQL + bucket flip (manual Supabase run) | manual | manual | n/a | ⬜ pending |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
