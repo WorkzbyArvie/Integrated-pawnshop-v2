@@ -86,8 +86,14 @@ PawnGold is a full-stack SaaS pawnshop platform (React dashboard + NestJS + Pris
   4. Loan disbursement is blocked with a clear error when the client's KYC status is not VERIFIED.
   5. `kyc-documents` bucket is no longer public-read; `bidder_kyc` rows are readable only by the owning tenant / super-admin.
 
-**Plans**: TBD
+**Plans**: 4 plans
 **UI hint**: yes
+
+Plans:
+- [ ] 09-01-PLAN.md — KycModule (upsert/list/review) + MANAGER grant + 12-digit National ID fix
+- [ ] 09-02-PLAN.md — KYC gates: ticket creation, approval, disbursement + mobile path
+- [ ] 09-03-PLAN.md — Frontend: Customer KYC Review screen + SalesPos badge + signed-URL docs
+- [ ] 09-04-PLAN.md — KYC-05 storage/RLS security SQL + demo seed
 
 ### Phase 10: Onboarding Compliance Gate
 
