@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
-import { CheckCircle, XCircle, Clock, Eye, Shield, RefreshCw, ExternalLink, AlertTriangle } from 'lucide-react';
+import { CheckCircle, XCircle, Clock, Eye, Shield, RefreshCw, AlertTriangle } from 'lucide-react';
 import { api } from '../lib/apiClient';
+import DocLink from './DocLink';
 
 interface VerificationData {
   ocr: { nameMatch: boolean; idNumberMatch: boolean; confidence: number; extractedName: string; extractedIdNumber: string };
@@ -182,17 +183,9 @@ export default function BidderKycReview() {
             <div className="grid grid-cols-2 gap-6 mb-6">
               <div className="space-y-3">
                 <h4 className="text-xs font-semibold uppercase tracking-wider text-[#C9A05C]">ID Document</h4>
-                <a href={selected.idFrontUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-sm text-[#C9A05C] hover:underline">
-                  <ExternalLink className="w-3 h-3" /> View ID Front
-                </a>
-                {selected.idBackUrl && (
-                  <a href={selected.idBackUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-sm text-[#C9A05C] hover:underline">
-                    <ExternalLink className="w-3 h-3" /> View ID Back
-                  </a>
-                )}
-                <a href={selected.selfieUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-sm text-[#C9A05C] hover:underline">
-                  <ExternalLink className="w-3 h-3" /> View Selfie
-                </a>
+                <DocLink url={selected.idFrontUrl} label="View ID Front" />
+                {selected.idBackUrl && <DocLink url={selected.idBackUrl} label="View ID Back" />}
+                <DocLink url={selected.selfieUrl} label="View Selfie" />
               </div>
               <div className="space-y-3">
                 <h4 className="text-xs font-semibold uppercase tracking-wider text-[#C9A05C]">Personal Info</h4>
