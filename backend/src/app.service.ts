@@ -21,6 +21,7 @@ import {
   normalizeKycIdNumberForCompare,
   parseAndValidateDateOfBirth,
 } from './kyc/kyc-validation';
+import { assertCustomerKycVerified } from './loan/pawn-ticket.service';
 
 @Injectable()
 export class AppService {
@@ -1614,6 +1615,8 @@ export class AppService {
         },
       });
     }
+
+    assertCustomerKycVerified(customer);
 
     // Generate ticket number
     const ticketNumber = `MOB-${Date.now().toString(36).toUpperCase()}`;
