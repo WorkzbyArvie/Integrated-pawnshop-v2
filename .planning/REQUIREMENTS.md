@@ -52,7 +52,7 @@ milestone closes every gap. Audit summary:
 - [x] **KYC-02**: OWNER/MANAGER can review client KYC submissions and set VERIFIED/REJECTED (new client-KYC review screen).
 - [x] **KYC-03**: Pawn ticket creation and approval require the client's KYC status to be VERIFIED.
 - [x] **KYC-04**: Loan disbursement is blocked when the client's KYC status is not VERIFIED.
-- [ ] **KYC-05**: KYC document storage is secured — RLS policies on `bidder_kyc`, `kyc-documents` bucket no longer public-read; only owning tenant/super-admin can access.
+- [x] **KYC-05**: KYC document storage is secured — RLS policies on `bidder_kyc`, `kyc-documents` bucket no longer public-read; only owning tenant/super-admin can access.
 
 ### CUST · Customer Transaction History & Tiering
 
@@ -97,7 +97,7 @@ milestone closes every gap. Audit summary:
 | KYC-02 | Phase 9 | Complete |
 | KYC-03 | Phase 9 | Complete |
 | KYC-04 | Phase 9 | Complete |
-| KYC-05 | Phase 9 | Pending |
+| KYC-05 | Phase 9 | Complete |
 | CUST-01 | Phase 12 | Pending |
 | CUST-02 | Phase 12 | Pending |
 | CUST-03 | Phase 12 | Pending |

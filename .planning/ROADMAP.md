@@ -97,7 +97,7 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 09-03-PLAN.md — Frontend: Customer KYC Review screen + SalesPos badge + signed-URL docs
+- [x] 09-03-PLAN.md — Frontend: Customer KYC Review screen + SalesPos badge + signed-URL docs
 - [ ] 09-04-PLAN.md — KYC-05 storage/RLS security SQL + demo seed
 
 ### Phase 10: Onboarding Compliance Gate
@@ -204,7 +204,7 @@ Plans:
 | 6. Auction House Professionalization | v1.0 | - | Complete | 2026-07-31 |
 | 7. Permission Foundation & Schema Baseline | v2.0 | 1 | Complete | 2026-07-31 |
 | 8. Approval Workflows & Unified Approval Queue | v2.0 | 3/3 | In Progress|  |
-| 9. KYC Verification & Disbursement Guardrail | v2.0 | 2/4 | In Progress|  |
+| 9. KYC Verification & Disbursement Guardrail | v2.0 | 3/4 | In Progress|  |
 | 10. Onboarding Compliance Gate | v2.0 | TBD | Not started | - |
 | 11. Contract Management Upgrade | v2.0 | TBD | Not started | - |
 | 12. Customer History & Volume-Based Tiering | v2.0 | TBD | Not started | - |
