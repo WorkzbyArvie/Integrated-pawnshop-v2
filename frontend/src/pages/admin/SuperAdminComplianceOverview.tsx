@@ -13,8 +13,10 @@ import {
   MapPin,
   Phone,
   CreditCard,
+  Loader2,
 } from 'lucide-react';
 import { api } from '../../lib/apiClient';
+import { getSignedKycDocUrl } from '../../lib/kycDocs';
 
 interface PendingReview {
   id: string;
@@ -80,6 +82,54 @@ const DOCUMENT_LABELS: Record<string, string> = {
   OCCUPANCY_PERMIT: 'Occupancy Permit',
   SEC_REGISTRATION: 'SEC Registration',
 };
+
+function SignedDocImage({ url, alt }: { url: string; alt: string }) {
+  const [signedUrl, setSignedUrl] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    setSignedUrl(null);
+    setFailed(false);
+    getSignedKycDocUrl(url)
+      .then((minted) => {
+        if (!cancelled) setSignedUrl(minted);
+      })
+      .catch(() => {
+        if (!cancelled) setFailed(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [url]);
+
+  if (failed) {
+    return (
+      <div className="flex h-48 w-full items-center justify-center rounded-lg border border-gilded-border bg-gilded-darker/60">
+        <span className="text-xs text-gilded-muted">Document unavailable</span>
+      </div>
+    );
+  }
+
+  if (!signedUrl) {
+    return (
+      <div className="flex h-48 w-full animate-pulse items-center justify-center rounded-lg border border-gilded-border bg-gilded-darker/60">
+        <Loader2 className="h-5 w-5 animate-spin text-gilded-muted" />
+      </div>
+    );
+  }
+
+  return (
+    <a
+      href={signedUrl}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="block overflow-hidden rounded-lg border border-gilded-border transition-colors hover:border-gilded-gold/50"
+    >
+      <img src={signedUrl} alt={alt} className="h-48 w-full object-cover" />
+    </a>
+  );
+}
 
 export default function SuperAdminComplianceOverview() {
   const [pendingReviews, setPendingReviews] = useState<PendingReview[]>([]);
@@ -549,25 +599,19 @@ export default function SuperAdminComplianceOverview() {
                   {viewingKyc.idFrontUrl && (
                     <div className="space-y-1">
                       <p className="text-[11px] text-gilded-muted font-medium">ID Front</p>
-                      <a href={viewingKyc.idFrontUrl} target="_blank" rel="noopener noreferrer" className="block rounded-lg overflow-hidden border border-gilded-border hover:border-gilded-gold/50 transition-colors">
-                        <img src={viewingKyc.idFrontUrl} alt="ID Front" className="w-full h-48 object-cover" />
-                      </a>
+                      <SignedDocImage url={viewingKyc.idFrontUrl} alt="ID Front" />
                     </div>
                   )}
                   {viewingKyc.idBackUrl && (
                     <div className="space-y-1">
                       <p className="text-[11px] text-gilded-muted font-medium">ID Back</p>
-                      <a href={viewingKyc.idBackUrl} target="_blank" rel="noopener noreferrer" className="block rounded-lg overflow-hidden border border-gilded-border hover:border-gilded-gold/50 transition-colors">
-                        <img src={viewingKyc.idBackUrl} alt="ID Back" className="w-full h-48 object-cover" />
-                      </a>
+                      <SignedDocImage url={viewingKyc.idBackUrl} alt="ID Back" />
                     </div>
                   )}
                   {viewingKyc.selfieUrl && (
                     <div className="space-y-1">
                       <p className="text-[11px] text-gilded-muted font-medium">Selfie</p>
-                      <a href={viewingKyc.selfieUrl} target="_blank" rel="noopener noreferrer" className="block rounded-lg overflow-hidden border border-gilded-border hover:border-gilded-gold/50 transition-colors">
-                        <img src={viewingKyc.selfieUrl} alt="Selfie" className="w-full h-48 object-cover" />
-                      </a>
+                      <SignedDocImage url={viewingKyc.selfieUrl} alt="Selfie" />
                     </div>
                   )}
                   {!viewingKyc.idFrontUrl && !viewingKyc.idBackUrl && !viewingKyc.selfieUrl && (

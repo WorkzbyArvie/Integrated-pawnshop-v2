@@ -1,6 +1,7 @@
 ﻿import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { Loader2, MessageSquare, RefreshCcw, Send, Upload, X } from 'lucide-react';
 import api from '../../lib/apiClient';
+import { getSignedKycDocUrl } from '../../lib/kycDocs';
 import { useToast } from '../../App';
 
 type RequestStatus = 'PENDING' | 'CONTACTED' | 'APPROVED' | 'REJECTED' | 'CANCELLED' | 'ALL';
@@ -67,10 +68,33 @@ export function TrialRequestsPanel() {
   const [loadingDocs, setLoadingDocs] = useState(false);
   const [reviewingDocId, setReviewingDocId] = useState<string | null>(null);
   const [previewDoc, setPreviewDoc] = useState<RegDocument | null>(null);
+  const [previewDocSignedUrl, setPreviewDocSignedUrl] = useState<string | null>(null);
+  const [previewDocSignFailed, setPreviewDocSignFailed] = useState(false);
 
   const selectedRequest = requests.find((request) => request.id === selectedRequestId) ?? requests[0] ?? null;
   const selectedStatus = String(selectedRequest?.status || '').toUpperCase();
   const canReviewDecision = selectedStatus === 'PENDING' || selectedStatus === 'CONTACTED';
+
+  useEffect(() => {
+    if (!previewDoc) {
+      setPreviewDocSignedUrl(null);
+      setPreviewDocSignFailed(false);
+      return;
+    }
+    let cancelled = false;
+    setPreviewDocSignedUrl(null);
+    setPreviewDocSignFailed(false);
+    getSignedKycDocUrl(previewDoc.file_url)
+      .then((minted) => {
+        if (!cancelled) setPreviewDocSignedUrl(minted);
+      })
+      .catch(() => {
+        if (!cancelled) setPreviewDocSignFailed(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [previewDoc]);
 
   const selectedModulesText = useMemo(() => {
     const modules = selectedRequest?.selected_modules;
@@ -481,15 +505,19 @@ export function TrialRequestsPanel() {
               </button>
             </div>
             <div className="flex items-center justify-center p-4" style={{ minHeight: '60vh' }}>
-              {/\.(jpg|jpeg|png|gif|webp|svg|bmp)(\?|$)/i.test(previewDoc.file_url) ? (
+              {previewDocSignFailed ? (
+                <p className="text-sm text-[#6B655C]">Document unavailable</p>
+              ) : !previewDocSignedUrl ? (
+                <Loader2 className="h-8 w-8 animate-spin text-[#C9A05C]" />
+              ) : /\.(jpg|jpeg|png|gif|webp|svg|bmp)(\?|$)/i.test(previewDoc.file_url) ? (
                 <img
-                  src={previewDoc.file_url}
+                  src={previewDocSignedUrl}
                   alt={previewDoc.file_name}
                   className="max-h-[78vh] max-w-full rounded-lg object-contain"
                 />
               ) : previewDoc.file_url.includes('.pdf') || previewDoc.file_url.includes('pdf') ? (
                 <iframe
-                  src={previewDoc.file_url}
+                  src={previewDocSignedUrl}
                   title={previewDoc.file_name}
                   className="h-[78vh] w-[70vw] rounded-lg border border-[rgba(201,160,92,0.12)]"
                 />
@@ -497,7 +525,7 @@ export function TrialRequestsPanel() {
                 <div className="text-center">
                   <p className="text-sm text-[#6B655C]">Preview not available for this file type.</p>
                   <a
-                    href={previewDoc.file_url}
+                    href={previewDocSignedUrl}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="mt-3 inline-block rounded-xl bg-[#C9A05C] px-4 py-2 text-xs font-black uppercase text-white hover:bg-[#b8913f]"
