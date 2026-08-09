@@ -148,7 +148,7 @@ Each task was committed atomically:
 4. **Task 4: signed-URL KYC document rendering in super-admin surfaces** - `8776a9b` (feat) — SuperAdminComplianceOverview.tsx, TrialRequestsPanel.tsx
 5. **Task 5: classify AuctionMarketplace + PendingAccessDashboard as producer-only** - no commit (READ-ONLY classification; documented above)
 
-**Plan metadata:** pending final docs commit (SUMMARY.md + STATE.md + ROADMAP.md)
+**Plan metadata:** `611bf5e` (docs: complete plan — SUMMARY + STATE + ROADMAP + REQUIREMENTS); `ad3726c` (docs: log pre-existing frontend vitest failures to deferred-items)
 
 ## Files Created/Modified
 - `frontend/src/lib/kycDocs.ts` - `getSignedKycDocUrl` minting helper (createSignedUrl, TTL 3600, non-path passthrough, exact error messages)
