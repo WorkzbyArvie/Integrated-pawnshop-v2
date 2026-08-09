@@ -1,5 +1,5 @@
 import { randomUUID } from 'crypto';
-import { Injectable, NotFoundException, BadRequestException, ForbiddenException, Logger } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ForbiddenException, ConflictException, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 import { LegalProofService } from './legal-proof.service';
 import { LoanContractService } from './loan-contract.service';
@@ -11,6 +11,14 @@ import { ReceiptService } from '../receipt/receipt.service';
 import { FinanceService } from '../finance/finance.service';
 import { NotificationService } from '../notification/notification.service';
 import { LedgerEntryType, LedgerCategory, NotificationChannel, NotificationType, PaymentMethod, Prisma } from '@prisma/client';
+
+export function assertCustomerKycVerified(
+  customer: { kycStatus?: string } | null | undefined,
+): void {
+  if (!customer || customer.kycStatus !== 'VERIFIED') {
+    throw new ConflictException('Customer KYC must be VERIFIED before this action');
+  }
+}
 
 @Injectable()
 export class PawnTicketService {
@@ -34,6 +42,12 @@ export class PawnTicketService {
     } catch (err: any) {
       throw new Error(`resolveCustomerId failed: ${err.message}`);
     }
+
+    const customer = await this.prisma.customer.findUnique({
+      where: { id: customerId },
+      select: { kycStatus: true },
+    });
+    assertCustomerKycVerified(customer);
 
     const ticketNumber = `TKT-${Math.floor(Date.now() / 1000)}`;
     const expiryDate = new Date(dto.appraisalDeadline);
@@ -258,6 +272,8 @@ export class PawnTicketService {
         `Cannot approve ticket in status: ${ticket.lifecycleStatus}. Must be APPRAISED or PENDING_APPROVAL.`,
       );
     }
+
+    assertCustomerKycVerified(ticket.customer);
 
     await this.stateMachine.transition(
       'TICKET_LIFECYCLE',

@@ -1,4 +1,5 @@
 import { Test } from '@nestjs/testing';
+import { ConflictException } from '@nestjs/common';
 import { PawnTicketService } from './pawn-ticket.service';
 import { LegalProofService } from './legal-proof.service';
 import { LoanContractService } from './loan-contract.service';
@@ -13,8 +14,14 @@ const mockPrisma = {
     findUnique: jest.fn(),
     update: jest.fn(),
     count: jest.fn(),
+    create: jest.fn(),
   },
-  customer: { update: jest.fn() },
+  customer: {
+    update: jest.fn(),
+    findUnique: jest.fn(),
+    findFirst: jest.fn(),
+    create: jest.fn(),
+  },
   loan: { update: jest.fn(), create: jest.fn() },
   loanApplication: { create: jest.fn() },
   payment: { create: jest.fn() },
@@ -45,7 +52,7 @@ describe('PawnTicketService', () => {
     loanAmount: 0,
     isHighRisk: false,
     category: 'JEWELRY',
-    customer: { id: 'cust_1', fullName: 'John Doe' },
+    customer: { id: 'cust_1', fullName: 'John Doe', kycStatus: 'VERIFIED' },
     loans: [],
     pawnshop: { settings: {} },
   };
@@ -360,6 +367,100 @@ describe('PawnTicketService', () => {
         expect.objectContaining({ data: expect.objectContaining({ lifecycleStatus: 'RECEIVED' }) }),
       );
       expect(result).toEqual(expect.objectContaining({ lifecycleStatus: 'RECEIVED' }));
+    });
+  });
+
+  describe('createTicket KYC gate', () => {
+    const dto = {
+      customerName: 'John Doe',
+      customerContact: '09171234567',
+      customerAddress: 'Dasmarinas, Cavite',
+      pawnshopId: 'ps_1',
+      itemCategory: 'JEWELRY',
+      itemDescription: 'Gold ring',
+      weight: 5,
+      loanAmount: 10000,
+      appraisalDeadline: '2026-12-31',
+    };
+
+    it('rejects a customer whose kycStatus is NOT_SUBMITTED with a 409 ConflictException', async () => {
+      mockPrisma.customer.findFirst.mockResolvedValue(null);
+      mockPrisma.customer.create.mockResolvedValue({ id: 'cust_1' });
+      mockPrisma.customer.findUnique.mockResolvedValue({ kycStatus: 'NOT_SUBMITTED' });
+
+      await expect(service.createTicket(dto, 'staff_1')).rejects.toThrow(ConflictException);
+      await expect(service.createTicket(dto, 'staff_1')).rejects.toThrow(
+        'Customer KYC must be VERIFIED',
+      );
+      expect(mockPrisma.ticket.create).not.toHaveBeenCalled();
+    });
+
+    it('rejects PENDING and REJECTED customers the same way', async () => {
+      for (const kycStatus of ['PENDING', 'REJECTED']) {
+        mockPrisma.customer.findFirst.mockResolvedValue(null);
+        mockPrisma.customer.create.mockResolvedValue({ id: 'cust_1' });
+        mockPrisma.customer.findUnique.mockResolvedValue({ kycStatus });
+
+        await expect(service.createTicket(dto, 'staff_1')).rejects.toThrow(ConflictException);
+      }
+    });
+
+    it('allows a VERIFIED customer through to ticket creation', async () => {
+      mockPrisma.customer.findFirst.mockResolvedValue(null);
+      mockPrisma.customer.create.mockResolvedValue({ id: 'cust_1' });
+      mockPrisma.customer.findUnique.mockResolvedValue({ kycStatus: 'VERIFIED' });
+      mockPrisma.ticket.create.mockResolvedValue({
+        id: 1,
+        ticketNumber: 'TKT-1',
+        customerId: 'cust_1',
+        status: 'PENDING',
+        lifecycleStatus: 'RECEIVED',
+      });
+
+      const result = await service.createTicket(dto, 'staff_1');
+
+      expect(mockPrisma.ticket.create).toHaveBeenCalled();
+      expect(result).toEqual(
+        expect.objectContaining({ customerId: 'cust_1', status: 'PENDING' }),
+      );
+    });
+  });
+
+  describe('approveWithContract KYC gate', () => {
+    it('rejects a ticket whose customer is not VERIFIED and never reaches the state machine', async () => {
+      mockPrisma.ticket.findUnique.mockResolvedValue({
+        ...baseTicket,
+        lifecycleStatus: 'APPRAISED',
+        customer: { id: 'cust_1', fullName: 'John Doe', kycStatus: 'PENDING' },
+      });
+
+      await expect(service.approveWithContract(100, 'mgr_1')).rejects.toThrow(ConflictException);
+      await expect(service.approveWithContract(100, 'mgr_1')).rejects.toThrow(
+        'Customer KYC must be VERIFIED',
+      );
+      expect(mockStateMachine.transition).not.toHaveBeenCalled();
+    });
+
+    it('allows a VERIFIED customer through the offer flow', async () => {
+      mockPrisma.ticket.findUnique.mockResolvedValue({
+        ...baseTicket,
+        lifecycleStatus: 'APPRAISED',
+        customer: { id: 'cust_1', fullName: 'John Doe', kycStatus: 'VERIFIED' },
+      });
+      mockPrisma.loanApplication.create.mockResolvedValue({ id: 'la_1' });
+      mockPrisma.loan.create.mockResolvedValue({ id: 'loan_1' });
+      mockPrisma.ticket.update.mockResolvedValue({ ...baseTicket, lifecycleStatus: 'OFFER_MADE' });
+
+      const result = await service.approveWithContract(100, 'mgr_1', 'MANAGER');
+
+      expect(mockStateMachine.transition).toHaveBeenCalledWith(
+        'TICKET_LIFECYCLE',
+        'APPRAISED',
+        'OFFER_MADE',
+        { userRole: 'MANAGER' },
+      );
+      expect(mockLoanContractService.generateContractForApplication).toHaveBeenCalled();
+      expect(result).toEqual(expect.objectContaining({ lifecycleStatus: 'OFFER_MADE' }));
     });
   });
 });
