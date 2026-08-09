@@ -12,6 +12,7 @@ import { LegalProofService } from './legal-proof.service';
 import { ReceiptService } from '../receipt/receipt.service';
 import { StateMachineService } from '../common/state-machine/state-machine.service';
 import { NotificationService } from '../notification/notification.service';
+import { assertCustomerKycVerified } from './pawn-ticket.service';
 
 @Injectable()
 export class LoanService {
@@ -635,6 +636,8 @@ export class LoanService {
 
     const pawnshopId = loan.application?.pawnshopId || loan.ticket.pawnshopId;
     if (!pawnshopId) throw new BadRequestException('Loan has no pawnshop');
+
+    assertCustomerKycVerified(loan.ticket.customer);
 
     await this.stateMachine.transition(
       'TICKET_LIFECYCLE',
