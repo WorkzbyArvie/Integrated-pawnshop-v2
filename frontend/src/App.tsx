@@ -67,7 +67,8 @@ import { AuditHistory } from './components/AuditHistory';
 import { PendingAccessDashboard } from './components/PendingAccessDashboard';
 import OwnerComplianceDashboard from './pages/admin/OwnerComplianceDashboard';
 import BidderKycReview from './components/BidderKycReview';
-import { LoanHistoryPage } from './pages/loans/LoanHistoryPage';
+import CustomerKycReview from './components/CustomerKycReview';
+import { TransactionHistory } from './pages/loans/TransactionHistory';
 import LandingPage from './pages/LandingPage';
 
 // Standardized Roles
@@ -135,6 +136,7 @@ const TAB_TO_PATH: Record<string, string> = {
   'trial-requests': '/trial-requests',
   'platform-compliance': '/platform-compliance',
   'bidder-kyc': '/bidder-kyc',
+  'customer-kyc': '/customer-kyc',
   'pending-access': '/pending-access',
   'frozen-access': '/frozen-access',
   'branch-system-settings': '/branch-system-settings',
@@ -1210,6 +1212,7 @@ function App() {
     { id: 'multi-branches', label: 'Multi-Branch', icon: GitBranch, roles: ['Owner'], type: 'OPERATIONAL' },
     { id: 'sales', label: 'New Appraisal', icon: BadgePercent, roles: ['Owner', 'Admin', 'Manager', 'Staff', 'Cashier/Teller', 'Appraiser'], type: 'OPERATIONAL' },
     { id: 'approval-queue', label: 'Approval Queue', icon: ListChecks, roles: ['Owner', 'Admin', 'Manager'], type: 'OPERATIONAL' },
+    { id: 'customer-kyc', label: 'Customer KYC Review', icon: ShieldCheck, roles: ['Owner', 'Admin', 'Manager'], type: 'OPERATIONAL' },
     { id: 'audit-history', label: 'Audit History', icon: History, roles: ['Owner', 'Admin'], type: 'OPERATIONAL' },
     { id: 'crm', label: 'Customers', icon: Users2, roles: ['Owner', 'Admin', 'Manager', 'Staff', 'Cashier/Teller', 'Appraiser'], type: 'OPERATIONAL', feature: 'crm_enabled' },
     { id: 'inventory', label: 'Inventory & Vault', icon: Warehouse, roles: ['Owner', 'Admin', 'Manager', 'Inventory Custodian'], type: 'OPERATIONAL', feature: 'vault_enabled' },
@@ -1221,7 +1224,7 @@ function App() {
     { id: 'bidder-kyc', label: 'Bidder KYC Review', icon: Shield, roles: ['Super Admin'], type: 'PLATFORM' },
     { id: 'auction-live', label: 'Live Auctions', icon: Gavel, roles: ['Owner', 'Admin', 'Manager'], type: 'OPERATIONAL', feature: 'auction_enabled' },
     { id: 'decision', label: 'Decision Support', icon: BrainCircuit, roles: ['Owner', 'Admin', 'Manager'], type: 'OPERATIONAL', feature: 'decision_enabled' },
-    { id: 'loan-history', label: 'Loan History', icon: History, roles: ['Owner', 'Admin', 'Manager', 'Staff', 'Cashier/Teller', 'Appraiser', 'Auditor'], type: 'OPERATIONAL' },
+    { id: 'loan-history', label: 'Transaction History', icon: History, roles: ['Owner', 'Admin', 'Manager', 'Staff', 'Cashier/Teller', 'Appraiser', 'Auditor'], type: 'OPERATIONAL' },
     { id: 'queue-mgmt', label: 'Queue Management', icon: ListOrdered, roles: ['Owner', 'Admin', 'Manager', 'Staff', 'Cashier/Teller'], type: 'OPERATIONAL' },
     { id: 'finance-ledger', label: 'Finance Ledger', icon: BookOpen, roles: ['Owner', 'Admin', 'Manager', 'Auditor'], type: 'OPERATIONAL', feature: 'finance_enabled' },
     { id: 'attendance', label: 'Attendance', icon: Clock, roles: ['Owner', 'Admin', 'Manager', 'HR'], type: 'OPERATIONAL' },
@@ -1237,6 +1240,7 @@ function App() {
     'dashboard',
     'sales',
     'approval-queue',
+    'customer-kyc',
     'audit-history',
     'loan-history',
     'redemption',
@@ -1621,8 +1625,9 @@ function App() {
                 isEnabled={isEnabled} 
               />
             )}
-            {activeTab === 'sales' && <LoanManagement branchId={currentBranchId} activeBranchId={activeOperationalBranchId} />}
+            {activeTab === 'sales' && <LoanManagement branchId={currentBranchId} activeBranchId={activeOperationalBranchId} userRole={userRole} />}
             {activeTab === 'approval-queue' && <ApprovalQueue branchId={currentBranchId} activeBranchId={activeOperationalBranchId} userRole={userRole} />}
+            {activeTab === 'customer-kyc' && <CustomerKycReview branchId={currentBranchId} activeBranchId={activeOperationalBranchId} userRole={userRole} />}
             {activeTab === 'audit-history' && (effectiveUserRole === 'Owner' || effectiveUserRole === 'Admin') && (
               <AuditHistory branchId={currentBranchId} userRole={effectiveUserRole} />
             )}
@@ -1642,7 +1647,7 @@ function App() {
                 activeBranchId={activeOperationalBranchId}
               />
             )}
-            {activeTab === 'loan-history' && <LoanHistoryPage />}
+            {activeTab === 'loan-history' && <TransactionHistory />}
             {activeTab === 'queue-mgmt' && <QueueManagement branchId={currentBranchId} />}
             {activeTab === 'finance-ledger' && <FinanceLedger branchId={currentBranchId} activeBranchId={activeOperationalBranchId} />}
             {activeTab === 'attendance' && <AttendanceTracker branchId={currentBranchId} activeBranchId={activeOperationalBranchId} userRole={userRole} />}

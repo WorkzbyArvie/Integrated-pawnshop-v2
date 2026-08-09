@@ -1,4 +1,4 @@
-﻿import { useRef, useState } from 'react';
+﻿import { useEffect, useRef, useState } from 'react';
 import { 
   Calculator, 
   Scale, 
@@ -7,21 +7,37 @@ import {
   Loader2, 
   MapPin, 
   Phone, 
+  ShieldCheck, 
   User 
 } from 'lucide-react';
 import { useToast } from '../App';
 import { supabase } from '../lib/supabaseClient';
 import api from '../lib/apiClient';
 import { formatCurrency } from '../lib/formatters';
+import KycStatusBadge from './KycStatusBadge';
+import { CustomerKycRecord, KycIdType } from '../lib/types';
 
 // Interface matches the props passed from App.tsx
 interface SalesPosProps {
   branchId: string | null;
   activeBranchId?: number | null;
   setActiveTab: (tab: string) => void;
+  userRole?: string | null;
 }
 
-export function SalesPos({ branchId, activeBranchId, setActiveTab }: SalesPosProps) {
+const KYC_ID_TYPES: KycIdType[] = [
+  'NATIONAL_ID',
+  'PASSPORT',
+  'DRIVERS_LICENSE',
+  'SSS_ID',
+  'PHILHEALTH_ID',
+  'TIN_ID',
+  'VOTERS_ID',
+  'POSTAL_ID',
+  'OTHER',
+];
+
+export function SalesPos({ branchId, activeBranchId, userRole }: SalesPosProps) {
   const { showToast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const STORAGE_BUCKET_CANDIDATES = ['kyc-documents', 'loan-documents', 'loan-contracts'];
@@ -60,6 +76,84 @@ export function SalesPos({ branchId, activeBranchId, setActiveTab }: SalesPosPro
     customerAddress: string;
     riskScore: number | null;
   } | null>(null);
+
+  const [currentCustomerKycStatus, setCurrentCustomerKycStatus] = useState<string | null>(null);
+  const [showKycCapture, setShowKycCapture] = useState(false);
+  const [kycSubmitting, setKycSubmitting] = useState(false);
+  const [kycCapture, setKycCapture] = useState({
+    idType: 'NATIONAL_ID',
+    idNumber: '',
+    idFrontUrl: '',
+    idBackUrl: '',
+    selfieUrl: '',
+  });
+
+  const rawRole = (userRole ?? '').trim().toUpperCase().replace(/[\s-]+/g, '_');
+  const canonicalRole = rawRole === 'BRANCH_ADMIN' ? 'ADMIN' : rawRole;
+  const canViewKyc = ['OWNER', 'ADMIN', 'MANAGER'].includes(canonicalRole);
+
+  useEffect(() => {
+    if (!canViewKyc) return;
+    const name = formData.customerName.trim().toLowerCase();
+    const contact = formData.customerContact.trim().toLowerCase();
+    if (!name || !contact) {
+      setCurrentCustomerKycStatus(null);
+      return;
+    }
+    let cancelled = false;
+    const handle = window.setTimeout(() => {
+      api
+        .get<CustomerKycRecord[]>('/kyc/customers')
+        .then((data) => {
+          if (cancelled) return;
+          const match = (data ?? []).find(
+            (row) =>
+              row.fullName.trim().toLowerCase() === name &&
+              row.contactNumber.trim().toLowerCase() === contact,
+          );
+          setCurrentCustomerKycStatus(match?.status ?? null);
+        })
+        .catch(() => {
+          if (!cancelled) setCurrentCustomerKycStatus(null);
+        });
+    }, 500);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(handle);
+    };
+  }, [formData.customerName, formData.customerContact, canViewKyc]);
+
+  const submitKycCapture = async () => {
+    if (!formData.customerName.trim() || !formData.customerContact.trim()) {
+      showToast('Enter customer name and contact before capturing KYC.', 'error');
+      return;
+    }
+    if (!kycCapture.idNumber.trim()) {
+      showToast('ID number is required for KYC capture.', 'error');
+      return;
+    }
+    setKycSubmitting(true);
+    try {
+      await api.post('/kyc/customers', {
+        fullName: formData.customerName.trim(),
+        contactNumber: formData.customerContact.trim(),
+        address: formData.customerAddress.trim(),
+        idType: kycCapture.idType,
+        idNumber: kycCapture.idNumber.trim(),
+        ...(kycCapture.idFrontUrl.trim() ? { idFrontUrl: kycCapture.idFrontUrl.trim() } : {}),
+        ...(kycCapture.idBackUrl.trim() ? { idBackUrl: kycCapture.idBackUrl.trim() } : {}),
+        ...(kycCapture.selfieUrl.trim() ? { selfieUrl: kycCapture.selfieUrl.trim() } : {}),
+      });
+      showToast('KYC submission recorded as pending.', 'success');
+      setShowKycCapture(false);
+      setKycCapture({ idType: 'NATIONAL_ID', idNumber: '', idFrontUrl: '', idBackUrl: '', selfieUrl: '' });
+      setCurrentCustomerKycStatus('PENDING');
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Failed to submit KYC capture', 'error');
+    } finally {
+      setKycSubmitting(false);
+    }
+  };
 
   const displayBranchName = branchId ? `Branch: ${String(branchId).slice(0, 8)}` : "PawnGold HQ";
 
@@ -302,7 +396,21 @@ export function SalesPos({ branchId, activeBranchId, setActiveTab }: SalesPosPro
             <form onSubmit={(e) => { e.preventDefault(); calculateRisk(); }} className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-3">
-                  <label className="text-[10px] font-black text-[#6B655C] uppercase tracking-widest">Customer Name</label>
+                  <div className="flex items-center justify-between gap-2">
+                    <label className="text-[10px] font-black text-[#6B655C] uppercase tracking-widest">Customer Name</label>
+                    {canViewKyc && (
+                      <div className="flex items-center gap-2">
+                        <KycStatusBadge status={currentCustomerKycStatus} />
+                        <button
+                          type="button"
+                          onClick={() => setShowKycCapture((open) => !open)}
+                          className="text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-lg border border-[rgba(201,160,92,0.2)] text-[#C9A05C] hover:bg-[rgba(201,160,92,0.1)] transition-colors"
+                        >
+                          {showKycCapture ? 'Hide' : 'Capture KYC'}
+                        </button>
+                      </div>
+                    )}
+                  </div>
                   <div className="relative">
                     <input
                       type="text"
@@ -314,6 +422,81 @@ export function SalesPos({ branchId, activeBranchId, setActiveTab }: SalesPosPro
                     />
                     <User className="w-5 h-5 text-slate-300 absolute left-5 top-1/2 -translate-y-1/2" />
                   </div>
+                  {showKycCapture && (
+                    <div className="rounded-2xl border border-[rgba(201,160,92,0.15)] bg-[#14141B] p-5 space-y-4">
+                      <p className="text-[10px] font-black text-[#C9A05C] uppercase tracking-widest">
+                        Capture KYC
+                      </p>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <label className="text-[10px] font-black text-[#6B655C] uppercase tracking-widest">ID Type</label>
+                          <select
+                            value={kycCapture.idType}
+                            onChange={(e) => setKycCapture({ ...kycCapture, idType: e.target.value })}
+                            className="w-full px-4 py-3 rounded-xl border border-[rgba(201,160,92,0.12)] bg-[#1C1C26]/50 focus:ring-2 focus:ring-[#C9A05C] outline-none font-bold text-[#EAE2D6] appearance-none"
+                          >
+                            {KYC_ID_TYPES.map((type) => (
+                              <option key={type} value={type}>{type}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-[10px] font-black text-[#6B655C] uppercase tracking-widest">ID Number</label>
+                          <input
+                            type="text"
+                            value={kycCapture.idNumber}
+                            onChange={(e) => setKycCapture({ ...kycCapture, idNumber: e.target.value })}
+                            className="w-full px-4 py-3 rounded-xl border border-[rgba(201,160,92,0.12)] bg-[#1C1C26]/50 focus:ring-2 focus:ring-[#C9A05C] outline-none font-bold text-[#EAE2D6]"
+                            placeholder="Enter ID number"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-[10px] font-black text-[#6B655C] uppercase tracking-widest">ID Front URL (optional)</label>
+                          <input
+                            type="text"
+                            value={kycCapture.idFrontUrl}
+                            onChange={(e) => setKycCapture({ ...kycCapture, idFrontUrl: e.target.value })}
+                            className="w-full px-4 py-3 rounded-xl border border-[rgba(201,160,92,0.12)] bg-[#1C1C26]/50 focus:ring-2 focus:ring-[#C9A05C] outline-none font-bold text-[#EAE2D6]"
+                            placeholder="https://…/id-front.jpg"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-[10px] font-black text-[#6B655C] uppercase tracking-widest">ID Back URL (optional)</label>
+                          <input
+                            type="text"
+                            value={kycCapture.idBackUrl}
+                            onChange={(e) => setKycCapture({ ...kycCapture, idBackUrl: e.target.value })}
+                            className="w-full px-4 py-3 rounded-xl border border-[rgba(201,160,92,0.12)] bg-[#1C1C26]/50 focus:ring-2 focus:ring-[#C9A05C] outline-none font-bold text-[#EAE2D6]"
+                            placeholder="https://…/id-back.jpg"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-[10px] font-black text-[#6B655C] uppercase tracking-widest">Selfie URL (optional)</label>
+                          <input
+                            type="text"
+                            value={kycCapture.selfieUrl}
+                            onChange={(e) => setKycCapture({ ...kycCapture, selfieUrl: e.target.value })}
+                            className="w-full px-4 py-3 rounded-xl border border-[rgba(201,160,92,0.12)] bg-[#1C1C26]/50 focus:ring-2 focus:ring-[#C9A05C] outline-none font-bold text-[#EAE2D6]"
+                            placeholder="https://…/selfie.jpg"
+                          />
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <p className="text-[10px] text-[#6B655C] font-bold uppercase tracking-wide">
+                          Address prefilled from the form
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => void submitKycCapture()}
+                          disabled={kycSubmitting}
+                          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#C9A05C] text-[#0A0A0F] text-xs font-black uppercase tracking-widest hover:bg-[#d4b36e] transition-colors disabled:opacity-50"
+                        >
+                          {kycSubmitting ? <Loader2 className="w-3 h-3 animate-spin" /> : <ShieldCheck className="w-3 h-3" />}
+                          Submit KYC
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <div className="space-y-3">
