@@ -5,15 +5,15 @@ milestone_name: Advisor Compliance & RBAC Overhaul
 current_phase: 09
 current_phase_name: kyc-verification-disbursement-guardrail
 status: executing
-stopped_at: Completed 09-01-PLAN.md
-last_updated: "2026-08-09T12:11:37.022Z"
+stopped_at: Completed 09-02-PLAN.md
+last_updated: "2026-08-09T12:30:39.616Z"
 last_activity: 2026-08-09
 last_activity_desc: Phase 09 execution started
 progress:
   total_phases: 13
   completed_phases: 1
   total_plans: 8
-  completed_plans: 4
+  completed_plans: 5
   percent: 8
 ---
 
@@ -29,11 +29,11 @@ See: .planning/PROJECT.md (updated 2026-07-31)
 ## Current Position
 
 Phase: 09 (kyc-verification-disbursement-guardrail) — EXECUTING
-Plan: 2 of 4
+Plan: 3 of 4
 Status: Ready to execute
 Last activity: 2026-08-09 — Phase 09 execution started
 
-Progress: [█████░░░░░] 50%
+Progress: [██████░░░░] 63%
 
 ## Milestone Progress (v2.0)
 
@@ -75,11 +75,14 @@ Progress: [█████░░░░░] 50%
 - [Phase ?]: 08-03: threshold is branch-level local state; super-admin global_overrides path unchanged
 - [Phase ?]: Dual-column KYC status writes (CustomerKyc.status + Customer.kycStatus) executed in one interactive Prisma transaction; specs assert top-level mocks never called
 - [Phase ?]: Counter KYC upsert stays ungated; GET list requires kyc.view; PATCH review requires kyc.verify (D-01/D-04)
+- [Phase ?]: Shared KYC gate implemented as a module-level exported function in pawn-ticket.service.ts, imported by loan.service.ts and app.service.ts (plan-sanctioned) - no DI/module-boundary changes
+- [Phase ?]: Gates read ONLY Customer.kycStatus denormalized column (from 09-01) - no extra query or CustomerKyc join
+- [Phase ?]: Gates placed after existing not-found/status guards and before stateMachine.transition - blocked requests never mutate state
 
 ## Session Continuity
 
-Last session: 2026-08-09T12:11:37.009Z
-Stopped at: Completed 09-01-PLAN.md
+Last session: 2026-08-09T12:30:32.982Z
+Stopped at: Completed 09-02-PLAN.md
 Resume file: None
 Next: /gsd-execute-phase 9
 
@@ -91,3 +94,4 @@ Next: /gsd-execute-phase 9
 | Phase 08-approval-workflows-unified-approval-queue P08-02 | 120 | 3 tasks | 12 files |
 | Phase 08 P08-03 | 150 | 3 tasks | 5 files |
 | Phase 09 P01 | 5min | 3 tasks | 12 files |
+| Phase 09-kyc-verification-disbursement-guardrail P02 | 8min | 3 tasks | 6 files |

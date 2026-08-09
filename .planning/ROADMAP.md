@@ -93,7 +93,7 @@ Plans:
 **Wave 1**
 
 - [x] 09-01-PLAN.md — KycModule (upsert/list/review) + MANAGER grant + 12-digit National ID fix
-- [ ] 09-02-PLAN.md — KYC gates: ticket creation, approval, disbursement + mobile path
+- [x] 09-02-PLAN.md — KYC gates: ticket creation, approval, disbursement + mobile path
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
@@ -204,7 +204,7 @@ Plans:
 | 6. Auction House Professionalization | v1.0 | - | Complete | 2026-07-31 |
 | 7. Permission Foundation & Schema Baseline | v2.0 | 1 | Complete | 2026-07-31 |
 | 8. Approval Workflows & Unified Approval Queue | v2.0 | 3/3 | In Progress|  |
-| 9. KYC Verification & Disbursement Guardrail | v2.0 | 1/4 | In Progress|  |
+| 9. KYC Verification & Disbursement Guardrail | v2.0 | 2/4 | In Progress|  |
 | 10. Onboarding Compliance Gate | v2.0 | TBD | Not started | - |
 | 11. Contract Management Upgrade | v2.0 | TBD | Not started | - |
 | 12. Customer History & Volume-Based Tiering | v2.0 | TBD | Not started | - |
