@@ -17,6 +17,7 @@ import { ComplianceModule } from './compliance/compliance.module';
 import { FinanceModule } from './finance/finance.module';
 import { AttendanceModule } from './attendance/attendance.module';
 import { ApprovalModule } from './approval/approval.module';
+import { KycModule } from './kyc/kyc.module';
 import { PayrollModule } from './payroll/payroll.module';
 import { SubscriptionModule } from './subscription/subscription.module';
 import { LoanModule } from './loan/loan.module';
@@ -42,6 +43,7 @@ import { CommonModule } from './common/common.module';
     FinanceModule,
     AttendanceModule,
     ApprovalModule,
+    KycModule,
     PayrollModule,
     SubscriptionModule,
     LoanModule,

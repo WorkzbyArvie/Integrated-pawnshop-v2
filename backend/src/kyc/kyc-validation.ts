@@ -126,8 +126,8 @@ export function normalizeAndValidateKycIdNumber(
     throw new Error('ID number appears invalid');
   }
 
-  if (idType === 'NATIONAL_ID' && !/^\d{16}$/.test(compareValue)) {
-    throw new Error('National ID must contain exactly 16 digits');
+  if (idType === 'NATIONAL_ID' && !/^\d{12}$/.test(compareValue)) {
+    throw new Error('National ID must contain exactly 12 digits');
   }
 
   if (
