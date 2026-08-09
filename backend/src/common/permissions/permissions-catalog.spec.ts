@@ -249,6 +249,14 @@ const MATRIX: Record<string, { tuple: string[]; permission: string }> = {
     tuple: ['OWNER', 'ADMIN'],
     permission: 'approval.approve_appraisal',
   },
+  'kyc.controller.ts::list': {
+    tuple: ['OWNER', 'ADMIN', 'MANAGER'],
+    permission: 'kyc.view',
+  },
+  'kyc.controller.ts::review': {
+    tuple: ['OWNER', 'ADMIN', 'MANAGER'],
+    permission: 'kyc.verify',
+  },
   'compliance.controller.ts::uploadDocument': {
     tuple: ['OWNER', 'STAFF', 'SUPER_ADMIN'],
     permission: 'compliance.manage_documents',
@@ -377,20 +385,20 @@ describe('permission catalog consistency', () => {
     expect(new Set(sqlNames)).toEqual(new Set(constNames));
   });
 
-  it('ROLE_PERMISSIONS references only const values and sums to 101 mappings', () => {
+  it('ROLE_PERMISSIONS references only const values and sums to 103 mappings', () => {
     const mapped = Object.values(ROLE_PERMISSIONS).flat();
-    expect(mapped.length).toBe(101);
+    expect(mapped.length).toBe(103);
     for (const name of mapped) {
       expect(PERMISSIONS[name]).toBe(name);
     }
     const sqlRows = [
       ...migrationSql.matchAll(/^\s*\('[A-Z_]+','[a-z_.]+'\)[,]?$/gm),
     ].length;
-    expect(sqlRows).toBe(101);
+    expect(sqlRows).toBe(103);
   });
 });
 
-describe('67-site equivalence scan', () => {
+describe('69-site equivalence scan', () => {
   const files = findControllerFiles(srcRoot)
     .filter((file) => !file.includes('\\common\\') && !file.includes('/common/'))
     .sort();
@@ -402,12 +410,12 @@ describe('67-site equivalence scan', () => {
     }
   });
 
-  it('finds all 67 migrated endpoints across the 7 controllers', () => {
+  it('finds all 69 migrated endpoints across the 8 controllers', () => {
     const total = [...sitesByFile.values()].reduce((sum, sites) => {
       const withAny = sites.filter((s) => s.roles || s.permissions);
       return sum + withAny.length;
     }, 0);
-    expect(total).toBe(67);
+    expect(total).toBe(69);
   });
 
   it('matrix tuples match the current @Roles tuples (RED-phase calibration)', () => {

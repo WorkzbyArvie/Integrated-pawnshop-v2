@@ -314,6 +314,8 @@ FROM (VALUES
   ('MANAGER','reports.view'),
   ('MANAGER','finance.manage'),
   ('MANAGER','approval.view_queue'),
+  ('MANAGER','kyc.view'),
+  ('MANAGER','kyc.verify'),
   ('MANAGER','contract.sign'),
   ('MANAGER','customer.manage_tier'),
   ('MANAGER','attendance.manage'),

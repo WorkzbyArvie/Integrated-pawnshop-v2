@@ -107,6 +107,8 @@ export const ROLE_PERMISSIONS: Record<string, PermissionName[]> = {
     'reports.view',
     'finance.manage',
     'approval.view_queue',
+    'kyc.view',
+    'kyc.verify',
     'contract.sign',
     'customer.manage_tier',
     'attendance.manage',
