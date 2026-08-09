@@ -333,3 +333,35 @@ export interface SubscriptionLimits {
   withinLimits: boolean;
   exceededLimits: string[];
 }
+
+// ── KYC ──────────────────────────────
+export type KycIdType =
+  | 'NATIONAL_ID'
+  | 'PASSPORT'
+  | 'DRIVERS_LICENSE'
+  | 'SSS_ID'
+  | 'PHILHEALTH_ID'
+  | 'TIN_ID'
+  | 'VOTERS_ID'
+  | 'POSTAL_ID'
+  | 'OTHER';
+
+export interface CustomerKycRecord {
+  id: string;
+  customerId: string;
+  pawnshopId: string;
+  fullName: string;
+  contactNumber: string;
+  address: string;
+  idType: string;
+  idNumber: string;
+  idFrontUrl: string;
+  idBackUrl?: string | null;
+  selfieUrl?: string | null;
+  status: 'PENDING' | 'VERIFIED' | 'REJECTED';
+  rejectionReason?: string | null;
+  reviewedBy?: string | null;
+  reviewedAt?: string | null;
+  createdAt: string;
+  customer?: { id: string; kycStatus: string } | null;
+}
