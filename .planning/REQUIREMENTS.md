@@ -48,8 +48,8 @@ milestone closes every gap. Audit summary:
 
 ### KYC · Client Verification & Loan Disbursement Guardrail
 
-- [ ] **KYC-01**: Customer record carries a KYC verification status linked to a KYC record (reuse/extend `BidderKyc` keyed by shared customer UUID, or add customer KYC model).
-- [ ] **KYC-02**: OWNER/MANAGER can review client KYC submissions and set VERIFIED/REJECTED (new client-KYC review screen).
+- [x] **KYC-01**: Customer record carries a KYC verification status linked to a KYC record (reuse/extend `BidderKyc` keyed by shared customer UUID, or add customer KYC model).
+- [x] **KYC-02**: OWNER/MANAGER can review client KYC submissions and set VERIFIED/REJECTED (new client-KYC review screen).
 - [ ] **KYC-03**: Pawn ticket creation and approval require the client's KYC status to be VERIFIED.
 - [ ] **KYC-04**: Loan disbursement is blocked when the client's KYC status is not VERIFIED.
 - [ ] **KYC-05**: KYC document storage is secured — RLS policies on `bidder_kyc`, `kyc-documents` bucket no longer public-read; only owning tenant/super-admin can access.
@@ -93,8 +93,8 @@ milestone closes every gap. Audit summary:
 | RBAC-04 | Phase 8 | Complete |
 | RBAC-05 | Phase 8 | Complete |
 | RBAC-06 | Phase 8 | Complete |
-| KYC-01 | Phase 9 | Pending |
-| KYC-02 | Phase 9 | Pending |
+| KYC-01 | Phase 9 | Complete |
+| KYC-02 | Phase 9 | Complete |
 | KYC-03 | Phase 9 | Pending |
 | KYC-04 | Phase 9 | Pending |
 | KYC-05 | Phase 9 | Pending |

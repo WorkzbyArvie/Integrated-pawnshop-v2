@@ -4,16 +4,16 @@ milestone: v2.0
 milestone_name: Advisor Compliance & RBAC Overhaul
 current_phase: 09
 current_phase_name: kyc-verification-disbursement-guardrail
-status: ready
-stopped_at: Phase 9 plans created and verified
-last_updated: "2026-08-08T00:00:00.000Z"
-last_activity: 2026-08-08
-last_activity_desc: Phase 09 planning completed
+status: executing
+stopped_at: Completed 09-01-PLAN.md
+last_updated: "2026-08-09T12:11:37.022Z"
+last_activity: 2026-08-09
+last_activity_desc: Phase 09 execution started
 progress:
   total_phases: 13
   completed_phases: 1
-  total_plans: 4
-  completed_plans: 3
+  total_plans: 8
+  completed_plans: 4
   percent: 8
 ---
 
@@ -28,12 +28,12 @@ See: .planning/PROJECT.md (updated 2026-07-31)
 
 ## Current Position
 
-Phase: 09 (kyc-verification-disbursement-guardrail) — PLANNED
-Plan: 4 of 4 (all created and verified)
+Phase: 09 (kyc-verification-disbursement-guardrail) — EXECUTING
+Plan: 2 of 4
 Status: Ready to execute
-Last activity: 2026-08-08 — Phase 09 planning completed
+Last activity: 2026-08-09 — Phase 09 execution started
 
-Progress: [████████░░] 75%
+Progress: [█████░░░░░] 50%
 
 ## Milestone Progress (v2.0)
 
@@ -73,12 +73,14 @@ Progress: [████████░░] 75%
 - [Phase ?]: 08-03: Radix Tabs v2 activates on onMouseDown, not click - tab-switch tests dispatch fireEvent.mouseDown
 - [Phase ?]: 08-03: SystemSettings branch-admin save spreads currentSettings FIRST (merge-on-write) so threshold-only saves cannot wipe finance/payroll keys
 - [Phase ?]: 08-03: threshold is branch-level local state; super-admin global_overrides path unchanged
+- [Phase ?]: Dual-column KYC status writes (CustomerKyc.status + Customer.kycStatus) executed in one interactive Prisma transaction; specs assert top-level mocks never called
+- [Phase ?]: Counter KYC upsert stays ungated; GET list requires kyc.view; PATCH review requires kyc.verify (D-01/D-04)
 
 ## Session Continuity
 
-Last session: 2026-08-08
-Stopped at: Phase 9 plans created and verified (4 plans, 2 waves)
-Resume file: .planning/phases/09-kyc-verification-disbursement-guardrail/09-01-PLAN.md
+Last session: 2026-08-09T12:11:37.009Z
+Stopped at: Completed 09-01-PLAN.md
+Resume file: None
 Next: /gsd-execute-phase 9
 
 ## Performance Metrics
@@ -88,3 +90,4 @@ Next: /gsd-execute-phase 9
 | Phase 08 P01 | 13 | 3 tasks | 7 files |
 | Phase 08-approval-workflows-unified-approval-queue P08-02 | 120 | 3 tasks | 12 files |
 | Phase 08 P08-03 | 150 | 3 tasks | 5 files |
+| Phase 09 P01 | 5min | 3 tasks | 12 files |
