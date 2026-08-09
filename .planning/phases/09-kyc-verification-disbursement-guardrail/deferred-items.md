@@ -54,3 +54,25 @@ commit that updates these specs to match current signatures).
 
 **Impact:** 09-02 plan tests are green — 22/22 across pawn-ticket.service, loan.service, app.service.
 The 8 failing suites are tracked here for the verifier; none are caused by 09-02 changes.
+
+## Pre-existing frontend vitest failures (found during 09-03 verification)
+
+Full frontend run (`npx vitest run`) reports 2 failing tests — BOTH pre-existing, in files
+09-03 does not touch (verified: `git status` clean for both test files AND their components;
+neither imports any 09-03 file).
+
+- **InventoryVault.test.tsx** > "marks active items for auction" — `TypeError: supabase.from(...).select(...).in is not a function`
+- **AuctionQueue.test.tsx** > "returns an item to the vault" — same mock-chain limitation
+
+**Root cause:** the test files' `vi.mock` of supabaseClient provides a chain stub that lacks
+`.in()` on the inventory/auction item queries; pre-existing mock coverage gap.
+
+**Why deferred:** files untouched by 09-03 (which only adds kycDocs helper, KycStatusBadge,
+DocLink, CustomerKycReview, and modifies BidderKycReview/types.ts/App.tsx/SalesPos.tsx);
+per deviation-rule scope boundary, pre-existing failures in unrelated files are not auto-fixed.
+
+**Resolution owner:** a dedicated test-infra cleanup commit extending the supabase mock chain.
+
+**Impact:** 09-03 plan tests are green — 14/14 in Task 1 (kycDocs + KycStatusBadge); full suite
+reports exactly these 2 pre-existing failures.
+
