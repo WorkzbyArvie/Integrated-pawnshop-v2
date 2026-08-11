@@ -1994,7 +1994,7 @@ export class TenantGovernanceService {
     }
 
     const docs = await this.prisma.$queryRaw<Array<Record<string, unknown>>>`
-      SELECT id, document_type, file_name, file_url, file_size, status, rejection_reason, created_at
+      SELECT id, document_type, file_name, file_url, file_size, status, rejection_reason, has_viewed, created_at
       FROM public.pawnshop_documents
       WHERE registration_request_id = ${requestId}::uuid
       ORDER BY created_at DESC
@@ -2016,7 +2016,7 @@ export class TenantGovernanceService {
     }
 
     const docRows = await this.prisma.$queryRaw<Array<Record<string, unknown>>>`
-      SELECT id, status FROM public.pawnshop_documents
+      SELECT id, status, has_viewed FROM public.pawnshop_documents
       WHERE id = ${documentId}::uuid AND registration_request_id = ${requestId}::uuid
       LIMIT 1
     `;
@@ -2027,6 +2027,10 @@ export class TenantGovernanceService {
     const currentStatus = String((docRows[0] as any).status).toUpperCase();
     if (currentStatus === 'VERIFIED' || currentStatus === 'REJECTED') {
       throw new BadRequestException(`Document has already been ${currentStatus.toLowerCase()}.`);
+    }
+
+    if (dto.decision === 'APPROVED' && !(docRows[0] as any).has_viewed) {
+      throw new BadRequestException('Document must be viewed before it can be approved.');
     }
 
     const newStatus = dto.decision === 'APPROVED' ? 'VERIFIED' : 'REJECTED';
@@ -2043,6 +2047,38 @@ export class TenantGovernanceService {
     `;
 
     return { success: true, status: newStatus };
+  }
+
+  async markRegistrationDocumentViewed(
+    actorUserId: string,
+    requestId: string,
+    documentId: string,
+  ): Promise<Record<string, unknown>> {
+    const actor = await this.getProfileOrThrow(actorUserId);
+    const role = this.normalizeRole(actor.role);
+    if (role !== 'SUPER_ADMIN') {
+      throw new BadRequestException('Only super admins can access this endpoint.');
+    }
+
+    const docRows = await this.prisma.$queryRaw<Array<Record<string, unknown>>>`
+      SELECT id FROM public.pawnshop_documents
+      WHERE id = ${documentId}::uuid AND registration_request_id = ${requestId}::uuid
+      LIMIT 1
+    `;
+    if (!docRows || docRows.length === 0) {
+      throw new NotFoundException('Document not found for this registration request.');
+    }
+
+    await this.prisma.$queryRaw`
+      UPDATE public.pawnshop_documents
+      SET has_viewed = TRUE,
+          viewed_at = NOW(),
+          viewed_by = ${actorUserId}::uuid,
+          updated_at = NOW()
+      WHERE id = ${documentId}::uuid AND registration_request_id = ${requestId}::uuid
+    `;
+
+    return { success: true, hasViewed: true };
   }
 
   async listBranches(
