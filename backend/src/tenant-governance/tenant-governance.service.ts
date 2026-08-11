@@ -30,6 +30,11 @@ type ProfileIdentity = {
   email: string | null;
 };
 
+export const REQUIRED_ONBOARDING_DOC_TYPES = [
+  'DTI_REGISTRATION', 'MAYORS_PERMIT', 'BIR_COR', 'BSP_LICENSE',
+  'AMLC_REGISTRATION', 'GOVERNMENT_ID', 'PROOF_OF_ADDRESS',
+] as const;
+
 @Injectable()
 export class TenantGovernanceService {
   private readonly logger = new Logger(TenantGovernanceService.name);
@@ -1457,6 +1462,26 @@ export class TenantGovernanceService {
     let activePawnshopId: string | null = null;
 
     if (decision === 'APPROVED') {
+      const requiredTypeSql = REQUIRED_ONBOARDING_DOC_TYPES.map(
+        (t) => Prisma.sql`${t}::"ComplianceDocType"`,
+      );
+      const missing = await this.prisma.$queryRaw<Array<{ doc_type: string }>>`
+        SELECT t.doc_type
+        FROM (SELECT UNNEST(ARRAY[${Prisma.join(requiredTypeSql, ', ')}]) AS doc_type) t
+        LEFT JOIN public.pawnshop_documents d
+          ON d.registration_request_id = ${requestId}::uuid
+         AND d.document_type = t.doc_type
+         AND d.status IN ('UPLOADED', 'UNDER_REVIEW', 'VERIFIED')
+        WHERE d.id IS NULL
+      `;
+
+      if (missing.length > 0) {
+        throw new BadRequestException(
+          'Cannot approve: missing or incomplete required documents: ' +
+            missing.map((m) => m.doc_type).join(', '),
+        );
+      }
+
       await this.ensureTenantModuleConfigTable();
 
       const existingPawnshop = await this.prisma.pawnshop.findFirst({
