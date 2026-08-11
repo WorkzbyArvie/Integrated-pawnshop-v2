@@ -57,3 +57,35 @@ Do NOT fix within Phase 10 plan tasks. Re-evaluate at the wave-merge / full-suit
   permissions-catalog files.
 - **Action:** unchanged from the 10-01 entry — owning workstreams must update
   the affected specs before the wave merge / full-suite gate.
+
+## 10-03 confirmation: same 6 pre-existing failing suites (unchanged)
+
+- **Found during:** 10-03 verification (full `npm test` in backend)
+- **Date:** 2026-08-11
+- **Result:** Identical 6 suites still fail at HEAD after the 10-03 commits
+  (attendance, notification, queue, auction-settlement, loan-contract,
+  loan-history). Sample root cause re-confirmed:
+  `Nest can't resolve dependencies of the LoanService ... NotificationService`
+  in `loan/loan-history.service.spec.ts` (test-module DI shape mismatch).
+- **Impact on 10-03:** None. Scoped gates pass:
+  `npx tsc --noEmit` (exit 0) and
+  `npm test -- --testPathPattern="tenant-governance" --silent` (23/23 pass).
+  None of the failing suites import tenant-governance files; this plan's
+  commits touch only tenant-governance service/controller/spec.
+- **Action:** unchanged — owning workstreams must update the affected specs
+  before the wave merge / full-suite gate.
+
+## Pre-existing uncommitted WIP in tenant-governance.controller.ts (NOT committed by 10-03)
+
+- **Found during:** 10-03 Task 2 commit
+- **Date:** 2026-08-11
+- **Description:** The working tree carried (and still carries) an uncommitted
+  `POST client-registrations/:requestId/submit` route wiring the already-committed
+  `submitMyClientRegistrationRequest` service method. This WIP predates 10-03
+  (present in the working tree before this plan started, not part of any
+  10-03 task's `files_modified`). It was deliberately left uncommitted and
+  untouched; the 10-03 controller commit staged only the `/me/status` hunk
+  via `git add -p`.
+- **Action:** The user should commit or discard this WIP on their own
+  judgment — 10-03 did not assess its correctness.
+

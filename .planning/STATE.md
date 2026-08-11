@@ -5,16 +5,16 @@ milestone_name: Advisor Compliance & RBAC Overhaul
 current_phase: 10
 current_phase_name: Onboarding Compliance Gate
 status: planning
-stopped_at: Completed 10-02-PLAN.md (ONB-02 view-before-approve + D-07 permissions)
-last_updated: "2026-08-11T16:20:00.000Z"
+stopped_at: Completed 10-03-PLAN.md (ONB-03 aggregated status endpoint)
+last_updated: "2026-08-11T08:47:09.018Z"
 last_activity: 2026-08-11
-last_activity_desc: 10-02-PLAN.md executed (3 tasks, 3 commits)
+last_activity_desc: 10-03-PLAN.md executed (2 tasks, 2 commits)
 progress:
   total_phases: 13
   completed_phases: 2
   total_plans: 12
-  completed_plans: 9
-  percent: 15
+  completed_plans: 11
+  percent: 92
 ---
 
 # STATE.md — PawnGold Project State
@@ -29,11 +29,11 @@ See: .planning/PROJECT.md (updated 2026-07-31)
 ## Current Position
 
 Phase: 10 — Onboarding Compliance Gate
-Plan: 10-02 executed (ONB-02 view-before-approve + D-07 permissions) — 10-03/10-04 pending
+Plan: 10-03 executed (ONB-03 aggregated status endpoint) — 10-04 pending
 Status: In progress
-Last activity: 2026-08-11 — 10-02-PLAN.md executed (3 tasks, 3 commits)
+Last activity: 2026-08-11 — 10-03-PLAN.md executed (2 tasks, 2 commits)
 
-Progress: [████████░░] 75%
+Progress: [█████████░] 92%
 
 ## Milestone Progress (v2.0)
 
@@ -42,7 +42,7 @@ Progress: [████████░░] 75%
 | Phase 7: Permission Foundation & Schema Baseline | ✅ Complete | RBAC-01, RBAC-02 + batched schema baseline (verified 2026-08-01) |
 | Phase 8: Approval Workflows & Unified Approval Queue | ✅ Complete | RBAC-03..06: chokepoints + approval API (08-02) + unified queue UI + threshold config (08-03, verified 2026-08-06) |
 | Phase 9: KYC Verification & Disbursement Guardrail | ✅ Complete | KYC-01..05 — 4 plans executed, verification passed 22/22 (2026-08-09) |
-| Phase 10: Onboarding Compliance Gate | 🔄 In progress | ONB-01/ONB-02 done (10-01 gate, 10-02 view-before-approve + D-07), ONB-03/04 pending (10-03..10-04) |
+| Phase 10: Onboarding Compliance Gate | 🔄 In progress | ONB-01/02/03 done (10-01 gate, 10-02 view-before-approve + D-07, 10-03 status aggregation), ONB-04 pending (10-04 UI) |
 | Phase 11: Contract Management Upgrade | ○ Not started | CTR-01..03 |
 | Phase 12: Customer History & Volume-Based Tiering | ○ Not started | CUST-01..04 |
 
@@ -85,12 +85,15 @@ Progress: [████████░░] 75%
 - [Phase ?]: Section C uses permissions-name join (INSERT..SELECT JOIN permissions) not literal VALUES — role_permissions.permission_id is UUID; baseline migration shape is the exact form
 - [Phase ?]: 10-01: ONB-01 server-side docs-before-trial gate at top of reviewClientRegistrationRequest APPROVED branch (before ensureTenantModuleConfigTable); REQUIRED_ONBOARDING_DOC_TYPES shared const (D-02); gate status set UPLOADED/UNDER_REVIEW/VERIFIED (D-03); Prisma.join enum-array binding; 400 lists missing types with zero side effects
 - [Phase ?]: 10-02: ONB-02 view endpoint POST .../documents/:documentId/view persists has_viewed/viewed_at/viewed_by idempotently (D-05); reviewRegistrationDocument APPROVED 400s unless has_viewed (D-06, after the VERIFIED/REJECTED status lock); @RequiresPermission onboarding.review_documents/onboarding.approve on 4 endpoints + SUPER_ADMIN_PERMISSIONS extended in the SAME commit (RbacGuard has no blanket SUPER_ADMIN bypass — rbac.guard.ts:119-128); catalog spec 69→71
+- [Phase ?]: 10-03: Aggregation picks the most-recent non-CANCELLED request in JS over the ordered raw rows (mirrors App.tsx rows[0]); CANCELLED never drives the banner
+- [Phase ?]: 10-03: DRAFT registration requests are included in the status pick (unlike listMyClientRegistrationRequests' status <> 'DRAFT') so a draft with missing docs surfaces as INCOMPLETE
+- [Phase ?]: 10-03: GET client-registrations/me/status route declared immediately after /me and before any :requestId param route (Express shadowing avoidance); owner-facing, no @Public/@RequiresPermission
 
 ## Session Continuity
 
-Last session: 2026-08-11T16:20:00.000Z
-Stopped at: Completed 10-02-PLAN.md (ONB-02 view-before-approve + D-07 permissions)
-Resume file: .planning/phases/10-onboarding-compliance-gate/10-02-SUMMARY.md
+Last session: 2026-08-11T08:47:09.004Z
+Stopped at: Completed 10-03-PLAN.md (ONB-03 aggregated status endpoint)
+Resume file: .planning/phases/10-onboarding-compliance-gate/10-03-SUMMARY.md
 Next: /gsd-execute-phase 10
 
 ## Performance Metrics
@@ -106,3 +109,4 @@ Next: /gsd-execute-phase 10
 | Phase 09-kyc-verification-disbursement-guardrail P04 | 28min | 2 tasks | 2 files |
 | Phase 10-onboarding-compliance-gate P10-01 | 28 | 2 tasks | 3 files |
 | Phase 10-onboarding-compliance-gate P10-02 | 14 | 3 tasks | 5 files |
+| Phase 10-onboarding-compliance-gate PP10-03 | 20 | 2 tasks | 3 files |
