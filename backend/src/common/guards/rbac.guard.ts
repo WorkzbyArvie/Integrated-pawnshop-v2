@@ -27,6 +27,8 @@ const SUPER_ADMIN_PERMISSIONS = new Set<string>([
   'tenant.view_audit',
   'compliance.view',
   'compliance.manage_documents',
+  'onboarding.review_documents',
+  'onboarding.approve',
 ]);
 
 const SUPER_ADMIN_GOVERNANCE_PREFIXES = [

@@ -187,7 +187,7 @@ export class TenantGovernanceController {
   }
 
   @Post('client-registrations/:requestId/review')
-  @RequiresPermission(PERMISSIONS['platform.manage'])
+  @RequiresPermission(PERMISSIONS['onboarding.approve'])
   async reviewClientRegistration(
     @Headers('authorization') authHeader: string | undefined,
     @Param('requestId') requestId: string,
@@ -258,6 +258,7 @@ export class TenantGovernanceController {
   }
 
   @Get('client-registrations/:requestId/documents/admin')
+  @RequiresPermission(PERMISSIONS['onboarding.review_documents'])
   async adminListRegistrationDocuments(
     @Headers('authorization') authHeader: string | undefined,
     @Param('requestId') requestId: string,
@@ -267,7 +268,7 @@ export class TenantGovernanceController {
   }
 
   @Post('client-registrations/:requestId/documents/:documentId/review')
-  @RequiresPermission(PERMISSIONS['platform.manage'])
+  @RequiresPermission(PERMISSIONS['onboarding.approve'])
   async reviewRegistrationDocument(
     @Headers('authorization') authHeader: string | undefined,
     @Param('requestId') requestId: string,
@@ -276,6 +277,17 @@ export class TenantGovernanceController {
   ) {
     const userId = await this.authUserService.getUserIdFromAuthHeader(authHeader);
     return this.tenantGovernanceService.reviewRegistrationDocument(userId, requestId, documentId, dto);
+  }
+
+  @Post('client-registrations/:requestId/documents/:documentId/view')
+  @RequiresPermission(PERMISSIONS['onboarding.review_documents'])
+  async markRegistrationDocumentViewed(
+    @Headers('authorization') authHeader: string | undefined,
+    @Param('requestId') requestId: string,
+    @Param('documentId') documentId: string,
+  ) {
+    const userId = await this.authUserService.getUserIdFromAuthHeader(authHeader);
+    return this.tenantGovernanceService.markRegistrationDocumentViewed(userId, requestId, documentId);
   }
 
   @Get('branches')

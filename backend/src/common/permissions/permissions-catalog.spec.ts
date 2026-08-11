@@ -175,11 +175,19 @@ const MATRIX: Record<string, { tuple: string[]; permission: string }> = {
   },
   'tenant-governance.controller.ts::reviewClientRegistration': {
     tuple: ['SUPER_ADMIN'],
-    permission: 'platform.manage',
+    permission: 'onboarding.approve',
   },
   'tenant-governance.controller.ts::reviewRegistrationDocument': {
     tuple: ['SUPER_ADMIN'],
-    permission: 'platform.manage',
+    permission: 'onboarding.approve',
+  },
+  'tenant-governance.controller.ts::adminListRegistrationDocuments': {
+    tuple: ['SUPER_ADMIN'],
+    permission: 'onboarding.review_documents',
+  },
+  'tenant-governance.controller.ts::markRegistrationDocumentViewed': {
+    tuple: ['SUPER_ADMIN'],
+    permission: 'onboarding.review_documents',
   },
   'tenant-governance.controller.ts::createBranch': {
     tuple: ['OWNER', 'MANAGER'],
@@ -410,12 +418,12 @@ describe('69-site equivalence scan', () => {
     }
   });
 
-  it('finds all 69 migrated endpoints across the 8 controllers', () => {
+  it('finds all 71 migrated endpoints across the 8 controllers', () => {
     const total = [...sitesByFile.values()].reduce((sum, sites) => {
       const withAny = sites.filter((s) => s.roles || s.permissions);
       return sum + withAny.length;
     }, 0);
-    expect(total).toBe(69);
+    expect(total).toBe(71);
   });
 
   it('matrix tuples match the current @Roles tuples (RED-phase calibration)', () => {
