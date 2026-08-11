@@ -189,7 +189,9 @@ None - no external service configuration required.
 ## Self-Check: PASSED
 
 - Files exist: `tenant-governance.service.ts`, `tenant-governance.controller.ts`, `rbac.guard.ts`, `permissions-catalog.spec.ts`, `tenant-governance.service.spec.ts`, `10-02-SUMMARY.md`, `deferred-items.md`
-- Commits exist: `74be5fd` (feat), `9e2382b` (feat), `5f14a47` (test)
+- Commits exist: `74be5fd` (feat, Task 1), `9e2382b` (feat, Task 2), `5f14a47` (test, Task 3), `ee9ff68` (docs, summary + state)
+- State updated: STATE.md (position/decisions/session/metrics — advance-plan parser is incompatible with this project's prose `Plan:` field, so fields updated directly), ROADMAP.md (phase 10: 2/4 plans complete), REQUIREMENTS.md (ONB-02 checkbox + traceability), deferred-items.md (10-02 re-confirmation section)
+- Post-commit deletion check: no unexpected deletions in any 10-02 commit (deleted frontend files in `git status` are pre-existing other-workstream changes)
 
 ---
 *Phase: 10-onboarding-compliance-gate*
