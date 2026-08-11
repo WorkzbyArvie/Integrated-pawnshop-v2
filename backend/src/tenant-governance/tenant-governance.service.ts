@@ -1338,6 +1338,75 @@ export class TenantGovernanceService {
     }
   }
 
+  async getMyRegistrationStatus(
+    actorUserId: string,
+  ): Promise<Record<string, unknown>> {
+    const actor = await this.getProfileOrThrow(actorUserId);
+    const ownerEmail = actor.email?.trim();
+    if (!ownerEmail) {
+      throw new BadRequestException('Your profile email is missing.');
+    }
+
+    const rows = await this.prisma.$queryRaw<Array<Record<string, unknown>>>`
+      SELECT id, status FROM public.client_registration_requests
+      WHERE lower(owner_email) = lower(${ownerEmail})
+      ORDER BY created_at DESC LIMIT 100
+    `;
+
+    const pickedRow = (rows || []).find(
+      (row) => String((row as any).status).toUpperCase() !== 'CANCELLED',
+    );
+
+    if (!pickedRow) {
+      return { overall: 'INCOMPLETE', documents: [], submissionStatus: 'NONE' };
+    }
+
+    const docs = await this.prisma.$queryRaw<Array<Record<string, unknown>>>`
+      SELECT document_type, status, rejection_reason
+      FROM public.pawnshop_documents
+      WHERE registration_request_id = ${(pickedRow as any).id}::uuid
+    `;
+
+    const docRows = docs || [];
+    const requiredTypes = new Set(
+      REQUIRED_ONBOARDING_DOC_TYPES.map((t) => t.toUpperCase()),
+    );
+    const presentTypes = new Set(
+      docRows.map((d) => String((d as any).document_type).toUpperCase()),
+    );
+
+    let overall = 'PENDING_REVIEW';
+    const hasRejected = docRows.some(
+      (d) => String((d as any).status).toUpperCase() === 'REJECTED',
+    );
+    if (hasRejected) {
+      overall = 'ACTION_REQUIRED';
+    } else {
+      const missingRequiredType = [...requiredTypes].some(
+        (t) => !presentTypes.has(t),
+      );
+      if (missingRequiredType) {
+        overall = 'INCOMPLETE';
+      } else if (
+        docRows.every(
+          (d) => String((d as any).status).toUpperCase() === 'VERIFIED',
+        )
+      ) {
+        overall = 'APPROVED';
+      }
+    }
+
+    return {
+      overall,
+      documents: docRows.map((d) => ({
+        document_type: String((d as any).document_type),
+        status: String((d as any).status),
+        rejection_reason: (d as any).rejection_reason ?? null,
+      })),
+      submissionStatus: String((pickedRow as any).status).toUpperCase(),
+    };
+  }
+
   async listClientRegistrationRequests(
     actorUserId: string,
     status?: string,
