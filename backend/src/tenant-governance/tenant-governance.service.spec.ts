@@ -1,5 +1,5 @@
 import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
-import { TenantGovernanceService } from './tenant-governance.service';
+import { TenantGovernanceService, REQUIRED_ONBOARDING_DOC_TYPES } from './tenant-governance.service';
 
 describe('TenantGovernanceService', () => {
   const ACTOR_ID = '11111111-1111-1111-1111-111111111111';
@@ -315,6 +315,148 @@ describe('TenantGovernanceService', () => {
       expect(error).toBeInstanceOf(BadRequestException);
       expect((error as Error).message).toContain('already been verified');
       expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('getMyRegistrationStatus (ONB-03)', () => {
+    const REQ_ID = '66666666-6666-6666-6666-666666666666';
+    const requiredTypes = REQUIRED_ONBOARDING_DOC_TYPES.map((t) => t.toUpperCase());
+
+    beforeEach(() => {
+      prisma.profile.findUnique.mockResolvedValue({
+        id: ACTOR_ID,
+        role: 'OWNER',
+        pawnshopId: PAWNSHOP_ID,
+        email: 'owner@example.com',
+      });
+    });
+
+    it('maps any REJECTED document to ACTION_REQUIRED and passes rejection_reason through', async () => {
+      const docs = requiredTypes.map((t, i) => ({
+        document_type: t,
+        status: i === 0 ? 'REJECTED' : 'VERIFIED',
+        rejection_reason: i === 0 ? 'blurry photo' : null,
+      }));
+      prisma.$queryRaw
+        .mockResolvedValueOnce([{ id: REQ_ID, status: 'PENDING' }])
+        .mockResolvedValueOnce(docs);
+
+      const result = (await service.getMyRegistrationStatus(ACTOR_ID)) as any;
+
+      expect(result.overall).toBe('ACTION_REQUIRED');
+      expect(result.submissionStatus).toBe('PENDING');
+      const rejectedDoc = result.documents.find(
+        (d: any) => d.status === 'REJECTED',
+      );
+      expect(rejectedDoc.document_type).toBe(requiredTypes[0]);
+      expect(rejectedDoc.rejection_reason).toBe('blurry photo');
+    });
+
+    it('reports INCOMPLETE when a required document type is missing', async () => {
+      const docs = requiredTypes.slice(0, 6).map((t) => ({
+        document_type: t,
+        status: 'VERIFIED',
+        rejection_reason: null,
+      }));
+      prisma.$queryRaw
+        .mockResolvedValueOnce([{ id: REQ_ID, status: 'PENDING' }])
+        .mockResolvedValueOnce(docs);
+
+      const result = (await service.getMyRegistrationStatus(ACTOR_ID)) as any;
+
+      expect(result.overall).toBe('INCOMPLETE');
+      expect(result.documents).toHaveLength(6);
+    });
+
+    it('reports APPROVED when all 7 required types are VERIFIED', async () => {
+      const docs = requiredTypes.map((t) => ({
+        document_type: t,
+        status: 'VERIFIED',
+        rejection_reason: null,
+      }));
+      prisma.$queryRaw
+        .mockResolvedValueOnce([{ id: REQ_ID, status: 'PENDING' }])
+        .mockResolvedValueOnce(docs);
+
+      const result = (await service.getMyRegistrationStatus(ACTOR_ID)) as any;
+
+      expect(result.overall).toBe('APPROVED');
+      expect(result.documents).toHaveLength(7);
+    });
+
+    it('reports PENDING_REVIEW when all types are present but some are not VERIFIED', async () => {
+      const docs = requiredTypes.map((t, i) => ({
+        document_type: t,
+        status: i < 3 ? 'VERIFIED' : 'UPLOADED',
+        rejection_reason: null,
+      }));
+      prisma.$queryRaw
+        .mockResolvedValueOnce([{ id: REQ_ID, status: 'PENDING' }])
+        .mockResolvedValueOnce(docs);
+
+      const result = (await service.getMyRegistrationStatus(ACTOR_ID)) as any;
+
+      expect(result.overall).toBe('PENDING_REVIEW');
+      expect(result.submissionStatus).toBe('PENDING');
+    });
+
+    it('returns INCOMPLETE/NONE shape when the owner has no registration requests', async () => {
+      prisma.$queryRaw.mockResolvedValueOnce([]);
+
+      const result = (await service.getMyRegistrationStatus(ACTOR_ID)) as any;
+
+      expect(result).toEqual({
+        overall: 'INCOMPLETE',
+        documents: [],
+        submissionStatus: 'NONE',
+      });
+      expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
+    });
+
+    it('skips CANCELLED requests and aggregates the most-recent non-cancelled one', async () => {
+      prisma.$queryRaw
+        .mockResolvedValueOnce([
+          { id: 'req-c', status: 'CANCELLED', created_at: new Date('2026-08-02') },
+          { id: REQ_ID, status: 'CONTACTED', created_at: new Date('2026-08-01') },
+        ])
+        .mockResolvedValueOnce(
+          requiredTypes.map((t) => ({
+            document_type: t,
+            status: 'VERIFIED',
+            rejection_reason: null,
+          })),
+        );
+
+      const result = (await service.getMyRegistrationStatus(ACTOR_ID)) as any;
+
+      expect(result.submissionStatus).toBe('CONTACTED');
+      expect(result.overall).toBe('APPROVED');
+    });
+
+    it('includes DRAFT requests so missing docs surface as INCOMPLETE', async () => {
+      prisma.$queryRaw
+        .mockResolvedValueOnce([{ id: REQ_ID, status: 'DRAFT' }])
+        .mockResolvedValueOnce([]);
+
+      const result = (await service.getMyRegistrationStatus(ACTOR_ID)) as any;
+
+      expect(result.submissionStatus).toBe('DRAFT');
+      expect(result.overall).toBe('INCOMPLETE');
+    });
+
+    it('rejects with 400 when the profile email is missing and never queries', async () => {
+      prisma.profile.findUnique.mockResolvedValue({
+        id: ACTOR_ID,
+        role: 'OWNER',
+        pawnshopId: PAWNSHOP_ID,
+        email: null,
+      });
+
+      await expect(service.getMyRegistrationStatus(ACTOR_ID)).rejects.toThrow(
+        BadRequestException,
+      );
+
+      expect(prisma.$queryRaw).not.toHaveBeenCalled();
     });
   });
 });

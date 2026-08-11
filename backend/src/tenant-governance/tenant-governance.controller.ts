@@ -172,6 +172,14 @@ export class TenantGovernanceController {
     return this.tenantGovernanceService.listMyClientRegistrationRequests(userId);
   }
 
+  @Get('client-registrations/me/status')
+  async getMyRegistrationStatus(
+    @Headers('authorization') authHeader: string | undefined,
+  ) {
+    const userId = await this.authUserService.getUserIdFromAuthHeader(authHeader);
+    return this.tenantGovernanceService.getMyRegistrationStatus(userId);
+  }
+
   @Get('client-registrations')
   async listClientRegistrations(
     @Headers('authorization') authHeader: string | undefined,
