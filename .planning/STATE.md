@@ -5,15 +5,15 @@ milestone_name: Advisor Compliance & RBAC Overhaul
 current_phase: 10
 current_phase_name: Onboarding Compliance Gate
 status: planning
-stopped_at: Phase 09 executed (4/4 plans) and verified passed (22/22 must-haves)
-last_updated: "2026-08-09T13:45:00.000Z"
+stopped_at: Completed 10-01-PLAN.md (ONB-01 gate + specs)
+last_updated: "2026-08-11T07:56:50.241Z"
 last_activity: 2026-08-09
-last_activity_desc: Phase 09 complete + verified, transitioned to Phase 10
+last_activity_desc: Phase 09 complete, transitioned to Phase 10
 progress:
   total_phases: 13
   completed_phases: 2
-  total_plans: 8
-  completed_plans: 7
+  total_plans: 12
+  completed_plans: 8
   percent: 15
 ---
 
@@ -29,11 +29,11 @@ See: .planning/PROJECT.md (updated 2026-07-31)
 ## Current Position
 
 Phase: 10 — Onboarding Compliance Gate
-Plan: Not started
-Status: Ready to plan
-Last activity: 2026-08-09 — Phase 09 complete, transitioned to Phase 10
+Plan: 10-01 executed (ONB-01 gate + specs) — 10-02/10-03/10-04 pending
+Status: In progress
+Last activity: 2026-08-11 — 10-01-PLAN.md executed (2 tasks, 3 commits)
 
-Progress: [█████████░] 88%
+Progress: [███████░░░] 67%
 
 ## Milestone Progress (v2.0)
 
@@ -42,7 +42,7 @@ Progress: [█████████░] 88%
 | Phase 7: Permission Foundation & Schema Baseline | ✅ Complete | RBAC-01, RBAC-02 + batched schema baseline (verified 2026-08-01) |
 | Phase 8: Approval Workflows & Unified Approval Queue | ✅ Complete | RBAC-03..06: chokepoints + approval API (08-02) + unified queue UI + threshold config (08-03, verified 2026-08-06) |
 | Phase 9: KYC Verification & Disbursement Guardrail | ✅ Complete | KYC-01..05 — 4 plans executed, verification passed 22/22 (2026-08-09) |
-| Phase 10: Onboarding Compliance Gate | ○ Not started | ONB-01..04 |
+| Phase 10: Onboarding Compliance Gate | 🔄 In progress | ONB-01 done (10-01 gate), ONB-02..04 pending (10-02..10-04) |
 | Phase 11: Contract Management Upgrade | ○ Not started | CTR-01..03 |
 | Phase 12: Customer History & Volume-Based Tiering | ○ Not started | CUST-01..04 |
 
@@ -83,12 +83,13 @@ Progress: [█████████░] 88%
 - [Phase ?]: 09-03: All four kyc-documents read surfaces mint signed URLs (DocLink for review screens, SignedDocImage for super-admin, effect+state for TrialRequestsPanel preview); producer-only getPublicUrl upload sites (AuctionMarketplace, PendingAccessDashboard, OwnerComplianceDashboard, SalesPos) classified unchanged per COVERAGE.md row 10
 - [Phase ?]: Tenant-staff RLS tier joins through profiles only (staff table has no pawnshop_id column — verified schema.prisma Staff :241 and regenerate migration DDL); join-through-profile shape preserved per plan pre-authorization
 - [Phase ?]: Section C uses permissions-name join (INSERT..SELECT JOIN permissions) not literal VALUES — role_permissions.permission_id is UUID; baseline migration shape is the exact form
+- [Phase ?]: 10-01: ONB-01 server-side docs-before-trial gate at top of reviewClientRegistrationRequest APPROVED branch (before ensureTenantModuleConfigTable); REQUIRED_ONBOARDING_DOC_TYPES shared const (D-02); gate status set UPLOADED/UNDER_REVIEW/VERIFIED (D-03); Prisma.join enum-array binding; 400 lists missing types with zero side effects
 
 ## Session Continuity
 
-Last session: 2026-08-09
-Stopped at: Phase 09 executed (4/4 plans) and verified — verification report: .planning/phases/09-kyc-verification-disbursement-guardrail/09-VERIFICATION.md
-Resume file: .planning/phases/09-kyc-verification-disbursement-guardrail/09-VERIFICATION.md
+Last session: 2026-08-11T07:56:50.225Z
+Stopped at: Completed 10-01-PLAN.md (ONB-01 gate + specs)
+Resume file: .planning/phases/10-onboarding-compliance-gate/10-01-SUMMARY.md
 Next: /gsd-discuss-phase 10
 
 ## Performance Metrics
@@ -102,3 +103,4 @@ Next: /gsd-discuss-phase 10
 | Phase 09-kyc-verification-disbursement-guardrail P02 | 8min | 3 tasks | 6 files |
 | Phase 09-kyc-verification-disbursement-guardrail P03 | 30min | 5 tasks | 13 files |
 | Phase 09-kyc-verification-disbursement-guardrail P04 | 28min | 2 tasks | 2 files |
+| Phase 10-onboarding-compliance-gate P10-01 | 28 | 2 tasks | 3 files |
