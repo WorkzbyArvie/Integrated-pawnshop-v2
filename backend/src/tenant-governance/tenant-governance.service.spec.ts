@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { TenantGovernanceService } from './tenant-governance.service';
 
 describe('TenantGovernanceService', () => {
@@ -200,6 +200,121 @@ describe('TenantGovernanceService', () => {
       expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
       expect(prisma.pawnshop.findFirst).not.toHaveBeenCalled();
       expect((service as any).ensureTenantModuleConfigTable).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('markRegistrationDocumentViewed / reviewRegistrationDocument hasViewed (ONB-02)', () => {
+    const REQ_ID = '44444444-4444-4444-4444-444444444444';
+    const DOC_ID = '55555555-5555-5555-5555-555555555555';
+
+    beforeEach(() => {
+      prisma.profile.findUnique.mockResolvedValue({
+        id: ACTOR_ID,
+        role: 'SUPER_ADMIN',
+        pawnshopId: null,
+        email: 'admin@test.com',
+      });
+    });
+
+    it('persists viewed state for a SUPER_ADMIN and returns success', async () => {
+      prisma.$queryRaw
+        .mockResolvedValueOnce([{ id: DOC_ID }])
+        .mockResolvedValueOnce(undefined);
+
+      const result = await service.markRegistrationDocumentViewed(ACTOR_ID, REQ_ID, DOC_ID);
+
+      expect(result).toEqual({ success: true, hasViewed: true });
+      expect(prisma.$queryRaw).toHaveBeenCalledTimes(2);
+    });
+
+    it('is idempotent - re-viewing an already-viewed document still runs the UPDATE', async () => {
+      prisma.$queryRaw
+        .mockResolvedValueOnce([{ id: DOC_ID }])
+        .mockResolvedValueOnce(undefined)
+        .mockResolvedValueOnce([{ id: DOC_ID }])
+        .mockResolvedValueOnce(undefined);
+
+      await service.markRegistrationDocumentViewed(ACTOR_ID, REQ_ID, DOC_ID);
+      await service.markRegistrationDocumentViewed(ACTOR_ID, REQ_ID, DOC_ID);
+
+      expect(prisma.$queryRaw).toHaveBeenCalledTimes(4);
+    });
+
+    it('rejects non-SUPER_ADMIN with BadRequestException and never queries', async () => {
+      prisma.profile.findUnique.mockResolvedValue({
+        id: ACTOR_ID,
+        role: 'OWNER',
+        pawnshopId: PAWNSHOP_ID,
+        email: 'owner@test.com',
+      });
+
+      await expect(
+        service.markRegistrationDocumentViewed(ACTOR_ID, REQ_ID, DOC_ID),
+      ).rejects.toThrow(BadRequestException);
+
+      expect(prisma.$queryRaw).not.toHaveBeenCalled();
+    });
+
+    it('throws NotFoundException for an unknown document', async () => {
+      prisma.$queryRaw.mockResolvedValueOnce([]);
+
+      await expect(
+        service.markRegistrationDocumentViewed(ACTOR_ID, REQ_ID, DOC_ID),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('blocks APPROVED when the document has not been viewed', async () => {
+      prisma.$queryRaw.mockResolvedValueOnce([
+        { id: DOC_ID, status: 'UPLOADED', has_viewed: false },
+      ]);
+
+      const error = await service
+        .reviewRegistrationDocument(ACTOR_ID, REQ_ID, DOC_ID, { decision: 'APPROVED' })
+        .catch((e: unknown) => e);
+
+      expect(error).toBeInstanceOf(BadRequestException);
+      expect((error as Error).message).toContain('must be viewed');
+      expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
+    });
+
+    it('allows APPROVED after the document has been viewed', async () => {
+      prisma.$queryRaw
+        .mockResolvedValueOnce([{ id: DOC_ID, status: 'UPLOADED', has_viewed: true }])
+        .mockResolvedValueOnce(undefined);
+
+      const result = await service.reviewRegistrationDocument(ACTOR_ID, REQ_ID, DOC_ID, {
+        decision: 'APPROVED',
+      });
+
+      expect(result).toEqual({ success: true, status: 'VERIFIED' });
+      expect(prisma.$queryRaw).toHaveBeenCalledTimes(2);
+    });
+
+    it('allows REJECTED without viewing', async () => {
+      prisma.$queryRaw
+        .mockResolvedValueOnce([{ id: DOC_ID, status: 'UPLOADED', has_viewed: false }])
+        .mockResolvedValueOnce(undefined);
+
+      const result = await service.reviewRegistrationDocument(ACTOR_ID, REQ_ID, DOC_ID, {
+        decision: 'REJECTED',
+      });
+
+      expect(result).toEqual({ success: true, status: 'REJECTED' });
+      expect(prisma.$queryRaw).toHaveBeenCalledTimes(2);
+    });
+
+    it('preserves the finalized-status lock even when the document was viewed', async () => {
+      prisma.$queryRaw.mockResolvedValueOnce([
+        { id: DOC_ID, status: 'VERIFIED', has_viewed: true },
+      ]);
+
+      const error = await service
+        .reviewRegistrationDocument(ACTOR_ID, REQ_ID, DOC_ID, { decision: 'APPROVED' })
+        .catch((e: unknown) => e);
+
+      expect(error).toBeInstanceOf(BadRequestException);
+      expect((error as Error).message).toContain('already been verified');
+      expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
     });
   });
 });
