@@ -113,8 +113,14 @@ Plans:
   4. Owner dashboard reflects the aggregated onboarding status in real time (including the REJECTED/ACTION_REQUIRED state).
   5. Client Compliance Dashboard reflects real-time per-document approval status end-to-end.
 
-**Plans**: TBD
+**Plans**: 4 plans
 **UI hint**: yes
+
+Plans:
+- [ ] 10-01-PLAN.md — ONB-01 server-side docs-before-trial gate (backend)
+- [ ] 10-02-PLAN.md — ONB-02 view-before-approve endpoint + D-07 permission wiring (backend)
+- [ ] 10-03-PLAN.md — ONB-03 aggregated onboarding status API (backend)
+- [ ] 10-04-PLAN.md — ONB-02/03/04 review modal view-before-approve + owner status banner (frontend)
 
 ### Phase 11: Contract Management Upgrade
 
@@ -205,6 +211,6 @@ Plans:
 | 7. Permission Foundation & Schema Baseline | v2.0 | 1 | Complete | 2026-07-31 |
 | 8. Approval Workflows & Unified Approval Queue | v2.0 | 3/3 | In Progress|  |
 | 9. KYC Verification & Disbursement Guardrail | v2.0 | 4/4 | Complete    | 2026-08-09 |
-| 10. Onboarding Compliance Gate | v2.0 | TBD | Not started | - |
+| 10. Onboarding Compliance Gate | v2.0 | 0/4 | Planning    | - |
 | 11. Contract Management Upgrade | v2.0 | TBD | Not started | - |
 | 12. Customer History & Volume-Based Tiering | v2.0 | TBD | Not started | - |
