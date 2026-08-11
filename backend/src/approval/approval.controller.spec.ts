@@ -12,7 +12,7 @@ describe('ApprovalController (RBAC-05 endpoint surface)', () => {
     decideApproval: jest.fn(),
   };
 
-  const caller = { id: 'mgr_1', pawnshopId: 'ps_1', role: 'MANAGER' };
+  const caller = { id: 'mgr_1', pawnshopId: 'ps_1', role: 'MANAGER' } as any;
 
   beforeEach(async () => {
     jest.clearAllMocks();
