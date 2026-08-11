@@ -1,7 +1,8 @@
-﻿import { FormEvent, useEffect, useMemo, useState } from 'react';
+﻿import { FormEvent, useEffect, useState } from 'react';
 import { Loader2, MessageSquare, RefreshCcw, Send, Upload, X } from 'lucide-react';
 import api from '../../lib/apiClient';
 import { getSignedKycDocUrl } from '../../lib/kycDocs';
+import { canApproveDocument } from '../../lib/onboardingStatus';
 import { useToast } from '../../App';
 
 type RequestStatus = 'PENDING' | 'CONTACTED' | 'APPROVED' | 'REJECTED' | 'CANCELLED' | 'ALL';
@@ -37,10 +38,13 @@ type RegDocument = {
   file_size: number | null;
   status: string;
   rejection_reason: string | null;
+  has_viewed?: boolean | null;
   created_at: string;
 };
 
 const STATUS_OPTIONS: RequestStatus[] = ['ALL', 'PENDING', 'CONTACTED', 'APPROVED', 'REJECTED', 'CANCELLED'];
+
+const REQUIRED_DOC_COUNT = 7;
 
 const toneByStatus = (status: string) => {
   const normalized = (status || '').toUpperCase();
@@ -70,10 +74,13 @@ export function TrialRequestsPanel() {
   const [previewDoc, setPreviewDoc] = useState<RegDocument | null>(null);
   const [previewDocSignedUrl, setPreviewDocSignedUrl] = useState<string | null>(null);
   const [previewDocSignFailed, setPreviewDocSignFailed] = useState(false);
+  const [viewedDocIds, setViewedDocIds] = useState<Set<string>>(new Set());
 
   const selectedRequest = requests.find((request) => request.id === selectedRequestId) ?? requests[0] ?? null;
   const selectedStatus = String(selectedRequest?.status || '').toUpperCase();
   const canReviewDecision = selectedStatus === 'PENDING' || selectedStatus === 'CONTACTED';
+  const verifiedDocCount = regDocs.filter((d) => d.status === 'VERIFIED').length;
+  const allDocsApproved = regDocs.length >= REQUIRED_DOC_COUNT && regDocs.every((d) => d.status === 'VERIFIED');
 
   useEffect(() => {
     if (!previewDoc) {
@@ -95,14 +102,6 @@ export function TrialRequestsPanel() {
       cancelled = true;
     };
   }, [previewDoc]);
-
-  const selectedModulesText = useMemo(() => {
-    const modules = selectedRequest?.selected_modules;
-    if (!modules || !Array.isArray(modules) || modules.length === 0) {
-      return 'No module preference recorded';
-    }
-    return modules.join(', ');
-  }, [selectedRequest?.selected_modules]);
 
   const loadRequests = async () => {
     setLoading(true);
@@ -155,6 +154,22 @@ export function TrialRequestsPanel() {
     }
   };
 
+  const openPreviewAndMarkViewed = async (doc: RegDocument) => {
+    setPreviewDoc(doc);
+    const normalized = (doc.status ?? '').toUpperCase();
+    if (normalized === 'VERIFIED' || normalized === 'REJECTED') return;
+    try {
+      await api.post(`/tenant-governance/client-registrations/${selectedRequest?.id}/documents/${doc.id}/view`);
+      setViewedDocIds((prev) => new Set(prev).add(doc.id));
+    } catch {
+      showToast('Could not record document view. Approve stays locked.', 'error');
+    }
+  };
+
+  const previewDocViewed = previewDoc
+    ? canApproveDocument(previewDoc.status, previewDoc.has_viewed, viewedDocIds, previewDoc.id)
+    : false;
+
   const handleReviewDocument = async (documentId: string, decision: 'APPROVED' | 'REJECTED') => {
     if (!selectedRequest?.id) return;
     setReviewingDocId(documentId);
@@ -164,6 +179,11 @@ export function TrialRequestsPanel() {
       });
       showToast(`Document ${decision.toLowerCase()}.`, 'success');
       await loadDocuments(selectedRequest.id);
+      setPreviewDoc((prev) =>
+        prev && prev.id === documentId
+          ? { ...prev, status: decision === 'APPROVED' ? 'VERIFIED' : 'REJECTED' }
+          : prev,
+      );
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err) || 'Failed to review document.';
       showToast(message, 'error');
@@ -188,6 +208,13 @@ export function TrialRequestsPanel() {
 
   const handleDecision = async (decision: 'CONTACTED' | 'APPROVED' | 'REJECTED') => {
     if (!selectedRequest?.id) return;
+
+    if (decision === 'APPROVED' && !allDocsApproved) {
+      const message = 'Cannot approve until all regulatory documents are approved.';
+      setError(message);
+      showToast(message, 'error');
+      return;
+    }
 
     setSubmitting(true);
     setError(null);
@@ -338,7 +365,6 @@ export function TrialRequestsPanel() {
                 ) : (
                   <div className="space-y-2">
                     {regDocs.map((doc) => {
-                      const isReviewing = reviewingDocId === doc.id;
                       const statusColor = doc.status === 'VERIFIED'
                         ? 'text-emerald-600 bg-emerald-50 border-emerald-200'
                         : doc.status === 'REJECTED'
@@ -362,31 +388,11 @@ export function TrialRequestsPanel() {
                             {doc.file_url && (
                               <button
                                 type="button"
-                                onClick={() => setPreviewDoc(doc)}
+                                onClick={() => openPreviewAndMarkViewed(doc)}
                                 className="rounded-lg border border-[rgba(201,160,92,0.2)] bg-[#C9A05C]/10 px-2 py-1 text-[9px] font-black uppercase text-[#C9A05C] hover:bg-[#C9A05C] hover:text-white"
                               >
-                                View
+                                {canReview ? 'View & Review' : 'View'}
                               </button>
-                            )}
-                            {canReview && (
-                              <div className="flex gap-1">
-                                <button
-                                  type="button"
-                                  disabled={isReviewing}
-                                  onClick={() => handleReviewDocument(doc.id, 'APPROVED')}
-                                  className="rounded-lg border border-emerald-200 bg-emerald-50 px-2 py-1 text-[9px] font-black uppercase text-emerald-700 hover:bg-emerald-100 disabled:opacity-50"
-                                >
-                                  {isReviewing ? '...' : 'Approve'}
-                                </button>
-                                <button
-                                  type="button"
-                                  disabled={isReviewing}
-                                  onClick={() => handleReviewDocument(doc.id, 'REJECTED')}
-                                  className="rounded-lg border border-rose-200 bg-rose-50 px-2 py-1 text-[9px] font-black uppercase text-rose-700 hover:bg-rose-100 disabled:opacity-50"
-                                >
-                                  {isReviewing ? '...' : 'Reject'}
-                                </button>
-                              </div>
                             )}
                           </div>
                         </div>
@@ -405,32 +411,40 @@ export function TrialRequestsPanel() {
               />
 
               {canReviewDecision ? (
-                <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
-                  <button
-                    type="button"
-                    disabled={submitting}
-                    onClick={() => handleDecision('CONTACTED')}
-                    className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-black uppercase tracking-wider text-amber-700"
-                  >
-                    Mark Contacted
-                  </button>
-                  <button
-                    type="button"
-                    disabled={submitting}
-                    onClick={() => handleDecision('APPROVED')}
-                    className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-black uppercase tracking-wider text-emerald-700"
-                  >
-                    Approve
-                  </button>
-                  <button
-                    type="button"
-                    disabled={submitting}
-                    onClick={() => handleDecision('REJECTED')}
-                    className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-black uppercase tracking-wider text-rose-700"
-                  >
-                    Reject
-                  </button>
-                </div>
+                <>
+                  <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
+                    <button
+                      type="button"
+                      disabled={submitting}
+                      onClick={() => handleDecision('CONTACTED')}
+                      className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-black uppercase tracking-wider text-amber-700"
+                    >
+                      Mark Contacted
+                    </button>
+                    <button
+                      type="button"
+                      disabled={submitting || !allDocsApproved}
+                      onClick={() => handleDecision('APPROVED')}
+                      className={`rounded-xl border border-emerald-200 px-3 py-2 text-xs font-black uppercase tracking-wider disabled:opacity-40 ${allDocsApproved ? 'bg-emerald-50 text-emerald-700' : 'bg-[#1C1C26] text-emerald-700/50'}`}
+                    >
+                      Approve
+                    </button>
+                    <button
+                      type="button"
+                      disabled={submitting}
+                      onClick={() => handleDecision('REJECTED')}
+                      className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-black uppercase tracking-wider text-rose-700"
+                    >
+                      Reject
+                    </button>
+                  </div>
+                  {!allDocsApproved && (
+                    <p className="mt-2 text-xs font-semibold text-amber-700">
+                      Approve is locked until all {REQUIRED_DOC_COUNT} regulatory documents are approved.
+                      ({verifiedDocCount}/{REQUIRED_DOC_COUNT} verified — even one rejected document blocks approval.)
+                    </p>
+                  )}
+                </>
               ) : (
                 <p className="mt-3 text-xs font-semibold uppercase tracking-wider text-[#6B655C]">
                   This request is finalized and cannot be changed.
@@ -450,7 +464,7 @@ export function TrialRequestsPanel() {
                     <p className="text-xs text-[#6B655C]">No messages yet.</p>
                   ) : (
                     messages.map((message) => (
-                      <div key={message.id} className="rounded-lg border border-[rgba(201,160,92,0.12)] bg-[#14141B] p-2 text-xs text-[#6B655C]">
+                      <div key={message.id} className="rounded-lg border border-[rgba(201,160,92,0.12)] bg-[#1C1C26] p-2 text-xs text-[#D8D0C4]">
                         <p className="font-bold text-[#EAE2D6]">
                           {message.sender_name || message.sender_type}
                         </p>
@@ -488,10 +502,10 @@ export function TrialRequestsPanel() {
           onClick={() => setPreviewDoc(null)}
         >
           <div
-            className="relative max-h-[90vh] max-w-[90vw] overflow-hidden rounded-2xl border border-[rgba(201,160,92,0.2)] bg-[#14141B] shadow-2xl"
+            className="relative flex max-h-[90vh] max-w-[90vw] flex-col overflow-hidden rounded-2xl border border-[rgba(201,160,92,0.2)] bg-[#14141B] shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between border-b border-[rgba(201,160,92,0.12)] px-6 py-3">
+            <div className="flex flex-none items-center justify-between border-b border-[rgba(201,160,92,0.12)] px-6 py-3">
               <div>
                 <p className="text-sm font-bold text-[#EAE2D6]">{previewDoc.document_type.replace(/_/g, ' ')}</p>
                 <p className="text-xs text-[#6B655C]">{previewDoc.file_name}</p>
@@ -504,7 +518,8 @@ export function TrialRequestsPanel() {
                 <X className="h-4 w-4" />
               </button>
             </div>
-            <div className="flex items-center justify-center p-4" style={{ minHeight: '60vh' }}>
+            <div className="min-h-0 flex-1 overflow-y-auto p-4">
+              <div className="flex min-h-full items-center justify-center">
               {previewDocSignFailed ? (
                 <p className="text-sm text-[#6B655C]">Document unavailable</p>
               ) : !previewDocSignedUrl ? (
@@ -534,6 +549,42 @@ export function TrialRequestsPanel() {
                   </a>
                 </div>
               )}
+              </div>
+            </div>
+            <div className="flex flex-none flex-wrap items-center justify-between gap-3 border-t border-[rgba(201,160,92,0.12)] px-6 py-3">
+              <span className={`rounded-full border px-2 py-1 text-[9px] font-black uppercase tracking-wider ${previewDoc.status === 'VERIFIED'
+                ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                : previewDoc.status === 'REJECTED'
+                  ? 'border-rose-200 bg-rose-50 text-rose-700'
+                  : 'border-amber-200 bg-amber-50 text-amber-700'}`}
+              >
+                {previewDoc.status === 'VERIFIED' ? 'Verified' : previewDoc.status === 'REJECTED' ? 'Rejected' : 'Under Review'}
+              </span>
+              {previewDoc.status !== 'VERIFIED' && previewDoc.status !== 'REJECTED' ? (
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    disabled={reviewingDocId === previewDoc.id || !previewDocViewed}
+                    onClick={() => handleReviewDocument(previewDoc.id, 'APPROVED')}
+                    className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-emerald-700 hover:bg-emerald-100 disabled:opacity-50"
+                  >
+                    {reviewingDocId === previewDoc.id ? '...' : 'Approve'}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={reviewingDocId === previewDoc.id}
+                    onClick={() => handleReviewDocument(previewDoc.id, 'REJECTED')}
+                    className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-rose-700 hover:bg-rose-100 disabled:opacity-50"
+                  >
+                    {reviewingDocId === previewDoc.id ? '...' : 'Reject'}
+                  </button>
+                  {!previewDocViewed && (
+                    <span className="text-[10px] font-semibold text-[#6B655C]">
+                      Open and view the document to unlock Approve.
+                    </span>
+                  )}
+                </div>
+              ) : null}
             </div>
           </div>
         </div>
