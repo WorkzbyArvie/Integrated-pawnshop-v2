@@ -35,6 +35,7 @@ export class TenantGovernanceService {
   private readonly logger = new Logger(TenantGovernanceService.name);
   private supportChatSchemaReady = false;
   private registrationChatSchemaReady = false;
+  private tenantModuleConfigSchemaReady = false;
   private readonly allowedTrialModuleLabels = [
     'Inventory Vault',
     'Finance & Treasury',
@@ -295,7 +296,12 @@ export class TenantGovernanceService {
       ADD COLUMN IF NOT EXISTS handled_by uuid,
       ADD COLUMN IF NOT EXISTS handled_at timestamptz,
       ADD COLUMN IF NOT EXISTS created_at timestamptz,
-      ADD COLUMN IF NOT EXISTS updated_at timestamptz
+      ADD COLUMN IF NOT EXISTS updated_at timestamptz,
+      ALTER COLUMN selected_modules SET DEFAULT '[]'::jsonb,
+      ALTER COLUMN staff_count SET DEFAULT 1,
+      ALTER COLUMN status SET DEFAULT 'PENDING',
+      ALTER COLUMN created_at SET DEFAULT NOW(),
+      ALTER COLUMN updated_at SET DEFAULT NOW()
     `);
 
     await this.prisma.$executeRawUnsafe(`
@@ -325,6 +331,26 @@ export class TenantGovernanceService {
     `);
 
     this.registrationChatSchemaReady = true;
+  }
+
+  private async ensureTenantModuleConfigTable(): Promise<void> {
+    if (this.tenantModuleConfigSchemaReady) {
+      return;
+    }
+
+    await this.prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS public.tenant_module_configs (
+        pawnshop_id uuid PRIMARY KEY REFERENCES public.pawnshops(id) ON DELETE CASCADE,
+        selected_modules jsonb NOT NULL DEFAULT '[]'::jsonb,
+        staff_count integer NOT NULL DEFAULT 1,
+        role_assignments jsonb NOT NULL DEFAULT '{}'::jsonb,
+        configured_by uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+        created_at timestamptz NOT NULL DEFAULT NOW(),
+        updated_at timestamptz NOT NULL DEFAULT NOW()
+      )
+    `);
+
+    this.tenantModuleConfigSchemaReady = true;
   }
 
   private async getClientRegistrationRequestOrThrow(
@@ -830,6 +856,8 @@ export class TenantGovernanceService {
       throw new ForbiddenException('Onboarding configuration is restricted to your pawnshop');
     }
 
+    await this.ensureTenantModuleConfigTable();
+
     const modulesJson = JSON.stringify(dto.selectedModules || []);
     const roleAssignmentsJson = JSON.stringify(dto.roleAssignments || {});
 
@@ -1072,6 +1100,7 @@ export class TenantGovernanceService {
 
   async createClientRegistration(
     dto: CreateClientRegistrationDto,
+    status: 'PENDING' | 'DRAFT' = 'PENDING',
   ): Promise<Record<string, unknown>> {
     await this.ensureRegistrationChatTables();
 
@@ -1103,7 +1132,9 @@ export class TenantGovernanceService {
         selected_modules,
         staff_count,
         notes,
-        status
+        status,
+        created_at,
+        updated_at
       )
       VALUES
       (
@@ -1115,17 +1146,19 @@ export class TenantGovernanceService {
         ${selectedModulesJson}::jsonb,
         ${dto.staffCount ?? 5},
         ${dto.notes ?? null},
-        'PENDING'
+        ${status},
+        NOW(),
+        NOW()
       )
       RETURNING id, pawnshop_name, owner_name, owner_email, status, created_at
     `;
 
     this.logger.log(
-      `New client registration request submitted for ${dto.ownerEmail} / ${dto.pawnshopName}`,
+      `New client registration ${status.toLowerCase()} request submitted for ${dto.ownerEmail} / ${dto.pawnshopName}`,
     );
 
     const requestId = rows[0]?.id as string;
-    if (requestId) {
+    if (requestId && status === 'PENDING') {
       await this.prisma.$executeRaw`
         INSERT INTO public.client_registration_messages
         (id, request_id, sender_user_id, sender_type, message, created_at)
@@ -1144,7 +1177,9 @@ export class TenantGovernanceService {
     return {
       success: true,
       request: rows[0],
-      message: 'Registration request submitted. Our onboarding team will contact you shortly.',
+      message: status === 'DRAFT'
+        ? 'Draft saved. Upload your regulatory documents, then submit your trial request.'
+        : 'Registration request submitted. Our onboarding team will contact you shortly.',
     };
   }
 
@@ -1152,6 +1187,8 @@ export class TenantGovernanceService {
     actorUserId: string,
     dto: CreateClientRegistrationDto,
   ): Promise<Record<string, unknown>> {
+    await this.ensureRegistrationChatTables();
+
     const actor = await this.getProfileOrThrow(actorUserId);
     const ownerEmail = actor.email?.trim();
 
@@ -1159,11 +1196,103 @@ export class TenantGovernanceService {
       throw new BadRequestException('Your profile email is missing. Please update your account email first.');
     }
 
-    // Always bind registration ownership to the authenticated owner email.
+    const existing = await this.prisma.$queryRaw<Array<{ id: string; status: string }>>`
+      SELECT id, status
+      FROM public.client_registration_requests
+      WHERE lower(owner_email) = lower(${ownerEmail})
+      ORDER BY created_at DESC
+      LIMIT 1
+    `;
+
+    const activeStatuses = ['PENDING', 'CONTACTED', 'APPROVED'];
+    if (existing[0] && activeStatuses.includes(existing[0].status.toUpperCase())) {
+      throw new BadRequestException('You already have an active trial request under review.');
+    }
+
+    if (existing[0]?.status.toUpperCase() === 'DRAFT') {
+      const draftId = existing[0].id;
+      const requestedModules = this.normalizeRequestedModules(dto.selectedModules || []);
+      const selectedModulesJson = requestedModules.length > 0
+        ? JSON.stringify(requestedModules)
+        : '[]';
+
+      const updated = await this.prisma.$queryRaw<Array<Record<string, unknown>> >`
+        UPDATE public.client_registration_requests
+        SET
+          pawnshop_name = ${dto.pawnshopName},
+          owner_name = ${dto.ownerName ?? dto.ownerEmail},
+          contact_number = ${dto.contactNumber ?? null},
+          selected_modules = ${selectedModulesJson}::jsonb,
+          staff_count = ${dto.staffCount ?? 5},
+          notes = ${dto.notes ?? null},
+          updated_at = NOW()
+        WHERE id = ${draftId}::uuid
+        RETURNING id, pawnshop_name, owner_name, owner_email, status, created_at
+      `;
+
+      return {
+        success: true,
+        draft: true,
+        request: updated[0],
+        message: 'Draft updated. Upload your regulatory documents, then submit your trial request.',
+      };
+    }
+
+    // No request, or the last one was rejected/cancelled — start a fresh draft.
     return this.createClientRegistration({
       ...dto,
       ownerEmail,
-    });
+    }, 'DRAFT');
+  }
+
+  async submitMyClientRegistrationRequest(
+    actorUserId: string,
+    requestId: string,
+  ): Promise<Record<string, unknown>> {
+    await this.ensureRegistrationChatTables();
+
+    const { request, actor } = await this.assertClientRegistrationMessageAccess(
+      actorUserId,
+      requestId,
+    );
+
+    if (this.normalizeRole(actor.role) === 'SUPER_ADMIN') {
+      throw new ForbiddenException('Super Admin cannot use owner submission endpoint');
+    }
+
+    const currentStatus = String(request.status || '').toUpperCase();
+    if (currentStatus !== 'DRAFT') {
+      throw new BadRequestException(
+        `Only draft requests can be submitted. Current status: ${currentStatus || 'unknown'}`,
+      );
+    }
+
+    const updated = await this.prisma.$queryRaw<Array<Record<string, unknown>> >`
+      UPDATE public.client_registration_requests
+      SET status = 'PENDING', updated_at = NOW()
+      WHERE id = ${request.id}::uuid
+      RETURNING id, pawnshop_name, owner_name, owner_email, status, created_at
+    `;
+
+    await this.prisma.$executeRaw`
+      INSERT INTO public.client_registration_messages
+      (id, request_id, sender_user_id, sender_type, message, created_at)
+      VALUES
+      (
+        ${randomUUID()}::uuid,
+        ${request.id}::uuid,
+        NULL,
+        'SYSTEM',
+        ${'Registration request created. Our onboarding team will review your submission shortly.'},
+        NOW()
+      )
+    `;
+
+    return {
+      success: true,
+      request: updated[0],
+      message: 'Trial request submitted. Our onboarding team will review your submission shortly.',
+    };
   }
 
   async listMyClientRegistrationRequests(
@@ -1261,6 +1390,7 @@ export class TenantGovernanceService {
         created_at,
         updated_at
       FROM public.client_registration_requests
+      WHERE status <> 'DRAFT'
       ORDER BY created_at DESC
       LIMIT 500
     `;
@@ -1327,6 +1457,8 @@ export class TenantGovernanceService {
     let activePawnshopId: string | null = null;
 
     if (decision === 'APPROVED') {
+      await this.ensureTenantModuleConfigTable();
+
       const existingPawnshop = await this.prisma.pawnshop.findFirst({
         where: {
           name: request.pawnshop_name,
@@ -1466,10 +1598,10 @@ export class TenantGovernanceService {
         await this.prisma.subscription.create({
           data: {
             pawnshopId: activePawnshopId,
-            tier: SubscriptionTier.BASIC,
+            tier: SubscriptionTier.TRIAL,
             status: SubscriptionStatus.TRIAL,
             billingInterval: BillingInterval.MONTHLY,
-            price: 2999,
+            price: 0,
             startDate: now,
             endDate,
             trialEndDate,
@@ -2691,16 +2823,16 @@ export class TenantGovernanceService {
       await this.prisma.subscription.create({
         data: {
           pawnshopId: pawnshop.id,
-          tier: 'BASIC',
+          tier: 'TRIAL',
           status: 'TRIAL',
           billingInterval: 'MONTHLY',
-          price: 2999,
+          price: 0,
           startDate: new Date(),
           endDate: trialEnd,
           trialEndDate: trialEnd,
-          maxBranches: 3,
-          maxStaff: 10,
-          maxTransactions: null,
+          maxBranches: 1,
+          maxStaff: 3,
+          maxTransactions: 50,
           features: {},
           nextBillingDate: trialEnd,
           autoRenew: false,
