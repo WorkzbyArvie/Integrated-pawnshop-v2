@@ -4,17 +4,17 @@ milestone: v2.0
 milestone_name: Advisor Compliance & RBAC Overhaul
 current_phase: 10
 current_phase_name: Onboarding Compliance Gate
-status: planning
-stopped_at: Completed 10-03-PLAN.md (ONB-03 aggregated status endpoint)
-last_updated: "2026-08-11T08:47:09.018Z"
+status: complete
+stopped_at: Completed 10-04-PLAN.md (ONB-02/03/04 frontend: view-before-approve modal + owner status banner)
+last_updated: "2026-08-12T00:00:00.000Z"
 last_activity: 2026-08-11
-last_activity_desc: 10-03-PLAN.md executed (2 tasks, 2 commits)
+last_activity_desc: 10-04-PLAN.md executed (3 tasks, 3 commits) — phase 10 complete
 progress:
   total_phases: 13
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 12
-  completed_plans: 11
-  percent: 92
+  completed_plans: 12
+  percent: 100
 ---
 
 # STATE.md — PawnGold Project State
@@ -28,12 +28,12 @@ See: .planning/PROJECT.md (updated 2026-07-31)
 
 ## Current Position
 
-Phase: 10 — Onboarding Compliance Gate
-Plan: 10-03 executed (ONB-03 aggregated status endpoint) — 10-04 pending
-Status: In progress
-Last activity: 2026-08-11 — 10-03-PLAN.md executed (2 tasks, 2 commits)
+Phase: 10 — Onboarding Compliance Gate — ✅ COMPLETE
+Plans: 10-01..10-04 all executed (server 7-doc gate, view-before-approve, aggregated status endpoint, frontend banner + view-locked modal)
+Status: Complete (deferred manual UAT in 10-VALIDATION.md)
+Last activity: 2026-08-11 — 10-04-PLAN.md executed (3 tasks, 3 commits)
 
-Progress: [█████████░] 92%
+Progress: [██████████] 100%
 
 ## Milestone Progress (v2.0)
 
@@ -42,7 +42,7 @@ Progress: [█████████░] 92%
 | Phase 7: Permission Foundation & Schema Baseline | ✅ Complete | RBAC-01, RBAC-02 + batched schema baseline (verified 2026-08-01) |
 | Phase 8: Approval Workflows & Unified Approval Queue | ✅ Complete | RBAC-03..06: chokepoints + approval API (08-02) + unified queue UI + threshold config (08-03, verified 2026-08-06) |
 | Phase 9: KYC Verification & Disbursement Guardrail | ✅ Complete | KYC-01..05 — 4 plans executed, verification passed 22/22 (2026-08-09) |
-| Phase 10: Onboarding Compliance Gate | 🔄 In progress | ONB-01/02/03 done (10-01 gate, 10-02 view-before-approve + D-07, 10-03 status aggregation), ONB-04 pending (10-04 UI) |
+| Phase 10: Onboarding Compliance Gate | ✅ Complete | ONB-01..04 — 4 plans executed (10-04 UI: view-before-approve modal + owner status banner, 2026-08-11). Deferred manual UAT in 10-VALIDATION.md |
 | Phase 11: Contract Management Upgrade | ○ Not started | CTR-01..03 |
 | Phase 12: Customer History & Volume-Based Tiering | ○ Not started | CUST-01..04 |
 
@@ -88,13 +88,16 @@ Progress: [█████████░] 92%
 - [Phase ?]: 10-03: Aggregation picks the most-recent non-CANCELLED request in JS over the ordered raw rows (mirrors App.tsx rows[0]); CANCELLED never drives the banner
 - [Phase ?]: 10-03: DRAFT registration requests are included in the status pick (unlike listMyClientRegistrationRequests' status <> 'DRAFT') so a draft with missing docs surfaces as INCOMPLETE
 - [Phase ?]: 10-03: GET client-registrations/me/status route declared immediately after /me and before any :requestId param route (Express shadowing avoidance); owner-facing, no @Public/@RequiresPermission
+- [Phase ?]: 10-04: canApproveDocument short-circuits false for VERIFIED/REJECTED (finalized docs not re-approvable) before consulting viewed state; server truth (has_viewed) OR in-session viewedDocIds unlocks Approve (D-08)
+- [Phase ?]: 10-04: openPreviewAndMarkViewed opens the viewer FIRST (setPreviewDoc) then POSTs the view endpoint; finalized docs skip the POST; failed POST keeps Approve locked with a toast
+- [Phase ?]: 10-04: Owner banner refreshes on mount, upload/submit/cancel, manual Refresh, and a 30s interval (NotificationCenter precedent; no Supabase Realtime) — D-12
 
 ## Session Continuity
 
-Last session: 2026-08-11T08:47:09.004Z
-Stopped at: Completed 10-03-PLAN.md (ONB-03 aggregated status endpoint)
-Resume file: .planning/phases/10-onboarding-compliance-gate/10-03-SUMMARY.md
-Next: /gsd-execute-phase 10
+Last session: 2026-08-11
+Stopped at: Completed 10-04-PLAN.md (ONB-02/03/04 frontend) — Phase 10 complete
+Resume file: .planning/phases/10-onboarding-compliance-gate/10-04-SUMMARY.md
+Next: /gsd-execute-phase 11 (Contract Management Upgrade) after discuss/plan
 
 ## Performance Metrics
 
@@ -110,3 +113,4 @@ Next: /gsd-execute-phase 10
 | Phase 10-onboarding-compliance-gate P10-01 | 28 | 2 tasks | 3 files |
 | Phase 10-onboarding-compliance-gate P10-02 | 14 | 3 tasks | 5 files |
 | Phase 10-onboarding-compliance-gate PP10-03 | 20 | 2 tasks | 3 files |
+| Phase 10-onboarding-compliance-gate PP10-04 | 28 | 3 tasks | 4 files |

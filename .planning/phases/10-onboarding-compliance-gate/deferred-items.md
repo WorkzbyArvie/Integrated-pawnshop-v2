@@ -89,3 +89,43 @@ Do NOT fix within Phase 10 plan tasks. Re-evaluate at the wave-merge / full-suit
 - **Action:** The user should commit or discard this WIP on their own
   judgment — 10-03 did not assess its correctness.
 
+## 10-04: pre-existing frontend tsc errors (48 lines, HEAD) — untouched
+
+- **Found during:** 10-04 verification (`cd frontend && npx tsc --noEmit`)
+- **Date:** 2026-08-11
+- **Result:** 48 lines of TS errors exist at HEAD, predating phase 10. None of
+  the 4 phase-10 files (onboardingStatus.ts, onboardingStatus.test.ts,
+  TrialRequestsPanel.tsx, PendingAccessDashboard.tsx) appear in the error list —
+  phase-10 work is delta-clean.
+- **Categories:**
+  1. Missing shadcn/ui peer deps (module-not-found):
+     `react-hook-form`, `input-otp`, `react-resizable-panels`, `sonner`,
+     `next-themes`, `react-day-picker`, `embla-carousel-react`, `cmdk`,
+     `vaul` (files under `frontend/src/components/ui/`).
+  2. Legacy unused/type issues: `App.tsx:1625` (TS2322), `AuctionMarketplace.tsx`
+     (TS6133 unused), `Dashboard.tsx`, `InventoryVault.tsx`,
+     `PendingApprovalPanel.tsx`, `AuctionSettlements.tsx`,
+     `components/ui/chart.tsx` (recharts `payload` typing),
+     `pages/admin/PlatformAnalytics.tsx` (unused imports + `additionalDays`),
+     `pages/admin/OwnerComplianceDashboard.tsx` (unused `Document`).
+- **Impact on 10-04:** None. `npx vitest run src/lib/__tests__/onboardingStatus.test.ts`
+  passes 23/23 and `npm run build` succeeds (chunk-size + dynamic-import
+  warnings only). The plan's "typecheck green" is interpreted delta-clean.
+- **Action:** Before the defense demo, either `npm install` the missing shadcn
+  peers or remove the unused `ui/` wrappers; sweep the legacy unused imports.
+  This is part of the pre-defense cleanup, not a phase-10 gate.
+
+## 10-04: Task 3 commit carried interleaved prior draft-flow WIP in PendingAccessDashboard.tsx
+
+- **Found during:** 10-04 Task 3 commit (`68735f9`)
+- **Date:** 2026-08-11
+- **Description:** The working-tree version of `PendingAccessDashboard.tsx`
+  already contained uncommitted draft-flow additions from prior owner-registration
+  work (DRAFT create-on-upload in `handleUploadDocument`, `hasDraft` /
+  `allRequiredDocsUploaded` submit gating, DRAFT cancellability). Task 3's
+  banner/refresh hunks are interleaved with these edits in the same regions, so
+  they could not be separated with `git add -p`; the file was committed whole
+  with the prior WIP noted in the commit body.
+- **Action:** Verified the file content is coherent and both feature sets are
+  complete. No separate action required; recorded for traceability.
+
