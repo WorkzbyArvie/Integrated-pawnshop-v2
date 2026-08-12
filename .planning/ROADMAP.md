@@ -23,7 +23,7 @@ PawnGold is a full-stack SaaS pawnshop platform (React dashboard + NestJS + Pris
 - [x] **Phase 7: Permission Foundation & Schema Baseline** - Data-driven permission catalog + staffType-aware RbacGuard on top of one batched schema migration for all v2.0 additions
 - [x] **Phase 8: Approval Workflows & Unified Approval Queue** - OWNER/ADMIN approval for appraisals and high-value redemptions with a unified queue and persistent audit trail
 - [x] **Phase 9: KYC Verification & Disbursement Guardrail** - KYC verification gates ticket creation/approval/disbursement; KYC documents secured via RLS (completed 2026-08-09)
-- [ ] **Phase 10: Onboarding Compliance Gate** - Docs-before-trial gate, view-before-approve review modal, REJECTED/ACTION_REQUIRED aggregation on owner + client dashboards
+- [x] **Phase 10: Onboarding Compliance Gate** - Docs-before-trial gate, view-before-approve review modal, REJECTED/ACTION_REQUIRED aggregation on owner + client dashboards (completed 2026-08-11)
 - [ ] **Phase 11: Contract Management Upgrade** - Signature image upload, item-specific redemption terms, pawnshop responsibilities & liability clauses
 - [ ] **Phase 12: Customer History & Volume-Based Tiering** - Unified per-customer history across domains; transaction-volume-based tiers with auditable tier history
 
@@ -121,7 +121,7 @@ Plans:
 - [x] 10-01-PLAN.md — ONB-01 server-side docs-before-trial gate (backend)
 - [x] 10-02-PLAN.md — ONB-02 view-before-approve endpoint + D-07 permission wiring (backend)
 - [x] 10-03-PLAN.md — ONB-03 aggregated onboarding status API (backend)
-- [ ] 10-04-PLAN.md — ONB-02/03/04 review modal view-before-approve + owner status banner (frontend)
+- [x] 10-04-PLAN.md — ONB-02/03/04 review modal view-before-approve + owner status banner (frontend)
 
 ### Phase 11: Contract Management Upgrade
 
@@ -212,6 +212,6 @@ Plans:
 | 7. Permission Foundation & Schema Baseline | v2.0 | 1 | Complete | 2026-07-31 |
 | 8. Approval Workflows & Unified Approval Queue | v2.0 | 3/3 | In Progress|  |
 | 9. KYC Verification & Disbursement Guardrail | v2.0 | 4/4 | Complete    | 2026-08-09 |
-| 10. Onboarding Compliance Gate | v2.0 | 3/4 | In Progress|  |
+| 10. Onboarding Compliance Gate | v2.0 | 4/4 | Complete    | 2026-08-11 |
 | 11. Contract Management Upgrade | v2.0 | TBD | Not started | - |
 | 12. Customer History & Volume-Based Tiering | v2.0 | TBD | Not started | - |

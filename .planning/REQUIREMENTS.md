@@ -29,7 +29,7 @@ milestone closes every gap. Audit summary:
 - [x] **ONB-01**: Owner cannot initialize Free Trial until all required regulatory documents are submitted and at least pending review — enforced server-side (approval path), not just UI.
 - [x] **ONB-02**: Admin reviews onboarding documents inside the viewer modal; Approve/Reject buttons live in the modal; Approve is disabled until the document is opened/viewed (`hasViewed` state persisted server-side).
 - [x] **ONB-03**: Any document with status REJECTED sets the overall shop onboarding status to REJECTED/ACTION_REQUIRED; aggregated status is exposed via API and reflected in the owner dashboard.
-- [ ] **ONB-04**: Client's Compliance Dashboard reflects real-time document approval status (existing behavior verified end-to-end).
+- [x] **ONB-04**: Client's Compliance Dashboard reflects real-time document approval status (existing behavior verified end-to-end).
 
 ### CTR · Contract Management
 
@@ -83,7 +83,7 @@ milestone closes every gap. Audit summary:
 | ONB-01 | Phase 10 | Complete |
 | ONB-02 | Phase 10 | Complete |
 | ONB-03 | Phase 10 | Complete |
-| ONB-04 | Phase 10 | Pending |
+| ONB-04 | Phase 10 | Complete |
 | CTR-01 | Phase 11 | Pending |
 | CTR-02 | Phase 11 | Pending |
 | CTR-03 | Phase 11 | Pending |
