@@ -1,6 +1,7 @@
 ﻿import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { Clock3, MessageSquare, RefreshCcw, Send, Upload, FileCheck, AlertCircle } from 'lucide-react';
 import api from '../lib/apiClient';
+import { overallLabel, overallTone, rejectedDocumentCount } from '../lib/onboardingStatus';
 import { useToast } from '../App';
 
 type TrialRequest = {
@@ -80,6 +81,8 @@ export function PendingAccessDashboard({ ownerEmail, registrationStatus }: Pendi
   });
   const [regDocs, setRegDocs] = useState<RegDocument[]>([]);
   const [uploadingDocType, setUploadingDocType] = useState<string | null>(null);
+  const [statusSummary, setStatusSummary] = useState<{ overall: string; submissionStatus: string } | null>(null);
+  const [rejectedCount, setRejectedCount] = useState(0);
 
   const REQUIRED_DOC_TYPES = [
     { type: 'DTI_REGISTRATION', label: 'DTI/SEC Registration', desc: 'Business name registration certificate' },
@@ -94,17 +97,18 @@ export function PendingAccessDashboard({ ownerEmail, registrationStatus }: Pendi
   const latestRequest = requests[0] ?? null;
   const latestStatus = latestRequest?.status?.toUpperCase() || '';
   const hasActiveRequest = ['PENDING', 'CONTACTED', 'APPROVED'].includes(latestStatus);
-  const canCancelRequest = ['PENDING', 'CONTACTED'].includes(latestStatus);
+  const hasDraft = latestStatus === 'DRAFT';
+  const canCancelRequest = ['PENDING', 'CONTACTED', 'DRAFT'].includes(latestStatus);
+  const uploadedDocs = regDocs.filter((d) => d.status !== 'REJECTED');
+  const allRequiredDocsUploaded = REQUIRED_DOC_TYPES.every((doc) =>
+    uploadedDocs.some((d) => d.document_type === doc.type),
+  );
 
   const canSendMessage = useMemo(() => {
     if (!latestRequest) return false;
     const status = latestRequest.status.toUpperCase();
     return status === 'PENDING' || status === 'CONTACTED' || status === 'APPROVED';
   }, [latestRequest]);
-
-  const canSubmitRequest = useMemo(() => {
-    return !hasActiveRequest;
-  }, [hasActiveRequest]);
 
   const loadRequests = async () => {
     setLoading(true);
@@ -143,13 +147,58 @@ export function PendingAccessDashboard({ ownerEmail, registrationStatus }: Pendi
     }
   };
 
+  const loadStatusSummary = async () => {
+    try {
+      const res = await api.get<{ overall: string; submissionStatus: string; documents?: Array<{ status?: string | null }> }>(
+        '/tenant-governance/client-registrations/me/status',
+      );
+      setStatusSummary({ overall: res.overall, submissionStatus: res.submissionStatus });
+      setRejectedCount(rejectedDocumentCount(res.documents ?? []));
+    } catch {
+      setStatusSummary((prev) => prev);
+    }
+  };
+
   const handleUploadDocument = async (docType: string, file: File) => {
-    if (!latestRequest?.id) return;
+    const closedStatus = latestStatus === 'REJECTED' || latestStatus === 'CANCELLED';
+    let requestId: string | null = closedStatus ? null : (latestRequest?.id ?? null);
+    if (!requestId) {
+      if (!form.pawnshopName.trim()) {
+        const message = 'Please fill in the Pawnshop Name first so we can save your draft.';
+        setError(message);
+        showToast(message, 'error');
+        return;
+      }
+      try {
+        await api.post('/tenant-governance/client-registrations/me', {
+          pawnshopName: form.pawnshopName,
+          ownerEmail: form.ownerEmail,
+          contactNumber: form.contactNumber || undefined,
+          notes: form.notes || undefined,
+        });
+        await loadRequests();
+        const updated = await api.get<TrialRequest[]>('/tenant-governance/client-registrations/me');
+        requestId = Array.isArray(updated) ? updated[0]?.id : null;
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err) || 'Unable to start your draft.';
+        setError(message);
+        showToast(message, 'error');
+        return;
+      }
+    }
+
+    if (!requestId) {
+      const message = 'Unable to start your draft. Please refresh and try again.';
+      setError(message);
+      showToast(message, 'error');
+      return;
+    }
+
     setUploadingDocType(docType);
     try {
       const ext = file.name.includes('.') ? file.name.split('.').pop() : 'bin';
       const safeExt = (ext || 'bin').toLowerCase().replace(/[^a-z0-9]/g, '') || 'bin';
-      const storagePath = `registration-docs/${latestRequest.id}/${docType}_${Date.now()}.${safeExt}`;
+      const storagePath = `registration-docs/${requestId}/${docType}_${Date.now()}.${safeExt}`;
 
       const { supabase } = await import('../lib/supabaseClient');
       const { error: uploadError } = await supabase.storage
@@ -166,14 +215,15 @@ export function PendingAccessDashboard({ ownerEmail, registrationStatus }: Pendi
       const { data: urlData } = supabase.storage.from('kyc-documents').getPublicUrl(storagePath);
       const fileUrl = urlData?.publicUrl || storagePath;
 
-      await api.post(`/tenant-governance/client-registrations/${latestRequest.id}/documents`, {
+      await api.post(`/tenant-governance/client-registrations/${requestId}/documents`, {
         documentType: docType,
         fileName: file.name,
         fileUrl,
         fileSize: file.size,
       });
       showToast(`${docType.replace(/_/g, ' ')} uploaded successfully.`, 'success');
-      await loadDocuments(latestRequest.id);
+      await loadDocuments(requestId);
+      await loadStatusSummary();
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err) || 'Upload failed.';
       showToast(message, 'error');
@@ -184,6 +234,7 @@ export function PendingAccessDashboard({ ownerEmail, registrationStatus }: Pendi
 
   useEffect(() => {
     loadRequests();
+    loadStatusSummary();
   }, []);
 
   useEffect(() => {
@@ -198,6 +249,11 @@ export function PendingAccessDashboard({ ownerEmail, registrationStatus }: Pendi
   }, [latestRequest?.id]);
 
   useEffect(() => {
+    const interval = setInterval(loadStatusSummary, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
     setForm((prev) => ({
       ...prev,
       ownerEmail: prev.ownerEmail || ownerEmail || '',
@@ -210,8 +266,8 @@ export function PendingAccessDashboard({ ownerEmail, registrationStatus }: Pendi
     setError(null);
     setSubmitMessage(null);
 
-    if (!canSubmitRequest) {
-      const message = 'You already have an active trial request under review.';
+    if (!hasDraft || !latestRequest?.id) {
+      const message = 'Please upload all regulatory documents before submitting.';
       setError(message);
       showToast(message, 'error');
       return;
@@ -226,6 +282,8 @@ export function PendingAccessDashboard({ ownerEmail, registrationStatus }: Pendi
         notes: form.notes || undefined,
       });
 
+      await api.post(`/tenant-governance/client-registrations/${latestRequest.id}/submit`);
+
       const successMessage = 'Trial request submitted. Our team will review it shortly.';
       setSubmitMessage(successMessage);
       showToast(successMessage, 'success');
@@ -239,6 +297,7 @@ export function PendingAccessDashboard({ ownerEmail, registrationStatus }: Pendi
       const updated = await api.get<TrialRequest[]>('/tenant-governance/client-registrations/me');
       const latest = Array.isArray(updated) ? updated[0] : null;
       if (latest?.id) await loadDocuments(latest.id);
+      await loadStatusSummary();
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err) || 'Unable to submit trial request right now.';
       setError(message);
@@ -294,6 +353,7 @@ export function PendingAccessDashboard({ ownerEmail, registrationStatus }: Pendi
       showToast(successMessage, 'success');
       await loadRequests();
       setMessages([]);
+      await loadStatusSummary();
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err) || 'Unable to cancel trial request right now.';
       setError(message);
@@ -345,7 +405,10 @@ export function PendingAccessDashboard({ ownerEmail, registrationStatus }: Pendi
           </div>
           <button
             type="button"
-            onClick={loadRequests}
+            onClick={() => {
+              loadRequests();
+              loadStatusSummary();
+            }}
             className="inline-flex items-center gap-2 rounded-xl border border-[rgba(201,160,92,0.12)] px-3 py-2 text-xs font-bold uppercase tracking-wider text-[#6B655C] hover:bg-[#1C1C26]"
           >
             <RefreshCcw className="h-4 w-4" /> Refresh
@@ -357,89 +420,104 @@ export function PendingAccessDashboard({ ownerEmail, registrationStatus }: Pendi
         <article className="rounded-3xl border border-[rgba(201,160,92,0.12)] bg-[#14141B] p-6 shadow-sm">
           <h3 className="text-lg font-bold text-[#EAE2D6]">Start Your Free Trial Setup</h3>
           <p className="mt-1 text-sm text-[#999186]">
-            Complete this once. The selected modules below become your initial system configuration after approval.
+            Enter your business details, upload your regulatory documents, then submit your trial request
+            for review.
           </p>
 
-          <form onSubmit={handleSubmitRequest} className="mt-4 space-y-4">
-            <div className="grid gap-4 md:grid-cols-2">
-              <div>
-                <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-[#999186]">
-                  Pawnshop Name <span className="text-rose-400">*</span>
-                </label>
-                <input
-                  value={form.pawnshopName}
-                  onChange={(e) => setForm((prev) => ({ ...prev, pawnshopName: e.target.value }))}
-                  placeholder="e.g. Golden Pawn jewelry shop"
-                  className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
-                  required
-                  disabled={!canSubmitRequest}
-                />
-              </div>
-              <div>
-                <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-[#999186]">
-                  Email Address <span className="text-rose-400">*</span>
-                </label>
-                <input
-                  value={form.ownerEmail}
-                  onChange={(e) => setForm((prev) => ({ ...prev, ownerEmail: e.target.value }))}
-                  type="email"
-                  className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
-                  required
-                  readOnly={Boolean(ownerEmail)}
-                  disabled={!canSubmitRequest}
-                />
-                {ownerEmail && (
-                  <p className="mt-1 text-[11px] text-[#6B655C]">Pre-filled from your account</p>
-                )}
-              </div>
-              <div>
-                <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-[#999186]">
-                  Contact Number
-                </label>
-                <input
-                  value={form.contactNumber}
-                  onChange={(e) => setForm((prev) => ({ ...prev, contactNumber: e.target.value }))}
-                  placeholder="e.g. 09171234567"
-                  className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
-                  disabled={!canSubmitRequest}
-                />
-                <p className="mt-1 text-[11px] text-[#6B655C]">Phone or mobile number for SMS updates</p>
-              </div>
+          {hasActiveRequest ? (
+            <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+              Your trial request has been submitted and is under review. Wait for the onboarding team or
+              continue chatting with support below.
             </div>
-
-            <div>
-              <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-[#999186]">
-                Additional Notes
-              </label>
-              <textarea
-                value={form.notes}
-                onChange={(e) => setForm((prev) => ({ ...prev, notes: e.target.value }))}
-                placeholder="e.g. Target go-live date, branch locations, special requirements..."
-                className="min-h-24 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
-                disabled={!canSubmitRequest}
-              />
-            </div>
-
-            {!canSubmitRequest ? (
-              <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
-                You already have an active request. Wait for admin review or continue chatting with support.
+          ) : (
+            <form onSubmit={handleSubmitRequest} className="mt-4 space-y-4">
+              <div className="grid gap-4 md:grid-cols-2">
+                <div>
+                  <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-[#999186]">
+                    Pawnshop Name <span className="text-rose-400">*</span>
+                  </label>
+                  <input
+                    value={form.pawnshopName}
+                    onChange={(e) => setForm((prev) => ({ ...prev, pawnshopName: e.target.value }))}
+                    placeholder="e.g. Golden Pawn jewelry shop"
+                    className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-[#999186]">
+                    Email Address <span className="text-rose-400">*</span>
+                  </label>
+                  <input
+                    value={form.ownerEmail}
+                    onChange={(e) => setForm((prev) => ({ ...prev, ownerEmail: e.target.value }))}
+                    type="email"
+                    className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
+                    required
+                    readOnly={Boolean(ownerEmail)}
+                  />
+                  {ownerEmail && (
+                    <p className="mt-1 text-[11px] text-[#6B655C]">Pre-filled from your account</p>
+                  )}
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-[#999186]">
+                    Contact Number
+                  </label>
+                  <input
+                    value={form.contactNumber}
+                    onChange={(e) => setForm((prev) => ({ ...prev, contactNumber: e.target.value }))}
+                    placeholder="e.g. 09171234567"
+                    className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
+                  />
+                  <p className="mt-1 text-[11px] text-[#6B655C]">Phone or mobile number for SMS updates</p>
+                </div>
               </div>
-            ) : null}
 
-            <button
-              type="submit"
-              disabled={submittingRequest || !canSubmitRequest}
-              className="w-full rounded-xl bg-blue-600 px-4 py-2 text-sm font-bold text-white disabled:opacity-50"
-            >
-              {submittingRequest ? 'Submitting...' : 'Submit Trial Request'}
-            </button>
-          </form>
+              <div>
+                <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-[#999186]">
+                  Additional Notes
+                </label>
+                <textarea
+                  value={form.notes}
+                  onChange={(e) => setForm((prev) => ({ ...prev, notes: e.target.value }))}
+                  placeholder="e.g. Target go-live date, branch locations, special requirements..."
+                  className="min-h-24 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
+                />
+              </div>
+
+              {hasDraft ? (
+                allRequiredDocsUploaded ? (
+                  <button
+                    type="submit"
+                    disabled={submittingRequest}
+                    className="w-full rounded-xl bg-blue-600 px-4 py-2 text-sm font-bold text-white disabled:opacity-50"
+                  >
+                    {submittingRequest ? 'Submitting...' : 'Submit Trial Request'}
+                  </button>
+                ) : (
+                  <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                    Upload all {REQUIRED_DOC_TYPES.length} regulatory documents to unlock submission.
+                  </div>
+                )
+              ) : (
+                <div className="rounded-xl border border-[rgba(201,160,92,0.12)] bg-[#1C1C26] px-3 py-2 text-sm text-[#6B655C]">
+                  Next: upload your {REQUIRED_DOC_TYPES.length} regulatory documents below. The Submit
+                  button will appear here once all documents are uploaded.
+                </div>
+              )}
+            </form>
+          )}
 
           {canCancelRequest ? (
             <form onSubmit={handleCancelRequest} className="mt-4 rounded-xl border border-rose-200 bg-rose-50 p-3">
-              <p className="text-sm font-bold text-rose-800">Cancel current trial request</p>
+              <p className="text-sm font-bold text-rose-800">
+                {hasDraft ? 'Discard draft request' : 'Cancel current trial request'}
+              </p>
               <p className="mt-1 text-xs text-rose-700">
-                Tell us why you are cancelling so we can improve onboarding support.
+                {hasDraft
+                  ? 'Remove this draft so you can start over with a fresh onboarding request.'
+                  : 'Tell us why you are cancelling so we can improve onboarding support.'}
               </p>
               <textarea
                 value={cancelReason}
@@ -466,19 +544,45 @@ export function PendingAccessDashboard({ ownerEmail, registrationStatus }: Pendi
             <h3 className="text-lg font-bold text-[#EAE2D6]">Application Status</h3>
           </div>
 
+          {statusSummary ? (
+            <div className={`mt-4 rounded-xl border px-4 py-3 ${overallTone(statusSummary.overall)}`}>
+              <p className="text-xs font-black uppercase tracking-wider">{overallLabel(statusSummary.overall)}</p>
+              <p className="mt-1 text-xs opacity-80">
+                {statusSummary.overall === 'ACTION_REQUIRED'
+                  ? `Re-upload the ${rejectedCount} rejected document(s) to continue.`
+                  : statusSummary.overall === 'APPROVED'
+                    ? 'Your onboarding is complete.'
+                    : statusSummary.overall === 'PENDING_REVIEW'
+                      ? 'Your documents are under review.'
+                      : 'Upload all 7 required regulatory documents to continue.'}
+              </p>
+            </div>
+          ) : null}
+
           {loading ? (
             <p className="mt-4 text-sm text-[#6B655C]">Loading your onboarding request...</p>
           ) : !latestRequest ? (
             <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
-              No registration request found yet. Start from the landing page to submit your free trial request.
+              No registration request yet. Fill in your business details and upload your regulatory
+              documents below to submit your free trial request.
             </div>
           ) : (
             <div className="mt-4 space-y-3">
               <div className={`inline-flex rounded-full border px-3 py-1 text-xs font-bold uppercase tracking-wider ${statusTone(latestRequest.status)}`}>
                 {latestRequest.status}
               </div>
+              {hasDraft ? (
+                <p className="text-sm text-[#6B655C]">
+                  Your request is saved as a draft. Upload all {REQUIRED_DOC_TYPES.length} regulatory
+                  documents, then click <span className="font-semibold text-[#EAE2D6]">Submit Trial Request</span>.
+                </p>
+              ) : latestStatus === 'REJECTED' ? (
+                <p className="text-sm text-rose-600">
+                  Your previous request was not approved. You can start over with a new request below.
+                </p>
+              ) : null}
               <p className="text-sm text-[#6B655C]">Business: <span className="font-semibold">{latestRequest.pawnshop_name}</span></p>
-              <p className="text-sm text-[#6B655C]">Submitted: {new Date(latestRequest.created_at).toLocaleString()}</p>
+              <p className="text-sm text-[#6B655C]">{hasDraft ? 'Created' : 'Submitted'}: {new Date(latestRequest.created_at).toLocaleString()}</p>
               <p className="text-sm text-[#6B655C]">Last update: {new Date(latestRequest.updated_at).toLocaleString()}</p>
               {latestRequest.notes ? (
                 <div className="rounded-xl border border-[rgba(201,160,92,0.12)] bg-[#1C1C26] p-3 text-sm text-[#6B655C] whitespace-pre-wrap">
@@ -489,8 +593,7 @@ export function PendingAccessDashboard({ ownerEmail, registrationStatus }: Pendi
           )}
           </article>
 
-          {hasActiveRequest && (
-            <article className="rounded-3xl border border-[rgba(201,160,92,0.12)] bg-[#14141B] p-6 shadow-sm">
+          <article className="rounded-3xl border border-[rgba(201,160,92,0.12)] bg-[#14141B] p-6 shadow-sm">
               <div className="flex items-center gap-2">
                 <Upload className="h-5 w-5 text-[#6B655C]" />
                 <h3 className="text-lg font-bold text-[#EAE2D6]">Regulatory Documents</h3>
@@ -578,7 +681,6 @@ export function PendingAccessDashboard({ ownerEmail, registrationStatus }: Pendi
                 </div>
               </div>
             </article>
-          )}
 
           <article className="rounded-3xl border border-[rgba(201,160,92,0.12)] bg-[#14141B] p-6 shadow-sm">
           <div className="flex items-center gap-2">
@@ -604,7 +706,7 @@ export function PendingAccessDashboard({ ownerEmail, registrationStatus }: Pendi
                 return (
                   <div
                     key={message.id}
-                    className={`rounded-xl px-3 py-2 text-sm ${isOwner ? 'ml-8 bg-[#C9A05C]/15 text-[#C9A05C]' : 'mr-8 border border-[rgba(201,160,92,0.12)] bg-[#14141B] text-slate-800'}`}
+                    className={`rounded-xl px-3 py-2 text-sm ${isOwner ? 'ml-8 bg-[#C9A05C]/15 text-[#C9A05C]' : 'mr-8 border border-[rgba(201,160,92,0.12)] bg-[#1C1C26] text-[#D8D0C4]'}`}
                   >
                     <p className="text-[11px] font-black uppercase tracking-wider opacity-70">{senderLabel}</p>
                     <p className="mt-1 whitespace-pre-wrap">{message.message}</p>
