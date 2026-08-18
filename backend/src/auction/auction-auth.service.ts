@@ -1,20 +1,9 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { SupabaseAdminService } from '../common/supabase-admin.service';
 
 @Injectable()
 export class AuctionAuthService {
-  private readonly supabaseAdmin: SupabaseClient;
-
-  constructor() {
-    const supabaseUrl = process.env.VITE_SUPABASE_URL;
-    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-    if (!supabaseUrl || !serviceRoleKey) {
-      throw new Error('Supabase service role is not configured');
-    }
-
-    this.supabaseAdmin = createClient(supabaseUrl, serviceRoleKey);
-  }
+  constructor(private readonly supabaseAdmin: SupabaseAdminService) {}
 
   async getActorId(authHeader?: string): Promise<string> {
     const token = this.extractBearer(authHeader);
@@ -23,7 +12,7 @@ export class AuctionAuthService {
       throw new UnauthorizedException('Missing authorization token');
     }
 
-    const { data, error } = await this.supabaseAdmin.auth.getUser(token);
+    const { data, error } = await this.supabaseAdmin.client.auth.getUser(token);
 
     if (error || !data?.user?.id) {
       throw new UnauthorizedException('Invalid or expired session');

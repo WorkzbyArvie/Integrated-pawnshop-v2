@@ -5,13 +5,13 @@ import { GlobalExceptionFilter } from './common/filters/global-exception.filter'
 import { RequestLoggerInterceptor } from './common/interceptors/request-logger.interceptor';
 import { ResponseTransformInterceptor } from './common/interceptors/response-transform.interceptor';
 import { PrismaService } from './prisma.service';
+import { SupabaseAdminService } from './common/supabase-admin.service';
 import * as dotenv from 'dotenv';
 import * as path from 'path';
 import * as express from 'express';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import compression from 'compression';
-import { createClient } from '@supabase/supabase-js';
 import { SubscriptionStatus } from '@prisma/client';
 import * as dns from 'node:dns';
 
@@ -32,13 +32,7 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   const httpApp = app.getHttpAdapter().getInstance() as express.Express;
   const prisma = app.get(PrismaService);
-
-  const supabaseUrl = process.env.VITE_SUPABASE_URL;
-  const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  const supabaseAdmin =
-    supabaseUrl && supabaseServiceRoleKey
-      ? createClient(supabaseUrl, supabaseServiceRoleKey)
-      : null;
+  const supabaseAdmin = app.get(SupabaseAdminService);
 
   httpApp.disable('x-powered-by');
   httpApp.set('trust proxy', 1);
@@ -241,7 +235,7 @@ async function bootstrap() {
         return;
       }
 
-      if (!supabaseAdmin) {
+      if (!supabaseAdmin.isAvailable) {
         next();
         return;
       }
@@ -266,7 +260,7 @@ async function bootstrap() {
         return;
       }
 
-      const { data: authData, error: authError } = await supabaseAdmin.auth.getUser(
+      const { data: authData, error: authError } = await supabaseAdmin.client.auth.getUser(
         token,
       );
 
@@ -385,7 +379,7 @@ async function bootstrap() {
   );
 
   // Keep upload limits configurable; default kept conservative for abuse resistance.
-  const bodyLimitMb = Number(process.env.BODY_LIMIT_MB || 12);
+  const bodyLimitMb = Number(process.env.BODY_LIMIT_MB || 5);
   app.use(express.json({ limit: `${bodyLimitMb}mb` }));
   app.use(express.urlencoded({ limit: `${bodyLimitMb}mb`, extended: true }));
 

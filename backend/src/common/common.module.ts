@@ -3,6 +3,7 @@ import { StateMachineService } from './state-machine/state-machine.service';
 import { AuthUserService } from './auth-user.service';
 import { PawnshopGuard } from './guards/pawnshop.guard';
 import { StorageService } from './storage/storage.service';
+import { SupabaseAdminService } from './supabase-admin.service';
 import { PermissionsModule } from './permissions/permissions.module';
 import {
   TICKET_LIFECYCLE,
@@ -18,12 +19,14 @@ import {
     AuthUserService,
     PawnshopGuard,
     StorageService,
+    SupabaseAdminService,
   ],
   exports: [
     StateMachineService,
     AuthUserService,
     PawnshopGuard,
     StorageService,
+    SupabaseAdminService,
   ],
 })
 export class CommonModule implements OnModuleInit {

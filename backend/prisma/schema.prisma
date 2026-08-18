@@ -63,6 +63,7 @@ model Customer {
   receipts          Receipt[]
   customerKyc       CustomerKyc?
   tierHistory       CustomerTierHistory[]
+  @@index([pawnshopId])
   @@map("customer")
   @@schema("public")
 }
@@ -246,6 +247,7 @@ model Staff {
   contactNumber String?  @map("contact_number")
   branchId      Int?     @map("branchid")
   branch        Branch?  @relation(fields: [branchId], references: [id])
+  @@index([branchId])
   @@map("staff")
   @@schema("public")
 }
@@ -310,6 +312,7 @@ model Transaction {
   date      DateTime @default(now())
   staffName String   @map("staffname")
   ticket    Ticket?  @relation(fields: [ticketId], references: [id])
+  @@index([ticketId])
   @@map("transaction")
   @@schema("public")
 }
@@ -321,6 +324,7 @@ model AdminInvite {
   role       String   @default("ADMIN")
   createdAt  DateTime @map("created_at") @default(now())
   pawnshop   Pawnshop @relation(fields: [pawnshopId], references: [id])
+  @@index([pawnshopId])
   @@map("admin_invites")
   @@schema("public")
 }
@@ -370,6 +374,7 @@ model CustomerPaymentMethod {
   isDefault    Boolean  @default(false) @map("is_default")
   createdAt    DateTime @default(now()) @map("created_at")
   profile      Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  @@index([profileId])
   @@map("customer_payment_methods")
   @@schema("public")
 }
@@ -394,6 +399,8 @@ model ActivityLog {
   action    String
   details   String
   timestamp DateTime @default(now())
+  @@index([staffId])
+  @@index([timestamp])
   @@map("activitylog")
   @@schema("public")
 }
@@ -604,6 +611,9 @@ model LoanApplication {
   contract          LoanContract?
   legalProofs       LegalProof[]
   
+  @@index([pawnshopId])
+  @@index([customerId])
+  @@index([status])
   @@map("loan_applications")
   @@schema("public")
 }
@@ -625,6 +635,7 @@ model LoanDocument {
   
   application       LoanApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
   
+  @@index([applicationId])
   @@map("loan_documents")
   @@schema("public")
 }
@@ -643,6 +654,8 @@ model LoanApproval {
   application             LoanApplication   @relation(fields: [applicationId], references: [id], onDelete: Cascade)
   approver                Profile           @relation(fields: [approverId], references: [id], onDelete: Cascade)
   
+  @@index([applicationId])
+  @@index([approverId])
   @@map("loan_approvals")
   @@schema("public")
 }
@@ -667,6 +680,7 @@ model EligibilityCheck {
   application       LoanApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
   customer          Customer        @relation(fields: [customerId], references: [id], onDelete: Cascade)
   
+  @@index([customerId])
   @@map("eligibility_checks")
   @@schema("public")
 }
@@ -687,6 +701,7 @@ model LoanDisbursement {
   loan                Loan            @relation(fields: [loanId], references: [id], onDelete: Cascade)
   application         LoanApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
   
+  @@index([loanId])
   @@map("loan_disbursements")
   @@schema("public")
 }
@@ -877,6 +892,7 @@ model AuctionRating {
   customer      Customer       @relation(fields: [customerId], references: [id], onDelete: Cascade)
   
   @@unique([listingId, customerId, ratingType])
+  @@index([customerId])
   @@map("auction_ratings")
   @@schema("public")
 }
@@ -1308,6 +1324,7 @@ model ContractTemplate {
   createdAt     DateTime     @default(now()) @map("created_at")
   updatedAt     DateTime     @updatedAt @map("updated_at")
 
+  @@index([type])
   @@map("contract_templates")
   @@schema("public")
 }
@@ -1322,6 +1339,7 @@ model ContractClause {
   isActive      Boolean       @default(true)
   createdAt     DateTime      @default(now()) @map("created_at")
 
+  @@index([type])
   @@map("contract_clauses")
   @@schema("public")
 }

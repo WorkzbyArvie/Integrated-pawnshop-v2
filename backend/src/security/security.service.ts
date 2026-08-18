@@ -1,20 +1,14 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
-import { createClient } from '@supabase/supabase-js';
+import { SupabaseAdminService } from '../common/supabase-admin.service';
 
 @Injectable()
 export class SecurityService {
   private readonly logger = new Logger(SecurityService.name);
-  constructor(private readonly prisma: PrismaService) {}
-
-  private get supabaseAdmin() {
-    const supabaseUrl = process.env.VITE_SUPABASE_URL;
-    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-    if (!supabaseUrl || !serviceRoleKey) {
-      throw new Error('Supabase admin configuration is missing');
-    }
-    return createClient(supabaseUrl, serviceRoleKey);
-  }
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly supabaseAdmin: SupabaseAdminService,
+  ) {}
 
   async changeMyPassword(userId: string, data: { newPassword: string }) {
     const password = data?.newPassword || '';
@@ -29,7 +23,7 @@ export class SecurityService {
       throw new Error('Password must include uppercase, lowercase, and number');
     }
 
-    const { error } = await this.supabaseAdmin.auth.admin.updateUserById(
+    const { error } = await this.supabaseAdmin.client.auth.admin.updateUserById(
       userId,
       {
         password,

@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { Cron, CronExpression } from '@nestjs/schedule';
+import { Cron } from '@nestjs/schedule';
 import { PrismaService } from '../prisma.service';
 import { AuctionStatus, ComplianceStatus } from '@prisma/client';
 import { ContractTemplateService } from '../contract/contract-template.service';
@@ -18,7 +18,7 @@ export class AuctionSettlementService {
     private receiptService: ReceiptService,
   ) {}
 
-  @Cron(CronExpression.EVERY_MINUTE)
+  @Cron('*/5 * * * *')
   async settleEndedAuctions(): Promise<void> {
     if (!(await this.prisma.ensureConnected('auction settlement cron'))) {
       return;
@@ -262,7 +262,7 @@ export class AuctionSettlementService {
     }
   }
 
-  @Cron(CronExpression.EVERY_HOUR)
+  @Cron('0 */2 * * *')
   async checkExpiredCompliances(): Promise<void> {
     if (!(await this.prisma.ensureConnected('expired compliance cron'))) {
       return;

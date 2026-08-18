@@ -250,9 +250,9 @@ export class NotificationService {
 
   /**
    * Check for auctions ending soon and send notifications
-   * Runs every minute
+   * Runs every 5 minutes
    */
-  @Cron(CronExpression.EVERY_MINUTE)
+  @Cron('*/5 * * * *')
   async checkAuctionEndingSoon(): Promise<void> {
     if (!(await this.prisma.ensureConnected('auction ending-soon notification cron'))) {
       return;
@@ -606,9 +606,9 @@ export class NotificationService {
 
   /**
    * Process pending scheduled notifications
-   * Runs every minute
+   * Runs every 3 minutes
    */
-  @Cron(CronExpression.EVERY_MINUTE)
+  @Cron('*/3 * * * *')
   async processScheduledNotifications(): Promise<void> {
     if (!(await this.prisma.ensureConnected('scheduled notification cron'))) {
       return;

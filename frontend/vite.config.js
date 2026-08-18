@@ -23,7 +23,7 @@ export default defineConfig({
       output: {
         manualChunks: {
           react: ["react", "react-dom", "react-router-dom"],
-          vendor: ["@supabase/supabase-js", "axios", "sweetalert2"],
+          vendor: ["@supabase/supabase-js", "sweetalert2"],
         },
       },
     },

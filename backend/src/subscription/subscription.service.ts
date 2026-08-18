@@ -1450,9 +1450,9 @@ export class SubscriptionService {
 
   /**
    * Expire subscriptions that have passed their end date without renewal.
-   * Runs hourly to catch expired subscriptions promptly.
+   * Runs every 2 hours to catch expired subscriptions.
    */
-  @Cron(CronExpression.EVERY_HOUR)
+  @Cron('0 */2 * * *')
   async expireOverdueSubscriptions(): Promise<void> {
     try {
       const now = new Date();

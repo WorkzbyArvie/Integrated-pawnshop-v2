@@ -1,28 +1,19 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { SupabaseAdminService } from '../supabase-admin.service';
 
 @Injectable()
 export class StorageService {
   private readonly logger = new Logger(StorageService.name);
-  private supabase: SupabaseClient | null = null;
   private bucketName = process.env.SUPABASE_STORAGE_BUCKET || 'documents';
 
-  constructor() {
-    const url = process.env.VITE_SUPABASE_URL;
-    const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-    if (url && key) {
-      this.supabase = createClient(url, key);
-    } else {
-      this.logger.warn('Supabase credentials not configured — storage will use local fallback paths');
-    }
-  }
+  constructor(private readonly supabaseAdmin: SupabaseAdminService) {}
 
   async uploadPdf(
     buffer: Buffer,
     folder: 'contracts' | 'receipts' | 'proofs',
     fileName: string,
   ): Promise<string> {
-    if (!this.supabase) {
+    if (!this.supabaseAdmin.isAvailable) {
       const localPath = `${folder}/${fileName}`;
       this.logger.warn(`No Supabase client — returning local path: ${localPath}`);
       return localPath;
@@ -30,7 +21,7 @@ export class StorageService {
 
     const filePath = `${folder}/${fileName}`;
 
-    const { data, error } = await this.supabase.storage
+    const { data, error } = await this.supabaseAdmin.client.storage
       .from(this.bucketName)
       .upload(filePath, buffer, {
         contentType: 'application/pdf',
@@ -43,7 +34,7 @@ export class StorageService {
       return localPath;
     }
 
-    const { data: urlData } = this.supabase.storage
+    const { data: urlData } = this.supabaseAdmin.client.storage
       .from(this.bucketName)
       .getPublicUrl(filePath);
 
@@ -51,11 +42,11 @@ export class StorageService {
   }
 
   async getDownloadUrl(path: string): Promise<string | null> {
-    if (!this.supabase) return path.startsWith('http') ? path : null;
+    if (!this.supabaseAdmin.isAvailable) return path.startsWith('http') ? path : null;
 
     if (path.startsWith('http')) return path;
 
-    const { data } = this.supabase.storage
+    const { data } = this.supabaseAdmin.client.storage
       .from(this.bucketName)
       .getPublicUrl(path);
 

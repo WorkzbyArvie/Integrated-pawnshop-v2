@@ -17,24 +17,18 @@ import {
   NotificationType,
   MessageSenderRole,
 } from '@prisma/client';
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { SupabaseAdminService } from '../common/supabase-admin.service';
 import { NotificationService } from '../notification/notification.service';
 
 @Injectable()
 export class QueueService {
   private readonly logger = new Logger(QueueService.name);
-  private readonly supabase: SupabaseClient;
 
   constructor(
     private prisma: PrismaService,
     private notificationService: NotificationService,
-  ) {
-    const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
-    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-    if (supabaseUrl && serviceRoleKey) {
-      this.supabase = createClient(supabaseUrl, serviceRoleKey);
-    }
-  }
+    private supabaseAdmin: SupabaseAdminService,
+  ) {}
 
   /**
    * Generate a unique queue number for the pawnshop
@@ -467,13 +461,13 @@ export class QueueService {
     if (scheme?.toLowerCase() !== 'bearer' || !token)
       throw new UnauthorizedException('Invalid auth format');
 
-    if (!this.supabase)
+    if (!this.supabaseAdmin.isAvailable)
       throw new Error('Supabase not configured');
 
     const {
       data: { user },
       error,
-    } = await this.supabase.auth.getUser(token);
+    } = await this.supabaseAdmin.client.auth.getUser(token);
     if (error || !user)
       throw new UnauthorizedException('Invalid or expired token');
     const userId = user.id;
@@ -616,14 +610,14 @@ export class QueueService {
     }
     const token = authHeader.replace('Bearer ', '');
 
-    if (!this.supabase) {
+    if (!this.supabaseAdmin.isAvailable) {
       throw new UnauthorizedException('Supabase not configured');
     }
 
     const {
       data: { user },
       error,
-    } = await this.supabase.auth.getUser(token);
+    } = await this.supabaseAdmin.client.auth.getUser(token);
     if (error || !user) {
       throw new UnauthorizedException('Invalid or expired token');
     }
@@ -659,14 +653,14 @@ export class QueueService {
     }
     const token = authHeader.replace('Bearer ', '');
 
-    if (!this.supabase) {
+    if (!this.supabaseAdmin.isAvailable) {
       throw new UnauthorizedException('Supabase not configured');
     }
 
     const {
       data: { user },
       error,
-    } = await this.supabase.auth.getUser(token);
+    } = await this.supabaseAdmin.client.auth.getUser(token);
     if (error || !user) {
       throw new UnauthorizedException('Invalid or expired token');
     }
@@ -836,14 +830,14 @@ export class QueueService {
     }
     const token = authHeader.replace('Bearer ', '');
 
-    if (!this.supabase) {
+    if (!this.supabaseAdmin.isAvailable) {
       throw new UnauthorizedException('Supabase not configured');
     }
 
     const {
       data: { user },
       error,
-    } = await this.supabase.auth.getUser(token);
+    } = await this.supabaseAdmin.client.auth.getUser(token);
     if (error || !user) {
       throw new UnauthorizedException('Invalid or expired token');
     }

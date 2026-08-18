@@ -5,6 +5,10 @@ import PDFDocument from 'pdfkit';
 
 @Injectable()
 export class ReceiptService {
+  private readonly pdfCache = new Map<string, { buffer: Buffer; ts: number }>();
+  private readonly CACHE_TTL_MS = 5 * 60 * 1000;
+  private readonly CACHE_MAX = 100;
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly storage: StorageService,
@@ -124,6 +128,11 @@ export class ReceiptService {
   }
 
   async getPdfBuffer(id: string): Promise<Buffer> {
+    const cached = this.pdfCache.get(id);
+    if (cached && Date.now() - cached.ts < this.CACHE_TTL_MS) {
+      return cached.buffer;
+    }
+
     const receipt = await this.prisma.receipt.findUnique({
       where: { id },
       include: { pawnshop: true },
@@ -134,7 +143,7 @@ export class ReceiptService {
       where: { id: receipt.generatedBy },
     });
 
-    return this.generateReceiptPdf({
+    const buffer = await this.generateReceiptPdf({
       receiptNumber: receipt.receiptNumber,
       pawnshopName: receipt.pawnshop?.name || 'PawnGold Pawnshop',
       pawnshopAddress: receipt.pawnshop?.address || '',
@@ -147,6 +156,14 @@ export class ReceiptService {
       lineItems: (receipt.lineItems as any[]) || [],
       receiptType: receipt.receiptType,
     });
+
+    if (this.pdfCache.size >= this.CACHE_MAX) {
+      const oldest = this.pdfCache.keys().next().value;
+      if (oldest) this.pdfCache.delete(oldest);
+    }
+    this.pdfCache.set(id, { buffer, ts: Date.now() });
+
+    return buffer;
   }
 
   async findByReference(referenceType: string, referenceId: string) {

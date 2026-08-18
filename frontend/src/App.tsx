@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, createContext, useContext } from 'react';
+import { useState, useEffect, useCallback, createContext, useContext, lazy, Suspense } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import Swal from 'sweetalert2';
 import {
@@ -36,39 +36,41 @@ import {
 import { supabase } from './lib/supabaseClient';
 import api from './lib/apiClient';
 
-// --- AUTH IMPORT ---
+// --- AUTH IMPORT (eager — small, shown immediately) ---
 import Login from './components/Auth/Login'; 
 import ResetPassword from './components/Auth/ResetPassword';
 
-// Import Components & Pages
-import { Dashboard } from './components/Dashboard';
-import { CrmTable } from './components/CrmTable';
-import { InventoryVault } from './components/InventoryVault';
-import { DecisionSupport } from './components/DecisionSupport';
-import { Redemption } from './components/Redemption';
-import { AuctionQueue } from './components/AuctionQueue';
-import { AuctionMarketplace } from './components/AuctionMarketplace';
-import { AuctionSettlements } from './components/AuctionSettlements';
-import { SuperAdminDashboard } from './pages/admin/SuperAdminDashboard';
-import { SystemSettings } from './pages/admin/SystemSettings';
-import { StaffMatrix } from './components/StaffMatrix';
-import { FinanceTreasury } from './components/FinanceTreasury';
-import { LoanManagement } from './pages/loans/LoanManagement';
-import { ApprovalQueue } from './components/ApprovalQueue';
-import { QueueManagement } from './components/QueueManagement';
-import { FinanceLedger } from './components/FinanceLedger';
-import { AttendanceTracker } from './components/AttendanceTracker';
-import { PayrollManagement } from './components/PayrollManagement';
-import { NotificationCenter } from './components/NotificationCenter';
-import { SubscriptionManager } from './components/SubscriptionManager';
-import { MultiBranchManagement } from './components/MultiBranchManagement';
-import { SupportChat } from './components/SupportChat';
-import { AuditHistory } from './components/AuditHistory';
+// --- Eager imports (small, always visible) ---
 import { PendingAccessDashboard } from './components/PendingAccessDashboard';
-import OwnerComplianceDashboard from './pages/admin/OwnerComplianceDashboard';
-import BidderKycReview from './components/BidderKycReview';
-import { TransactionHistory } from './pages/loans/TransactionHistory';
-import LandingPage from './pages/LandingPage';
+import { NotificationCenter } from './components/NotificationCenter';
+
+// --- Lazy imports (heavy page components, code-split) ---
+const Dashboard = lazy(() => import('./components/Dashboard').then(m => ({ default: m.Dashboard })));
+const CrmTable = lazy(() => import('./components/CrmTable').then(m => ({ default: m.CrmTable })));
+const InventoryVault = lazy(() => import('./components/InventoryVault').then(m => ({ default: m.InventoryVault })));
+const DecisionSupport = lazy(() => import('./components/DecisionSupport').then(m => ({ default: m.DecisionSupport })));
+const Redemption = lazy(() => import('./components/Redemption').then(m => ({ default: m.Redemption })));
+const AuctionQueue = lazy(() => import('./components/AuctionQueue').then(m => ({ default: m.AuctionQueue })));
+const AuctionMarketplace = lazy(() => import('./components/AuctionMarketplace').then(m => ({ default: m.AuctionMarketplace })));
+const AuctionSettlements = lazy(() => import('./components/AuctionSettlements').then(m => ({ default: m.AuctionSettlements })));
+const SuperAdminDashboard = lazy(() => import('./pages/admin/SuperAdminDashboard').then(m => ({ default: m.SuperAdminDashboard })));
+const SystemSettings = lazy(() => import('./pages/admin/SystemSettings').then(m => ({ default: m.SystemSettings })));
+const StaffMatrix = lazy(() => import('./components/StaffMatrix').then(m => ({ default: m.StaffMatrix })));
+const FinanceTreasury = lazy(() => import('./components/FinanceTreasury').then(m => ({ default: m.FinanceTreasury })));
+const LoanManagement = lazy(() => import('./pages/loans/LoanManagement').then(m => ({ default: m.LoanManagement })));
+const ApprovalQueue = lazy(() => import('./components/ApprovalQueue').then(m => ({ default: m.ApprovalQueue })));
+const QueueManagement = lazy(() => import('./components/QueueManagement').then(m => ({ default: m.QueueManagement })));
+const FinanceLedger = lazy(() => import('./components/FinanceLedger').then(m => ({ default: m.FinanceLedger })));
+const AttendanceTracker = lazy(() => import('./components/AttendanceTracker').then(m => ({ default: m.AttendanceTracker })));
+const PayrollManagement = lazy(() => import('./components/PayrollManagement').then(m => ({ default: m.PayrollManagement })));
+const SubscriptionManager = lazy(() => import('./components/SubscriptionManager').then(m => ({ default: m.SubscriptionManager })));
+const MultiBranchManagement = lazy(() => import('./components/MultiBranchManagement').then(m => ({ default: m.MultiBranchManagement })));
+const SupportChat = lazy(() => import('./components/SupportChat').then(m => ({ default: m.SupportChat })));
+const AuditHistory = lazy(() => import('./components/AuditHistory').then(m => ({ default: m.AuditHistory })));
+const OwnerComplianceDashboard = lazy(() => import('./pages/admin/OwnerComplianceDashboard'));
+const BidderKycReview = lazy(() => import('./components/BidderKycReview'));
+const TransactionHistory = lazy(() => import('./pages/loans/TransactionHistory').then(m => ({ default: m.TransactionHistory })));
+const LandingPage = lazy(() => import('./pages/LandingPage'));
 
 // Standardized Roles
 export type Role =
@@ -1669,6 +1671,7 @@ function App() {
                 </div>
               </div>
             )}
+            <Suspense fallback={<div className="flex items-center justify-center h-64"><Loader2 className="animate-spin h-8 w-8 text-[#C9A05C]" /></div>}>
             {activeTab === 'dashboard' && (
               <Dashboard 
                 branchId={currentBranchId} 
@@ -1748,6 +1751,7 @@ function App() {
                 setGlobalConfig={setSystemConfig}
               />
             )}
+            </Suspense>
           </div>
         </main>
       </div>
