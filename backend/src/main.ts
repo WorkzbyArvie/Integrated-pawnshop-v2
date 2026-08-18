@@ -99,10 +99,11 @@ async function bootstrap() {
   app.use(
     rateLimit({
       windowMs: Number(process.env.RATE_LIMIT_WINDOW_MS || 15 * 60 * 1000),
-      max: Number(process.env.RATE_LIMIT_MAX || 250),
+      max: Number(process.env.RATE_LIMIT_MAX || 150),
       standardHeaders: true,
       legacyHeaders: false,
       skip: (req) => {
+        if (req.path === '/healthz' || req.path === '/health') return true;
         if (req.path.includes('/loans/paymongo/webhook')) return true;
         if (req.path.startsWith('/auth/request-auth-code')) return true;
         if (req.path.startsWith('/auth/verify-auth-code')) return true;
@@ -118,8 +119,11 @@ async function bootstrap() {
     }),
   );
 
-  // Tenant-wide operational freeze: if subscription is not ACTIVE/TRIAL,
-  // block operational endpoints until owner re-subscribes.
+  // Subscription status cache: avoid DB query on every operational request.
+  // Maps pawnshopId -> { operable: boolean, expiresAt: number }
+  const subscriptionCache = new Map<string, { operable: boolean; expiresAt: number }>();
+  const SUBSCRIPTION_CACHE_TTL_MS = 5 * 60 * 1000;
+
   const operationalPrefixes = [
     '/analytics',
     '/auction',
@@ -325,15 +329,24 @@ async function bootstrap() {
         return;
       }
 
-      const latestSubscription = await prisma.subscription.findFirst({
-        where: { pawnshopId: pawnshopHeader },
-        orderBy: { createdAt: 'desc' },
-        select: { status: true },
-      });
-
-      const isOperable =
-        latestSubscription?.status === SubscriptionStatus.ACTIVE ||
-        latestSubscription?.status === SubscriptionStatus.TRIAL;
+      let isOperable: boolean;
+      const cached = subscriptionCache.get(pawnshopHeader);
+      if (cached && cached.expiresAt > Date.now()) {
+        isOperable = cached.operable;
+      } else {
+        const latestSubscription = await prisma.subscription.findFirst({
+          where: { pawnshopId: pawnshopHeader },
+          orderBy: { createdAt: 'desc' },
+          select: { status: true },
+        });
+        isOperable =
+          latestSubscription?.status === SubscriptionStatus.ACTIVE ||
+          latestSubscription?.status === SubscriptionStatus.TRIAL;
+        subscriptionCache.set(pawnshopHeader, {
+          operable: isOperable,
+          expiresAt: Date.now() + SUBSCRIPTION_CACHE_TTL_MS,
+        });
+      }
 
       if (!isOperable) {
         res.status(403).json({
@@ -379,7 +392,7 @@ async function bootstrap() {
   );
 
   // Keep upload limits configurable; default kept conservative for abuse resistance.
-  const bodyLimitMb = Number(process.env.BODY_LIMIT_MB || 5);
+  const bodyLimitMb = Number(process.env.BODY_LIMIT_MB || 2);
   app.use(express.json({ limit: `${bodyLimitMb}mb` }));
   app.use(express.urlencoded({ limit: `${bodyLimitMb}mb`, extended: true }));
 

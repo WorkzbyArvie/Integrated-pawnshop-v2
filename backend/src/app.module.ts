@@ -76,10 +76,14 @@ import { CommonModule } from './common/common.module';
       provide: APP_GUARD,
       useClass: ComplianceGuard,
     },
-    {
-      provide: APP_INTERCEPTOR,
-      useClass: AuditLogInterceptor,
-    },
+    ...(process.env.NODE_ENV === 'production'
+      ? []
+      : [
+          {
+            provide: APP_INTERCEPTOR,
+            useClass: AuditLogInterceptor,
+          },
+        ]),
   ],
 })
 export class AppModule {}

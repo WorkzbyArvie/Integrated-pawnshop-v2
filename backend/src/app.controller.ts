@@ -10,16 +10,25 @@ import {
   HttpException,
   HttpStatus,
   UnauthorizedException,
+  Res,
+  Req,
 } from '@nestjs/common';
 import { Public } from './common/decorators/public.decorator';
 import { RequiresPermission } from './common/decorators/requires-permission.decorator';
 import { PERMISSIONS } from './common/permissions/permissions.const';
 import { Throttle } from './common/decorators/throttle.decorator';
 import { AppService } from './app.service';
+import type { Request, Response } from 'express';
 
 @Controller()
 export class AppController {
   constructor(private readonly appService: AppService) {}
+
+  @Public()
+  @Get('healthz')
+  healthz(@Req() _req: Request, @Res() res: Response) {
+    return res.status(200).json({ status: 'ok' });
+  }
 
   @Public()
   @Get()

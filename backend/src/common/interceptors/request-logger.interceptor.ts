@@ -18,6 +18,11 @@ export class RequestLoggerInterceptor implements NestInterceptor {
   intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
     const request = context.switchToHttp().getRequest();
     const { method, url, headers } = request;
+
+    if (url === '/healthz' || url === '/health') {
+      return next.handle();
+    }
+
     const pawnshopId = headers['pawnshop-id'] || 'N/A';
     const start = Date.now();
 
