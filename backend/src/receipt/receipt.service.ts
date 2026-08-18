@@ -25,6 +25,7 @@ export class ReceiptService {
       quantity?: number;
     }>;
     generatedBy: string;
+    customerId?: string;
   }) {
     const totalAmount = params.amount + (params.taxAmount || 0);
     const receiptNumber = this.buildReceiptNumber(params.pawnshopId);
@@ -70,6 +71,7 @@ export class ReceiptService {
         lineItems: params.lineItems,
         pdfUrl: storageUrl,
         generatedBy: params.generatedBy,
+        customerId: params.customerId ?? null,
       },
     });
 

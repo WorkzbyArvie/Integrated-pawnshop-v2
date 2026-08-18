@@ -1,5 +1,5 @@
 import { Test } from '@nestjs/testing';
-import { ConflictException } from '@nestjs/common';
+import { BadRequestException } from '@nestjs/common';
 import { PawnTicketService } from './pawn-ticket.service';
 import { LegalProofService } from './legal-proof.service';
 import { LoanContractService } from './loan-contract.service';
@@ -7,6 +7,7 @@ import { StateMachineService } from '../common/state-machine/state-machine.servi
 import { ReceiptService } from '../receipt/receipt.service';
 import { FinanceService } from '../finance/finance.service';
 import { NotificationService } from '../notification/notification.service';
+import { TierService } from '../tier/tier.service';
 import { PrismaService } from '../prisma.service';
 
 const mockPrisma = {
@@ -25,7 +26,7 @@ const mockPrisma = {
   loan: { update: jest.fn(), create: jest.fn() },
   loanApplication: { create: jest.fn() },
   payment: { create: jest.fn() },
-  approvalRecord: { create: jest.fn(), findUnique: jest.fn(), update: jest.fn() },
+  approvalRecord: { create: jest.fn(), findFirst: jest.fn(), findUnique: jest.fn(), update: jest.fn() },
 };
 
 const mockLegalProofService = { createProof: jest.fn().mockResolvedValue({ id: 'proof-1' }) };
@@ -38,6 +39,7 @@ const mockStateMachine = { transition: jest.fn().mockResolvedValue(true) };
 const mockReceiptService = { generateReceipt: jest.fn().mockResolvedValue({ id: 'rcpt-1' }) };
 const mockFinanceService = { createEntry: jest.fn().mockResolvedValue({ id: 'ledger-1' }) };
 const mockNotificationService = { sendNotification: jest.fn().mockResolvedValue({ id: 'notif-1' }) };
+const mockTierService = { recomputeCustomerTier: jest.fn().mockResolvedValue(null) };
 
 describe('PawnTicketService', () => {
   let service: PawnTicketService;
@@ -68,6 +70,7 @@ describe('PawnTicketService', () => {
         { provide: ReceiptService, useValue: mockReceiptService },
         { provide: FinanceService, useValue: mockFinanceService },
         { provide: NotificationService, useValue: mockNotificationService },
+        { provide: TierService, useValue: mockTierService },
       ],
     }).compile();
 
@@ -81,6 +84,7 @@ describe('PawnTicketService', () => {
     mockFinanceService.createEntry.mockResolvedValue({ id: 'ledger-1' });
     mockNotificationService.sendNotification.mockResolvedValue({ id: 'notif-1' });
     mockStateMachine.transition.mockResolvedValue(true);
+    mockPrisma.approvalRecord.findFirst.mockResolvedValue(null);
   });
 
   describe('appraiseTicket', () => {
@@ -150,7 +154,7 @@ describe('PawnTicketService', () => {
   });
 
   describe('redeemTicket', () => {
-    it('creates a REDEMPTION approval record and releases nothing above the tenant threshold', async () => {
+    it('requires owner approval for every redemption, holds the ticket in REDEMPTION_PENDING_APPROVAL, and releases nothing', async () => {
       const activeTicket = {
         ...baseTicket,
         lifecycleStatus: 'ACTIVE',
@@ -160,10 +164,14 @@ describe('PawnTicketService', () => {
       };
       mockPrisma.ticket.findUnique.mockResolvedValue(activeTicket);
       mockPrisma.approvalRecord.create.mockResolvedValue({ id: 'rec_2', status: 'PENDING' });
+      mockPrisma.ticket.update.mockResolvedValue({
+        ...activeTicket,
+        lifecycleStatus: 'REDEMPTION_PENDING_APPROVAL',
+      });
 
       const result = await service.redeemTicket(
         100,
-        { amountPaid: 60000, paymentMethod: 'CASH' },
+        { amountPaid: 40000, paymentMethod: 'CASH' },
         'teller_1',
         'CASHIER_TELLER',
       );
@@ -175,87 +183,62 @@ describe('PawnTicketService', () => {
             targetType: 'REDEMPTION',
             targetId: '100',
             status: 'PENDING',
-            amount: 60000,
+            amount: 40000,
             requestedById: 'teller_1',
             payload: expect.objectContaining({
               ticketId: 100,
               ticketNumber: 'TKT-100',
-              amountPaid: 60000,
+              amountPaid: 40000,
               paymentMethod: 'CASH',
+              previousLifecycleStatus: 'ACTIVE',
             }),
           }),
         }),
       );
-      expect(mockStateMachine.transition).not.toHaveBeenCalled();
+      expect(mockStateMachine.transition).toHaveBeenCalledWith(
+        'TICKET_LIFECYCLE',
+        'ACTIVE',
+        'REDEMPTION_PENDING_APPROVAL',
+        { userRole: 'CASHIER_TELLER' },
+      );
+      expect(mockPrisma.ticket.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 100 },
+          data: expect.objectContaining({ lifecycleStatus: 'REDEMPTION_PENDING_APPROVAL' }),
+        }),
+      );
       expect(mockPrisma.payment.create).not.toHaveBeenCalled();
       expect(mockPrisma.loan.update).not.toHaveBeenCalled();
-      expect(mockPrisma.ticket.update).not.toHaveBeenCalled();
       expect(result).toEqual(
         expect.objectContaining({
           approvalStatus: 'PENDING',
-          lifecycleStatus: 'PENDING_APPROVAL',
+          lifecycleStatus: 'REDEMPTION_PENDING_APPROVAL',
           requiresApproval: true,
         }),
       );
     });
 
-    it('releases at or below the tenant threshold with the full direct flow', async () => {
+    it('throws BadRequestException when a redemption is already pending approval', async () => {
       const activeTicket = {
         ...baseTicket,
         lifecycleStatus: 'ACTIVE',
         status: 'ACTIVE',
         loans: [{ id: 55, status: 'ACTIVE' }],
-        pawnshop: { settings: { redemptionApprovalThreshold: 50000 } },
+        pawnshop: { settings: {} },
       };
       mockPrisma.ticket.findUnique.mockResolvedValue(activeTicket);
-      mockPrisma.ticket.update.mockResolvedValue({ ...activeTicket, lifecycleStatus: 'REDEEMED', status: 'REDEEMED' });
-      mockPrisma.loan.update.mockResolvedValue({ id: 55, status: 'REDEEMED' });
-      mockPrisma.payment.create.mockResolvedValue({ id: 'pay_1' });
+      mockPrisma.approvalRecord.findFirst.mockResolvedValue({ id: 'rec_2', status: 'PENDING' });
 
-      const result = await service.redeemTicket(
-        100,
-        { amountPaid: 40000, paymentMethod: 'CASH' },
-        'teller_1',
-        'CASHIER_TELLER',
-      );
-
+      await expect(
+        service.redeemTicket(
+          100,
+          { amountPaid: 40000, paymentMethod: 'CASH' },
+          'teller_1',
+          'CASHIER_TELLER',
+        ),
+      ).rejects.toBeInstanceOf(BadRequestException);
       expect(mockPrisma.approvalRecord.create).not.toHaveBeenCalled();
-      expect(mockStateMachine.transition).toHaveBeenCalledWith(
-        'TICKET_LIFECYCLE',
-        'ACTIVE',
-        'REDEEMED',
-        { userRole: 'CASHIER_TELLER' },
-      );
-      expect(mockPrisma.ticket.update).toHaveBeenCalledWith(
-        expect.objectContaining({ data: expect.objectContaining({ lifecycleStatus: 'REDEEMED' }) }),
-      );
-      expect(mockPrisma.loan.update).toHaveBeenCalledWith({ where: { id: 55 }, data: { status: 'REDEEMED' } });
-      expect(mockPrisma.payment.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: expect.objectContaining({
-            customerId: 'cust_1',
-            loanId: 55,
-            amount: 40000,
-            paymentType: 'LOAN_REPAYMENT',
-            status: 'COMPLETED',
-            processedBy: 'teller_1',
-          }),
-        }),
-      );
-      expect(mockFinanceService.createEntry).toHaveBeenCalledWith(
-        'ps_1',
-        expect.objectContaining({ entryType: 'CREDIT', category: 'LOAN_REPAYMENT', amount: 40000 }),
-      );
-      expect(mockLegalProofService.createProof).toHaveBeenCalledWith(
-        expect.objectContaining({ recordType: 'REDEMPTION_PROOF', ticketId: 100, loanId: 55 }),
-      );
-      expect(mockReceiptService.generateReceipt).toHaveBeenCalledWith(
-        expect.objectContaining({ receiptType: 'REDEMPTION', referenceId: '100', amount: 40000 }),
-      );
-      expect(mockNotificationService.sendNotification).toHaveBeenCalledWith(
-        expect.objectContaining({ recipientId: 'cust_1', title: 'Item Redeemed Successfully' }),
-      );
-      expect(result).toEqual(expect.objectContaining({ lifecycleStatus: 'REDEEMED', amountPaid: 40000 }));
+      expect(mockPrisma.payment.create).not.toHaveBeenCalled();
     });
   });
 
@@ -310,7 +293,7 @@ describe('PawnTicketService', () => {
     it('releaseApprovedRedemption routes approved redemptions through the shared release body', async () => {
       mockPrisma.ticket.findUnique.mockResolvedValue({
         ...baseTicket,
-        lifecycleStatus: 'ACTIVE',
+        lifecycleStatus: 'REDEMPTION_PENDING_APPROVAL',
         status: 'ACTIVE',
         loans: [{ id: 55, status: 'ACTIVE' }],
         pawnshop: { settings: {} },
@@ -327,7 +310,7 @@ describe('PawnTicketService', () => {
 
       expect(mockStateMachine.transition).toHaveBeenCalledWith(
         'TICKET_LIFECYCLE',
-        'ACTIVE',
+        'REDEMPTION_PENDING_APPROVAL',
         'REDEEMED',
         { userRole: undefined },
       );
@@ -339,7 +322,7 @@ describe('PawnTicketService', () => {
       expect(result).toEqual(expect.objectContaining({ lifecycleStatus: 'REDEEMED', amountPaid: 60000 }));
     });
 
-    it('rejects the release when the ticket is not ACTIVE or GRACE_PERIOD', async () => {
+    it('rejects the release when the ticket is not REDEMPTION_PENDING_APPROVAL, ACTIVE, or GRACE_PERIOD', async () => {
       mockPrisma.ticket.findUnique.mockResolvedValue({
         ...baseTicket,
         lifecycleStatus: 'RECEIVED',
@@ -348,7 +331,7 @@ describe('PawnTicketService', () => {
 
       await expect(
         service.releaseApprovedRedemption(100, { amountPaid: 60000, paymentMethod: 'CASH' }, 'mgr_1'),
-      ).rejects.toThrow('Must be ACTIVE or GRACE_PERIOD');
+      ).rejects.toThrow('Must be REDEMPTION_PENDING_APPROVAL, ACTIVE, or GRACE_PERIOD');
     });
 
     it('rejectAppraisal returns the ticket to RECEIVED', async () => {
@@ -368,9 +351,80 @@ describe('PawnTicketService', () => {
       );
       expect(result).toEqual(expect.objectContaining({ lifecycleStatus: 'RECEIVED' }));
     });
+
+    it('rejectRedemption restores an ACTIVE ticket after a redemption request is rejected', async () => {
+      mockPrisma.ticket.findUnique.mockResolvedValue({
+        ...baseTicket,
+        lifecycleStatus: 'REDEMPTION_PENDING_APPROVAL',
+        status: 'ACTIVE',
+      });
+      mockPrisma.approvalRecord.findFirst.mockResolvedValue({
+        id: 'rec_2',
+        pawnshopId: 'ps_1',
+        targetType: 'REDEMPTION',
+        targetId: '100',
+        status: 'PENDING',
+        payload: { ticketId: 100, ticketNumber: 'TKT-100', previousLifecycleStatus: 'ACTIVE' },
+      });
+      mockPrisma.ticket.update.mockResolvedValue({ ...baseTicket, lifecycleStatus: 'ACTIVE' });
+
+      const result = await service.rejectRedemption(100, 'OWNER');
+
+      expect(mockStateMachine.transition).toHaveBeenCalledWith(
+        'TICKET_LIFECYCLE',
+        'REDEMPTION_PENDING_APPROVAL',
+        'ACTIVE',
+        { userRole: 'OWNER' },
+      );
+      expect(mockPrisma.ticket.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 100 },
+          data: expect.objectContaining({ lifecycleStatus: 'ACTIVE' }),
+        }),
+      );
+      expect(result).toEqual(expect.objectContaining({ lifecycleStatus: 'ACTIVE' }));
+    });
+
+    it('rejectRedemption restores a GRACE_PERIOD ticket when the request originated from grace period', async () => {
+      mockPrisma.ticket.findUnique.mockResolvedValue({
+        ...baseTicket,
+        lifecycleStatus: 'REDEMPTION_PENDING_APPROVAL',
+        status: 'GRACE_PERIOD',
+      });
+      mockPrisma.approvalRecord.findFirst.mockResolvedValue({
+        id: 'rec_3',
+        pawnshopId: 'ps_1',
+        targetType: 'REDEMPTION',
+        targetId: '100',
+        status: 'PENDING',
+        payload: { ticketId: 100, ticketNumber: 'TKT-100', previousLifecycleStatus: 'GRACE_PERIOD' },
+      });
+      mockPrisma.ticket.update.mockResolvedValue({ ...baseTicket, lifecycleStatus: 'GRACE_PERIOD' });
+
+      const result = await service.rejectRedemption(100, 'OWNER');
+
+      expect(mockStateMachine.transition).toHaveBeenCalledWith(
+        'TICKET_LIFECYCLE',
+        'REDEMPTION_PENDING_APPROVAL',
+        'GRACE_PERIOD',
+        { userRole: 'OWNER' },
+      );
+      expect(result).toEqual(expect.objectContaining({ lifecycleStatus: 'GRACE_PERIOD' }));
+    });
+
+    it('rejectRedemption throws when the ticket is not awaiting redemption approval', async () => {
+      mockPrisma.ticket.findUnique.mockResolvedValue({
+        ...baseTicket,
+        lifecycleStatus: 'ACTIVE',
+      });
+
+      await expect(service.rejectRedemption(100, 'OWNER')).rejects.toThrow(
+        'Must be REDEMPTION_PENDING_APPROVAL',
+      );
+    });
   });
 
-  describe('createTicket KYC gate', () => {
+  describe('createTicket without KYC enforcement', () => {
     const dto = {
       customerName: 'John Doe',
       customerContact: '09171234567',
@@ -383,32 +437,9 @@ describe('PawnTicketService', () => {
       appraisalDeadline: '2026-12-31',
     };
 
-    it('rejects a customer whose kycStatus is NOT_SUBMITTED with a 409 ConflictException', async () => {
+    it('creates a ticket even when the customer KYC is NOT_SUBMITTED', async () => {
       mockPrisma.customer.findFirst.mockResolvedValue(null);
       mockPrisma.customer.create.mockResolvedValue({ id: 'cust_1' });
-      mockPrisma.customer.findUnique.mockResolvedValue({ kycStatus: 'NOT_SUBMITTED' });
-
-      await expect(service.createTicket(dto, 'staff_1')).rejects.toThrow(ConflictException);
-      await expect(service.createTicket(dto, 'staff_1')).rejects.toThrow(
-        'Customer KYC must be VERIFIED',
-      );
-      expect(mockPrisma.ticket.create).not.toHaveBeenCalled();
-    });
-
-    it('rejects PENDING and REJECTED customers the same way', async () => {
-      for (const kycStatus of ['PENDING', 'REJECTED']) {
-        mockPrisma.customer.findFirst.mockResolvedValue(null);
-        mockPrisma.customer.create.mockResolvedValue({ id: 'cust_1' });
-        mockPrisma.customer.findUnique.mockResolvedValue({ kycStatus });
-
-        await expect(service.createTicket(dto, 'staff_1')).rejects.toThrow(ConflictException);
-      }
-    });
-
-    it('allows a VERIFIED customer through to ticket creation', async () => {
-      mockPrisma.customer.findFirst.mockResolvedValue(null);
-      mockPrisma.customer.create.mockResolvedValue({ id: 'cust_1' });
-      mockPrisma.customer.findUnique.mockResolvedValue({ kycStatus: 'VERIFIED' });
       mockPrisma.ticket.create.mockResolvedValue({
         id: 1,
         ticketNumber: 'TKT-1',
@@ -426,26 +457,12 @@ describe('PawnTicketService', () => {
     });
   });
 
-  describe('approveWithContract KYC gate', () => {
-    it('rejects a ticket whose customer is not VERIFIED and never reaches the state machine', async () => {
+  describe('approveWithContract without KYC enforcement', () => {
+    it('proceeds through the offer flow regardless of customer KYC status', async () => {
       mockPrisma.ticket.findUnique.mockResolvedValue({
         ...baseTicket,
         lifecycleStatus: 'APPRAISED',
-        customer: { id: 'cust_1', fullName: 'John Doe', kycStatus: 'PENDING' },
-      });
-
-      await expect(service.approveWithContract(100, 'mgr_1')).rejects.toThrow(ConflictException);
-      await expect(service.approveWithContract(100, 'mgr_1')).rejects.toThrow(
-        'Customer KYC must be VERIFIED',
-      );
-      expect(mockStateMachine.transition).not.toHaveBeenCalled();
-    });
-
-    it('allows a VERIFIED customer through the offer flow', async () => {
-      mockPrisma.ticket.findUnique.mockResolvedValue({
-        ...baseTicket,
-        lifecycleStatus: 'APPRAISED',
-        customer: { id: 'cust_1', fullName: 'John Doe', kycStatus: 'VERIFIED' },
+        customer: { id: 'cust_1', fullName: 'John Doe', kycStatus: 'NOT_SUBMITTED' },
       });
       mockPrisma.loanApplication.create.mockResolvedValue({ id: 'la_1' });
       mockPrisma.loan.create.mockResolvedValue({ id: 'loan_1' });

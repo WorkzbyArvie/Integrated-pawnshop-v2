@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <rect width="64" height="64" rx="14" fill="#141420"/>
+  <g transform="translate(12,12)">
+    <!-- Gavel head -->
+    <rect x="6" y="2" width="28" height="10" rx="2.5" transform="rotate(-45 20 7)" fill="#C9A05C"/>
+    <rect x="8" y="4" width="24" height="6" rx="1.5" transform="rotate(-45 20 7)" fill="#E2C980"/>
+    <!-- Handle -->
+    <rect x="22" y="26" width="4" height="24" rx="2" transform="rotate(-45 24 38)" fill="#C9A05C"/>
+    <!-- Sound block -->
+    <rect x="4" y="36" width="32" height="5" rx="2" fill="#C9A05C" opacity="0.7"/>
+    <rect x="6" y="38" width="28" height="3" rx="1" fill="#E2C980" opacity="0.5"/>
+  </g>
+</svg>

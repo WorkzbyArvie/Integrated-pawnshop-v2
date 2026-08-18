@@ -984,9 +984,13 @@ export class AuctionService {
             },
           });
         } catch (error) {
-          // Keep bidding functional even if bid-history schema differs in production.
+          // Only tolerate genuine schema-mismatch (missing table/column). Any
+          // other error must abort the bid so history can never silently vanish.
+          if (!this.isMissingTableOrColumnError(error)) {
+            throw error;
+          }
           this.logger.warn(
-            `Bid history insert skipped for listing ${id}: ${String((error as any)?.message || error)}`,
+            `Bid history insert skipped for listing ${id} (schema mismatch): ${String((error as any)?.message || error)}`,
           );
         }
 

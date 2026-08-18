@@ -763,6 +763,56 @@
   margin: 0 0 0.75rem;
 }
 
+/* ─── Rendered legal agreement content ─── */
+
+.agreement-content {
+  color: var(--text-primary);
+}
+
+.agreement-content h1 {
+  font-size: 1.3rem;
+  font-weight: 800;
+  color: var(--text-primary);
+  margin: 0 0 0.75rem;
+  letter-spacing: 0.01em;
+}
+
+.agreement-content h2 {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--gold);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin: 1.25rem 0 0.5rem;
+}
+
+.agreement-content h2:first-of-type {
+  margin-top: 0;
+}
+
+.agreement-content p {
+  margin: 0.5rem 0;
+}
+
+.agreement-content ol {
+  margin: 0.5rem 0;
+  padding-left: 1.4rem;
+}
+
+.agreement-content li {
+  margin: 0.35rem 0;
+}
+
+.agreement-content strong {
+  color: var(--text-primary);
+  font-weight: 700;
+}
+
+.agreement-content em {
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+}
+
 /* ─── Status texts ─── */
 
 .status-success {

@@ -39,6 +39,26 @@ const TIER_CONFIG: Record<
   }
 > = {
   FREE: {
+    name: 'Free',
+    description: 'No active subscription',
+    tagline: 'Subscribe or start a trial to unlock features',
+    monthlyPrice: 0,
+    maxBranches: 0,
+    maxStaff: 0,
+    maxTransactions: 0,
+    dailyTransactionLimit: 0,
+    features: {
+      pawn_ticketing: false,
+      loan_management: false,
+      basic_analytics: false,
+      queue_management: false,
+      auction_access: false,
+      api_access: false,
+      priority_support: false,
+      custom_branding: false,
+    },
+  },
+  TRIAL: {
     name: 'Trial',
     description: '15-day evaluation with core pawn operations',
     tagline: 'No credit card required',
@@ -51,7 +71,7 @@ const TIER_CONFIG: Record<
       pawn_ticketing: true,
       loan_management: true,
       basic_analytics: true,
-      queue_management: false,
+      queue_management: true,
       auction_access: false,
       api_access: false,
       priority_support: false,
@@ -263,9 +283,13 @@ export class SubscriptionService {
       const hasCompleted = payments.some(
         (p: any) => String(p.status).toLowerCase() === 'completed',
       );
+      const hasPendingPayment = payments.some(
+        (p: any) => String(p.status).toLowerCase() === 'pending',
+      );
+      const hasCheckout = Boolean((subscription as any).paymongoCheckoutUrl);
 
       return {
-        canCompletePayment: !hasCompleted,
+        canCompletePayment: hasPendingPayment || hasCheckout,
         completePaymentReason: hasCompleted
           ? 'Trial has already been converted to a paid subscription.'
           : null,
@@ -276,6 +300,17 @@ export class SubscriptionService {
       return {
         canCompletePayment: true,
         completePaymentReason: null,
+      };
+    }
+
+    if (
+      subscription.status !== SubscriptionStatus.TRIAL &&
+      (subscription as any).tier === SubscriptionTier.TRIAL &&
+      Boolean((subscription as any).paymongoCheckoutUrl)
+    ) {
+      return {
+        canCompletePayment: true,
+        completePaymentReason: 'A confirmed plan upgrade is pending activation.',
       };
     }
 
@@ -326,6 +361,12 @@ export class SubscriptionService {
       if (existing) {
         throw new BadRequestException(
           'Pawnshop already has an active subscription',
+        );
+      }
+
+      if (dto.tier === SubscriptionTier.TRIAL) {
+        throw new BadRequestException(
+          'The trial plan cannot be purchased. It is granted automatically when you start.',
         );
       }
 
@@ -560,7 +601,7 @@ export class SubscriptionService {
       const autoTrial = await this.prisma.subscription.create({
         data: {
           pawnshopId: effectivePawnshopId,
-          tier: SubscriptionTier.FREE,
+          tier: SubscriptionTier.TRIAL,
           status: SubscriptionStatus.TRIAL,
           billingInterval: BillingInterval.MONTHLY,
           price: 0,
@@ -569,11 +610,11 @@ export class SubscriptionService {
           trialEndDate,
           nextBillingDate: trialEndDate,
           autoRenew: false,
-          maxBranches: TIER_CONFIG.FREE.maxBranches,
-          maxStaff: TIER_CONFIG.FREE.maxStaff,
-          maxTransactions: TIER_CONFIG.FREE.maxTransactions,
+          maxBranches: TIER_CONFIG.TRIAL.maxBranches,
+          maxStaff: TIER_CONFIG.TRIAL.maxStaff,
+          maxTransactions: TIER_CONFIG.TRIAL.maxTransactions,
           features: {
-            ...(TIER_CONFIG.FREE.features as Record<string, boolean>),
+            ...(TIER_CONFIG.TRIAL.features as Record<string, boolean>),
           },
         },
       });
@@ -758,6 +799,12 @@ export class SubscriptionService {
         throw new NotFoundException('No active subscription found');
       }
 
+      if (newTier === SubscriptionTier.TRIAL) {
+        throw new BadRequestException(
+          'The trial plan cannot be selected. Choose a paid plan or stay on your trial.',
+        );
+      }
+
       const now = new Date();
       if (
         current.status !== SubscriptionStatus.TRIAL &&
@@ -804,6 +851,7 @@ export class SubscriptionService {
               data: {
                 paymongoCheckoutUrl: checkoutUrl,
                 billingEmail: current.billingEmail,
+                pendingTier: newTier,
               },
             });
           } catch (pmErr: any) {
@@ -1373,18 +1421,18 @@ export class SubscriptionService {
 
     if (
       limits.max_branches !== null &&
-      usage.max_branches >= limits.max_branches
+      usage.max_branches > limits.max_branches
     ) {
       exceededLimits.push('Branches');
     }
 
-    if (limits.max_staff !== null && usage.max_staff >= limits.max_staff) {
+    if (limits.max_staff !== null && usage.max_staff > limits.max_staff) {
       exceededLimits.push('Staff');
     }
 
     if (
       limits.max_transactions !== null &&
-      usage.max_transactions >= limits.max_transactions
+      usage.max_transactions > limits.max_transactions
     ) {
       exceededLimits.push('Transactions');
     }
@@ -1759,6 +1807,166 @@ export class SubscriptionService {
   }
 
   /**
+   * Handle inbound Xendit invoice/payment webhooks.
+   * Activates the subscription and applies any pending tier upgrade.
+   */
+  async handleXenditWebhook(payload: any): Promise<void> {
+    const event = String(payload?.event || payload?.type || '').toLowerCase();
+    const data = payload?.data || payload || {};
+
+    const isPaidEvent =
+      event.includes('invoice.paid') ||
+      event.includes('payment.settled') ||
+      event.includes('payment.paid') ||
+      String(data?.status || '').toUpperCase() === 'PAID' ||
+      String(data?.status || '').toUpperCase() === 'SETTLED';
+
+    if (!isPaidEvent) {
+      this.logger.log(`Xendit webhook (unhandled): ${event}`);
+      return;
+    }
+
+    const invoiceId: string | undefined = data?.id;
+    const externalId: string | undefined = data?.external_id;
+    const metadata = data?.metadata || {};
+
+    let subscription: any = null;
+
+    const metadataSubId =
+      metadata?.subscriptionId || metadata?.subscription_id || null;
+    if (metadataSubId) {
+      subscription = await (this.prisma.subscription as any).findFirst({
+        where: { id: metadataSubId },
+      });
+    }
+
+    if (!subscription && externalId) {
+      const subIdFromExternal = String(externalId).replace(/-\d+$/, '');
+      subscription = await (this.prisma.subscription as any).findFirst({
+        where: { id: subIdFromExternal },
+      });
+    }
+
+    if (!subscription && invoiceId) {
+      subscription = await (this.prisma.subscription as any).findFirst({
+        where: { paymongoCheckoutUrl: { contains: invoiceId } },
+      });
+    }
+
+    if (!subscription) {
+      this.logger.warn(
+        `Xendit webhook: no subscription found (event=${event}, external_id=${externalId})`,
+      );
+      return;
+    }
+
+    const rawMetaTier = metadata?.tier;
+    const metaTier = Object.values(SubscriptionTier).includes(rawMetaTier)
+      ? (rawMetaTier as SubscriptionTier)
+      : undefined;
+    const storedPendingTier = (subscription as any).pendingTier as
+      | SubscriptionTier
+      | null;
+    const pendingTier =
+      storedPendingTier ||
+      metaTier ||
+      (subscription.tier as SubscriptionTier);
+    const wasTrial = subscription.status === SubscriptionStatus.TRIAL;
+
+    const updateData: any = {
+      status: SubscriptionStatus.ACTIVE,
+    };
+
+    if (pendingTier && pendingTier !== SubscriptionTier.TRIAL) {
+      const tierConfig = TIER_CONFIG[pendingTier];
+      updateData.tier = pendingTier;
+      updateData.maxBranches = tierConfig.maxBranches;
+      updateData.maxStaff = tierConfig.maxStaff;
+      updateData.maxTransactions = tierConfig.maxTransactions;
+      updateData.features = tierConfig.features;
+      updateData.pendingTier = null;
+    }
+
+    if (wasTrial) {
+      updateData.trialEndDate = new Date();
+    }
+
+    await this.prisma.subscription.update({
+      where: { id: subscription.id },
+      data: updateData,
+    });
+
+    const appliedTier =
+      pendingTier === SubscriptionTier.TRIAL
+        ? (subscription.tier as SubscriptionTier)
+        : pendingTier;
+    await this.syncTenantAuctionModule(subscription.pawnshopId, appliedTier);
+
+    const amount = Number(data?.amount) || subscription.price;
+    const paymentReference = invoiceId || String(externalId || '');
+
+    const existingCompleted = await this.prisma.subscriptionPayment.findFirst({
+      where: {
+        subscriptionId: subscription.id,
+        paymentReference,
+        status: 'completed',
+      },
+      select: { id: true },
+    });
+
+    if (!existingCompleted) {
+      await this.prisma.subscriptionPayment.create({
+        data: {
+          subscriptionId: subscription.id,
+          amount,
+          status: 'completed',
+          paymentMethod:
+            data?.payment_channel || data?.payment_method || 'xendit',
+          paymentReference,
+          transactionId: invoiceId || String(externalId || ''),
+          billingDate: new Date(),
+          paidAt: data?.paid_at ? new Date(data.paid_at) : new Date(),
+        },
+      });
+
+      try {
+        await this.financeService.createEntry(subscription.pawnshopId, {
+          entryType: LedgerEntryType.DEBIT,
+          category: LedgerCategory.SUBSCRIPTION_PAYMENT,
+          amount,
+          description: `Xendit payment: ${appliedTier} tier`,
+          performedBy: 'xendit',
+          referenceType: 'SUBSCRIPTION',
+          referenceId: subscription.id,
+        });
+      } catch (ledgerErr) {
+        this.logger.error(
+          `Failed to record ledger entry: ${(ledgerErr as Error).message}`,
+        );
+      }
+
+      await this.logSubscriptionAudit({
+        pawnshopId: subscription.pawnshopId,
+        action: 'SUBSCRIPTION_PAYMENT_CONFIRMED',
+        metadata: {
+          subscriptionId: subscription.id,
+          provider: 'xendit',
+          paymentReference,
+          amount,
+        },
+      });
+    }
+
+    this.logger.log(
+      `Subscription ${subscription.id} activated via Xendit` +
+        (wasTrial ? ' (trial ended permanently)' : '') +
+        (pendingTier && pendingTier !== SubscriptionTier.TRIAL
+          ? ` (tier changed to ${pendingTier})`
+          : ''),
+    );
+  }
+
+  /**
    * Trigger a test billing cycle (sandbox only).
    * Useful for thesis demo.
    */
@@ -1852,9 +2060,20 @@ export class SubscriptionService {
         select: { id: true },
       });
 
-      if (!existingCompleted) {
-        // Check for pending trial upgrade
-        const pendingTier = (current as any).pendingTier as SubscriptionTier | null;
+      const rawMetaTier = attributes.metadata?.tier;
+      const metaTier = Object.values(SubscriptionTier).includes(rawMetaTier)
+        ? (rawMetaTier as SubscriptionTier)
+        : undefined;
+      const storedPendingTier = (current as any).pendingTier as SubscriptionTier | null;
+      const pendingTier = storedPendingTier || metaTier || null;
+
+      const stuckOnTrial =
+        (current as any).tier === SubscriptionTier.TRIAL &&
+        current.status !== SubscriptionStatus.TRIAL &&
+        !!pendingTier &&
+        pendingTier !== SubscriptionTier.TRIAL;
+
+      if (!existingCompleted || stuckOnTrial) {
         const wasTrial = current.status === SubscriptionStatus.TRIAL;
 
         const updateData: any = {};
@@ -1885,29 +2104,42 @@ export class SubscriptionService {
           });
         }
 
-        await this.prisma.subscriptionPayment.create({
-          data: {
-            subscriptionId: current.id,
-            amount: amount ?? current.price,
-            status: 'completed',
-            paymentMethod: 'paymongo_link',
-            paymentReference: paymongoLinkId,
-            transactionId: String(link?.id || paymongoLinkId),
-            billingDate: new Date(),
-            paidAt: paidAt ? new Date(paidAt) : new Date(),
-          },
-        });
+        if (!existingCompleted) {
+          await this.prisma.subscriptionPayment.create({
+            data: {
+              subscriptionId: current.id,
+              amount: amount ?? current.price,
+              status: 'completed',
+              paymentMethod: 'paymongo_link',
+              paymentReference: paymongoLinkId,
+              transactionId: String(link?.id || paymongoLinkId),
+              billingDate: new Date(),
+              paidAt: paidAt ? new Date(paidAt) : new Date(),
+            },
+          });
 
-        await this.logSubscriptionAudit({
-          pawnshopId,
-          actorUserId,
-          action: 'SUBSCRIPTION_PAYMENT_CONFIRMED',
-          metadata: {
-            subscriptionId: current.id,
-            paymongoLinkId,
-            amount: amount ?? current.price,
-          },
-        });
+          await this.logSubscriptionAudit({
+            pawnshopId,
+            actorUserId,
+            action: 'SUBSCRIPTION_PAYMENT_CONFIRMED',
+            metadata: {
+              subscriptionId: current.id,
+              paymongoLinkId,
+              amount: amount ?? current.price,
+            },
+          });
+        } else if (stuckOnTrial) {
+          await this.logSubscriptionAudit({
+            pawnshopId,
+            actorUserId,
+            action: 'SUBSCRIPTION_TIER_RECOVERED',
+            metadata: {
+              subscriptionId: current.id,
+              paymongoLinkId,
+              tier: pendingTier,
+            },
+          });
+        }
       }
     }
 

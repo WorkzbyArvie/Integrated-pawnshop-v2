@@ -223,6 +223,15 @@ export class TenantGovernanceController {
     );
   }
 
+  @Post('client-registrations/:requestId/submit')
+  async submitMyClientRegistration(
+    @Headers('authorization') authHeader: string | undefined,
+    @Param('requestId') requestId: string,
+  ) {
+    const userId = await this.authUserService.getUserIdFromAuthHeader(authHeader);
+    return this.tenantGovernanceService.submitMyClientRegistrationRequest(userId, requestId);
+  }
+
   @Get('client-registrations/:requestId/messages')
   async listClientRegistrationMessages(
     @Headers('authorization') authHeader: string | undefined,
@@ -404,6 +413,17 @@ export class TenantGovernanceController {
   ) {
     const userId = await this.authUserService.getUserIdFromAuthHeader(authHeader);
     return this.tenantGovernanceService.updatePawnshopSettings(userId, id, body.settings);
+  }
+
+  @Patch('pawnshops/:id/contract-terms')
+  @RequiresPermission(PERMISSIONS['tenant.manage'])
+  async updatePawnshopContractTerms(
+    @Headers('authorization') authHeader: string | undefined,
+    @Param('id') id: string,
+    @Body() body: { termsAndConditions?: string; pawnshopResponsibilities?: string },
+  ) {
+    const userId = await this.authUserService.getUserIdFromAuthHeader(authHeader);
+    return this.tenantGovernanceService.updatePawnshopContractTerms(userId, id, body);
   }
 
   @Post('pawnshops/:id/delete')

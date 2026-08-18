@@ -427,6 +427,7 @@ enum TicketLifecycleStatus {
   ACTIVE
   GRACE_PERIOD
   OVERDUE
+  REDEMPTION_PENDING_APPROVAL
   REDEEMED
   FORFEITED
   AUCTION_QUEUED
@@ -804,7 +805,9 @@ model Payment {
   schedule          RepaymentSchedule?        @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
   auctionListing    AuctionListing?           @relation(fields: [auctionListingId], references: [id], onDelete: Cascade)
   legalProofs       LegalProof[]
-  
+
+  @@index([loanId, processedAt])
+  @@index([customerId])
   @@map("payments")
   @@schema("public")
 }
@@ -823,7 +826,8 @@ model Penalty {
   waivedReason  String?      @map("waived_reason")
   
   loan          Loan         @relation(fields: [loanId], references: [id], onDelete: Cascade)
-  
+
+  @@index([loanId])
   @@map("penalties")
   @@schema("public")
 }
@@ -1559,6 +1563,7 @@ model Payslip {
 
 enum SubscriptionTier {
   FREE
+  TRIAL
   BASIC
   PROFESSIONAL
   ENTERPRISE
@@ -1621,6 +1626,7 @@ model Subscription {
   paymongoCustomerId     String?        @map("paymongo_customer_id")
   paymongoPlanId         String?        @map("paymongo_plan_id")
   paymongoCheckoutUrl    String?        @map("paymongo_checkout_url")
+  pendingTier            SubscriptionTier? @map("pending_tier")
   
   createdAt         DateTime            @default(now()) @map("created_at")
   updatedAt         DateTime            @updatedAt @map("updated_at")
@@ -1878,6 +1884,7 @@ model ApprovalRecord {
 
   @@index([pawnshopId, status])
   @@index([targetType, targetId])
+  @@index([pawnshopId, status, createdAt])
   @@map("approval_records")
   @@schema("public")
 }

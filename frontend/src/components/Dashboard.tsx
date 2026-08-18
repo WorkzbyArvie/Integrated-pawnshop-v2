@@ -25,8 +25,8 @@ export function Dashboard({
   isEnabled
 }: DashboardProps) {
   const isSupportLiveView = localStorage.getItem('app_perspective') === 'SHOP';
-  const activeOperationalBranchId = Number.isInteger(activeBranchId as number) ? Number(activeBranchId) : NaN;
-  const hasActiveOperationalBranch = Number.isInteger(activeOperationalBranchId) && activeOperationalBranchId > 0;
+  const activeOperationalBranchId = Number.isInteger(activeBranchId as number) ? Number(activeBranchId) : null;
+  const hasActiveOperationalBranch = activeOperationalBranchId != null && activeOperationalBranchId > 0;
   
   const [stats, setStats] = useState<any>(() => {
     // Hydrate from localStorage if available (for impersonation mode)

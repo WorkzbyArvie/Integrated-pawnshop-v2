@@ -86,6 +86,7 @@ export class ContractRendererService {
       staffSignature?: string | null;
       staffSignedAt?: string | null;
     },
+    extraSections?: { heading: string; html: string }[],
   ): Promise<{ htmlContent: string; pdfBuffer: Buffer; templateType: string; templateVersion: string }> {
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(templateId);
     let template = isUuid
@@ -102,11 +103,48 @@ export class ContractRendererService {
     if (!template) throw new NotFoundException('Template not found');
 
     const compile = Handlebars.compile(template.content);
-    const htmlContent = compile(data);
+    let htmlContent = compile(data);
+    if (extraSections?.length) {
+      htmlContent = this.applyExtraSections(htmlContent, extraSections);
+    }
 
     const pdfBuffer = await this.generatePdf(htmlContent, data, signatures);
 
     return { htmlContent, pdfBuffer, templateType: template.type, templateVersion: template.version };
+  }
+
+  private textToHtml(text: string): string {
+    return text
+      .split(/\n+/)
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .map((line) => `<p>${line.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</p>`)
+      .join('\n');
+  }
+
+  private applyExtraSections(html: string, extraSections: { heading: string; html: string }[]): string {
+    const extraHtml = extraSections.map((s) => `<h2>${s.heading}</h2>\n${s.html}`).join('\n');
+    const signatureAnchor = '<h2>SIGNATURES</h2>';
+    const signatureIdx = html.toUpperCase().indexOf(signatureAnchor.toUpperCase());
+
+    const hasCustomTerms = extraSections.some((s) => /terms and conditions/i.test(s.heading));
+    if (hasCustomTerms) {
+      const header = /<h2[^>]*>\s*TERMS AND CONDITIONS\s*<\/h2>/i;
+      const termsStart = html.search(header);
+      if (termsStart !== -1) {
+        const headerMatch = html.slice(termsStart).match(header);
+        const headerEnd = headerMatch ? termsStart + headerMatch[0].length : termsStart;
+        const rest = html.slice(headerEnd);
+        const nextH2Rel = rest.search(/<h2[^>]*>/i);
+        const sectionEnd = nextH2Rel === -1 ? html.length : headerEnd + nextH2Rel;
+        html = html.slice(0, termsStart) + html.slice(sectionEnd);
+      }
+    }
+
+    if (signatureIdx === -1) {
+      return html + '\n' + extraHtml;
+    }
+    return html.slice(0, signatureIdx) + extraHtml + '\n' + html.slice(signatureIdx);
   }
 
   async getPdfUrl(contractId: string) {

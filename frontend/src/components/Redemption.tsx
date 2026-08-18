@@ -63,8 +63,8 @@ export function Redemption({ branchId, activeBranchId }: RedemptionProps) {
 
   const fetchVault = async () => {
     const activePawnshopId = branchId ?? null;
-    const activeOperationalBranchId = Number.isInteger(activeBranchId as number) ? Number(activeBranchId) : NaN;
-    const hasActiveOperationalBranch = Number.isInteger(activeOperationalBranchId) && activeOperationalBranchId > 0;
+    const activeOperationalBranchId = Number.isInteger(activeBranchId as number) ? Number(activeBranchId) : null;
+    const hasActiveOperationalBranch = activeOperationalBranchId != null && activeOperationalBranchId > 0;
     
     if (!activePawnshopId) {
       setIsFetching(false);
@@ -141,10 +141,24 @@ export function Redemption({ branchId, activeBranchId }: RedemptionProps) {
     setIsLoading(true);
     try {
       const totalDue = calculateTotal(selectedItem.loanAmount).total;
-      await api.post(
+      const res = await api.post<{
+        requiresApproval?: boolean;
+        approvalId?: string;
+        message?: string;
+      }>(
         `/pawn-tickets/${id}/redeem`,
         { amountPaid: totalDue, paymentMethod: 'CASH', notes: `In-person redemption` }
       );
+
+      if (res?.requiresApproval) {
+        showToast(
+          `Ticket #${selectedItem.ticketId} submitted for approval — release pending owner sign-off.`,
+          "success",
+        );
+        setSelectedItem(null);
+        void fetchVault();
+        return;
+      }
 
       showToast(`Ticket #${selectedItem.ticketId} redeemed! ${formatCurrency(totalDue)} collected.`, "success");
       setItems(prev => prev.filter(item => item.id !== id));

@@ -10,6 +10,7 @@ import * as path from 'path';
 import * as express from 'express';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
+import compression from 'compression';
 import { createClient } from '@supabase/supabase-js';
 import { SubscriptionStatus } from '@prisma/client';
 import * as dns from 'node:dns';
@@ -41,6 +42,8 @@ async function bootstrap() {
 
   httpApp.disable('x-powered-by');
   httpApp.set('trust proxy', 1);
+
+  app.use(compression());
 
   const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
   const auctionFrontendUrl =

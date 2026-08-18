@@ -41,43 +41,43 @@ export class AttendanceService {
   ): Promise<any> {
     try {
       const normalizedBranchId = this.normalizeBranchId(branchId);
-      const profiles = await this.prisma.profile.findMany({
-        where: {
-          pawnshopId,
-          role: { notIn: ['BIDDER'] },
-          ...(normalizedBranchId !== undefined
-            ? { branchId: String(normalizedBranchId) }
-            : {}),
-        },
-        select: {
-          id: true,
-          email: true,
-          fullName: true,
-          role: true,
-        },
-        orderBy: { role: 'asc' },
-      });
 
       // For each staff, check today's attendance status
       const today = new Date();
       today.setHours(0, 0, 0, 0);
 
-      const todayRecords = await this.prisma.attendanceRecord.findMany({
-        where: {
-          pawnshopId,
-          date: today,
-          ...(normalizedBranchId !== undefined
-            ? { branchId: normalizedBranchId }
-            : {}),
-        },
-      });
+      const [profiles, todayRecords, schedules] = await Promise.all([
+        this.prisma.profile.findMany({
+          where: {
+            pawnshopId,
+            role: { notIn: ['BIDDER'] },
+            ...(normalizedBranchId !== undefined
+              ? { branchId: String(normalizedBranchId) }
+              : {}),
+          },
+          select: {
+            id: true,
+            email: true,
+            fullName: true,
+            role: true,
+          },
+          orderBy: { role: 'asc' },
+        }),
+        this.prisma.attendanceRecord.findMany({
+          where: {
+            pawnshopId,
+            date: today,
+            ...(normalizedBranchId !== undefined
+              ? { branchId: normalizedBranchId }
+              : {}),
+          },
+        }),
+        this.prisma.staffSchedule.findMany({
+          where: { pawnshopId },
+        }),
+      ]);
 
       const recordMap = new Map(todayRecords.map((r) => [r.staffId, r]));
-
-      // Fetch schedules for all staff
-      const schedules = await this.prisma.staffSchedule.findMany({
-        where: { pawnshopId },
-      });
       const scheduleMap = new Map(schedules.map((s) => [s.staffId, s]));
 
       return profiles.map((p) => {

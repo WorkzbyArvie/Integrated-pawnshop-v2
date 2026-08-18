@@ -65,11 +65,16 @@ export class LoanContractService {
 
     let pdfUrl: string | null = null;
     let templateVersion = '1.0';
+    let renderedHtml: string | null = null;
     try {
-      const { pdfBuffer, templateVersion: tv } = await this.contractRenderer.renderPdfOnly(
+      const extraSections = await this.getCustomContractSections(application.pawnshopId);
+      const { pdfBuffer, htmlContent, templateVersion: tv } = await this.contractRenderer.renderPdfOnly(
         'loan-contract',
         { ...templateData, applicationId, loanId: application.loan.id.toString() },
+        undefined,
+        extraSections,
       );
+      renderedHtml = htmlContent;
       templateVersion = tv;
       const fileName = `loan-${contractNumber}.pdf`;
       pdfUrl = await this.storage.uploadPdf(pdfBuffer, 'contracts', fileName);
@@ -84,7 +89,7 @@ export class LoanContractService {
         loanId: application.loan.id,
         contractNumber,
         templateVersion,
-        contractData: templateData,
+        contractData: renderedHtml ? { ...templateData, renderedHtml } : templateData,
         pdfUrl,
         generatedAt: new Date(),
       },
@@ -147,7 +152,7 @@ export class LoanContractService {
       throw new NotFoundException('Contract not found for this application');
     }
 
-    return contract;
+    return this.withRenderedHtml(contract);
   }
 
   /**
@@ -166,7 +171,53 @@ export class LoanContractService {
       throw new NotFoundException('Contract not found');
     }
 
+    return this.withRenderedHtml(contract);
+  }
+
+  private async withRenderedHtml(contract: any): Promise<any> {
+    const contractData = contract?.contractData as Record<string, unknown> | null;
+    if (contract && contractData && typeof contractData === 'object' && !contractData.renderedHtml) {
+      try {
+        const pawnshopId = contract?.application?.pawnshopId as string | undefined;
+        const extraSections = pawnshopId ? await this.getCustomContractSections(pawnshopId) : [];
+        const { htmlContent } = await this.contractRenderer.renderPdfOnly('loan-contract', contractData, undefined, extraSections);
+        return { ...contract, contractData: { ...contractData, renderedHtml: htmlContent } };
+      } catch {
+        return contract;
+      }
+    }
     return contract;
+  }
+
+  private async getCustomContractSections(pawnshopId: string): Promise<{ heading: string; html: string }[]> {
+    try {
+      const pawnshop = await this.prisma.pawnshop.findUnique({
+        where: { id: pawnshopId },
+        select: { settings: true },
+      });
+      const settings = (pawnshop?.settings ?? {}) as Record<string, unknown>;
+      const sections: { heading: string; html: string }[] = [];
+      const terms = settings.contractTermsAndConditions;
+      if (typeof terms === 'string' && terms.trim()) {
+        sections.push({ heading: 'TERMS AND CONDITIONS', html: this.textToHtml(terms) });
+      }
+      const responsibilities = settings.contractPawnshopResponsibilities;
+      if (typeof responsibilities === 'string' && responsibilities.trim()) {
+        sections.push({ heading: 'PAWNSHOP RESPONSIBILITIES', html: this.textToHtml(responsibilities) });
+      }
+      return sections;
+    } catch {
+      return [];
+    }
+  }
+
+  private textToHtml(text: string): string {
+    return text
+      .split(/\n+/)
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .map((line) => `<p>${line.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</p>`)
+      .join('\n');
   }
 
   async signByCustomer(applicationId: string, customerSignature: string) {
@@ -260,8 +311,15 @@ export class LoanContractService {
   }
 
   async downloadContractPdf(contractId: string): Promise<{ buffer: Buffer; contractNumber: string }> {
-    const contract = await this.prisma.loanContract.findUnique({ where: { id: contractId } });
+    const contract = await this.prisma.loanContract.findUnique({
+      where: { id: contractId },
+      include: { application: { select: { pawnshopId: true } } },
+    });
     if (!contract) throw new NotFoundException('Contract not found');
+
+    const extraSections = contract.application?.pawnshopId
+      ? await this.getCustomContractSections(contract.application.pawnshopId)
+      : [];
 
     const { pdfBuffer } = await this.contractRenderer.renderPdfOnly(
       'loan-contract',
@@ -272,6 +330,7 @@ export class LoanContractService {
         staffSignature: contract.staffSignature,
         staffSignedAt: contract.staffSignedAt?.toISOString() || null,
       },
+      extraSections,
     );
 
     return { buffer: pdfBuffer, contractNumber: contract.contractNumber };

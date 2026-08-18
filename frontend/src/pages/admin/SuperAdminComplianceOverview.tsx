@@ -376,25 +376,6 @@ export default function SuperAdminComplianceOverview() {
                         <p className="text-xs text-gilded-muted mt-1">
                           ID: {kyc.idNumber} &middot; Submitted: {new Date(kyc.createdAt).toLocaleDateString()}
                         </p>
-                        {kyc.verificationData && (
-                          <div className="flex gap-3 mt-2">
-                            {kyc.verificationData.face?.matched !== null && kyc.verificationData.face?.matched !== undefined && (
-                              <span className={`text-[10px] px-1.5 py-0.5 rounded ${kyc.verificationData.face.matched ? 'bg-emerald-500/10 text-emerald-400' : 'bg-yellow-500/10 text-yellow-400'}`}>
-                                Face: {kyc.verificationData.face.matched ? 'Matched' : 'No Match'} {kyc.verificationData.face.score != null ? `(${Math.round(kyc.verificationData.face.score * 100)}%)` : ''}
-                              </span>
-                            )}
-                            {kyc.verificationData.ocr?.nameMatch !== null && kyc.verificationData.ocr?.nameMatch !== undefined && (
-                              <span className={`text-[10px] px-1.5 py-0.5 rounded ${kyc.verificationData.ocr.nameMatch ? 'bg-emerald-500/10 text-emerald-400' : 'bg-yellow-500/10 text-yellow-400'}`}>
-                                OCR: {kyc.verificationData.ocr.nameMatch ? 'Name Match' : 'Name Mismatch'}
-                              </span>
-                            )}
-                            {kyc.verificationData.tamper?.clean !== null && kyc.verificationData.tamper?.clean !== undefined && (
-                              <span className={`text-[10px] px-1.5 py-0.5 rounded ${kyc.verificationData.tamper.clean ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400'}`}>
-                                Tamper: {kyc.verificationData.tamper.clean ? 'Clean' : 'Flags Detected'}
-                              </span>
-                            )}
-                          </div>
-                        )}
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
@@ -563,35 +544,6 @@ export default function SuperAdminComplianceOverview() {
                   <p className="text-gilded-light font-medium">{viewingKyc.address || '—'}</p>
                 </div>
               </div>
-
-              {viewingKyc.verificationData && (
-                <div className="bg-gilded-darker border border-gilded-border rounded-xl p-4 space-y-2" style={{ backgroundColor: '#12121C' }}>
-                  <h4 className="text-sm font-semibold text-gilded-light mb-2">Automated Verification</h4>
-                  <div className="grid grid-cols-3 gap-3">
-                    <div className={`text-center p-3 rounded-lg ${viewingKyc.verificationData.face?.matched ? 'bg-emerald-500/10 border border-emerald-500/20' : viewingKyc.verificationData.face?.matched === false ? 'bg-yellow-500/10 border border-yellow-500/20' : 'bg-gray-500/10 border border-gray-500/20'}`}>
-                      <p className={`text-xs ${viewingKyc.verificationData.face?.matched ? 'text-emerald-400' : viewingKyc.verificationData.face?.matched === false ? 'text-yellow-400' : 'text-gray-400'}`}>Face</p>
-                      <p className="text-gilded-light font-semibold text-sm mt-1">
-                        {viewingKyc.verificationData.face?.matched != null ? (viewingKyc.verificationData.face.matched ? 'Matched' : 'No Match') : 'N/A'}
-                      </p>
-                      {viewingKyc.verificationData.face?.score != null && (
-                        <p className="text-[10px] text-gilded-muted mt-0.5">{Math.round(viewingKyc.verificationData.face.score * 100)}% confidence</p>
-                      )}
-                    </div>
-                    <div className={`text-center p-3 rounded-lg ${viewingKyc.verificationData.ocr?.nameMatch ? 'bg-emerald-500/10 border border-emerald-500/20' : viewingKyc.verificationData.ocr?.nameMatch === false ? 'bg-yellow-500/10 border border-yellow-500/20' : 'bg-gray-500/10 border border-gray-500/20'}`}>
-                      <p className={`text-xs ${viewingKyc.verificationData.ocr?.nameMatch ? 'text-emerald-400' : viewingKyc.verificationData.ocr?.nameMatch === false ? 'text-yellow-400' : 'text-gray-400'}`}>OCR</p>
-                      <p className="text-gilded-light font-semibold text-sm mt-1">
-                        {viewingKyc.verificationData.ocr?.nameMatch != null ? (viewingKyc.verificationData.ocr.nameMatch ? 'Name Match' : 'Name Mismatch') : 'N/A'}
-                      </p>
-                    </div>
-                    <div className={`text-center p-3 rounded-lg ${viewingKyc.verificationData.tamper?.clean ? 'bg-emerald-500/10 border border-emerald-500/20' : viewingKyc.verificationData.tamper?.clean === false ? 'bg-red-500/10 border border-red-500/20' : 'bg-gray-500/10 border border-gray-500/20'}`}>
-                      <p className={`text-xs ${viewingKyc.verificationData.tamper?.clean ? 'text-emerald-400' : viewingKyc.verificationData.tamper?.clean === false ? 'text-red-400' : 'text-gray-400'}`}>Tamper</p>
-                      <p className="text-gilded-light font-semibold text-sm mt-1">
-                        {viewingKyc.verificationData.tamper?.clean != null ? (viewingKyc.verificationData.tamper.clean ? 'Clean' : 'Flags') : 'N/A'}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )}
 
               <div className="space-y-3 p-4 rounded-xl" style={{ backgroundColor: '#12121C' }}>
                 <h4 className="text-sm font-semibold text-gilded-light">Submitted Documents</h4>

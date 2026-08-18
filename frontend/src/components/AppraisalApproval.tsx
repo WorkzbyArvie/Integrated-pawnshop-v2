@@ -2,11 +2,13 @@
 import {
   CheckCircle2, XCircle, Search, Eye, Loader2, Scale, User, Calendar,
   AlertTriangle, CheckCheck, ChevronLeft, ChevronRight, Package, FileText, CreditCard,
+  ImageOff,
 } from 'lucide-react';
 import { useToast } from '../App';
 import api from '../lib/apiClient';
 import { ContractViewer } from './ContractViewer';
 import { formatCurrency } from '../lib/formatters';
+import { getDisplayableStorageUrl } from '../lib/storageUrls';
 import Swal from 'sweetalert2';
 
 const tierColors: Record<string, string> = {
@@ -72,6 +74,8 @@ export function AppraisalApproval({ branchId, activeBranchId, userRole = 'STAFF'
   const [processingId, setProcessingId] = useState<number | null>(null);
   const [rejectionReason, setRejectionReason] = useState('');
   const [disbursingId, setDisbursingId] = useState<number | null>(null);
+  const [photoSrc, setPhotoSrc] = useState<string | null>(null);
+  const [photoFailed, setPhotoFailed] = useState(false);
 
   const [approveResult, setApproveResult] = useState<{
     applicationId: string;
@@ -162,6 +166,20 @@ export function AppraisalApproval({ branchId, activeBranchId, userRole = 'STAFF'
   useEffect(() => {
     fetchPendingAppraisals();
   }, [fetchPendingAppraisals]);
+
+  const resolveCurrentPhoto = useCallback(() => {
+    const url = selectedAppraisal?.photoUrls?.[detailPhotoIndex];
+    setPhotoFailed(false);
+    setPhotoSrc(null);
+    if (!url) return;
+    getDisplayableStorageUrl(url)
+      .then((resolved) => setPhotoSrc(resolved))
+      .catch(() => setPhotoFailed(true));
+  }, [selectedAppraisal, detailPhotoIndex]);
+
+  useEffect(() => {
+    resolveCurrentPhoto();
+  }, [resolveCurrentPhoto]);
 
   const handleApprove = async (appraisalId: number) => {
     if (!canApprove) {
@@ -427,12 +445,26 @@ export function AppraisalApproval({ branchId, activeBranchId, userRole = 'STAFF'
                   <div className="bg-[#1C1C26] rounded-2xl p-4">
                     <p className="text-[9px] font-black text-[#6B655C] uppercase tracking-widest mb-2">Photos</p>
                     <div className="relative h-44 rounded-2xl border border-[rgba(201,160,92,0.12)] bg-[#14141B] overflow-hidden flex items-center justify-center">
-                      {selectedAppraisal.photoUrls.length > 0 ? (
+                      {photoSrc ? (
                         <img
-                          src={selectedAppraisal.photoUrls[detailPhotoIndex]}
+                          src={photoSrc}
                           alt={`${selectedAppraisal.ticketNumber} photo ${detailPhotoIndex + 1}`}
                           className="h-full w-full object-cover"
+                          onError={() => setPhotoFailed(true)}
                         />
+                      ) : photoFailed ? (
+                        <div className="flex flex-col items-center gap-2 text-slate-300 p-4">
+                          <ImageOff className="w-8 h-8" />
+                          <p className="text-xs font-bold text-[#6B655C]">Photo unavailable</p>
+                          <button
+                            onClick={resolveCurrentPhoto}
+                            className="text-[10px] font-black uppercase tracking-widest text-[#C9A05C] hover:underline"
+                          >
+                            Retry
+                          </button>
+                        </div>
+                      ) : selectedAppraisal.photoUrls.length > 0 ? (
+                        <Loader2 className="w-8 h-8 text-[#C9A05C] animate-spin" />
                       ) : (
                         <Package className="w-10 h-10 text-slate-300" />
                       )}

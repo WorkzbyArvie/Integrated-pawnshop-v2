@@ -25,7 +25,7 @@ type LoanStatus = {
 };
 
 interface LoanStatusProgressProps {
-  loanId: number;
+  loanId: string | number;
 }
 
 const statusLabels: Record<string, { label: string; color: string }> = {

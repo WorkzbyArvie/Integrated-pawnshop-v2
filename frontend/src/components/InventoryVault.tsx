@@ -19,8 +19,51 @@ import { supabase } from '../lib/supabaseClient';
 import { api } from '../lib/apiClient';
 import { useToast } from '../App';
 import { formatCurrency } from '../lib/formatters';
+import { getDisplayableStorageUrl } from '../lib/storageUrls';
 import { ReceiptViewer } from './ReceiptViewer';
 import Swal from 'sweetalert2';
+
+function ResolvedVaultImage({ src, alt, className }: { src: string; alt: string; className: string }) {
+  const [resolved, setResolved] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    setFailed(false);
+    setResolved(null);
+    if (!src) return;
+    getDisplayableStorageUrl(src)
+      .then((url) => {
+        if (!cancelled) setResolved(url);
+      })
+      .catch(() => {
+        if (!cancelled) setFailed(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [src]);
+
+  if (resolved && !failed) {
+    return (
+      <img
+        src={resolved}
+        alt={alt}
+        className={className}
+        onError={() => setFailed(true)}
+      />
+    );
+  }
+  return (
+    <div className="flex items-center justify-center h-full w-full bg-[#1C1C26]">
+      {failed ? (
+        <Package className="w-16 h-16 text-slate-200" />
+      ) : (
+        <Loader2 className="w-8 h-8 text-slate-300 animate-spin" />
+      )}
+    </div>
+  );
+}
 
 interface InventoryItem {
   id: string;
@@ -66,8 +109,8 @@ export function InventoryVault({ branchId, activeBranchId }: InventoryVaultProps
   
   // Active branch context
   const activePawnshopId = branchId ?? null;
-  const activeOperationalBranchId = Number.isInteger(activeBranchId as number) ? Number(activeBranchId) : NaN;
-  const hasActiveOperationalBranch = Number.isInteger(activeOperationalBranchId) && activeOperationalBranchId > 0;
+  const activeOperationalBranchId = Number.isInteger(activeBranchId as number) ? Number(activeBranchId) : null;
+  const hasActiveOperationalBranch = activeOperationalBranchId != null && activeOperationalBranchId > 0;
 
   useEffect(() => {
     fetchInventory();
@@ -200,7 +243,10 @@ export function InventoryVault({ branchId, activeBranchId }: InventoryVaultProps
 
       if (selectedItem.photoUrls.length) {
         const boundedIndex = Math.min(Math.max(modalPhotoIndex, 0), selectedItem.photoUrls.length - 1);
-        setSelectedPhotoUrl(selectedItem.photoUrls[boundedIndex]);
+        const url = selectedItem.photoUrls[boundedIndex];
+        getDisplayableStorageUrl(url)
+          .then((resolved) => setSelectedPhotoUrl(resolved))
+          .catch(() => setSelectedPhotoUrl(null));
         return;
       }
 
@@ -317,7 +363,7 @@ export function InventoryVault({ branchId, activeBranchId }: InventoryVaultProps
 
     setUpdatingId(item.id);
     try {
-      const result = await api.post(`/pawn-tickets/${item.id}/send-to-auction`);
+      await api.post(`/pawn-tickets/${item.id}/send-to-auction`);
 
       setItems(prev => prev.map(entry => (entry.id === item.id ? { ...entry, status: 'AUCTION' } : entry)));
       showToast(`Ticket ${item.ticketNumber} queued for auction`, 'success');
@@ -609,7 +655,7 @@ export function InventoryVault({ branchId, activeBranchId }: InventoryVaultProps
             >
               <div className="h-44 rounded-[2.2rem] bg-[#1C1C26] flex items-center justify-center relative overflow-hidden">
                 {item.photoUrls.length > 0 ? (
-                  <img
+                  <ResolvedVaultImage
                     src={item.photoUrls[cardPhotoIndexes[item.id] || 0]}
                     alt={`${item.ticketNumber} photo`}
                     className="h-full w-full object-cover"
@@ -785,7 +831,11 @@ export function InventoryVault({ branchId, activeBranchId }: InventoryVaultProps
                 <div className="grid grid-cols-1 md:grid-cols-[180px_1fr] gap-4 items-start">
                   <div className="h-40 w-full rounded-2xl border border-[rgba(201,160,92,0.12)] bg-[#14141B] overflow-hidden flex items-center justify-center">
                     {selectedPhotoUrl ? (
-                      <img src={selectedPhotoUrl} alt={`${selectedItem.ticketNumber} item`} className="h-full w-full object-cover" />
+                      <ResolvedVaultImage
+                        src={selectedPhotoUrl}
+                        alt={`${selectedItem.ticketNumber} item`}
+                        className="h-full w-full object-cover"
+                      />
                     ) : (
                       <Package className="w-10 h-10 text-slate-300" />
                     )}

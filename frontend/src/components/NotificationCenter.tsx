@@ -119,7 +119,7 @@ export function NotificationCenter({ userId }: NotificationCenterProps) {
 
       {/* Dropdown */}
       {open && (
-        <div className="absolute right-0 top-12 w-96 bg-[#14141B] rounded-2xl shadow-2xl border border-[rgba(201,160,92,0.12)] z-[60] overflow-hidden">
+        <div className="absolute left-full top-12 ml-6 w-96 bg-[#14141B] rounded-2xl shadow-2xl border border-[rgba(201,160,92,0.12)] z-[60] overflow-hidden">
           {/* Header */}
           <div className="flex items-center justify-between px-5 py-4 border-b border-[rgba(201,160,92,0.08)]">
             <h3 className="font-bold text-[#EAE2D6] text-sm">Notifications</h3>

@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   AlertTriangle,
+  ChevronLeft,
+  ChevronRight,
   FileText,
   Loader2,
   RefreshCw,
@@ -9,6 +11,7 @@ import {
 import api from '../lib/apiClient';
 import { supabase } from '../lib/supabaseClient';
 import { formatCurrency, formatDateTime, humanizeStatus, statusColor } from '../lib/formatters';
+import { getDisplayableStorageUrl } from '../lib/storageUrls';
 import { useToast } from '../App';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
@@ -29,10 +32,13 @@ interface ApprovalQueueItem {
   createdAt?: string;
   ticketNumber?: string;
   itemName?: string;
+  photoUrls?: string[];
   category?: string;
   weight?: string | number;
   customer?: { fullName?: string; contactNumber?: string; loyaltyTier?: string };
   requestedBy?: { id?: string; fullName?: string };
+  decidedBy?: { id?: string; fullName?: string };
+  decidedAt?: string;
   appraisedValue?: number;
   recommendedLoanAmount?: number;
   riskScore?: number;
@@ -79,12 +85,17 @@ export function ApprovalQueue({ branchId, activeBranchId, userRole }: ApprovalQu
   const [searchQuery, setSearchQuery] = useState('');
   const [processingId, setProcessingId] = useState<number | null>(null);
   const [reviewItem, setReviewItem] = useState<ApprovalQueueItem | null>(null);
+  const [reviewPhotoIndex, setReviewPhotoIndex] = useState(0);
+  const [reviewPhotoSrc, setReviewPhotoSrc] = useState<string | null>(null);
+  const [reviewPhotoFailed, setReviewPhotoFailed] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
-  const [contractHandoff, setContractHandoff] = useState<{ applicationId?: string; contractId?: string } | null>(null);
+  const [contractHandoff, setContractHandoff] = useState<{ applicationId?: string; contractId?: string; loanId?: number } | null>(null);
+  const [disbursing, setDisbursing] = useState(false);
 
   const rawRole = (userRole ?? 'OWNER').trim().toUpperCase().replace(/[\s-]+/g, '_');
   const canonicalRole = rawRole === 'BRANCH_ADMIN' ? 'ADMIN' : rawRole;
   const isApprover = ['MANAGER', 'OWNER', 'ADMIN', 'SUPER_ADMIN'].includes(canonicalRole);
+  const canSelfApprove = ['OWNER', 'SUPER_ADMIN'].includes(canonicalRole);
 
   const loadQueue = useCallback(
     async (tab: string) => {
@@ -131,6 +142,17 @@ export function ApprovalQueue({ branchId, activeBranchId, userRole }: ApprovalQu
     };
   }, []);
 
+  useEffect(() => {
+    const urls = reviewItem?.photoUrls ?? [];
+    const url = urls[reviewPhotoIndex];
+    setReviewPhotoFailed(false);
+    setReviewPhotoSrc(null);
+    if (!url) return;
+    getDisplayableStorageUrl(url)
+      .then((resolved) => setReviewPhotoSrc(resolved))
+      .catch(() => setReviewPhotoFailed(true));
+  }, [reviewItem, reviewPhotoIndex]);
+
   const handleApprove = async (id: number) => {
     if (processingId !== null) return;
     setProcessingId(id);
@@ -140,10 +162,21 @@ export function ApprovalQueue({ branchId, activeBranchId, userRole }: ApprovalQu
       });
       const applicationId = result?.applicationId as string | undefined;
       const contractId = result?.contractId as string | undefined;
+      const loanId = result?.loanId as number | undefined;
+      const isRedemption = records.some(
+        (record) => record.id === id && record.targetType === 'REDEMPTION',
+      );
       if (applicationId || contractId) {
-        setContractHandoff({ applicationId, contractId });
+        setContractHandoff({ applicationId, contractId, loanId });
       }
-      showToast('Approval sent', 'success');
+      showToast(
+        isRedemption
+          ? 'Redemption approved — item released'
+          : Boolean(result?.resumed)
+            ? 'Resuming contract signing'
+            : 'Contract generated — sign to continue',
+        'success',
+      );
       await loadQueue(activeTab);
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'Failed to approve request', 'error');
@@ -163,6 +196,21 @@ export function ApprovalQueue({ branchId, activeBranchId, userRole }: ApprovalQu
       showToast(err instanceof Error ? err.message : 'Failed to reject request', 'error');
     } finally {
       setProcessingId(null);
+    }
+  };
+
+  const handleDisburse = async () => {
+    if (!contractHandoff?.loanId) return;
+    setDisbursing(true);
+    try {
+      await api.post(`/loan/${contractHandoff.loanId}/disburse`, {});
+      showToast('Loan disbursed — approval complete', 'success');
+      setContractHandoff(null);
+      await loadQueue(activeTab);
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Failed to disburse loan', 'error');
+    } finally {
+      setDisbursing(false);
     }
   };
 
@@ -198,10 +246,6 @@ export function ApprovalQueue({ branchId, activeBranchId, userRole }: ApprovalQu
     (record) => record.targetType === 'REDEMPTION' && record.status === 'PENDING',
   ).length;
   const pendingTotal = appraisalCount + redemptionCount;
-  const redemptionThreshold =
-    records.find(
-      (record) => record.targetType === 'REDEMPTION' && typeof record.threshold === 'number',
-    )?.threshold ?? 50000;
 
   return (
     <div className="p-8 space-y-6 min-h-screen" style={{ background: 'rgba(28,28,38,0.5)' }}>
@@ -209,7 +253,7 @@ export function ApprovalQueue({ branchId, activeBranchId, userRole }: ApprovalQu
         <div>
           <h1 className="text-3xl font-black text-[#C9A05C] uppercase tracking-tight">Approval Queue</h1>
           <p className="text-[10px] font-black mt-1 uppercase tracking-widest" style={{ color: 'var(--text-muted)' }}>
-            Review appraisals and high-value redemptions pending owner sign-off
+            Review appraisals and redemptions pending owner sign-off
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -272,9 +316,7 @@ export function ApprovalQueue({ branchId, activeBranchId, userRole }: ApprovalQu
         </div>
         {activeTab === 'REDEMPTION' && (
           <p className="text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>
-            Redemptions above the{' '}
-            <span className="text-[#C9A05C] font-black">{formatCurrency(redemptionThreshold)}</span>{' '}
-            threshold require owner approval.
+            All redemptions require owner approval before the item is released.
           </p>
         )}
       </div>
@@ -325,6 +367,8 @@ export function ApprovalQueue({ branchId, activeBranchId, userRole }: ApprovalQu
                 <TableHead>Amount</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Submitted</TableHead>
+                <TableHead>Decided by</TableHead>
+                <TableHead>Decided</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -344,6 +388,8 @@ export function ApprovalQueue({ branchId, activeBranchId, userRole }: ApprovalQu
                     </span>
                   </TableCell>
                   <TableCell>{formatDateTime(record.createdAt)}</TableCell>
+                  <TableCell>{record.decidedBy?.fullName || '—'}</TableCell>
+                  <TableCell>{record.decidedAt ? formatDateTime(record.decidedAt) : '—'}</TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -355,9 +401,9 @@ export function ApprovalQueue({ branchId, activeBranchId, userRole }: ApprovalQu
             <ApprovalRow
               key={record.id}
               record={record}
-              isOwnRequest={Boolean(currentUserId && record.requestedBy?.id === currentUserId)}
+              isOwnRequest={Boolean(currentUserId && record.requestedBy?.id === currentUserId) && !canSelfApprove}
               processing={processingId === record.id}
-              onReview={() => setReviewItem(record)}
+              onReview={() => { setReviewPhotoIndex(0); setReviewItem(record); }}
               onApprove={() => void handleApprove(record.id)}
               onReject={(comment) => void handleReject(record.id, comment)}
             />
@@ -408,6 +454,60 @@ export function ApprovalQueue({ branchId, activeBranchId, userRole }: ApprovalQu
                   <p className="font-bold text-[#EAE2D6]">{itemSummary(reviewItem)}</p>
                 </div>
               </div>
+              {(reviewItem.photoUrls?.length ?? 0) > 0 && (
+                <div className="rounded-2xl overflow-hidden" style={{ background: 'rgba(255,255,255,0.035)' }}>
+                  <div className="relative h-48 bg-[#1C1C26] flex items-center justify-center">
+                    {reviewPhotoSrc && !reviewPhotoFailed ? (
+                      <img
+                        src={reviewPhotoSrc}
+                        alt={`${ticketNumber(reviewItem)} item`}
+                        className="h-full w-full object-contain"
+                        onError={() => setReviewPhotoFailed(true)}
+                      />
+                    ) : reviewPhotoFailed ? (
+                      <div className="flex flex-col items-center gap-2 p-4 text-center">
+                        <AlertTriangle className="w-6 h-6 text-[#D44545]" />
+                        <span className="text-[10px] font-black uppercase tracking-widest" style={{ color: 'var(--text-muted)' }}>
+                          Photo unavailable
+                        </span>
+                      </div>
+                    ) : (
+                      <Loader2 className="w-8 h-8 text-[#C9A05C] animate-spin" />
+                    )}
+                    {(reviewItem.photoUrls?.length ?? 0) > 1 && (
+                      <>
+                        <button
+                          onClick={() =>
+                            setReviewPhotoIndex((index) =>
+                              index <= 0 ? (reviewItem.photoUrls?.length ?? 1) - 1 : index - 1,
+                            )
+                          }
+                          aria-label="Previous photo"
+                          className="absolute left-3 top-1/2 -translate-y-1/2 h-8 w-8 rounded-full border border-white/40 bg-black/40 text-white flex items-center justify-center"
+                        >
+                          <ChevronLeft className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() =>
+                            setReviewPhotoIndex((index) =>
+                              index >= (reviewItem.photoUrls?.length ?? 1) - 1 ? 0 : index + 1,
+                            )
+                          }
+                          aria-label="Next photo"
+                          className="absolute right-3 top-1/2 -translate-y-1/2 h-8 w-8 rounded-full border border-white/40 bg-black/40 text-white flex items-center justify-center"
+                        >
+                          <ChevronRight className="w-4 h-4" />
+                        </button>
+                      </>
+                    )}
+                  </div>
+                  {(reviewItem.photoUrls?.length ?? 0) > 1 && (
+                    <p className="py-1.5 text-center text-[10px] font-black uppercase tracking-widest" style={{ color: 'var(--text-muted)' }}>
+                      {reviewPhotoIndex + 1} / {reviewItem.photoUrls!.length}
+                    </p>
+                  )}
+                </div>
+              )}
               {reviewItem.targetType === 'APPRAISAL' ? (
                 <div
                   className="rounded-2xl p-4"
@@ -456,11 +556,9 @@ export function ApprovalQueue({ branchId, activeBranchId, userRole }: ApprovalQu
                   </div>
                   <div className="flex items-center justify-between mt-2">
                     <span className="text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>
-                      Approval threshold
+                      Requires owner approval
                     </span>
-                    <span className="text-sm font-black text-[#EAE2D6]">
-                      {formatCurrency(reviewItem.threshold ?? 50000)}
-                    </span>
+                    <span className="text-sm font-black text-[#EAE2D6]">Yes</span>
                   </div>
                 </div>
               )}
@@ -477,7 +575,7 @@ export function ApprovalQueue({ branchId, activeBranchId, userRole }: ApprovalQu
               {reviewItem.decisionComment && (
                 <div className="rounded-2xl p-4 border border-amber-500/30" style={{ background: 'rgba(212,168,75,0.08)' }}>
                   <p className="text-[10px] font-black uppercase tracking-widest mb-1" style={{ color: 'var(--amber)' }}>
-                    Previous rejection comment
+                    Decision comment
                   </p>
                   <p className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>
                     {reviewItem.decisionComment}
@@ -499,9 +597,10 @@ export function ApprovalQueue({ branchId, activeBranchId, userRole }: ApprovalQu
         open={Boolean(contractHandoff)}
         onClose={() => setContractHandoff(null)}
         userRole={userRole}
+        onDisburse={contractHandoff?.loanId ? handleDisburse : undefined}
+        disbursing={disbursing}
         onSignComplete={() => {
-          showToast('Contract signed', 'success');
-          setContractHandoff(null);
+          showToast('Contract signed by both parties — ready to disburse', 'success');
         }}
       />
     </div>
@@ -557,7 +656,7 @@ function ApprovalRow({
           <p className="text-lg font-black text-[#C9A05C]">{formatCurrency(itemAmount(record))}</p>
           {record.targetType === 'REDEMPTION' && (
             <p className="text-[10px] font-semibold mt-1" style={{ color: 'var(--text-muted)' }}>
-              Threshold {formatCurrency(record.threshold ?? 50000)}
+              Needs owner approval
             </p>
           )}
         </div>
@@ -575,7 +674,7 @@ function ApprovalRow({
             className="bg-[#C9A05C] text-[#0A0A0F] hover:bg-[#d4b36e]"
           >
             {processing ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
-            Approve
+            {record.targetType === 'REDEMPTION' ? 'Approve & Release' : 'Approve & Generate Contract'}
           </Button>
           <Button
             size="sm"

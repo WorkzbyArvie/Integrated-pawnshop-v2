@@ -10,6 +10,7 @@ import { LoanContractService } from '../loan/loan-contract.service';
 import { StateMachineService } from '../common/state-machine/state-machine.service';
 import { ReceiptService } from '../receipt/receipt.service';
 import { FinanceService } from '../finance/finance.service';
+import { TierService } from '../tier/tier.service';
 
 describe('ApprovalService (RBAC-05 / RBAC-06)', () => {
   let service: ApprovalService;
@@ -18,6 +19,7 @@ describe('ApprovalService (RBAC-05 / RBAC-06)', () => {
       create: jest.Mock;
       findMany: jest.Mock;
       findUnique: jest.Mock;
+      findFirst: jest.Mock;
       update: jest.Mock;
     };
     ticket: { findMany: jest.Mock; findUnique: jest.Mock };
@@ -26,6 +28,7 @@ describe('ApprovalService (RBAC-05 / RBAC-06)', () => {
     applyApprovedAppraisal: jest.Mock;
     releaseApprovedRedemption: jest.Mock;
     rejectAppraisal: jest.Mock;
+    rejectRedemption: jest.Mock;
   };
   let notificationService: { sendNotification: jest.Mock };
 
@@ -49,6 +52,7 @@ describe('ApprovalService (RBAC-05 / RBAC-06)', () => {
         create: jest.fn(),
         findMany: jest.fn(),
         findUnique: jest.fn(),
+        findFirst: jest.fn(),
         update: jest.fn(),
       },
       ticket: { findMany: jest.fn(), findUnique: jest.fn() },
@@ -57,6 +61,7 @@ describe('ApprovalService (RBAC-05 / RBAC-06)', () => {
       applyApprovedAppraisal: jest.fn(),
       releaseApprovedRedemption: jest.fn(),
       rejectAppraisal: jest.fn(),
+      rejectRedemption: jest.fn(),
     };
     notificationService = { sendNotification: jest.fn() };
 
@@ -143,7 +148,7 @@ describe('ApprovalService (RBAC-05 / RBAC-06)', () => {
         expect.objectContaining({
           where: expect.objectContaining({ id: expect.any(String) }),
           data: expect.objectContaining({
-            status: 'APPROVED',
+            status: 'PENDING',
             decidedById: 'mgr_1',
             decidedAt: expect.any(Date),
             decisionComment: 'looks good',
@@ -204,6 +209,39 @@ describe('ApprovalService (RBAC-05 / RBAC-06)', () => {
       expect(pawnTicketService.rejectAppraisal).toHaveBeenCalled();
     });
 
+    it('rejects a redemption record and dispatches rejectRedemption to restore the ticket', async () => {
+      const redemptionRecord = {
+        ...pendingRecord,
+        id: 2,
+        targetType: 'REDEMPTION',
+        targetId: 200,
+        amount: 40000,
+        requestedById: 'teller_1',
+        payload: { ticketId: 200, ticketNumber: 'TKT-200', amountPaid: 40000 },
+      };
+      prisma.approvalRecord.findUnique.mockResolvedValue(redemptionRecord);
+      prisma.approvalRecord.update.mockResolvedValue({
+        ...redemptionRecord,
+        status: 'REJECTED',
+      });
+
+      await service.decideApproval(
+        '2',
+        { decisionComment: 'customer did not present the ticket' },
+        'owner_1',
+        'OWNER',
+        false,
+        'ps_1',
+      );
+
+      expect(prisma.approvalRecord.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ status: 'REJECTED' }),
+        }),
+      );
+      expect(pawnTicketService.rejectRedemption).toHaveBeenCalledWith(200, 'OWNER');
+    });
+
     it('requires a non-empty decision comment when rejecting', async () => {
       prisma.approvalRecord.findUnique.mockResolvedValue(pendingRecord);
 
@@ -257,6 +295,7 @@ describe('PawnTicketService approval chokepoints (RBAC-03 / RBAC-04)', () => {
       create: jest.Mock;
       findMany: jest.Mock;
       findUnique: jest.Mock;
+      findFirst: jest.Mock;
       update: jest.Mock;
     };
     pawnshop: { findUnique: jest.Mock };
@@ -294,6 +333,7 @@ describe('PawnTicketService approval chokepoints (RBAC-03 / RBAC-04)', () => {
         create: jest.fn(),
         findMany: jest.fn(),
         findUnique: jest.fn(),
+        findFirst: jest.fn(),
         update: jest.fn(),
       },
       pawnshop: { findUnique: jest.fn() },
@@ -327,6 +367,10 @@ describe('PawnTicketService approval chokepoints (RBAC-03 / RBAC-04)', () => {
         {
           provide: NotificationService,
           useValue: { sendNotification: jest.fn().mockResolvedValue({ id: 'notif_1' }) },
+        },
+        {
+          provide: TierService,
+          useValue: { recomputeCustomerTier: jest.fn().mockResolvedValue(null) },
         },
       ],
     }).compile();
@@ -383,7 +427,7 @@ describe('PawnTicketService approval chokepoints (RBAC-03 / RBAC-04)', () => {
   });
 
   describe('redeemTicket chokepoint', () => {
-    it('routes an above-threshold redemption into a PENDING REDEMPTION record and returns early without releasing', async () => {
+    it('routes a redemption into a PENDING REDEMPTION record and returns early without releasing', async () => {
       prisma.ticket.findUnique.mockResolvedValue(activeTicket);
       prisma.pawnshop.findUnique.mockResolvedValue({
         id: 'ps_1',
@@ -412,12 +456,8 @@ describe('PawnTicketService approval chokepoints (RBAC-03 / RBAC-04)', () => {
       expect(result.requiresApproval).toBe(true);
     });
 
-    it('runs the direct release for an at-or-below-threshold redemption', async () => {
+    it('requires owner approval for redemptions of any amount and does not release', async () => {
       prisma.ticket.findUnique.mockResolvedValue(activeTicket);
-      prisma.pawnshop.findUnique.mockResolvedValue({
-        id: 'ps_1',
-        settings: { redemptionApprovalThreshold: 50000 },
-      });
       prisma.payment.create.mockResolvedValue({ id: 'pay_1' });
 
       const result = await service.redeemTicket(
@@ -427,8 +467,10 @@ describe('PawnTicketService approval chokepoints (RBAC-03 / RBAC-04)', () => {
         'CASHIER_TELLER',
       );
 
-      expect(prisma.payment.create).toHaveBeenCalled();
-      expect(result.lifecycleStatus).toBe('REDEEMED');
+      expect(prisma.approvalRecord.create).toHaveBeenCalled();
+      expect(prisma.payment.create).not.toHaveBeenCalled();
+      expect(result.requiresApproval).toBe(true);
+      expect(result.lifecycleStatus).toBe('REDEMPTION_PENDING_APPROVAL');
     });
   });
 });

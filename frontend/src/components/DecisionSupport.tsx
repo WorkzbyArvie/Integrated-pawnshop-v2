@@ -41,8 +41,8 @@ export function DecisionSupport({ branchId, activeBranchId }: DecisionSupportPro
 
 
     try {
-      const activeOperationalBranchId = Number.isInteger(activeBranchId as number) ? Number(activeBranchId) : NaN;
-      const hasActiveOperationalBranch = Number.isInteger(activeOperationalBranchId) && activeOperationalBranchId > 0;
+      const activeOperationalBranchId = Number.isInteger(activeBranchId as number) ? Number(activeBranchId) : null;
+      const hasActiveOperationalBranch = activeOperationalBranchId != null && activeOperationalBranchId > 0;
 
       // Explicit field selection matching ticket schema
       let query = supabase

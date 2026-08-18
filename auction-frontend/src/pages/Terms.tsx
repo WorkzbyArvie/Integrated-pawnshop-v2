@@ -159,16 +159,22 @@ export default function Terms() {
                     fontFamily: 'var(--font-body)',
                     lineHeight: '1.7',
                     fontSize: '0.9rem',
-                    whiteSpace: 'pre-wrap',
                   }}
                 >
-                  {template?.content
-                    ? renderTemplateContent(
-                        template.content,
-                        user.user_metadata?.fullName || user.email,
-                        kycProfile?.address,
-                      )
-                    : 'No agreement content available.'}
+                  {template?.content ? (
+                    <div
+                      className="agreement-content"
+                      dangerouslySetInnerHTML={{
+                        __html: renderTemplateContent(
+                          template.content,
+                          user.user_metadata?.fullName || user.email,
+                          kycProfile?.address,
+                        ),
+                      }}
+                    />
+                  ) : (
+                    'No agreement content available.'
+                  )}
                 </div>
 
                 {clauses.length > 0 && (

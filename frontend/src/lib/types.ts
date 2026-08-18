@@ -282,7 +282,7 @@ export interface Notification {
 }
 
 // ── Subscriptions ────────────────────
-export type SubscriptionTier = 'FREE' | 'BASIC' | 'PROFESSIONAL' | 'ENTERPRISE';
+export type SubscriptionTier = 'FREE' | 'TRIAL' | 'BASIC' | 'PROFESSIONAL' | 'ENTERPRISE';
 export type SubscriptionStatus = 'TRIAL' | 'ACTIVE' | 'PAST_DUE' | 'CANCELLED' | 'EXPIRED';
 export type BillingInterval = 'MONTHLY' | 'QUARTERLY' | 'ANNUALLY';
 

@@ -184,7 +184,7 @@ describe('SubscriptionService', () => {
       expect(result.tier).toBe(SubscriptionTier.PROFESSIONAL);
     });
 
-    it('should auto-provision BASIC trial when no subscription history exists', async () => {
+    it('should auto-provision TRIAL plan when no subscription history exists', async () => {
       prisma.subscription.findFirst
         .mockResolvedValueOnce(null)
         .mockResolvedValueOnce(null);
@@ -195,10 +195,10 @@ describe('SubscriptionService', () => {
 
       const result = await service.getCurrent(PAWNSHOP_ID);
 
-      expect(result.tier).toBe(SubscriptionTier.BASIC);
+      expect(result.tier).toBe(SubscriptionTier.TRIAL);
       expect(result.status).toBe(SubscriptionStatus.TRIAL);
-      expect(result.maxBranches).toBe(3);
-      expect(result.maxStaff).toBe(10);
+      expect(result.maxBranches).toBe(1);
+      expect(result.maxStaff).toBe(3);
     });
   });
 
@@ -363,18 +363,20 @@ describe('SubscriptionService', () => {
   // getPlans()
   // ──────────────────────────────────────────────────────────────────────
   describe('getPlans', () => {
-    it('should return all 4 tier configurations', () => {
+    it('should return all 5 tier configurations', () => {
       const plans = service.getPlans();
 
-      expect(plans).toHaveLength(4);
+      expect(plans).toHaveLength(5);
       expect(plans.map((p: any) => p.tier)).toEqual([
         'FREE',
+        'TRIAL',
         'BASIC',
         'PROFESSIONAL',
         'ENTERPRISE',
       ]);
       expect(plans[0].monthlyPrice).toBe(0);
-      expect(plans[3].limits.max_branches).toBeNull(); // ENTERPRISE unlimited
+      expect(plans[1].monthlyPrice).toBe(0); // TRIAL free
+      expect(plans[4].limits.max_branches).toBeNull(); // ENTERPRISE unlimited
     });
   });
 

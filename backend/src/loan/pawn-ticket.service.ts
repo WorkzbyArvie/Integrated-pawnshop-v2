@@ -10,7 +10,8 @@ import { RedeemTicketDto } from './dto/redeem-ticket.dto';
 import { ReceiptService } from '../receipt/receipt.service';
 import { FinanceService } from '../finance/finance.service';
 import { NotificationService } from '../notification/notification.service';
-import { LedgerEntryType, LedgerCategory, NotificationChannel, NotificationType, PaymentMethod, Prisma } from '@prisma/client';
+import { TierService } from '../tier/tier.service';
+import { LedgerEntryType, LedgerCategory, NotificationChannel, NotificationType, PaymentMethod, Prisma, TicketLifecycleStatus } from '@prisma/client';
 
 export function assertCustomerKycVerified(
   customer: { kycStatus?: string } | null | undefined,
@@ -32,6 +33,7 @@ export class PawnTicketService {
     private receiptService: ReceiptService,
     private financeService: FinanceService,
     private notificationService: NotificationService,
+    private tierService: TierService,
   ) {}
 
   async createTicket(dto: CreatePawnTicketDto, createdBy: string) {
@@ -42,12 +44,6 @@ export class PawnTicketService {
     } catch (err: any) {
       throw new Error(`resolveCustomerId failed: ${err.message}`);
     }
-
-    const customer = await this.prisma.customer.findUnique({
-      where: { id: customerId },
-      select: { kycStatus: true },
-    });
-    assertCustomerKycVerified(customer);
 
     const ticketNumber = `TKT-${Math.floor(Date.now() / 1000)}`;
     const expiryDate = new Date(dto.appraisalDeadline);
@@ -166,6 +162,26 @@ export class PawnTicketService {
       data: { lifecycleStatus: 'PENDING_APPROVAL' },
     });
 
+    await this.prisma.approvalRecord.create({
+      data: {
+        pawnshopId: this.assertPawnshopId(ticket),
+        targetType: 'APPRAISAL',
+        targetId: String(ticket.id),
+        status: 'PENDING',
+        amount: ticket.loanAmount,
+        requestedById: userId,
+        payload: {
+          ticketId: ticket.id,
+          ticketNumber: ticket.ticketNumber,
+          appraisedValue: ticket.loanAmount,
+          riskScore: ticket.isHighRisk ? 60 : 0,
+          recommendedLoanAmount: ticket.loanAmount,
+          itemCondition: null,
+          appraisalNotes: `Submitted for approval via appraisal workflow for ticket ${ticket.ticketNumber}`,
+        } as Prisma.InputJsonValue,
+      },
+    });
+
     await this.legalProofService.createProof({
       pawnshopId: this.assertPawnshopId(ticket),
       recordType: 'APPLICATION_SUBMITTED',
@@ -272,8 +288,6 @@ export class PawnTicketService {
         `Cannot approve ticket in status: ${ticket.lifecycleStatus}. Must be APPRAISED or PENDING_APPROVAL.`,
       );
     }
-
-    assertCustomerKycVerified(ticket.customer);
 
     await this.stateMachine.transition(
       'TICKET_LIFECYCLE',
@@ -497,42 +511,63 @@ export class PawnTicketService {
 
     const pawnshopId = this.assertPawnshopId(ticket);
 
-    const settings = (ticket.pawnshop?.settings as Record<string, unknown> | null) ?? {};
-    const approvalThreshold = Number(settings.redemptionApprovalThreshold ?? 50000);
-    if (dto.amountPaid > approvalThreshold) {
-      const approvalRecord = await this.prisma.approvalRecord.create({
-        data: {
-          pawnshopId,
-          targetType: 'REDEMPTION',
-          targetId: String(ticket.id),
-          status: 'PENDING',
-          amount: dto.amountPaid,
-          requestedById: processedBy,
-          payload: {
-            ticketId: ticket.id,
-            ticketNumber: ticket.ticketNumber,
-            loanId: loan.id,
-            amountPaid: dto.amountPaid,
-            paymentMethod: dto.paymentMethod || 'CASH',
-            referenceNumber: dto.referenceNumber,
-            notes: dto.notes,
-            processedBy,
-          } as Prisma.InputJsonValue,
-        },
-      });
-
-      return {
-        ticketId: ticket.id,
-        ticketNumber: ticket.ticketNumber,
-        lifecycleStatus: 'PENDING_APPROVAL',
-        requiresApproval: true,
-        approvalId: approvalRecord?.id,
-        approvalStatus: 'PENDING',
-        message: 'Approval required for high-value redemption',
-      };
+    const existingPending = await this.prisma.approvalRecord.findFirst({
+      where: {
+        pawnshopId,
+        targetType: 'REDEMPTION',
+        targetId: String(ticket.id),
+        status: 'PENDING',
+      },
+    });
+    if (existingPending) {
+      throw new BadRequestException(
+        'Redemption for this ticket is already pending approval',
+      );
     }
 
-    return this.performRedemptionRelease(ticket, loan, dto, processedBy, userRole);
+    const approvalRecord = await this.prisma.approvalRecord.create({
+      data: {
+        pawnshopId,
+        targetType: 'REDEMPTION',
+        targetId: String(ticket.id),
+        status: 'PENDING',
+        amount: dto.amountPaid,
+        requestedById: processedBy,
+        payload: {
+          ticketId: ticket.id,
+          ticketNumber: ticket.ticketNumber,
+          loanId: loan.id,
+          amountPaid: dto.amountPaid,
+          paymentMethod: dto.paymentMethod || 'CASH',
+          referenceNumber: dto.referenceNumber,
+          notes: dto.notes,
+          processedBy,
+          previousLifecycleStatus: ticket.lifecycleStatus,
+        } as Prisma.InputJsonValue,
+      },
+    });
+
+    await this.stateMachine.transition(
+      'TICKET_LIFECYCLE',
+      ticket.lifecycleStatus,
+      'REDEMPTION_PENDING_APPROVAL',
+      { userRole },
+    );
+
+    await this.prisma.ticket.update({
+      where: { id: ticket.id },
+      data: { lifecycleStatus: 'REDEMPTION_PENDING_APPROVAL', updatedAt: new Date() },
+    });
+
+    return {
+      ticketId: ticket.id,
+      ticketNumber: ticket.ticketNumber,
+      lifecycleStatus: 'REDEMPTION_PENDING_APPROVAL',
+      requiresApproval: true,
+      approvalId: approvalRecord?.id,
+      approvalStatus: 'PENDING',
+      message: 'Redemption requires owner approval before the item is released',
+    };
   }
 
   private async performRedemptionRelease(
@@ -626,6 +661,7 @@ export class PawnTicketService {
         referenceId: String(ticket.id),
         amount: dto.amountPaid,
         customerName: ticket.customer?.fullName || 'Customer',
+        customerId: ticket.customerId ?? undefined,
         lineItems: [
           { description: `Pawn Redemption — Ticket #${ticket.ticketNumber}`, amount: dto.amountPaid },
         ],
@@ -637,7 +673,7 @@ export class PawnTicketService {
 
     if (ticket.customerId) {
       try {
-        await this.calculateAndUpdateCustomerTier(ticket.customerId);
+        await this.tierService.recomputeCustomerTier(ticket.customerId, processedBy);
       } catch (tierErr) {
         console.error('Failed to update customer tier:', tierErr);
       }
@@ -731,10 +767,10 @@ export class PawnTicketService {
     });
     if (!ticket) throw new NotFoundException('Ticket not found');
 
-    const redeemableStates = ['ACTIVE', 'GRACE_PERIOD'];
+    const redeemableStates = ['REDEMPTION_PENDING_APPROVAL', 'ACTIVE', 'GRACE_PERIOD'];
     if (!redeemableStates.includes(ticket.lifecycleStatus)) {
       throw new BadRequestException(
-        `Cannot release redemption for ticket in status: ${ticket.lifecycleStatus}. Must be ACTIVE or GRACE_PERIOD.`,
+        `Cannot release redemption for ticket in status: ${ticket.lifecycleStatus}. Must be REDEMPTION_PENDING_APPROVAL, ACTIVE, or GRACE_PERIOD.`,
       );
     }
 
@@ -742,6 +778,55 @@ export class PawnTicketService {
     if (!loan) throw new BadRequestException('No loan found for this ticket');
 
     return this.performRedemptionRelease(ticket, loan, dto, decidedBy, userRole);
+  }
+
+  async rejectRedemption(ticketId: number, userRole?: string) {
+    const ticket = await this.prisma.ticket.findUnique({
+      where: { id: ticketId },
+    });
+    if (!ticket) throw new NotFoundException('Ticket not found');
+
+    if (ticket.lifecycleStatus !== 'REDEMPTION_PENDING_APPROVAL') {
+      throw new BadRequestException(
+        `Cannot reject redemption in status: ${ticket.lifecycleStatus}. Must be REDEMPTION_PENDING_APPROVAL.`,
+      );
+    }
+
+    let previousStatus: TicketLifecycleStatus = 'ACTIVE';
+    if (ticket.pawnshopId) {
+      const pending = await this.prisma.approvalRecord.findFirst({
+        where: {
+          pawnshopId: ticket.pawnshopId,
+          targetType: 'REDEMPTION',
+          targetId: String(ticket.id),
+          status: 'PENDING',
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+      const payload = (pending?.payload ?? {}) as Record<string, unknown>;
+      if (payload.previousLifecycleStatus === 'GRACE_PERIOD') {
+        previousStatus = 'GRACE_PERIOD';
+      }
+    }
+
+    await this.stateMachine.transition(
+      'TICKET_LIFECYCLE',
+      ticket.lifecycleStatus,
+      previousStatus,
+      { userRole },
+    );
+
+    const updatedTicket = await this.prisma.ticket.update({
+      where: { id: ticket.id },
+      data: { lifecycleStatus: previousStatus, updatedAt: new Date() },
+    });
+
+    return {
+      id: updatedTicket.id,
+      ticketNumber: updatedTicket.ticketNumber,
+      lifecycleStatus: previousStatus,
+      message: 'Redemption request rejected; ticket status restored',
+    };
   }
 
   async rejectAppraisal(ticketId: number, userRole?: string) {
@@ -844,44 +929,8 @@ export class PawnTicketService {
     return customer.id;
   }
 
-  async calculateAndUpdateCustomerTier(customerId: string): Promise<string> {
-    const redeemedCount = await this.prisma.ticket.count({
-      where: {
-        customerId,
-        OR: [
-          { lifecycleStatus: 'REDEEMED' },
-          { status: 'REDEEMED' },
-        ],
-      },
-    });
-
-    let tier = 'Standard';
-    if (redeemedCount >= 30) tier = 'VIP';
-    else if (redeemedCount >= 15) tier = 'Gold';
-    else if (redeemedCount >= 5) tier = 'Silver';
-    else if (redeemedCount >= 1) tier = 'Bronze';
-
-    await this.prisma.customer.update({
-      where: { id: customerId },
-      data: { loyaltyTier: tier },
-    });
-
-    return tier;
-  }
-
   async getCustomerTierInfo(customerId: string) {
-    const count = await this.prisma.ticket.count({
-      where: {
-        customerId,
-        OR: [{ lifecycleStatus: 'REDEEMED' }, { status: 'REDEEMED' }],
-      },
-    });
-    const customer = await this.prisma.customer.findUnique({
-      where: { id: customerId },
-      select: { loyaltyTier: true },
-    });
-    const tier = customer?.loyaltyTier || 'Standard';
-    return { tier, redeemedCount: count };
+    return this.tierService.getCustomerTierInfo(customerId);
   }
 
   async sendToAuction(ticketId: number, userId: string, userRole?: string) {

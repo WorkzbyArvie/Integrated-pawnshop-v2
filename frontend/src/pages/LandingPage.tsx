@@ -1153,6 +1153,53 @@ export default function LandingPage() {
               </button>
             </div>
 
+            <div className="mb-5 rounded-[16px] p-5" style={{ background: 'rgba(201,160,92,0.06)', border: '1px solid rgba(201,160,92,0.22)' }}>
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-[15px] font-bold" style={{ fontFamily: 'var(--font-display)', color: 'var(--text-primary)' }}>
+                    Start your free trial
+                  </p>
+                  <p className="mt-0.5 text-[12px]" style={{ color: 'var(--text-secondary)' }}>
+                    Full access to PawnGold for free. No credit card required.
+                  </p>
+                </div>
+                <span
+                  className="inline-flex shrink-0 items-center gap-1.5 rounded-[8px] px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider"
+                  style={{ background: 'rgba(61,168,108,0.12)', color: 'var(--green)', border: '1px solid rgba(61,168,108,0.25)' }}
+                >
+                  <Sparkles className="h-3 w-3" /> Free
+                </span>
+              </div>
+
+              <div className="mt-4 grid gap-1.5">
+                {[
+                  'Full access to all modules',
+                  'Unlimited pawn tickets, customers & staff',
+                  'Digital contracts, receipts & audit trail',
+                  'Multi-branch management',
+                  'Auction house integration',
+                ].map((feature) => (
+                  <div key={feature} className="flex items-center gap-2 text-[12px]" style={{ color: 'var(--text-secondary)' }}>
+                    <CheckCircle2 className="h-3.5 w-3.5 shrink-0" style={{ color: 'var(--green)' }} />
+                    {feature}
+                  </div>
+                ))}
+              </div>
+
+              <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                <div className="rounded-[10px] px-3 py-2.5" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                  <p className="text-[10px] font-bold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>Trial Duration</p>
+                  <p className="mt-0.5 text-[13px] font-semibold" style={{ color: 'var(--text-primary)' }}>15 days</p>
+                </div>
+                <div className="rounded-[10px] px-3 py-2.5" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                  <p className="text-[10px] font-bold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>Automatic Renewal</p>
+                  <p className="mt-0.5 text-[12px]" style={{ color: 'var(--text-primary)' }}>
+                    Converts to your chosen plan after the trial. Cancel anytime.
+                  </p>
+                </div>
+              </div>
+            </div>
+
             {!ownerUserId && authStep === 'form' && (
               <div className="mb-5 rounded-[16px] p-4" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)' }}>
                 <p className="text-[14px] font-semibold" style={{ color: 'var(--text-primary)' }}>Owner account required</p>

@@ -211,6 +211,16 @@ export class SubscriptionController {
   @Post('webhook')
   @HttpCode(HttpStatus.OK)
   async handleWebhook(@Body() body: any) {
+    const isXendit =
+      typeof body?.event === 'string' &&
+      (body.event.startsWith('invoice.') || body.event.startsWith('payment.'));
+
+    if (isXendit) {
+      this.logger.log(`Xendit webhook received: ${body.event}`);
+      await this.subscriptionService.handleXenditWebhook(body);
+      return { received: true };
+    }
+
     const event = body?.data?.attributes?.type
       ? { type: body.data.attributes.type, data: body.data.attributes.data }
       : body;

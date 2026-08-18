@@ -310,12 +310,12 @@ export class LoanController {
 
   @Get(':loanId/status')
   getLoanStatus(@Param('loanId') loanId: string) {
-    return this.loanService.getLoanStatus(parseInt(loanId, 10));
+    return this.loanService.getLoanStatus(loanId);
   }
 
   @Get(':loanId/history')
   getLoanFullHistory(@Param('loanId') loanId: string) {
-    return this.loanService.getLoanFullHistory(parseInt(loanId, 10));
+    return this.loanService.getLoanFullHistory(loanId);
   }
 
   @Get('customers/:customerId/history')

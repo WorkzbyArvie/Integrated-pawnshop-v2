@@ -4,9 +4,6 @@ import Swal from 'sweetalert2';
 import { useAuth, type KycStatus } from '../context/AuthContext';
 import { supabase } from '../lib/supabaseClient';
 import { getBackendUrl } from '../lib/backendUrl';
-import { scanIdImage, recompareOcr, type OcrResult } from '../lib/idOcr';
-import { compareFaces, type FaceMatchResult } from '../lib/faceMatch';
-import { checkImageTampering, type TamperCheckResult } from '../lib/tamperDetect';
 
 const backendUrl = getBackendUrl();
 
@@ -27,7 +24,7 @@ type Step = 'personal' | 'document' | 'selfie' | 'review';
 const stepLabels: Record<Step, string> = {
   personal: 'Personal Info',
   document: 'ID Document',
-  selfie: 'Selfie Verification',
+  selfie: 'Selfie',
   review: 'Review & Submit',
 };
 
@@ -51,7 +48,6 @@ async function uploadToSupabase(file: File, folder: string, userId: string): Pro
     .upload(path, file, { contentType: file.type, upsert: true });
 
   if (error) {
-    // Fallback: return base64 data URL if storage isn't configured
     console.warn('Supabase storage upload failed, using data URL fallback:', error.message);
     return fileToBase64(file);
   }
@@ -72,7 +68,7 @@ function StatusBanner({ status, rejectionReason }: { status: KycStatus; rejectio
       }}>
         <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>✓</div>
         <h3 style={{ color: '#7cffb2', margin: '0 0 0.5rem' }}>Identity Verified</h3>
-        <p style={{ color: 'var(--muted)', margin: 0 }}>Your KYC is approved. You can now place bids on all auctions.</p>
+        <p style={{ color: 'var(--muted)', margin: 0 }}>Your identity has been verified. You can now place bids on all auctions.</p>
         <Link to="/" className="primary-button" style={{ marginTop: '1rem', display: 'inline-block' }}>
           Browse Auctions
         </Link>
@@ -130,7 +126,6 @@ export default function KycVerification() {
 
   const [step, setStep] = useState<Step>(kycStatus === 'REJECTED' ? 'personal' : 'personal');
 
-  // Form fields
   const [fullName, setFullName] = useState('');
   const [dateOfBirth, setDateOfBirth] = useState('');
   const [address, setAddress] = useState('');
@@ -141,11 +136,9 @@ export default function KycVerification() {
   const [idFront, setIdFront] = useState<File | null>(null);
   const [idBack, setIdBack] = useState<File | null>(null);
 
-  // Previews
   const [idFrontPreview, setIdFrontPreview] = useState<string | null>(null);
   const [idBackPreview, setIdBackPreview] = useState<string | null>(null);
 
-  // Live selfie capture
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [cameraReady, setCameraReady] = useState(false);
@@ -158,20 +151,6 @@ export default function KycVerification() {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [rejectionReason] = useState<string | undefined>(undefined);
 
-  // OCR scanning state
-  const [ocrScanning, setOcrScanning] = useState(false);
-  const [ocrResult, setOcrResult] = useState<OcrResult | null>(null);
-  const ocrRanForRef = useRef<string>('');
-  const ocrRawRef = useRef<{ extractedName: string; extractedIdNumber: string }>({ extractedName: '', extractedIdNumber: '' });
-  // Face matching state
-  const [faceMatchResult, setFaceMatchResult] = useState<FaceMatchResult | null>(null);
-  const [faceMatchRunning, setFaceMatchRunning] = useState(false);
-
-  // Tamper detection state
-  const [tamperResult, setTamperResult] = useState<TamperCheckResult | null>(null);
-  const [tamperRunning, setTamperRunning] = useState(false);
-
-  // --- Camera detection & selfie capture ---
   const detectCamera = useCallback(async () => {
     if (!navigator.mediaDevices?.getUserMedia) {
       setCameraSupported(false);
@@ -206,17 +185,6 @@ export default function KycVerification() {
     }
   }, [step, liveSelfieDataUrl, cameraSupported, detectCamera]);
 
-  useEffect(() => {
-    if (!ocrRawRef.current.extractedIdNumber && !ocrRawRef.current.extractedName) return;
-    if (ocrScanning) return;
-    const updated = recompareOcr(fullName, idNumber, ocrRawRef.current.extractedName, ocrRawRef.current.extractedIdNumber);
-    setOcrResult((prev) => {
-      if (!prev) return prev;
-      if (prev.nameMatches === updated.nameMatches && prev.idNumberMatches === updated.idNumberMatches) return prev;
-      return { ...prev, nameMatches: updated.nameMatches, idNumberMatches: updated.idNumberMatches };
-    });
-  }, [fullName, idNumber, ocrScanning]);
-
   const captureSelfie = () => {
     const video = videoRef.current;
     const canvas = canvasRef.current;
@@ -231,15 +199,6 @@ export default function KycVerification() {
     const stream = video.srcObject as MediaStream | null;
     stream?.getTracks().forEach((t) => t.stop());
     setCameraReady(false);
-
-    if (idFront) {
-      setFaceMatchRunning(true);
-      setFaceMatchResult(null);
-      compareFaces(idFront, dataUrl)
-        .then((result) => setFaceMatchResult(result))
-        .catch((err) => { console.error('[KycVerification] Face comparison error:', err); setFaceMatchResult({ matched: false, similarity: 0, idFaceDetected: false, selfieFaceDetected: false, error: 'Face comparison failed' }) })
-        .finally(() => setFaceMatchRunning(false));
-    }
   };
 
   const retakeSelfie = () => {
@@ -266,7 +225,6 @@ export default function KycVerification() {
     );
   }
 
-  // If already verified or pending, show status
   if (kycStatus === 'VERIFIED' || kycStatus === 'PENDING') {
     return (
       <div className="page">
@@ -290,42 +248,14 @@ export default function KycVerification() {
   const handleFileChange = (
     setter: (f: File | null) => void,
     previewSetter: (s: string | null) => void,
-    isIdFront?: boolean,
   ) => (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0] ?? null;
     setter(file);
     if (file) {
       const url = URL.createObjectURL(file);
       previewSetter(url);
-
-      if (isIdFront && fullName) {
-        setOcrScanning(true);
-        setOcrResult(null);
-        setTamperRunning(true);
-        setTamperResult(null);
-
-        scanIdImage(file, fullName, idNumber)
-          .then((result) => {
-            setOcrResult(result);
-            ocrRanForRef.current = file.name;
-            ocrRawRef.current = { extractedName: result.extractedName, extractedIdNumber: result.extractedIdNumber };
-          })
-          .catch(() => {
-            setOcrResult({ extractedName: '', extractedIdNumber: '', extractedText: '', confidence: 0, nameMatches: false, idNumberMatches: false, error: 'OCR scan failed' });
-          })
-          .finally(() => setOcrScanning(false));
-
-        checkImageTampering(file)
-          .then((result) => setTamperResult(result))
-          .catch(() => setTamperResult({ clean: false, flags: ['Tamper check failed'], exifSoftware: null, imageWidth: 0, imageHeight: 0, suspiciousDimensions: false }))
-          .finally(() => setTamperRunning(false));
-      }
     } else {
       previewSetter(null);
-      if (isIdFront) {
-        setOcrResult(null);
-        ocrRanForRef.current = '';
-      }
     }
   };
 
@@ -377,18 +307,6 @@ export default function KycVerification() {
     return null;
   };
 
-  const getPersonalErrors = (): string[] => {
-    const errors: string[] = [];
-    if (fullName && fullName.trim().split(/\s+/).length < 2) errors.push('Please enter your full legal name (first and last)');
-    if (dateOfBirth) {
-      const dobErr = getDobError();
-      if (dobErr) errors.push(dobErr);
-    }
-    if (address && address.trim().length < 5) errors.push('Please enter a complete address');
-    if (phoneNumber && phoneNumber.replace(/\s/g, '').length < 10) errors.push('Phone number must be at least 10 digits');
-    return errors;
-  };
-
   const canAdvance = (): boolean => {
     switch (step) {
       case 'personal':
@@ -400,10 +318,6 @@ export default function KycVerification() {
         return true;
       case 'document':
         if (!idType || !idNumber || !isIdNumberValid() || !idFront) return false;
-        if (ocrScanning) return false;
-        if (ocrResult && !ocrResult.error) {
-          if (idType === 'NATIONAL_ID' && !ocrResult.philsysDetected) return false;
-        }
         return true;
       case 'selfie':
         return !!liveSelfieDataUrl;
@@ -421,11 +335,9 @@ export default function KycVerification() {
     setSubmitError(null);
 
     try {
-      // Upload ID documents to Supabase Storage
       const idFrontUrl = await uploadToSupabase(idFront, 'id-front', user.id);
       const idBackUrl = idBack ? await uploadToSupabase(idBack, 'id-back', user.id) : null;
 
-      // Upload live selfie as a blob
       const selfieBlob = await fetch(liveSelfieDataUrl).then((r) => r.blob());
       const selfieFile = new File([selfieBlob], `selfie_${Date.now()}.jpg`, { type: 'image/jpeg' });
       const selfieUrl = await uploadToSupabase(selfieFile, 'selfie', user.id);
@@ -449,15 +361,6 @@ export default function KycVerification() {
           liveSelfieUrl: selfieUrl,
           selfieCaptureMode: 'LIVE',
           selfieCapturedAt,
-          ocrExtractedName: ocrResult?.extractedName || null,
-          ocrExtractedIdNumber: ocrResult?.extractedIdNumber || null,
-          ocrConfidence: ocrResult?.confidence ?? null,
-          ocrNameMatch: ocrResult?.nameMatches ?? null,
-          ocrIdNumberMatch: ocrResult?.idNumberMatches ?? null,
-          faceMatchScore: faceMatchResult?.similarity ?? null,
-          faceMatched: faceMatchResult?.matched ?? null,
-          tamperClean: tamperResult?.clean ?? null,
-          tamperFlags: tamperResult?.flags ?? [],
         }),
       });
 
@@ -507,7 +410,6 @@ export default function KycVerification() {
           <StatusBanner status="REJECTED" rejectionReason={rejectionReason} />
         )}
 
-        {/* Step indicator */}
         <div style={{
           display: 'flex',
           justifyContent: 'center',
@@ -562,7 +464,6 @@ export default function KycVerification() {
           ))}
         </div>
 
-        {/* Form card */}
         <div style={{
           background: 'rgba(255,255,255,0.04)',
           border: '1px solid rgba(255,255,255,0.08)',
@@ -570,7 +471,6 @@ export default function KycVerification() {
           padding: '2rem',
         }}>
 
-          {/* Step 1: Personal Information */}
           {step === 'personal' && (
             <div style={{ display: 'grid', gap: '1rem' }}>
               <h3 style={{ margin: 0, fontFamily: 'var(--font-display)' }}>Personal Information</h3>
@@ -636,18 +536,18 @@ export default function KycVerification() {
                       flexShrink: 0,
                     }}
                   >
-                    <option value="+63" style={{ color: '#EAE2D6', background: '#1C1C26' }}>🇵🇭 +63</option>
-                    <option value="+1" style={{ color: '#EAE2D6', background: '#1C1C26' }}>🇺🇸 +1</option>
-                    <option value="+44" style={{ color: '#EAE2D6', background: '#1C1C26' }}>🇬🇧 +44</option>
-                    <option value="+61" style={{ color: '#EAE2D6', background: '#1C1C26' }}>🇦🇺 +61</option>
-                    <option value="+91" style={{ color: '#EAE2D6', background: '#1C1C26' }}>🇮🇳 +91</option>
-                    <option value="+81" style={{ color: '#EAE2D6', background: '#1C1C26' }}>🇯🇵 +81</option>
-                    <option value="+86" style={{ color: '#EAE2D6', background: '#1C1C26' }}>🇨🇳 +86</option>
-                    <option value="+65" style={{ color: '#EAE2D6', background: '#1C1C26' }}>🇸🇬 +65</option>
-                    <option value="+60" style={{ color: '#EAE2D6', background: '#1C1C26' }}>🇲🇾 +60</option>
-                    <option value="+62" style={{ color: '#EAE2D6', background: '#1C1C26' }}>🇮🇩 +62</option>
-                    <option value="+66" style={{ color: '#EAE2D6', background: '#1C1C26' }}>🇹🇭 +66</option>
-                    <option value="+84" style={{ color: '#EAE2D6', background: '#1C1C26' }}>🇻🇳 +84</option>
+                    <option value="+63" style={{ color: '#EAE2D6', background: '#1C1C26' }}>+63</option>
+                    <option value="+1" style={{ color: '#EAE2D6', background: '#1C1C26' }}>+1</option>
+                    <option value="+44" style={{ color: '#EAE2D6', background: '#1C1C26' }}>+44</option>
+                    <option value="+61" style={{ color: '#EAE2D6', background: '#1C1C26' }}>+61</option>
+                    <option value="+91" style={{ color: '#EAE2D6', background: '#1C1C26' }}>+91</option>
+                    <option value="+81" style={{ color: '#EAE2D6', background: '#1C1C26' }}>+81</option>
+                    <option value="+86" style={{ color: '#EAE2D6', background: '#1C1C26' }}>+86</option>
+                    <option value="+65" style={{ color: '#EAE2D6', background: '#1C1C26' }}>+65</option>
+                    <option value="+60" style={{ color: '#EAE2D6', background: '#1C1C26' }}>+60</option>
+                    <option value="+62" style={{ color: '#EAE2D6', background: '#1C1C26' }}>+62</option>
+                    <option value="+66" style={{ color: '#EAE2D6', background: '#1C1C26' }}>+66</option>
+                    <option value="+84" style={{ color: '#EAE2D6', background: '#1C1C26' }}>+84</option>
                   </select>
                   <input
                     value={phoneNumber}
@@ -666,7 +566,6 @@ export default function KycVerification() {
             </div>
           )}
 
-          {/* Step 2: ID Document */}
           {step === 'document' && (
             <div style={{ display: 'grid', gap: '1rem' }}>
               <h3 style={{ margin: 0, fontFamily: 'var(--font-display)' }}>ID Document</h3>
@@ -705,117 +604,11 @@ export default function KycVerification() {
                 <input
                   type="file"
                   accept="image/*"
-                  onChange={handleFileChange(setIdFront, setIdFrontPreview, true)}
+                  onChange={handleFileChange(setIdFront, setIdFrontPreview)}
                   style={inputStyle}
                 />
                 {idFrontPreview && (
                   <img src={idFrontPreview} alt="ID Front" style={previewStyle} />
-                )}
-                {ocrScanning && (
-                  <div style={{
-                    background: 'rgba(241, 210, 122, 0.08)',
-                    border: '1px solid rgba(241, 210, 122, 0.2)',
-                    borderRadius: '12px',
-                    padding: '0.75rem 1rem',
-                    fontSize: '0.8rem',
-                    color: '#f1d27a',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.5rem',
-                  }}>
-                    <span style={{ animation: 'spin 1s linear infinite', display: 'inline-block' }}>⏳</span>
-                    Scanning ID for name verification...
-                  </div>
-                )}
-                {ocrResult && !ocrScanning && (
-                  <div style={{
-                    background: ocrResult.nameMatches && ocrResult.idNumberMatches
-                      ? 'rgba(124, 255, 178, 0.08)'
-                      : ocrResult.error
-                        ? 'rgba(255, 138, 124, 0.08)'
-                        : 'rgba(241, 210, 122, 0.08)',
-                    border: `1px solid ${ocrResult.nameMatches && ocrResult.idNumberMatches
-                      ? 'rgba(124, 255, 178, 0.2)'
-                      : ocrResult.error
-                        ? 'rgba(255, 138, 124, 0.2)'
-                        : 'rgba(241, 210, 122, 0.2)'}`,
-                    borderRadius: '12px',
-                    padding: '0.75rem 1rem',
-                    fontSize: '0.8rem',
-                  }}>
-                    {ocrResult.error ? (
-                      <span style={{ color: '#ff8a7c' }}>OCR scan unavailable — admin will review manually</span>
-                    ) : (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-                        {idType === 'NATIONAL_ID' && !ocrResult.philsysDetected && (
-                          <span style={{ color: '#ff8a7c' }}>
-                            ✗ This does not appear to be a PhilSys National ID. Please upload the correct ID type or select a different ID type.
-                          </span>
-                        )}
-                        {idType !== 'NATIONAL_ID' && ocrResult.philsysDetected && (
-                          <span style={{ color: '#f1d27a' }}>
-                            ℹ This appears to be a PhilSys National ID — consider changing your ID type selection.
-                          </span>
-                        )}
-                        <span style={{ color: ocrResult.nameMatches ? '#7cffb2' : '#f1d27a' }}>
-                          {ocrResult.nameMatches ? '✓' : '✗'} Name: OCR="{ocrResult.extractedName || 'unable to extract'}" vs You="{fullName}" — {ocrResult.nameMatches ? 'Matches' : 'Does not match'}
-                        </span>
-                        <span style={{ color: ocrResult.idNumberMatches ? '#7cffb2' : '#f1d27a' }}>
-                          {ocrResult.idNumberMatches ? '✓' : '✗'} ID Number: OCR="{ocrResult.extractedIdNumber || 'unable to extract'}" vs You="{idNumber}" — {ocrResult.idNumberMatches ? 'Matches' : 'Does not match'}
-                        </span>
-                        <span style={{ color: 'var(--muted)', fontSize: '0.75rem' }}>
-                          OCR Confidence: {Math.round(ocrResult.confidence)}%
-                        </span>
-                        <button
-                          type="button"
-                          className="ghost-button"
-                          onClick={() => {
-                            if (!idFront || !ocrRawRef.current.extractedName) return;
-                            const updated = recompareOcr(fullName, idNumber, ocrRawRef.current.extractedName, ocrRawRef.current.extractedIdNumber);
-                            setOcrResult((prev) => prev ? { ...prev, nameMatches: updated.nameMatches, idNumberMatches: updated.idNumberMatches } : prev);
-                          }}
-                          style={{ marginTop: '0.25rem', fontSize: '0.75rem', padding: '0.3rem 0.7rem', width: 'auto' }}
-                        >
-                          Re-check match
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                )}
-                {tamperRunning && (
-                  <div style={{
-                    background: 'rgba(241, 210, 122, 0.08)',
-                    border: '1px solid rgba(241, 210, 122, 0.2)',
-                    borderRadius: '12px',
-                    padding: '0.75rem 1rem',
-                    fontSize: '0.8rem',
-                    color: '#f1d27a',
-                    marginTop: '0.5rem',
-                  }}>
-                    Analyzing image for tampering...
-                  </div>
-                )}
-                {tamperResult && !tamperRunning && (
-                  <div style={{
-                    background: tamperResult.clean
-                      ? 'rgba(124, 255, 178, 0.08)'
-                      : 'rgba(255, 138, 124, 0.08)',
-                    border: `1px solid ${tamperResult.clean
-                      ? 'rgba(124, 255, 178, 0.2)'
-                      : 'rgba(255, 138, 124, 0.2)'}`,
-                    borderRadius: '12px',
-                    padding: '0.75rem 1rem',
-                    fontSize: '0.8rem',
-                    marginTop: '0.5rem',
-                  }}>
-                    {tamperResult.clean ? (
-                      <span style={{ color: '#7cffb2' }}>Image appears authentic — no editing software or tampering detected</span>
-                    ) : (
-                      <span style={{ color: '#ff8a7c' }}>
-                        Tampering flags: {tamperResult.flags.join('; ')}
-                      </span>
-                    )}
-                  </div>
                 )}
               </div>
               <div>
@@ -833,10 +626,9 @@ export default function KycVerification() {
             </div>
           )}
 
-          {/* Step 3: Selfie — Live Camera Capture */}
           {step === 'selfie' && (
             <div style={{ display: 'grid', gap: '1rem' }}>
-              <h3 style={{ margin: 0, fontFamily: 'var(--font-display)' }}>Selfie Verification</h3>
+              <h3 style={{ margin: 0, fontFamily: 'var(--font-display)' }}>Selfie</h3>
               {cameraSupported === false ? (
                 <div style={{
                   background: 'rgba(241, 210, 122, 0.08)',
@@ -852,7 +644,7 @@ export default function KycVerification() {
                     You can upload a selfie photo instead.
                   </p>
                   <label style={{ ...inputStyle, display: 'inline-block', cursor: 'pointer', width: 'auto' }}>
-                    📁 Upload Selfie Photo
+                    Upload Selfie Photo
                     <input
                       type="file"
                       accept="image/*"
@@ -863,20 +655,8 @@ export default function KycVerification() {
                         if (!file) return;
                         const reader = new FileReader();
                         reader.onload = () => {
-                          const dataUrl = reader.result as string;
-                          setLiveSelfieDataUrl(dataUrl);
+                          setLiveSelfieDataUrl(reader.result as string);
                           setSelfieCapturedAt(new Date().toISOString());
-                          if (idFront) {
-                            setFaceMatchRunning(true);
-                            setFaceMatchResult(null);
-                            compareFaces(idFront, dataUrl)
-                              .then((result) => setFaceMatchResult(result))
-                              .catch((err) => {
-                                console.error('[KycVerification] Face comparison error:', err);
-                                setFaceMatchResult({ matched: false, similarity: 0, idFaceDetected: false, selfieFaceDetected: false, error: 'Face comparison failed' });
-                              })
-                              .finally(() => setFaceMatchRunning(false));
-                          }
                         };
                         reader.readAsDataURL(file);
                       }}
@@ -886,54 +666,6 @@ export default function KycVerification() {
               ) : liveSelfieDataUrl ? (
                 <div style={{ textAlign: 'center' }}>
                   <img src={liveSelfieDataUrl} alt="Captured selfie" style={{ ...previewStyle, maxHeight: '300px' }} />
-                  {faceMatchRunning && (
-                    <div style={{
-                      background: 'rgba(241, 210, 122, 0.08)',
-                      border: '1px solid rgba(241, 210, 122, 0.2)',
-                      borderRadius: '12px',
-                      padding: '0.75rem 1rem',
-                      fontSize: '0.8rem',
-                      color: '#f1d27a',
-                      marginTop: '0.75rem',
-                    }}>
-                      Comparing face with ID photo...
-                    </div>
-                  )}
-                  {faceMatchResult && !faceMatchRunning && (
-                    <div style={{
-                      background: faceMatchResult.matched
-                        ? 'rgba(124, 255, 178, 0.08)'
-                        : faceMatchResult.error
-                          ? 'rgba(241, 210, 122, 0.08)'
-                          : 'rgba(255, 138, 124, 0.08)',
-                      border: `1px solid ${faceMatchResult.matched
-                        ? 'rgba(124, 255, 178, 0.2)'
-                        : faceMatchResult.error
-                          ? 'rgba(241, 210, 122, 0.2)'
-                          : 'rgba(255, 138, 124, 0.2)'}`,
-                      borderRadius: '12px',
-                      padding: '0.75rem 1rem',
-                      fontSize: '0.8rem',
-                      marginTop: '0.75rem',
-                    }}>
-                      {faceMatchResult.error ? (
-                        <span style={{ color: '#f1d27a' }}>Face comparison unavailable — admin will review manually</span>
-                      ) : faceMatchResult.matched ? (
-                        <span style={{ color: '#7cffb2' }}>
-                          Face matches ID — Similarity: {Math.round(faceMatchResult.similarity * 100)}%
-                        </span>
-                      ) : (
-                        <span style={{ color: '#ff8a7c' }}>
-                          Face does not match ID — Similarity: {Math.round(faceMatchResult.similarity * 100)}%. Admin will review.
-                        </span>
-                      )}
-                      {faceMatchResult.idFaceDetected && faceMatchResult.selfieFaceDetected && !faceMatchResult.error && (
-                        <span style={{ color: 'var(--muted)', fontSize: '0.75rem' }}>
-                          ID face confidence: {Math.round(faceMatchResult.idDetectionConfidence * 100)}% · Selfie confidence: {Math.round(faceMatchResult.selfieDetectionConfidence * 100)}%
-                        </span>
-                      )}
-                    </div>
-                  )}
                   <button className="ghost-button" onClick={retakeSelfie} style={{ marginTop: '0.75rem', width: '100%' }}>
                     Retake Photo
                   </button>
@@ -951,8 +683,7 @@ export default function KycVerification() {
                     <strong>Tips for a good selfie:</strong>
                     <ul style={{ margin: '0.5rem 0 0', paddingLeft: '1.2rem' }}>
                       <li>Face the camera directly with good lighting</li>
-                      <li>Hold your ID next to your face</li>
-                      <li>Make sure both your face and the ID text are visible</li>
+                      <li>Make sure your face is clearly visible</li>
                       <li>Do not wear sunglasses or a hat</li>
                     </ul>
                   </div>
@@ -976,7 +707,7 @@ export default function KycVerification() {
                       <div style={{ textAlign: 'center', padding: '1rem' }}>
                         <p style={{ color: '#ff8a7c', fontSize: '0.85rem', margin: '0 0 0.75rem' }}>{cameraError}</p>
                         <label style={{ ...inputStyle, display: 'inline-block', cursor: 'pointer', width: 'auto', marginTop: '0.5rem' }}>
-                          📁 Upload Selfie Instead
+                          Upload Selfie Instead
                           <input
                             type="file"
                             accept="image/*"
@@ -987,21 +718,9 @@ export default function KycVerification() {
                               if (!file) return;
                               const reader = new FileReader();
                               reader.onload = () => {
-                                const dataUrl = reader.result as string;
-                                setLiveSelfieDataUrl(dataUrl);
+                                setLiveSelfieDataUrl(reader.result as string);
                                 setSelfieCapturedAt(new Date().toISOString());
                                 setCameraError(null);
-                                if (idFront) {
-                                  setFaceMatchRunning(true);
-                                  setFaceMatchResult(null);
-                                  compareFaces(idFront, dataUrl)
-                                    .then((result) => setFaceMatchResult(result))
-                                    .catch((err) => {
-                                      console.error('[KycVerification] Face comparison error:', err);
-                                      setFaceMatchResult({ matched: false, similarity: 0, idFaceDetected: false, selfieFaceDetected: false, error: 'Face comparison failed' });
-                                    })
-                                    .finally(() => setFaceMatchRunning(false));
-                                }
                               };
                               reader.readAsDataURL(file);
                             }}
@@ -1021,12 +740,11 @@ export default function KycVerification() {
             </div>
           )}
 
-          {/* Step 4: Review */}
           {step === 'review' && (
             <div style={{ display: 'grid', gap: '1rem' }}>
               <h3 style={{ margin: 0, fontFamily: 'var(--font-display)' }}>Review Your Information</h3>
               <p style={{ color: 'var(--muted)', fontSize: '0.85rem', margin: 0 }}>
-                Please verify all details before submitting. Incorrect information may delay your verification.
+                Please verify all details before submitting. Our team will review your documents manually.
               </p>
 
               <div style={reviewCardStyle}>
@@ -1053,66 +771,6 @@ export default function KycVerification() {
                 <div style={reviewLabel}>ID Number</div>
                 <div>{idNumber}</div>
               </div>
-
-              {ocrResult && !ocrResult.error && (
-                <div style={{
-                  ...reviewCardStyle,
-                  background: ocrResult.nameMatches && ocrResult.idNumberMatches ? 'rgba(124, 255, 178, 0.06)' : 'rgba(241, 210, 122, 0.06)',
-                  border: `1px solid ${ocrResult.nameMatches && ocrResult.idNumberMatches ? 'rgba(124, 255, 178, 0.15)' : 'rgba(241, 210, 122, 0.15)'}`,
-                }}>
-                  <div style={reviewLabel}>ID Scan Result</div>
-                  <div style={{ fontSize: '0.85rem', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                    <span style={{ color: ocrResult.nameMatches ? '#7cffb2' : '#f1d27a' }}>
-                      {ocrResult.nameMatches ? '✓' : '✗'} Name: "{ocrResult.extractedName || 'unable to extract'}"
-                    </span>
-                    <span style={{ color: ocrResult.idNumberMatches ? '#7cffb2' : '#f1d27a' }}>
-                      {ocrResult.idNumberMatches ? '✓' : '✗'} ID Number: "{ocrResult.extractedIdNumber || 'unable to extract'}"
-                    </span>
-                    <span style={{ color: 'var(--muted)', fontSize: '0.75rem' }}>
-                      OCR Confidence: {Math.round(ocrResult.confidence)}%
-                    </span>
-                  </div>
-                </div>
-              )}
-
-              {faceMatchResult && !faceMatchResult.error && (
-                <div style={{
-                  ...reviewCardStyle,
-                  background: faceMatchResult.matched ? 'rgba(124, 255, 178, 0.06)' : 'rgba(255, 138, 124, 0.06)',
-                  border: `1px solid ${faceMatchResult.matched ? 'rgba(124, 255, 178, 0.15)' : 'rgba(255, 138, 124, 0.15)'}`,
-                }}>
-                  <div style={reviewLabel}>Face Match</div>
-                  <div style={{ fontSize: '0.85rem' }}>
-                    {faceMatchResult.matched ? (
-                      <span style={{ color: '#7cffb2' }}>Face matches ID — Similarity: {Math.round(faceMatchResult.similarity * 100)}%</span>
-                    ) : (
-                      <span style={{ color: '#ff8a7c' }}>Face does not match ID — Similarity: {Math.round(faceMatchResult.similarity * 100)}%. Admin will review.</span>
-                    )}
-                    {faceMatchResult.idFaceDetected && faceMatchResult.selfieFaceDetected && !faceMatchResult.error && (
-                      <div style={{ color: 'var(--muted)', fontSize: '0.75rem', marginTop: '0.2rem' }}>
-                        ID confidence: {Math.round(faceMatchResult.idDetectionConfidence * 100)}% · Selfie confidence: {Math.round(faceMatchResult.selfieDetectionConfidence * 100)}%
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {tamperResult && (
-                <div style={{
-                  ...reviewCardStyle,
-                  background: tamperResult.clean ? 'rgba(124, 255, 178, 0.06)' : 'rgba(255, 138, 124, 0.06)',
-                  border: `1px solid ${tamperResult.clean ? 'rgba(124, 255, 178, 0.15)' : 'rgba(255, 138, 124, 0.15)'}`,
-                }}>
-                  <div style={reviewLabel}>Image Integrity</div>
-                  <div style={{ fontSize: '0.85rem' }}>
-                    {tamperResult.clean ? (
-                      <span style={{ color: '#7cffb2' }}>No tampering detected</span>
-                    ) : (
-                      <span style={{ color: '#ff8a7c' }}>Flags: {tamperResult.flags.join('; ')}</span>
-                    )}
-                  </div>
-                </div>
-              )}
 
               <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
                 {idFrontPreview && (
@@ -1141,7 +799,6 @@ export default function KycVerification() {
             </div>
           )}
 
-          {/* Navigation buttons */}
           <div style={{
             display: 'flex',
             justifyContent: 'space-between',
@@ -1164,26 +821,14 @@ export default function KycVerification() {
                 {submitting ? 'Submitting...' : 'Submit Verification'}
               </button>
             ) : (
-              <div>
-                <button
-                  className="primary-button"
-                  onClick={goNext}
-                  disabled={!canAdvance()}
-                  style={{ opacity: canAdvance() ? 1 : 0.5 }}
-                >
-                  Continue
-                </button>
-                {step === 'document' && !canAdvance() && ocrResult && !ocrResult.error && idType === 'NATIONAL_ID' && !ocrResult.philsysDetected && (
-                  <p style={{ color: '#ff8a7c', fontSize: '0.78rem', margin: '0.4rem 0 0' }}>
-                    Upload a valid PhilSys National ID to continue.
-                  </p>
-                )}
-                {step === 'document' && !canAdvance() && ocrResult && !ocrResult.error && idType === 'NATIONAL_ID' && ocrResult.philsysDetected && (
-                  <p style={{ color: '#ff8a7c', fontSize: '0.78rem', margin: '0.4rem 0 0' }}>
-                    Fix the fields above to continue.
-                  </p>
-                )}
-              </div>
+              <button
+                className="primary-button"
+                onClick={goNext}
+                disabled={!canAdvance()}
+                style={{ opacity: canAdvance() ? 1 : 0.5 }}
+              >
+                Continue
+              </button>
             )}
           </div>
         </div>
@@ -1192,7 +837,6 @@ export default function KycVerification() {
   );
 }
 
-// Shared styles
 const inputStyle: React.CSSProperties = {
   width: '100%',
   background: 'rgba(255,255,255,0.06)',

@@ -12,7 +12,7 @@ import { LegalProofService } from './legal-proof.service';
 import { ReceiptService } from '../receipt/receipt.service';
 import { StateMachineService } from '../common/state-machine/state-machine.service';
 import { NotificationService } from '../notification/notification.service';
-import { assertCustomerKycVerified } from './pawn-ticket.service';
+import { TierService } from '../tier/tier.service';
 
 @Injectable()
 export class LoanService {
@@ -23,6 +23,7 @@ export class LoanService {
     private receiptService: ReceiptService,
     private stateMachine: StateMachineService,
     private notificationService: NotificationService,
+    private tierService: TierService,
   ) {}
 
   async recordPayment(dto: CreatePaymentDto) {
@@ -76,6 +77,17 @@ export class LoanService {
             status: status,
           },
         });
+      }
+    }
+
+    if (dto.customerId) {
+      try {
+        await this.tierService.recomputeCustomerTier(
+          dto.customerId,
+          dto.processedBy || 'system',
+        );
+      } catch (tierErr) {
+        console.error('Failed to update customer tier after payment:', tierErr);
       }
     }
 
@@ -291,15 +303,16 @@ export class LoanService {
     return this.legalProofService.listByLoan(loanId);
   }
 
-  async getLoanStatus(loanId: number) {
+  async getLoanStatus(loanId: string) {
+    const resolvedId = await this.resolveLoanIdentifier(loanId);
     const loan = await this.prisma.loan.findUnique({
-      where: { id: loanId },
+      where: { id: resolvedId },
       include: {
         ticket: true,
         application: { select: { id: true, status: true } },
       },
     });
-    if (!loan) throw new NotFoundException(`Loan ${loanId} not found`);
+    if (!loan) throw new NotFoundException(`Loan ${resolvedId} not found`);
 
     const lifecycleStatus = loan.ticket?.lifecycleStatus || loan.status;
     const validTransitions = this.stateMachine.getValidTransitions(
@@ -360,29 +373,31 @@ export class LoanService {
   /**
    * Get full history for a single loan: payments, contract, and all proofs
    */
-  async getLoanFullHistory(loanId: number) {
-    const loan = await this.prisma.loan.findUnique({
-      where: { id: loanId },
-      include: {
-        application: {
-          include: {
-            contract: true,
+  async getLoanFullHistory(loanId: string) {
+    const resolvedId = await this.resolveLoanIdentifier(loanId);
+    const [loan, paymentRows] = await Promise.all([
+      this.prisma.loan.findUnique({
+        where: { id: resolvedId },
+        include: {
+          application: {
+            include: {
+              contract: true,
+            },
           },
+          ticket: true,
         },
-        ticket: true,
-      },
-    });
+      }),
+      this.prisma.payment.findMany({
+        where: { loanId: resolvedId },
+        select: { id: true },
+      }),
+    ]);
 
     if (!loan) {
-      throw new NotFoundException(`Loan ${loanId} not found`);
+      throw new NotFoundException(`Loan ${resolvedId} not found`);
     }
 
-    const paymentIds = (
-      await this.prisma.payment.findMany({
-        where: { loanId },
-        select: { id: true },
-      })
-    ).map((p) => p.id);
+    const paymentIds = paymentRows.map((p) => p.id);
 
     const [
       payments,
@@ -393,7 +408,7 @@ export class LoanService {
       receipts,
     ] = await Promise.all([
       this.prisma.payment.findMany({
-        where: { loanId },
+        where: { loanId: resolvedId },
         orderBy: { processedAt: 'desc' },
         include: {
           customer: { select: { id: true, fullName: true } },
@@ -405,13 +420,13 @@ export class LoanService {
       loan.application?.contract
         ? this.legalProofService.listByContract(loan.application.contract.id)
         : [],
-      this.legalProofService.listByLoan(loanId),
+      this.legalProofService.listByLoan(resolvedId),
       this.prisma.loanDisbursement.findMany({
-        where: { loanId },
+        where: { loanId: resolvedId },
         orderBy: { disbursedAt: 'desc' },
       }),
       this.prisma.penalty.findMany({
-        where: { loanId },
+        where: { loanId: resolvedId },
         orderBy: { appliedDate: 'desc' },
       }),
       paymentIds.length > 0
@@ -489,7 +504,7 @@ export class LoanService {
     ]);
 
     return {
-      loanId,
+      loanId: resolvedId,
       loan: {
         id: loan.id,
         principalAmount: loan.principalAmount,
@@ -516,8 +531,9 @@ export class LoanService {
 
   async getCustomerDashboard(customerId: string) {
     const resolvedId = await this.resolveCustomerIdentifier(customerId);
-    const [loans, payments] = await Promise.all([
-      this.prisma.loan.findMany({
+    const [loans, payments, recentProofs, customer, tierInfo] =
+      await Promise.all([
+        this.prisma.loan.findMany({
         where: { application: { customerId: resolvedId } },
         include: {
           ticket: {
@@ -543,6 +559,23 @@ export class LoanService {
           loan: { select: { id: true, principalAmount: true } },
         },
       }),
+      this.prisma.legalProof.findMany({
+        where: { loan: { application: { customerId: resolvedId } } },
+        orderBy: { createdAt: 'desc' },
+        take: 10,
+        select: {
+          id: true,
+          recordType: true,
+          title: true,
+          createdAt: true,
+          loanId: true,
+        },
+      }),
+      this.prisma.customer.findUnique({
+        where: { id: resolvedId },
+        select: { loyaltyTier: true, tier: true },
+      }),
+      this.tierService.getCustomerTierInfo(resolvedId),
     ]);
 
     const activeLoans = loans.filter(
@@ -578,27 +611,13 @@ export class LoanService {
         )
         .sort((a, b) => a.dueDate.getTime() - b.dueDate.getTime())[0] || null;
 
-    const recentProofs = await this.prisma.legalProof.findMany({
-      where: { loan: { application: { customerId: resolvedId } } },
-      orderBy: { createdAt: 'desc' },
-      take: 10,
-      select: {
-        id: true,
-        recordType: true,
-        title: true,
-        createdAt: true,
-        loanId: true,
-      },
-    });
-
-    const customer = await this.prisma.customer.findUnique({
-      where: { id: resolvedId },
-      select: { loyaltyTier: true },
-    });
-
     return {
       customerId: resolvedId,
       tier: customer?.loyaltyTier || 'Standard',
+      tierCode: customer?.tier || tierInfo?.tierCode,
+      transactionVolume: tierInfo?.transactionVolume ?? 0,
+      transactionCount: tierInfo?.transactionCount ?? 0,
+      tierHistory: tierInfo?.history ?? [],
       summary: {
         totalLoans: loans.length,
         activeLoanCount: activeLoans.length,
@@ -637,8 +656,6 @@ export class LoanService {
     const pawnshopId = loan.application?.pawnshopId || loan.ticket.pawnshopId;
     if (!pawnshopId) throw new BadRequestException('Loan has no pawnshop');
 
-    assertCustomerKycVerified(loan.ticket.customer);
-
     await this.stateMachine.transition(
       'TICKET_LIFECYCLE',
       loan.ticket.lifecycleStatus,
@@ -671,6 +688,14 @@ export class LoanService {
       data: { status: 'ACTIVE' },
     });
 
+    if (loan.ticket?.customerId) {
+      try {
+        await this.tierService.recomputeCustomerTier(loan.ticket.customerId, processedBy);
+      } catch (tierErr) {
+        console.error('Failed to update customer tier after disbursement:', tierErr);
+      }
+    }
+
     const customerName = loan.ticket.customer?.fullName || loan.customerName || 'Customer';
 
     await this.legalProofService.createProof({
@@ -702,6 +727,7 @@ export class LoanService {
         amount: loan.principalAmount,
         taxAmount: loan.interestAmount,
         customerName,
+        customerId: loan.ticket.customer?.id ?? undefined,
         lineItems: [
           { description: 'Principal Loan Amount', amount: loan.principalAmount },
           { description: 'Interest (prepaid)', amount: loan.interestAmount },
@@ -730,6 +756,37 @@ export class LoanService {
       } catch (notifErr) {
         console.error('Failed to send disbursement notification:', notifErr);
       }
+    }
+
+    try {
+      const approvalRecord = await this.prisma.approvalRecord.findFirst({
+        where: {
+          pawnshopId,
+          targetType: 'APPRAISAL',
+          targetId: String(loan.ticket.id),
+          status: 'PENDING',
+        },
+      });
+      if (approvalRecord) {
+        await this.prisma.approvalRecord.update({
+          where: { id: approvalRecord.id },
+          data: { status: 'APPROVED', decidedById: processedBy, decidedAt: new Date() },
+        });
+        await this.notificationService.sendNotification({
+          recipientId: approvalRecord.requestedById,
+          channel: NotificationChannel.IN_APP,
+          type: NotificationType.SYSTEM_ANNOUNCEMENT,
+          title: 'Approval granted',
+          body: `Your APPRAISAL approval request was approved and the loan has been disbursed.`,
+          data: {
+            approvalRecordId: approvalRecord.id,
+            targetType: 'APPRAISAL',
+            status: 'APPROVED',
+          },
+        });
+      }
+    } catch (approvalErr) {
+      console.error('Failed to finalize appraisal approval on disbursement:', approvalErr);
     }
 
     return {
@@ -931,24 +988,32 @@ export class LoanService {
       paymentMap.set(p.loanId, arr);
     }
 
-    const [allDisbursements, allPenalties, allReceipts] = await Promise.all([
-      loanIds.length > 0
-        ? this.prisma.loanDisbursement.findMany({
-            where: { loanId: { in: loanIds } },
-          })
-        : [],
-      loanIds.length > 0
-        ? this.prisma.penalty.findMany({ where: { loanId: { in: loanIds } } })
-        : [],
-      payments.length > 0
-        ? this.prisma.receipt.findMany({
-            where: {
-              referenceType: 'PAYMENT',
-              referenceId: { in: payments.map((p) => p.id) },
-            },
-          })
-        : [],
-    ]);
+    const [allDisbursements, allPenalties, allReceipts, customerReceipts] =
+      await Promise.all([
+        loanIds.length > 0
+          ? this.prisma.loanDisbursement.findMany({
+              where: { loanId: { in: loanIds } },
+            })
+          : [],
+        loanIds.length > 0
+          ? this.prisma.penalty.findMany({ where: { loanId: { in: loanIds } } })
+          : [],
+        payments.length > 0
+          ? this.prisma.receipt.findMany({
+              where: {
+                referenceType: 'PAYMENT',
+                referenceId: { in: payments.map((p) => p.id) },
+              },
+            })
+          : [],
+        this.prisma.receipt.findMany({
+          where: {
+            customerId: resolvedId,
+            receiptType: { in: ['REDEMPTION', 'AUCTION_SALE', 'LOAN_DISBURSEMENT'] },
+          },
+          orderBy: { generatedAt: 'desc' },
+        }),
+      ]);
 
     const loansWithHistory = loans.map((loan) => {
       const loanPayments = paymentMap.get(loan.id) || [];
@@ -1001,6 +1066,15 @@ export class LoanService {
           amount: r.totalAmount,
         },
       })),
+      ...customerReceipts.map((r) => ({
+        eventType: 'RECEIPT',
+        timestamp: r.generatedAt,
+        data: {
+          receiptNumber: r.receiptNumber,
+          type: r.receiptType,
+          amount: r.totalAmount,
+        },
+      })),
       ...loans.map((l) => ({
         eventType: 'LIFECYCLE_STATUS',
         timestamp: l.ticket?.updatedAt || l.createdAt,
@@ -1024,6 +1098,12 @@ export class LoanService {
       proofs: {
         records: allProofs,
         count: allProofs.length,
+      },
+      receipts: {
+        records: [...allReceipts, ...customerReceipts].sort(
+          (a, b) => b.generatedAt.getTime() - a.generatedAt.getTime(),
+        ),
+        count: allReceipts.length + customerReceipts.length,
       },
       timeline: customerTimeline,
     };
@@ -1074,6 +1154,38 @@ export class LoanService {
     }
 
     return byLookup.id;
+  }
+
+  /**
+   * Helper: resolve a loan identifier to a numeric loan id.
+   * Accepts a numeric loan id, or an application UUID (via loan.applicationId),
+   * so both the "By Loan ID" search and clicks from the recent-applications
+   * list resolve to the same loan row.
+   */
+  private async resolveLoanIdentifier(identifier: string): Promise<number> {
+    const raw = (identifier || '').trim();
+    if (!raw) {
+      throw new BadRequestException('Loan identifier is required');
+    }
+
+    const isUuid =
+      /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(
+        raw,
+      );
+
+    if (isUuid) {
+      const byApplication = await this.prisma.loan.findUnique({
+        where: { applicationId: raw },
+        select: { id: true },
+      });
+      if (byApplication) return byApplication.id;
+      throw new NotFoundException(`Loan for application ${raw} not found`);
+    }
+
+    const parsed = Number(raw);
+    if (Number.isInteger(parsed) && parsed > 0) return parsed;
+
+    throw new NotFoundException(`Loan ${raw} not found`);
   }
 
   /**

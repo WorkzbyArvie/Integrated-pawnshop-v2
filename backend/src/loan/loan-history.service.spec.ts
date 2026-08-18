@@ -5,6 +5,8 @@ import { FinanceService } from '../finance/finance.service';
 import { LegalProofService } from './legal-proof.service';
 import { StateMachineService } from '../common/state-machine/state-machine.service';
 import { ReceiptService } from '../receipt/receipt.service';
+import { NotificationService } from '../notification/notification.service';
+import { TierService } from '../tier/tier.service';
 import { NotFoundException } from '@nestjs/common';
 
 describe('LoanService - History Endpoints', () => {
@@ -92,6 +94,13 @@ describe('LoanService - History Endpoints', () => {
       receipt: {
         findMany: jest.fn().mockResolvedValue([]),
       },
+      customer: {
+        findUnique: jest.fn().mockImplementation((args?: any) => {
+          const id = args?.where?.id;
+          return Promise.resolve(id === 'customer-123' ? { id, loyaltyTier: 'Gold', tier: 'GOLD' } : null);
+        }),
+        findFirst: jest.fn().mockResolvedValue({ id: 'customer-123', fullName: 'Customer One' }),
+      },
     };
 
     const mockLegalProofService = {
@@ -122,6 +131,14 @@ describe('LoanService - History Endpoints', () => {
         {
           provide: StateMachineService,
           useValue: { transition: jest.fn() },
+        },
+        {
+          provide: NotificationService,
+          useValue: { sendNotification: jest.fn().mockResolvedValue({ id: 'notif-1' }) },
+        },
+        {
+          provide: TierService,
+          useValue: { recomputeCustomerTier: jest.fn().mockResolvedValue(null) },
         },
       ],
     }).compile();
@@ -155,7 +172,7 @@ describe('LoanService - History Endpoints', () => {
         .spyOn(legalProofService, 'listByLoan')
         .mockResolvedValue(mockProofs as any);
 
-      const result = await service.getLoanFullHistory(1);
+      const result = await service.getLoanFullHistory('1');
 
       expect(result).toHaveProperty('loanId', 1);
       expect(result).toHaveProperty('loan');
@@ -181,7 +198,7 @@ describe('LoanService - History Endpoints', () => {
         .spyOn(legalProofService, 'listByLoan')
         .mockResolvedValue(mockProofs as any);
 
-      const result = await service.getLoanFullHistory(1);
+      const result = await service.getLoanFullHistory('1');
 
       expect(result.timeline).toBeDefined();
       expect(result.timeline.length).toBeGreaterThan(0);
@@ -197,7 +214,7 @@ describe('LoanService - History Endpoints', () => {
     it('throws NotFoundException when loan does not exist', async () => {
       jest.spyOn(prismaService.loan, 'findUnique').mockResolvedValue(null);
 
-      await expect(service.getLoanFullHistory(999)).rejects.toThrow(
+      await expect(service.getLoanFullHistory('999')).rejects.toThrow(
         NotFoundException,
       );
     });
@@ -210,7 +227,7 @@ describe('LoanService - History Endpoints', () => {
       jest.spyOn(legalProofService, 'listByContract').mockResolvedValue([]);
       jest.spyOn(legalProofService, 'listByLoan').mockResolvedValue([]);
 
-      const result = await service.getLoanFullHistory(1);
+      const result = await service.getLoanFullHistory('1');
 
       expect(result.contract).toBeDefined();
       expect(result.contract.contractNumber).toBe('CONT-2026-001');

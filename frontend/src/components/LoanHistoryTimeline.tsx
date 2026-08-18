@@ -39,7 +39,7 @@ type LoanHistory = {
 };
 
 interface LoanHistoryTimelineProps {
-  loanId?: number;
+  loanId?: string | number;
   customerId?: string;
 }
 
@@ -161,7 +161,7 @@ export function LoanHistoryTimeline({ loanId, customerId }: LoanHistoryTimelineP
           </h2>
           <p className="mt-2 text-[11px] font-black uppercase tracking-widest text-[#6B655C] flex items-center gap-2">
             <History className="w-4 h-4 text-[#C9A05C]" />
-            {customerId ? 'Customer Timeline' : `Loan #${loanId} Timeline`}
+            {customerId ? 'Customer Timeline' : `Loan #${data.loan?.id ?? loanId} Timeline`}
           </p>
         </div>
         {data.loan && (

@@ -1,11 +1,12 @@
 import { Test } from '@nestjs/testing';
-import { ConflictException, NotFoundException, BadRequestException } from '@nestjs/common';
+import { NotFoundException, BadRequestException } from '@nestjs/common';
 import { LoanService } from './loan.service';
 import { FinanceService } from '../finance/finance.service';
 import { LegalProofService } from './legal-proof.service';
 import { ReceiptService } from '../receipt/receipt.service';
 import { StateMachineService } from '../common/state-machine/state-machine.service';
 import { NotificationService } from '../notification/notification.service';
+import { TierService } from '../tier/tier.service';
 import { PrismaService } from '../prisma.service';
 
 const mockPrisma = {
@@ -19,6 +20,7 @@ const mockLegalProofService = { createProof: jest.fn().mockResolvedValue({ id: '
 const mockReceiptService = { generateReceipt: jest.fn().mockResolvedValue({ id: 'rcpt-1' }) };
 const mockStateMachine = { transition: jest.fn().mockResolvedValue(true) };
 const mockNotificationService = { sendNotification: jest.fn().mockResolvedValue({ id: 'notif-1' }) };
+const mockTierService = { recomputeCustomerTier: jest.fn().mockResolvedValue(null) };
 
 describe('LoanService', () => {
   let service: LoanService;
@@ -50,6 +52,7 @@ describe('LoanService', () => {
         { provide: ReceiptService, useValue: mockReceiptService },
         { provide: StateMachineService, useValue: mockStateMachine },
         { provide: NotificationService, useValue: mockNotificationService },
+        { provide: TierService, useValue: mockTierService },
       ],
     }).compile();
 
@@ -66,40 +69,8 @@ describe('LoanService', () => {
     mockPrisma.approvalRecord.findFirst.mockResolvedValue(null);
   });
 
-  describe('disburseLoan KYC gate', () => {
-    it('rejects a loan whose customer is not VERIFIED with a 409 ConflictException and never transitions', async () => {
-      mockPrisma.loan.findUnique.mockResolvedValue({
-        ...baseLoan,
-        ticket: {
-          ...baseLoan.ticket,
-          customer: { id: 'cust_1', fullName: 'John Doe', kycStatus: 'PENDING' },
-        },
-      });
-
-      await expect(service.disburseLoan(1, 'teller_1')).rejects.toThrow(ConflictException);
-      await expect(service.disburseLoan(1, 'teller_1')).rejects.toThrow(
-        'Customer KYC must be VERIFIED',
-      );
-      expect(mockStateMachine.transition).not.toHaveBeenCalled();
-      expect(mockPrisma.ticket.update).not.toHaveBeenCalled();
-      expect(mockPrisma.loan.update).not.toHaveBeenCalled();
-    });
-
-    it('blocks NOT_SUBMITTED and REJECTED customers the same way', async () => {
-      for (const kycStatus of ['NOT_SUBMITTED', 'REJECTED']) {
-        mockPrisma.loan.findUnique.mockResolvedValue({
-          ...baseLoan,
-          ticket: {
-            ...baseLoan.ticket,
-            customer: { id: 'cust_1', fullName: 'John Doe', kycStatus },
-          },
-        });
-
-        await expect(service.disburseLoan(1, 'teller_1')).rejects.toThrow(ConflictException);
-      }
-    });
-
-    it('disburses a VERIFIED customer through the full activation flow', async () => {
+  describe('disburseLoan without KYC enforcement', () => {
+    it('disburses through the full activation flow regardless of customer KYC status', async () => {
       mockPrisma.loan.findUnique.mockResolvedValue(baseLoan);
       mockPrisma.ticket.update.mockResolvedValue({ ...baseLoan.ticket, lifecycleStatus: 'ACTIVE' });
       mockPrisma.loan.update.mockResolvedValue({ ...baseLoan, status: 'ACTIVE' });
@@ -132,14 +103,14 @@ describe('LoanService', () => {
       );
     });
 
-    it('still fires the not-found guard before the KYC gate', async () => {
+    it('still fires the not-found guard', async () => {
       mockPrisma.loan.findUnique.mockResolvedValue(null);
 
       await expect(service.disburseLoan(1, 'teller_1')).rejects.toThrow(NotFoundException);
       expect(mockStateMachine.transition).not.toHaveBeenCalled();
     });
 
-    it('still fires the no-ticket guard before the KYC gate', async () => {
+    it('still fires the no-ticket guard', async () => {
       mockPrisma.loan.findUnique.mockResolvedValue({ ...baseLoan, ticket: null });
 
       await expect(service.disburseLoan(1, 'teller_1')).rejects.toThrow(BadRequestException);

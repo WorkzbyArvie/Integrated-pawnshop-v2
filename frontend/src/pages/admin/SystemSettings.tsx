@@ -18,6 +18,7 @@ import {
   CheckCircle2,
   Crown,
   Palette,
+  FileText,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
 import api from '../../lib/apiClient';
@@ -68,6 +69,9 @@ export function SystemSettings({ config, setConfig, userRole, branchId, onBrandi
   const [loadingBranding, setLoadingBranding] = useState(false);
   const [savingBranding, setSavingBranding] = useState(false);
   const [redemptionThreshold, setRedemptionThreshold] = useState<number>(50000);
+  const [contractTerms, setContractTerms] = useState('');
+  const [contractResponsibilities, setContractResponsibilities] = useState('');
+  const [savingContractTerms, setSavingContractTerms] = useState(false);
   
   const normalizedRole = (userRole || '').toUpperCase().replace(/[_\s]/g, '');
   const isSuperAdmin = normalizedRole === 'SUPERADMIN' || normalizedRole === 'SUPER';
@@ -116,6 +120,8 @@ export function SystemSettings({ config, setConfig, userRole, branchId, onBrandi
           if (data?.settings) {
             const { global_overrides, redemptionApprovalThreshold, ...localSettings } = data.settings;
             setRedemptionThreshold(Number(redemptionApprovalThreshold) || 50000);
+            setContractTerms(String(data.settings.contractTermsAndConditions || ''));
+            setContractResponsibilities(String(data.settings.contractPawnshopResponsibilities || ''));
             // Set local config (what the Branch Admin sees/edits)
             setConfig((prev: any) => ({ ...prev, ...localSettings }));
             // Set global overrides for the "Restricted" badge / grey-out check
@@ -342,6 +348,28 @@ export function SystemSettings({ config, setConfig, userRole, branchId, onBrandi
     }
   };
 
+  const handleSaveContractTerms = async () => {
+    if (!branchId) return;
+    setSavingContractTerms(true);
+    try {
+      await api.patch(`/tenant-governance/pawnshops/${branchId}/contract-terms`, {
+        termsAndConditions: contractTerms,
+        pawnshopResponsibilities: contractResponsibilities,
+      });
+      setShowToast(true);
+    } catch (error) {
+      console.error('Error saving contract terms:', error);
+      await Swal.fire({
+        icon: 'error',
+        title: 'Save Failed',
+        text: 'Unable to save contract terms right now.',
+        confirmButtonColor: '#ef4444',
+      });
+    } finally {
+      setSavingContractTerms(false);
+    }
+  };
+
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-1000 font-inter pb-20 text-left relative">
       
@@ -473,6 +501,55 @@ export function SystemSettings({ config, setConfig, userRole, branchId, onBrandi
           />
         </div>
       </div>
+
+      {!isSuperAdmin && branchId && (
+        <div className="bg-[#14141B] rounded-[2.8rem] p-8 border-2 border-[rgba(201,160,92,0.08)] shadow-xl">
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#C9A05C]">Contract Policy</p>
+              <h3 className="text-2xl font-black text-[#EAE2D6] mt-1 flex items-center gap-2">
+                <FileText className="w-6 h-6 text-[#C9A05C]" />
+                Contract Terms & Responsibilities
+              </h3>
+              <p className="text-sm text-[#6B655C] mt-2">
+                These appear on every loan contract your pawnshop generates. If you set Terms and Conditions, they replace the standard text. Write one item per line.
+              </p>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 gap-6">
+            <div>
+              <label className="text-xs font-black uppercase tracking-wider text-[#6B655C]">Terms and Conditions</label>
+              <textarea
+                value={contractTerms}
+                onChange={(event) => setContractTerms(event.target.value)}
+                rows={9}
+                placeholder={'1. The Pawnee acknowledges receipt of the loan amount.\n2. Interest accrues monthly at the rate stated on the contract.\n3. The Pawnshop reserves the right to sell the collateral if the loan is not redeemed within the term and grace period.'}
+                className="mt-2 w-full rounded-2xl border border-[rgba(201,160,92,0.12)] px-4 py-3 text-sm font-medium text-[#EAE2D6] bg-[#1C1C26] focus:outline-none focus:border-[#C9A05C]"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-black uppercase tracking-wider text-[#6B655C]">Pawnshop Responsibilities</label>
+              <textarea
+                value={contractResponsibilities}
+                onChange={(event) => setContractResponsibilities(event.target.value)}
+                rows={6}
+                placeholder={'The Pawnshop shall safely store the collateral for the full term of the loan.\nThe Pawnshop shall release the collateral upon full payment of principal and interest.\nThe Pawnshop shall issue a receipt for every payment received.'}
+                className="mt-2 w-full rounded-2xl border border-[rgba(201,160,92,0.12)] px-4 py-3 text-sm font-medium text-[#EAE2D6] bg-[#1C1C26] focus:outline-none focus:border-[#C9A05C]"
+              />
+            </div>
+            <div className="flex justify-end">
+              <button
+                onClick={() => void handleSaveContractTerms()}
+                disabled={savingContractTerms}
+                className="px-6 py-3 rounded-2xl bg-[#C9A05C] text-white text-xs font-black uppercase tracking-widest hover:bg-[#C9A05C]/80 disabled:opacity-50 inline-flex items-center gap-2"
+              >
+                {savingContractTerms && <Loader2 className="w-4 h-4 animate-spin" />}
+                Save Contract Terms
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {!isSuperAdmin && (
         <div className="bg-[#14141B] rounded-[2.8rem] p-8 border-2 border-[rgba(201,160,92,0.08)] shadow-xl">

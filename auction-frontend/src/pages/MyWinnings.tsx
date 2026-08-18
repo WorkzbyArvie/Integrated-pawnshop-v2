@@ -460,20 +460,26 @@ export default function MyWinnings() {
                 fontFamily: 'var(--font-body)',
                 lineHeight: '1.7',
                 fontSize: '0.85rem',
-                whiteSpace: 'pre-wrap',
                 marginBottom: '1rem',
               }}
             >
-              {contractModal.template?.content
-                ? renderTemplateContent(
-                    contractModal.template.content,
-                    contractModal.item,
-                    user?.user_metadata?.fullName ||
-                      contractModal.signedName ||
-                      user?.email,
-                    kycProfile?.address,
-                  )
-                : 'No contract content available.'}
+              {contractModal.template?.content ? (
+                <div
+                  className="agreement-content"
+                  dangerouslySetInnerHTML={{
+                    __html: renderTemplateContent(
+                      contractModal.template.content,
+                      contractModal.item,
+                      user?.user_metadata?.fullName ||
+                        contractModal.signedName ||
+                        user?.email,
+                      kycProfile?.address,
+                    ),
+                  }}
+                />
+              ) : (
+                'No contract content available.'
+              )}
             </div>
 
             {contractModal.clauses.length > 0 && (

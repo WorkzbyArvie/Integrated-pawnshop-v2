@@ -6,6 +6,7 @@ import { FinanceService } from './finance/finance.service';
 import { LegalProofService } from './loan/legal-proof.service';
 import { ReceiptService } from './receipt/receipt.service';
 import { StateMachineService } from './common/state-machine/state-machine.service';
+import { PawnTicketService } from './loan/pawn-ticket.service';
 
 const mockPrisma = {
   profile: { findUnique: jest.fn() },
@@ -17,6 +18,7 @@ const mockFinanceService = { createEntry: jest.fn().mockResolvedValue({ id: 'led
 const mockLegalProofService = { createProof: jest.fn().mockResolvedValue({ id: 'proof-1' }) };
 const mockReceiptService = { generateReceipt: jest.fn().mockResolvedValue({ id: 'rcpt-1' }) };
 const mockStateMachine = { transition: jest.fn().mockResolvedValue(true) };
+const mockPawnTicketService = { redeemTicket: jest.fn() };
 
 describe('AppService', () => {
   let service: AppService;
@@ -32,6 +34,7 @@ describe('AppService', () => {
         { provide: LegalProofService, useValue: mockLegalProofService },
         { provide: ReceiptService, useValue: mockReceiptService },
         { provide: StateMachineService, useValue: mockStateMachine },
+        { provide: PawnTicketService, useValue: mockPawnTicketService },
       ],
     }).compile();
 

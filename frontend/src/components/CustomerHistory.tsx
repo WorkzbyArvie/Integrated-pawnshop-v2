@@ -19,6 +19,17 @@ const tierColors: Record<string, string> = {
 type CustomerDashboard = {
   customerId: string;
   tier: string;
+  tierCode?: string;
+  transactionVolume?: number;
+  transactionCount?: number;
+  tierHistory?: Array<{
+    id: string;
+    fromTier: string | null;
+    toTier: string;
+    reason: string;
+    changedAt: string;
+    changedById: string | null;
+  }>;
   summary: {
     totalLoans: number;
     activeLoanCount: number;
@@ -144,6 +155,40 @@ export function CustomerHistory({ customerId }: CustomerHistoryProps) {
           <p className="text-2xl font-black text-[#EAE2D6]">{summary.overdueCount}</p>
           <p className="text-[10px] font-black uppercase tracking-wider text-[#6B655C]">Overdue ({formatCurrency(summary.totalOverdue)})</p>
         </div>
+      </div>
+
+      <div className="bg-[#14141B] rounded-2xl border border-[rgba(201,160,92,0.08)] p-5 space-y-4">
+        <div className="flex items-center justify-between">
+          <p className="text-[10px] font-black uppercase tracking-wider text-[#6B655C]">Loyalty Tier — Transaction Based</p>
+          <span className={`px-2 py-0.5 rounded-full text-[9px] font-black text-white ${tierColors[data.tier] || 'bg-gray-600'}`}>
+            {data.tier || 'Standard'}
+          </span>
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <p className="text-2xl font-black text-[#EAE2D6]">{formatCurrency(data.transactionVolume ?? 0)}</p>
+            <p className="text-[10px] font-black uppercase tracking-wider text-[#6B655C]">Transaction Volume</p>
+          </div>
+          <div>
+            <p className="text-2xl font-black text-[#EAE2D6]">{data.transactionCount ?? 0}</p>
+            <p className="text-[10px] font-black uppercase tracking-wider text-[#6B655C]">Transactions</p>
+          </div>
+        </div>
+        {data.tierHistory && data.tierHistory.length > 0 && (
+          <div className="space-y-2">
+            <p className="text-[10px] font-black uppercase tracking-wider text-[#6B655C]">Tier History</p>
+            <div className="space-y-1.5">
+              {data.tierHistory.slice(0, 5).map((h) => (
+                <div key={h.id} className="flex items-center justify-between gap-3">
+                  <p className="text-xs font-bold text-[#EAE2D6]">
+                    {h.fromTier ? `${h.fromTier} → ` : ''}{h.toTier}
+                  </p>
+                  <p className="text-[10px] font-semibold text-[#6B655C]">{formatDateTime(h.changedAt)}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

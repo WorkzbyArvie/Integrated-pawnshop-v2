@@ -47,8 +47,9 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
-import api from '@/lib/apiClient';
+import { Switch } from '@/components/ui/switch';
 import Swal from 'sweetalert2';
+import api from '@/lib/apiClient';
 import useApi from '@/lib/useApi';
 import { formatCurrency, formatDate, statusColor, humanizeStatus } from '@/lib/formatters';
 import type { Subscription, SubscriptionPlan, SubscriptionLimits, SubscriptionTier, BillingInterval } from '@/lib/types';
@@ -56,6 +57,7 @@ import { useToast } from '../App';
 
 const TIER_ICONS: Record<string, React.ReactNode> = {
   FREE: <Shield className="w-6 h-6 text-[#6B655C]" />,
+  TRIAL: <Sparkles className="w-6 h-6 text-[#C9A05C]" />,
   BASIC: <Star className="w-6 h-6 text-sky-500" />,
   PROFESSIONAL: <Zap className="w-6 h-6 text-[#C9A05C]" />,
   ENTERPRISE: <Crown className="w-6 h-6 text-amber-500" />,
@@ -63,6 +65,7 @@ const TIER_ICONS: Record<string, React.ReactNode> = {
 
 const TIER_COLORS: Record<string, string> = {
   FREE: 'border-[rgba(201,160,92,0.12)] bg-[#1C1C26]',
+  TRIAL: 'border-[#C9A05C]/50 bg-[#C9A05C]/10',
   BASIC: 'border-sky-200 bg-sky-50',
   PROFESSIONAL: 'border-[rgba(201,160,92,0.2)] bg-[#C9A05C]/10',
   ENTERPRISE: 'border-amber-200 bg-amber-50',
@@ -70,6 +73,7 @@ const TIER_COLORS: Record<string, string> = {
 
 interface SubscriptionManagerProps {
   branchId: string | null;
+  onSubscriptionChange?: () => void;
 }
 
 const CANCEL_REASONS = [
@@ -84,7 +88,7 @@ const CANCEL_REASONS = [
   'Others',
 ] as const;
 
-export function SubscriptionManager({ branchId: _branchId }: SubscriptionManagerProps) {
+export function SubscriptionManager({ branchId: _branchId, onSubscriptionChange }: SubscriptionManagerProps) {
   const { showToast } = useToast();
 
   // â”€â”€ State â”€â”€
@@ -96,6 +100,7 @@ export function SubscriptionManager({ branchId: _branchId }: SubscriptionManager
   const [creating, setCreating] = useState(false);
   const [paymentStatus, setPaymentStatus] = useState<any>(null);
   const [pollingPaymentStatus, setPollingPaymentStatus] = useState(false);
+  const [autoRenewUpdating, setAutoRenewUpdating] = useState(false);
   // Create form
   const [createForm, setCreateForm] = useState({
     tier: 'BASIC' as SubscriptionTier,
@@ -117,7 +122,22 @@ export function SubscriptionManager({ branchId: _branchId }: SubscriptionManager
   const refetchAll = useCallback(() => {
     refetchSub();
     refetchLimits();
-  }, [refetchSub, refetchLimits]);
+    onSubscriptionChange?.();
+  }, [refetchSub, refetchLimits, onSubscriptionChange]);
+
+  const handleToggleAutoRenew = async (next: boolean) => {
+    setAutoRenewUpdating(true);
+    try {
+      await api.patch('/subscriptions', { autoRenew: next });
+      showToast(next ? 'Auto-renew enabled' : 'Auto-renew disabled', 'success');
+      refetchAll();
+    } catch (err: unknown) {
+      showToast((err instanceof Error ? err.message : String(err)) || 'Failed to update auto-renew', 'error');
+      refetchAll();
+    } finally {
+      setAutoRenewUpdating(false);
+    }
+  };
 
   // â”€â”€ Handlers â”€â”€
   const handleCreate = async () => {
@@ -280,6 +300,19 @@ export function SubscriptionManager({ branchId: _branchId }: SubscriptionManager
 
     const finalReason = isOthers ? `Others: ${details}` : selectedReason;
 
+    const confirm = await Swal.fire({
+      icon: 'warning',
+      title: 'Cancel Subscription?',
+      html: `Your <b>${currentPlanLabel}</b> subscription will be cancelled immediately and you will lose access to paid features.${isTrialSubscription ? ' You will not be charged.' : ''}<br/><br/><span class="text-sm text-[#6B655C]">Reason: ${finalReason}</span>`,
+      showCancelButton: true,
+      confirmButtonText: 'Yes, cancel it',
+      cancelButtonText: 'Keep my plan',
+      confirmButtonColor: '#dc2626',
+      cancelButtonColor: '#6B655C',
+    });
+
+    if (!confirm.isConfirmed) return;
+
     try {
       await api.post('/subscriptions/cancel', { reason: finalReason });
       showToast('Subscription cancelled. Trial access has ended.', 'success');
@@ -297,8 +330,11 @@ export function SubscriptionManager({ branchId: _branchId }: SubscriptionManager
   const isTrialSubscription = String(currentSub?.status || '').toUpperCase() === 'TRIAL';
   const isAwaitingPaymentAuthorization =
     String(currentSub?.status || '').toUpperCase() === 'PAST_DUE';
+  const isSubscriptionClosed =
+    String(currentSub?.status || '').toUpperCase() === 'CANCELLED' ||
+    String(currentSub?.status || '').toUpperCase() === 'EXPIRED';
   const currentPlanLabel = isTrialSubscription ? 'TRIAL' : currentTier;
-  const plansForDisplay = plansList;
+  const plansForDisplay = plansList.filter((p) => p.tier !== 'FREE');
   const checkoutUrl =
     paymentStatus?.checkoutUrl ||
     (currentSub as any)?.checkoutUrl ||
@@ -335,13 +371,26 @@ export function SubscriptionManager({ branchId: _branchId }: SubscriptionManager
                     <Badge className={statusColor(currentSub.status)}>{humanizeStatus(currentSub.status)}</Badge>
                   )}
                 </div>
-                {currentSub?.currentPeriodEnd && (
-                  <p className="text-sm text-[#6B655C] mt-1">
-                    {currentSub.billingInterval} Â· Renews {formatDate(currentSub.currentPeriodEnd)}
-                    {currentSub.autoRenew === false && <span className="text-amber-600 font-medium ml-2">(Auto-renew off)</span>}
-                  </p>
+                {currentSub?.currentPeriodEnd && !isTrialSubscription && (
+                  <div className="flex items-center gap-3 mt-1 flex-wrap">
+                    <p className="text-sm text-[#6B655C]">
+                      {currentSub.billingInterval} · Renews {formatDate(currentSub.currentPeriodEnd)}
+                    </p>
+                    {!isFreeTier && !isSubscriptionClosed && (
+                      <label className="flex items-center gap-2 cursor-pointer select-none">
+                        <Switch
+                          checked={currentSub.autoRenew !== false}
+                          onCheckedChange={(v) => void handleToggleAutoRenew(v)}
+                          disabled={autoRenewUpdating}
+                        />
+                        <span className="text-xs text-[#6B655C]">
+                          {autoRenewUpdating ? 'Saving…' : 'Auto-renew'}
+                        </span>
+                      </label>
+                    )}
+                  </div>
                 )}
-                {currentSub?.trialEndsAt && new Date(currentSub.trialEndsAt) > new Date() && (
+                {!isTrialSubscription && currentSub?.trialEndsAt && new Date(currentSub.trialEndsAt) > new Date() && (
                   <p className="text-sm text-[#C9A05C] font-medium mt-1">
                     <Sparkles className="w-4 h-4 inline mr-1" />
                     Trial ends {formatDate(currentSub.trialEndsAt)}
@@ -363,7 +412,12 @@ export function SubscriptionManager({ branchId: _branchId }: SubscriptionManager
               </div>
             </div>
             <div className="flex items-center gap-3">
-              {currentSub?.currentPrice != null && (
+              {isTrialSubscription ? (
+                <div className="text-right">
+                  <p className="text-3xl font-black text-[#EAE2D6]">Free</p>
+                  <p className="text-xs text-[#6B655C]">15-day trial</p>
+                </div>
+              ) : currentSub?.currentPrice != null && (
                 <div className="text-right">
                   <p className="text-3xl font-black text-[#EAE2D6]">{formatCurrency(currentSub.currentPrice)}</p>
                   <p className="text-xs text-[#6B655C]">/{(currentSub.billingInterval || 'MONTHLY').toLowerCase()}</p>
@@ -493,7 +547,7 @@ export function SubscriptionManager({ branchId: _branchId }: SubscriptionManager
                 const isUnlimited = max === null;
                 const pct = isUnlimited ? 0 : max ? (used / (max as number) * 100) : 0;
                 const isNearLimit = pct >= 80;
-                const isExceeded = !isUnlimited && max != null && used >= (max as number);
+                const isExceeded = !isUnlimited && max != null && used > (max as number);
                 return (
                   <div key={key} className="p-4 bg-[#1C1C26] rounded-xl">
                     <p className="text-xs text-[#6B655C] capitalize">{key.replace(/_/g, ' ')}</p>
@@ -530,28 +584,29 @@ export function SubscriptionManager({ branchId: _branchId }: SubscriptionManager
         <h2 className="text-xl font-bold text-[#EAE2D6] mb-4">Available Plans</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           {plansForDisplay.map((plan) => {
-            const isCurrentPlan = plan.tier === currentTier;
+            const isCurrentPlan = plan.tier === currentTier && !isTrialSubscription;
+            const isTrialPlan = isTrialSubscription && plan.tier === currentTier;
             return (
               <Card
                 key={plan.tier}
-                className={`relative overflow-hidden ${isCurrentPlan ? 'border-2 border-indigo-500 shadow-xl' : 'border border-[rgba(201,160,92,0.12)]'}`}
+                className={`relative overflow-hidden ${isCurrentPlan ? 'border-2 border-indigo-500 shadow-xl' : isTrialPlan ? 'border-2 border-[#C9A05C]/60 shadow-xl' : 'border border-[rgba(201,160,92,0.12)]'}`}
               >
-                {isCurrentPlan && (
+                {(isCurrentPlan || isTrialPlan) && (
                   <div className="absolute top-0 left-0 right-0 bg-[#C9A05C] text-white text-center text-[10px] font-black py-1 uppercase tracking-widest">
-                    Current Plan
+                    {isTrialPlan ? 'Current Trial' : 'Current Plan'}
                   </div>
                 )}
-                <CardContent className={`pt-${isCurrentPlan ? '10' : '6'}`}>
+                <CardContent className={`pt-${isCurrentPlan || isTrialPlan ? '10' : '6'}`}>
                   <div className="flex items-center gap-2 mb-3">
                     {TIER_ICONS[plan.tier]}
                     <h3 className="font-black text-lg">{plan.name || plan.tier}</h3>
                   </div>
-                  {plan.tier === 'FREE' ? (
+                  {plan.tier === 'TRIAL' ? (
                     <p className="text-3xl font-black text-[#EAE2D6]">
                       Free
                       <span className="text-sm text-[#6B655C] font-normal ml-2">15-day trial</span>
                     </p>
-                  ) : (
+                  ) : plan.tier !== 'FREE' && (
                     <p className="text-3xl font-black text-[#EAE2D6]">
                       {formatCurrency(plan.monthlyPrice)}
                       <span className="text-sm text-[#6B655C] font-normal">/mo</span>
@@ -562,6 +617,11 @@ export function SubscriptionManager({ branchId: _branchId }: SubscriptionManager
                   )}
                   {plan.tagline && (
                     <p className="text-xs text-[#999186] mt-1 italic">{plan.tagline}</p>
+                  )}
+                  {isTrialPlan && (
+                    <p className="text-xs text-amber-700 font-semibold mt-2">
+                      You're on this plan free for 15 days — you'll only be billed if you upgrade after the trial ends.
+                    </p>
                   )}
 
                   <div className="mt-4 space-y-2">
@@ -603,8 +663,8 @@ export function SubscriptionManager({ branchId: _branchId }: SubscriptionManager
                           daily_transaction_limit: 'Transactions/day',
                         };
                         const label = limitLabels[key] || key.replace(/_/g, ' ');
-                        if (plan.tier === 'FREE' && key === 'max_transactions') return null;
-                        if (plan.tier !== 'FREE' && key === 'daily_transaction_limit') return null;
+                        if (plan.tier === 'FREE') return null;
+                        if (plan.tier !== 'TRIAL' && key === 'daily_transaction_limit') return null;
                         return (
                           <div key={key} className="flex justify-between text-xs text-[#6B655C]">
                             <span>{label}</span>
@@ -615,7 +675,7 @@ export function SubscriptionManager({ branchId: _branchId }: SubscriptionManager
                     </div>
                   )}
 
-                  {!isCurrentPlan && (
+                  {plan.tier !== 'TRIAL' && plan.tier !== 'FREE' && !isCurrentPlan && !isTrialPlan && (
                     <Button
                       className="w-full mt-4"
                       variant={plan.tier === 'ENTERPRISE' ? 'default' : 'outline'}
@@ -631,7 +691,7 @@ export function SubscriptionManager({ branchId: _branchId }: SubscriptionManager
                       }}
                     >
                       {isFreeTier ? 'Subscribe' : (
-                        ['FREE', 'BASIC'].includes(currentTier) && ['PROFESSIONAL', 'ENTERPRISE'].includes(plan.tier) ? 'Upgrade' : 'Switch'
+                        ['FREE', 'TRIAL', 'BASIC'].includes(currentTier) && ['PROFESSIONAL', 'ENTERPRISE'].includes(plan.tier) ? 'Upgrade' : 'Switch'
                       )}
                     </Button>
                   )}

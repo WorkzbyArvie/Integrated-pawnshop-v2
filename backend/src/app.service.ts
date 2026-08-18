@@ -21,7 +21,7 @@ import {
   normalizeKycIdNumberForCompare,
   parseAndValidateDateOfBirth,
 } from './kyc/kyc-validation';
-import { assertCustomerKycVerified } from './loan/pawn-ticket.service';
+import { PawnTicketService, assertCustomerKycVerified } from './loan/pawn-ticket.service';
 
 @Injectable()
 export class AppService {
@@ -78,6 +78,7 @@ export class AppService {
     private legalProofService: LegalProofService,
     private receiptService: ReceiptService,
     private stateMachine: StateMachineService,
+    private pawnTicketService: PawnTicketService,
   ) {
     // Validate service role key configuration on startup
     if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
@@ -1688,14 +1689,6 @@ export class AppService {
     });
 
     if (!ticket) throw new Error('Ticket not found');
-    if (ticket.lifecycleStatus !== 'ACTIVE')
-      throw new Error(`Cannot redeem ticket in status: ${ticket.lifecycleStatus}`);
-
-    await this.stateMachine.transition(
-      'TICKET_LIFECYCLE',
-      'ACTIVE',
-      'REDEEMED',
-    );
 
     const charges = calculatePawnCharges({
       principal: ticket.loanAmount,
@@ -1703,109 +1696,11 @@ export class AppService {
       serviceFee: 50,
     });
 
-    await this.prisma.ticket.update({
-      where: { id: ticketId },
-      data: {
-        lifecycleStatus: 'REDEEMED',
-        status: 'REDEEMED',
-        updatedAt: new Date(),
-      },
-    });
-
-    const customerName = ticket.customer?.fullName || 'Customer';
-    const ticketRef = ticket.ticketNumber;
-
-    try {
-      await this.financeService.createEntry(pawnshopId, {
-        entryType: LedgerEntryType.CREDIT,
-        category: LedgerCategory.LOAN_REPAYMENT,
-        amount: charges.principal,
-        description: `Loan repayment: ${customerName} redeemed Ticket #${ticketRef}`,
-        performedBy: userId,
-        referenceType: 'TICKET',
-        referenceId: String(ticketId),
-        counterparty: customerName,
-        paymentMethod: 'CASH',
-      });
-
-      if (charges.interest > 0) {
-        await this.financeService.createEntry(pawnshopId, {
-          entryType: LedgerEntryType.CREDIT,
-          category: LedgerCategory.FEE_COLLECTION,
-          amount: charges.interest,
-          description: `Interest (${ticket.interestRate}%): ${customerName} - Ticket #${ticketRef}`,
-          performedBy: userId,
-          referenceType: 'TICKET',
-          referenceId: String(ticketId),
-          counterparty: customerName,
-          paymentMethod: 'CASH',
-        });
-      }
-
-      if (charges.serviceFee > 0) {
-        await this.financeService.createEntry(pawnshopId, {
-          entryType: LedgerEntryType.CREDIT,
-          category: LedgerCategory.FEE_COLLECTION,
-          amount: charges.serviceFee,
-          description: `Service fee: ${customerName} - Ticket #${ticketRef}`,
-          performedBy: userId,
-          referenceType: 'TICKET',
-          referenceId: String(ticketId),
-          counterparty: customerName,
-          paymentMethod: 'CASH',
-        });
-      }
-    } catch (err) {
-      console.error('Failed to create finance ledger entries for redemption:', err);
-    }
-
-    await this.legalProofService.createProof({
-      pawnshopId,
-      recordType: 'CONTRACT_PROOF',
-      title: `Ticket redeemed — ${ticketRef}`,
-      summary: `Ticket ${ticketRef} redeemed by ${customerName}. Principal: ₱${charges.principal}, Interest: ₱${charges.interest}, Fee: ₱${charges.serviceFee}.`,
-      createdBy: userId,
-      ticketId: ticket.id,
-      payload: {
-        ticketId: ticket.id,
-        ticketNumber: ticket.ticketNumber,
-        customerName,
-        principal: charges.principal,
-        interest: charges.interest,
-        serviceFee: charges.serviceFee,
-        totalCollected: charges.totalDue,
-        redeemedAt: new Date().toISOString(),
-      },
-    });
-
-    try {
-      await this.receiptService.generateReceipt({
-        pawnshopId,
-        receiptType: 'REDEMPTION',
-        referenceType: 'TICKET',
-        referenceId: String(ticketId),
-        amount: charges.totalDue,
-        customerName,
-        lineItems: [
-          { description: 'Principal Repayment', amount: charges.principal },
-          { description: 'Interest', amount: charges.interest },
-          { description: 'Service Fee', amount: charges.serviceFee },
-        ],
-        generatedBy: userId,
-      });
-    } catch (receiptErr) {
-      console.error('Failed to generate redemption receipt:', receiptErr);
-    }
-
-    return {
-      id: ticketId,
-      status: 'REDEEMED',
-      lifecycleStatus: 'REDEEMED',
-      principal: charges.principal,
-      interest: charges.interest,
-      serviceFee: charges.serviceFee,
-      totalCollected: charges.totalDue,
-    };
+    return this.pawnTicketService.redeemTicket(
+      ticketId,
+      { amountPaid: charges.totalDue, paymentMethod: 'CASH' },
+      userId,
+    );
   }
 
   async getAllTickets() {

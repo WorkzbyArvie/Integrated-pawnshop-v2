@@ -2827,6 +2827,47 @@ export class TenantGovernanceService {
     return { success: true };
   }
 
+  async updatePawnshopContractTerms(
+    actorUserId: string,
+    pawnshopId: string,
+    terms: { termsAndConditions?: string; pawnshopResponsibilities?: string },
+  ) {
+    const actor = await this.getProfileOrThrow(actorUserId);
+    this.assertRole(actor, ['SUPER_ADMIN', 'OWNER', 'ADMIN']);
+
+    if (actor.role !== 'SUPER_ADMIN' && actor.pawnshopId !== pawnshopId) {
+      throw new ForbiddenException('You can only update contract terms for your own pawnshop');
+    }
+
+    const rows = await this.prisma.$queryRaw<Array<{ settings: unknown }>>`
+      SELECT settings FROM public.pawnshops WHERE id = ${pawnshopId}::uuid LIMIT 1
+    `;
+    if (!rows.length) throw new NotFoundException('Pawnshop not found');
+
+    const current = (rows[0]?.settings as Record<string, unknown> | undefined) || {};
+    const updated = { ...current };
+    if (terms.termsAndConditions !== undefined) {
+      updated.contractTermsAndConditions = terms.termsAndConditions;
+    }
+    if (terms.pawnshopResponsibilities !== undefined) {
+      updated.contractPawnshopResponsibilities = terms.pawnshopResponsibilities;
+    }
+
+    await this.prisma.$executeRaw`
+      UPDATE public.pawnshops SET settings = ${JSON.stringify(updated)}::jsonb, updated_at = NOW()
+      WHERE id = ${pawnshopId}::uuid
+    `;
+
+    await this.logAudit({
+      pawnshopId,
+      actorUserId,
+      action: 'PAWNSHOP_SETTINGS_UPDATED',
+      metadata: { settingsKeys: ['contractTermsAndConditions', 'contractPawnshopResponsibilities'] },
+    });
+
+    return { success: true };
+  }
+
   private async enableAuctionModuleForPawnshop(pawnshopId: string): Promise<void> {
     try {
       const rows = await this.prisma.$queryRaw<Array<{ settings: unknown }>>`

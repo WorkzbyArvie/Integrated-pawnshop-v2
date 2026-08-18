@@ -33,34 +33,86 @@ export class ApprovalService {
     const records = await this.prisma.approvalRecord.findMany({
       where,
       orderBy: { createdAt: 'desc' },
-      include: { requestedBy: true },
+      take: query.limit ?? 100,
+      skip: query.offset ?? 0,
+      select: {
+        id: true,
+        targetType: true,
+        targetId: true,
+        status: true,
+        amount: true,
+        payload: true,
+        createdAt: true,
+        decidedAt: true,
+        decisionComment: true,
+        requestedBy: { select: { id: true, fullName: true } },
+        decidedBy: { select: { id: true, fullName: true } },
+      },
     });
 
     const targetIds = [...new Set(records.map((record) => record.targetId))];
-    const foundTickets = targetIds.length
-      ? await this.prisma.ticket.findMany({
-          where: {
-            id: { in: targetIds.map((id) => Number(id)).filter((id) => Number.isFinite(id)) },
-          },
-          include: { customer: true },
-        })
-      : [];
-    const tickets = foundTickets ?? [];
-    const ticketById = new Map(tickets.map((ticket) => [String(ticket.id), ticket]));
+    const needsRedemptionSettings = records.some(
+      (record) => record.targetType === 'REDEMPTION',
+    );
 
-    let settings: Record<string, unknown> = {};
-    if (records.some((record) => record.targetType === 'REDEMPTION')) {
-      const pawnshop = await this.prisma.pawnshop.findUnique({
-        where: { id: callerPawnshopId },
-        select: { settings: true },
-      });
-      settings = (pawnshop?.settings as Record<string, unknown> | null) ?? {};
-    }
+    const [tickets, pawnshop] = await Promise.all([
+      targetIds.length
+        ? this.prisma.ticket.findMany({
+            where: {
+              id: {
+                in: targetIds
+                  .map((id) => Number(id))
+                  .filter((id) => Number.isFinite(id)),
+              },
+            },
+            select: {
+              id: true,
+              ticketNumber: true,
+              category: true,
+              weight: true,
+              isHighRisk: true,
+              description: true,
+              customer: {
+                select: {
+                  fullName: true,
+                  contactNumber: true,
+                  loyaltyTier: true,
+                },
+              },
+            },
+          })
+        : Promise.resolve([]),
+      needsRedemptionSettings
+        ? this.prisma.pawnshop.findUnique({
+            where: { id: callerPawnshopId },
+            select: { settings: true },
+          })
+        : Promise.resolve(null),
+    ]);
+
+    const foundTickets = tickets ?? [];
+    const ticketById = new Map(foundTickets.map((ticket) => [String(ticket.id), ticket]));
+
+    const settings = (pawnshop?.settings ?? {}) as Record<string, unknown>;
     const threshold = Number(settings.redemptionApprovalThreshold ?? 50000);
 
     return records.map((record) => {
       const ticket = ticketById.get(String(record.targetId));
       const payload = (record.payload ?? {}) as Record<string, unknown>;
+      const description = ticket?.description ?? '';
+      const photoUrlMatch = description.match(/\[PHOTO_URLS\]\s+(\[[\s\S]*?\])/i);
+      let photoUrls: string[] = [];
+      if (photoUrlMatch) {
+        try {
+          const parsed = JSON.parse(photoUrlMatch[1]);
+          photoUrls = Array.isArray(parsed)
+            ? parsed.filter((url): url is string => typeof url === 'string' && /^https?:\/\//i.test(url))
+            : [];
+        } catch {
+          photoUrls = [];
+        }
+      }
+      const itemName = description.split('[PHOTO_URLS]')[0].trim() || null;
       return {
         id: record.id,
         targetType: record.targetType,
@@ -75,6 +127,8 @@ export class ApprovalService {
           : null,
         category: ticket?.category ?? null,
         weight: ticket?.weight ?? null,
+        itemName,
+        photoUrls,
         itemCondition: payload.itemCondition ?? null,
         appraisedValue: record.amount,
         recommendedLoanAmount: payload.recommendedLoanAmount ?? null,
@@ -87,7 +141,11 @@ export class ApprovalService {
         requestedBy: record.requestedBy
           ? { id: record.requestedBy.id, fullName: record.requestedBy.fullName ?? '' }
           : null,
+        decidedBy: record.decidedBy
+          ? { id: record.decidedBy.id, fullName: record.decidedBy.fullName ?? '' }
+          : null,
         createdAt: record.createdAt,
+        decidedAt: record.decidedAt,
         decisionComment: record.decisionComment,
         status: record.status,
       };
@@ -111,7 +169,8 @@ export class ApprovalService {
       );
     }
 
-    if (record.requestedById === decidedBy) {
+    const isTopApprover = ['OWNER', 'SUPER_ADMIN'].includes((userRole ?? '').toUpperCase());
+    if (record.requestedById === decidedBy && !isTopApprover) {
       throw new ForbiddenException('You cannot decide on your own approval request');
     }
 
@@ -127,16 +186,27 @@ export class ApprovalService {
 
     const payload = (record.payload ?? {}) as Record<string, unknown>;
 
+    let handoff: Record<string, unknown> | null = null;
+    let resumed = false;
+
     if (approve) {
       if (record.targetType === 'APPRAISAL') {
-        await this.pawnTicketService.applyApprovedAppraisal(
-          Number(record.targetId),
-          payload,
-          decidedBy,
-          userRole,
-        );
+        const ticket = await this.prisma.ticket.findUnique({
+          where: { id: Number(record.targetId) },
+        });
+        if (ticket && ticket.lifecycleStatus !== 'PENDING_APPROVAL') {
+          handoff = await this.resumeAppraisalHandoff(ticket.id, ticket.contractId);
+          resumed = Boolean(handoff?.applicationId || handoff?.contractId);
+        } else {
+          handoff = (await this.pawnTicketService.applyApprovedAppraisal(
+            Number(record.targetId),
+            payload,
+            decidedBy,
+            userRole,
+          )) as unknown as Record<string, unknown>;
+        }
       } else if (record.targetType === 'REDEMPTION') {
-        await this.pawnTicketService.releaseApprovedRedemption(
+        handoff = (await this.pawnTicketService.releaseApprovedRedemption(
           Number(record.targetId),
           {
             amountPaid: record.amount ?? 0,
@@ -146,41 +216,67 @@ export class ApprovalService {
           },
           decidedBy,
           userRole,
-        );
+        )) as unknown as Record<string, unknown>;
       }
     } else if (record.targetType === 'APPRAISAL') {
       await this.pawnTicketService.rejectAppraisal(Number(record.targetId), userRole);
+    } else if (record.targetType === 'REDEMPTION') {
+      await this.pawnTicketService.rejectRedemption(Number(record.targetId), userRole);
     }
+
+    const isAppraisalApprove = approve && record.targetType === 'APPRAISAL';
 
     const updated = await this.prisma.approvalRecord.update({
       where: { id },
       data: {
-        status: approve ? 'APPROVED' : 'REJECTED',
+        status: !approve ? 'REJECTED' : isAppraisalApprove ? 'PENDING' : 'APPROVED',
         decidedById: decidedBy,
         decidedAt: new Date(),
         decisionComment: dto.decisionComment,
       },
     });
 
-    try {
-      await this.notificationService.sendNotification({
-        recipientId: record.requestedById,
-        channel: NotificationChannel.IN_APP,
-        type: NotificationType.SYSTEM_ANNOUNCEMENT,
-        title: approve ? 'Approval granted' : 'Approval rejected',
-        body: `Your ${record.targetType.toLowerCase()} approval request was ${
-          approve ? 'approved' : 'rejected'
-        }.`,
-        data: {
-          approvalRecordId: record.id,
-          targetType: record.targetType,
-          status: approve ? 'APPROVED' : 'REJECTED',
-        },
-      });
-    } catch (err) {
-      // best-effort notification — never fails the decision
+    if (!approve || record.targetType !== 'APPRAISAL') {
+      try {
+        await this.notificationService.sendNotification({
+          recipientId: record.requestedById,
+          channel: NotificationChannel.IN_APP,
+          type: NotificationType.SYSTEM_ANNOUNCEMENT,
+          title: approve ? 'Approval granted' : 'Approval rejected',
+          body: `Your ${record.targetType.toLowerCase()} approval request was ${
+            approve ? 'approved' : 'rejected'
+          }.`,
+          data: {
+            approvalRecordId: record.id,
+            targetType: record.targetType,
+            status: approve ? 'APPROVED' : 'REJECTED',
+          },
+        });
+      } catch (err) {
+        // best-effort notification — never fails the decision
+      }
     }
 
-    return updated;
+    return {
+      ...updated,
+      resumed,
+      applicationId: handoff?.applicationId,
+      contractId: handoff?.contractId,
+      loanId: handoff?.loanId,
+    };
+  }
+
+  private async resumeAppraisalHandoff(ticketId: number, contractId: string | null | undefined) {
+    const [contract, loan] = await Promise.all([
+      contractId
+        ? this.prisma.loanContract.findUnique({ where: { id: contractId } })
+        : Promise.resolve(null),
+      this.prisma.loan.findFirst({ where: { ticketId } }),
+    ]);
+    return {
+      applicationId: contract?.applicationId ?? loan?.applicationId,
+      contractId: contractId ?? null,
+      loanId: loan?.id,
+    };
   }
 }

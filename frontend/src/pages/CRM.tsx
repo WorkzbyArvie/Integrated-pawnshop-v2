@@ -1,6 +1,7 @@
 ﻿import { useState, useEffect } from 'react';
-import { Search, Filter, MoreVertical, Phone, Mail, Shield, ChevronDown } from 'lucide-react';
+import { Search, Filter, MoreVertical, Phone, Mail, Shield, X } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
+import { CustomerHistory } from '../components/CustomerHistory';
 
 // 1. ADD THIS INTERFACE
 interface CrmTableProps {
@@ -23,6 +24,7 @@ export function CrmTable({ branchId }: CrmTableProps) {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [tierFilter, setTierFilter] = useState<string>('all');
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
 
   useEffect(() => {
     const fetchCustomers = async () => {
@@ -51,11 +53,11 @@ export function CrmTable({ branchId }: CrmTableProps) {
     fetchCustomers();
   }, [branchId]); // RE-RUN when branch changes
 
-  const filteredCustomers = customers.filter(c => 
-    (c.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    c.contact_number.includes(searchTerm) ||
-    c.id.toLowerCase().includes(searchTerm.toLowerCase())) &&
-    (tierFilter === 'all' || c.loyaltytier === tierFilter)
+  const filteredCustomers = customers.filter(c =>
+    ((c.full_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (c.contact_number || '').includes(searchTerm) ||
+    (c.id || '').toLowerCase().includes(searchTerm.toLowerCase())) &&
+    (tierFilter === 'all' || (c.loyaltytier || 'Standard').toLowerCase() === tierFilter.toLowerCase())
   );
 
   const tierColors: Record<string, string> = {
@@ -64,6 +66,11 @@ export function CrmTable({ branchId }: CrmTableProps) {
     'Silver': 'bg-gray-400/20 text-gray-300',
     'Gold': 'bg-yellow-500/20 text-yellow-400',
     'VIP': 'bg-purple-600/20 text-purple-400',
+  };
+
+  const normalizeTier = (tier: string) => {
+    const t = (tier || 'Standard').trim();
+    return t.charAt(0).toUpperCase() + t.slice(1).toLowerCase();
   };
 
   if (loading) {
@@ -81,7 +88,7 @@ export function CrmTable({ branchId }: CrmTableProps) {
       <div className="p-4 flex flex-col md:flex-row gap-4 justify-between items-center">
         <div className="relative w-full md:w-96">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-[#6B655C] w-4 h-4" />
-          <input 
+          <input
             type="text"
             placeholder="Search by name or phone..."
             className="w-full pl-11 pr-4 py-3 bg-[#1C1C26] border-none rounded-xl text-sm focus:ring-2 focus:ring-[#C9A05C] transition-all"
@@ -118,16 +125,27 @@ export function CrmTable({ branchId }: CrmTableProps) {
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-50">
+            {filteredCustomers.length === 0 && (
+              <tr>
+                <td colSpan={4} className="px-6 py-10 text-center text-sm text-[#6B655C]">
+                  No customers found.
+                </td>
+              </tr>
+            )}
             {filteredCustomers.map((customer) => (
-              <tr key={customer.id} className="group hover:bg-[#1C1C26]/50 transition-colors">
+              <tr
+                key={customer.id}
+                className="group hover:bg-[#1C1C26]/50 transition-colors cursor-pointer"
+                onClick={() => setSelectedCustomer(customer)}
+              >
                 <td className="px-6 py-5">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 bg-[#C9A05C]/10 text-[#C9A05C] rounded-xl flex items-center justify-center font-bold">
-                      {customer.full_name.charAt(0).toUpperCase()}
+                      {(customer.full_name || '?').charAt(0).toUpperCase()}
                     </div>
                     <div>
                       <p className="font-bold text-[#EAE2D6]">{customer.full_name}</p>
-                      <p className="text-[10px] text-[#6B655C] font-medium">UID: {customer.id.slice(0, 8)}</p>
+                      <p className="text-[10px] text-[#6B655C] font-medium">UID: {(customer.id || '').slice(0, 8)}</p>
                     </div>
                   </div>
                 </td>
@@ -145,15 +163,21 @@ export function CrmTable({ branchId }: CrmTableProps) {
                   <div className="flex items-center gap-2">
                     <Shield className="w-4 h-4 text-emerald-500" />
                     <div>
-                      <span className={`inline-block px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider ${tierColors[customer.loyaltytier] || 'bg-gray-500/20 text-gray-400'}`}>
-                        {customer.loyaltytier || 'Standard'}
+                      <span className={`inline-block px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider ${tierColors[normalizeTier(customer.loyaltytier)] || 'bg-gray-500/20 text-gray-400'}`}>
+                        {normalizeTier(customer.loyaltytier)}
                       </span>
-                      <p className="text-[10px] text-[#6B655C] font-medium mt-1">{customer.id.slice(0, 8)}</p>
+                      <p className="text-[10px] text-[#6B655C] font-medium mt-1">{(customer.id || '').slice(0, 8)}</p>
                     </div>
                   </div>
                 </td>
                 <td className="px-6 py-5 text-right">
-                  <button className="p-2 hover:bg-[#14141B] hover:shadow-sm rounded-lg transition-all">
+                  <button
+                    className="p-2 hover:bg-[#14141B] hover:shadow-sm rounded-lg transition-all"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedCustomer(customer);
+                    }}
+                  >
                     <MoreVertical className="w-4 h-4 text-[#6B655C]" />
                   </button>
                 </td>
@@ -162,6 +186,51 @@ export function CrmTable({ branchId }: CrmTableProps) {
           </tbody>
         </table>
       </div>
+
+      {/* Customer Detail Drawer */}
+      {selectedCustomer && (
+        <div className="fixed inset-0 z-50 flex justify-end bg-black/50" onClick={() => setSelectedCustomer(null)}>
+          <div
+            className="w-full max-w-xl h-full bg-[#14141B] border-l border-[rgba(201,160,92,0.12)] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="sticky top-0 z-10 bg-[#14141B]/95 backdrop-blur p-6 border-b border-[rgba(201,160,92,0.08)] flex items-start justify-between">
+              <div>
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 bg-[#C9A05C]/10 text-[#C9A05C] rounded-2xl flex items-center justify-center text-xl font-black">
+                    {(selectedCustomer.full_name || '?').charAt(0).toUpperCase()}
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-black text-[#EAE2D6] uppercase italic tracking-tight">{selectedCustomer.full_name}</h3>
+                    <span className={`inline-block mt-1 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${tierColors[normalizeTier(selectedCustomer.loyaltytier)] || 'bg-gray-500/20 text-gray-400'}`}>
+                      {normalizeTier(selectedCustomer.loyaltytier)}
+                    </span>
+                  </div>
+                </div>
+                <div className="mt-4 space-y-1 text-xs text-[#999186]">
+                  <div className="flex items-center gap-2">
+                    <Phone className="w-3.5 h-3.5 text-[#6B655C]" /> {selectedCustomer.contact_number}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Mail className="w-3.5 h-3.5 text-[#6B655C]" /> {selectedCustomer.address}
+                  </div>
+                  <p className="text-[10px] text-[#6B655C] font-medium pt-1">UID: {selectedCustomer.id}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setSelectedCustomer(null)}
+                className="p-2 rounded-lg bg-[#1C1C26] text-[#999186] hover:text-[#EAE2D6] transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-6">
+              <CustomerHistory customerId={selectedCustomer.id} />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

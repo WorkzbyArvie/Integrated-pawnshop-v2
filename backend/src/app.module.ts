@@ -28,6 +28,7 @@ import { TenantGovernanceModule } from './tenant-governance/tenant-governance.mo
 import { BrandingModule } from './branding/branding.module';
 import { ContractModule } from './contract/contract.module';
 import { ReceiptModule } from './receipt/receipt.module';
+import { TierModule } from './tier/tier.module';
 import { CommonModule } from './common/common.module';
 
 @Module({
@@ -54,6 +55,7 @@ import { CommonModule } from './common/common.module';
     BrandingModule,
     ContractModule,
     ReceiptModule,
+    TierModule,
   ],
   controllers: [AppController],
   providers: [

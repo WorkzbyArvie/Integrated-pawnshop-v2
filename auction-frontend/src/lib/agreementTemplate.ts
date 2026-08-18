@@ -21,6 +21,14 @@ const formatCurrency = (value: number) =>
 
 const today = () => new Date().toLocaleDateString('en-PH');
 
+const escapeHtml = (value: string): string =>
+  value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+
 export function renderAgreementTemplate(
   content: string,
   values: AgreementTemplateValues = {},
@@ -44,7 +52,7 @@ export function renderAgreementTemplate(
   let rendered = content;
   for (const [key, value] of Object.entries(merged)) {
     if (value === undefined) continue;
-    rendered = rendered.replace(new RegExp(`\\{\\{${key}\\}\\}`, 'g'), value);
+    rendered = rendered.replace(new RegExp(`\\{\\{${key}\\}\\}`, 'g'), escapeHtml(value));
   }
 
   rendered = rendered.replace(/\{\{[a-zA-Z0-9_]+}}/g, 'N/A');

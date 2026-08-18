@@ -4,6 +4,7 @@ import { LoanContractService } from './loan-contract.service';
 import { PrismaService } from '../prisma.service';
 import { LegalProofService } from './legal-proof.service';
 import { ContractRendererService } from '../contract/contract-renderer.service';
+import { StorageService } from '../common/storage/storage.service';
 import { StateMachineService } from '../common/state-machine/state-machine.service';
 
 describe('LoanContractService', () => {
@@ -38,7 +39,21 @@ describe('LoanContractService', () => {
         LoanContractService,
         { provide: PrismaService, useValue: prisma },
         { provide: LegalProofService, useValue: legalProofService },
-        { provide: ContractRendererService, useValue: {} },
+        {
+          provide: ContractRendererService,
+          useValue: {
+            renderPdfOnly: jest.fn().mockResolvedValue({
+              pdfBuffer: Buffer.from('pdf'),
+              htmlContent: '<h1>Loan Agreement</h1><p>Terms and conditions</p>',
+              templateType: 'LOAN_CONTRACT',
+              templateVersion: '1.0',
+            }),
+          },
+        },
+        {
+          provide: StorageService,
+          useValue: { uploadPdf: jest.fn().mockResolvedValue('contracts/loan/CTR-TEST-001.pdf') },
+        },
         { provide: StateMachineService, useValue: { transition: jest.fn() } },
       ],
     }).compile();

@@ -1,14 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
-import { CheckCircle, XCircle, Clock, Eye, Shield, RefreshCw, AlertTriangle } from 'lucide-react';
+import { CheckCircle, XCircle, Clock, Eye, Shield, RefreshCw } from 'lucide-react';
 import { api } from '../lib/apiClient';
 import DocLink from './DocLink';
-
-interface VerificationData {
-  ocr: { nameMatch: boolean; idNumberMatch: boolean; confidence: number; extractedName: string; extractedIdNumber: string };
-  face: { matched: boolean; score: number };
-  tamper: { clean: boolean; flags: string[] };
-  submittedAt: string;
-}
 
 interface KycRecord {
   id: string;
@@ -23,7 +16,6 @@ interface KycRecord {
   idFrontUrl: string;
   idBackUrl: string | null;
   selfieUrl: string;
-  verificationData: VerificationData | null;
   reviewedBy: string | null;
   reviewedAt: string | null;
   rejectionReason: string | null;
@@ -36,17 +28,6 @@ const STATUS_STYLES: Record<string, { color: string; bg: string; icon: React.Rea
   VERIFIED: { color: 'text-emerald-400', bg: 'bg-emerald-500/10', icon: <CheckCircle className="w-4 h-4" /> },
   REJECTED: { color: 'text-red-400', bg: 'bg-red-500/10', icon: <XCircle className="w-4 h-4" /> },
 };
-
-function ScoreBadge({ label, value, pass, format }: { label: string; value: number; pass: boolean; format?: 'pct' | 'decimal' }) {
-  const display = format === 'pct' ? `${Math.round(value)}%` : format === 'decimal' ? `${Math.round(value * 100)}%` : String(value);
-  return (
-    <div className={`flex items-center gap-2 px-3 py-2 rounded-lg border ${pass ? 'bg-emerald-500/5 border-emerald-500/20' : 'bg-red-500/5 border-red-500/20'}`}>
-      <div className={`w-2 h-2 rounded-full ${pass ? 'bg-emerald-400' : 'bg-red-400'}`} />
-      <span className="text-xs text-[#9B9488]">{label}</span>
-      <span className={`text-sm font-semibold ${pass ? 'text-emerald-400' : 'text-red-400'}`}>{display}</span>
-    </div>
-  );
-}
 
 export default function BidderKycReview() {
   const [records, setRecords] = useState<KycRecord[]>([]);
@@ -133,7 +114,6 @@ export default function BidderKycReview() {
         <div className="space-y-2">
           {records.map((r) => {
             const st = STATUS_STYLES[r.status] || STATUS_STYLES.PENDING;
-            const vd = r.verificationData;
             return (
               <div
                 key={r.id}
@@ -147,22 +127,7 @@ export default function BidderKycReview() {
                     <p className="text-xs text-[#9B9488]">{r.profile?.email || '—'} · {r.idType} · Submitted {new Date(r.createdAt).toLocaleDateString()}</p>
                   </div>
                 </div>
-                <div className="flex items-center gap-3">
-                  {vd && (
-                    <div className="flex items-center gap-2 text-xs">
-                      <span className={vd.ocr?.nameMatch ? 'text-emerald-400' : 'text-red-400'}>
-                        OCR {vd.ocr?.nameMatch ? '✓' : '✗'}
-                      </span>
-                      <span className={vd.face?.matched ? 'text-emerald-400' : 'text-red-400'}>
-                        Face {vd.face?.matched ? '✓' : '✗'}
-                      </span>
-                      <span className={vd.tamper?.clean ? 'text-emerald-400' : 'text-red-400'}>
-                        Tamper {vd.tamper?.clean ? '✓' : '✗'}
-                      </span>
-                    </div>
-                  )}
-                  <Eye className="w-4 h-4 text-[#9B9488]" />
-                </div>
+                <Eye className="w-4 h-4 text-[#9B9488]" />
               </div>
             );
           })}
@@ -194,35 +159,6 @@ export default function BidderKycReview() {
                 <p className="text-sm text-[#EAE2D6]">Address: {selected.address}</p>
               </div>
             </div>
-
-            {selected.verificationData && (
-              <div className="mb-6 p-4 rounded-xl bg-[#1C1C26] border border-[rgba(201,160,92,0.1)]">
-                <h4 className="text-xs font-semibold uppercase tracking-wider text-[#C9A05C] mb-3">
-                  Client-Side Verification Results (Advisory)
-                </h4>
-                <div className="flex flex-wrap gap-3">
-                  <ScoreBadge label="OCR Name Match" value={selected.verificationData.ocr?.confidence || 0} pass={selected.verificationData.ocr?.nameMatch === true} format="pct" />
-                  <ScoreBadge label="OCR ID Number" value={100} pass={selected.verificationData.ocr?.idNumberMatch === true} format="pct" />
-                  <ScoreBadge label="Face Similarity" value={selected.verificationData.face?.score || 0} pass={selected.verificationData.face?.matched === true} format="decimal" />
-                  <div className={`flex items-center gap-2 px-3 py-2 rounded-lg border ${selected.verificationData.tamper?.clean ? 'bg-emerald-500/5 border-emerald-500/20' : 'bg-red-500/5 border-red-500/20'}`}>
-                    <div className={`w-2 h-2 rounded-full ${selected.verificationData.tamper?.clean ? 'bg-emerald-400' : 'bg-red-400'}`} />
-                    <span className="text-xs text-[#9B9488]">Tamper Check</span>
-                    <span className={`text-sm font-semibold ${selected.verificationData.tamper?.clean ? 'text-emerald-400' : 'text-red-400'}`}>
-                      {selected.verificationData.tamper?.clean ? 'Clean' : 'Flags'}
-                    </span>
-                  </div>
-                </div>
-                {selected.verificationData.tamper?.flags && selected.verificationData.tamper.flags.length > 0 && (
-                  <div className="mt-3 flex items-start gap-2 text-xs text-amber-400">
-                    <AlertTriangle className="w-3 h-3 mt-0.5 shrink-0" />
-                    <span>{selected.verificationData.tamper.flags.join('; ')}</span>
-                  </div>
-                )}
-                <p className="text-[10px] text-[#6B655C] mt-2">
-                  Extracted name: "{selected.verificationData.ocr?.extractedName || 'N/A'}" · Extracted ID: "{selected.verificationData.ocr?.extractedIdNumber || 'N/A'}" · These results are advisory — make your own judgment.
-                </p>
-              </div>
-            )}
 
             {selected.status === 'PENDING' && (
               <div className="flex items-end gap-3">

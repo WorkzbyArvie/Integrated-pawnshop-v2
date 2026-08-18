@@ -34,8 +34,8 @@ export function RejectedAppraisalHistory({ branchId, activeBranchId }: RejectedA
     setLoading(true);
 
     try {
-      const activeOperationalBranchId = Number.isInteger(activeBranchId as number) ? Number(activeBranchId) : NaN;
-      const hasActiveOperationalBranch = Number.isInteger(activeOperationalBranchId) && activeOperationalBranchId > 0;
+      const activeOperationalBranchId = Number.isInteger(activeBranchId as number) ? Number(activeBranchId) : null;
+      const hasActiveOperationalBranch = activeOperationalBranchId != null && activeOperationalBranchId > 0;
 
       let query = supabase
         .from('ticket')

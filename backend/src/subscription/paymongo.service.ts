@@ -385,6 +385,7 @@ export class PaymongoService {
               : undefined,
           currency: invoice.currency || 'PHP',
           paid_at: invoice.paid_at || null,
+          metadata: invoice.metadata || {},
         },
       };
     }

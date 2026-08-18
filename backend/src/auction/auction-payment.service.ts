@@ -4,6 +4,7 @@ import { PaymongoService } from '../subscription/paymongo.service';
 import { FinanceService } from '../finance/finance.service';
 import { ReceiptService } from '../receipt/receipt.service';
 import { LegalProofService } from '../loan/legal-proof.service';
+import { TierService } from '../tier/tier.service';
 
 @Injectable()
 export class AuctionPaymentService {
@@ -15,6 +16,7 @@ export class AuctionPaymentService {
     private finance: FinanceService,
     private receipt: ReceiptService,
     private legalProofService: LegalProofService,
+    private tierService: TierService,
   ) {}
 
   async createCheckout(complianceId: string, winnerId: string, returnUrl?: string) {
@@ -136,6 +138,7 @@ export class AuctionPaymentService {
           amount: compliance.winningBid,
           customerName: compliance.winnerFullName,
           customerAddress: compliance.winnerAddress || undefined,
+          customerId: compliance.winnerId,
           lineItems: [
             {
               description: `Winning bid — ${compliance.listing?.title || 'Auction item'}`,
@@ -147,6 +150,12 @@ export class AuctionPaymentService {
       } catch (receiptErr) {
         this.logger.error(`Failed to generate receipt: ${(receiptErr as Error).message}`);
       }
+    }
+
+    try {
+      await this.tierService.recomputeCustomerTier(compliance.winnerId, 'system');
+    } catch (tierErr) {
+      this.logger.error(`Failed to update customer tier after auction payment: ${(tierErr as Error).message}`);
     }
 
     this.logger.log(`Payment confirmed for compliance ${complianceId} (tx: ${transactionId})`);

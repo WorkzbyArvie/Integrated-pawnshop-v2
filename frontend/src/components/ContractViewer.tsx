@@ -1,9 +1,10 @@
 ﻿import { useEffect, useState, useRef } from 'react';
 import {
-  FileText, Loader2, XCircle, X, FileDown, PenLine, CheckCircle2, ShieldCheck,
+  FileText, Loader2, XCircle, X, FileDown, PenLine, CheckCircle2, ShieldCheck, Upload,
 } from 'lucide-react';
 import api from '../lib/apiClient';
 import { formatDateTime, humanizeStatus } from '../lib/formatters';
+import Swal from 'sweetalert2';
 
 type ContractData = {
   id: string;
@@ -20,6 +21,24 @@ type ContractData = {
   staffSignedAt?: string | null;
   generatedAt: string;
 };
+
+function extractContractTerms(html: string): string {
+  const headingPattern = /<h2[^>]*>([\s\S]*?)<\/h2>/gi;
+  const sections: { heading: string; start: number; nextStart: number }[] = [];
+  let match: RegExpExecArray | null;
+  while ((match = headingPattern.exec(html)) !== null) {
+    const heading = match[1].replace(/<[^>]*>/g, '').trim().toUpperCase();
+    if (sections.length > 0) {
+      sections[sections.length - 1].nextStart = match.index;
+    }
+    sections.push({ heading, start: match.index, nextStart: html.length });
+  }
+  return sections
+    .filter((section) => /TERMS|CONDITIONS|RESPONSIBILIT/.test(section.heading))
+    .map((section) => html.slice(section.start, section.nextStart))
+    .join('\n')
+    .trim();
+}
 
 interface ContractViewerProps {
   applicationId?: string;
@@ -41,10 +60,13 @@ export function ContractViewer({
   const [error, setError] = useState<string | null>(null);
   const [signing, setSigning] = useState(false);
   const [signature, setSignature] = useState<string | null>(null);
+  const [signatureUploaded, setSignatureUploaded] = useState(false);
   const [signatureFor, setSignatureFor] = useState<'customer' | 'staff' | null>(null);
   const [isDrawing, setIsDrawing] = useState(false);
   const customerCanvasRef = useRef<HTMLCanvasElement>(null);
   const staffCanvasRef = useRef<HTMLCanvasElement>(null);
+  const customerFileRef = useRef<HTMLInputElement>(null);
+  const staffFileRef = useRef<HTMLInputElement>(null);
 
   const [downloading, setDownloading] = useState(false);
 
@@ -80,16 +102,38 @@ export function ContractViewer({
   const setActiveSigner = (type: 'customer' | 'staff') => {
     setSignatureFor(type);
     setSignature(null);
+    setSignatureUploaded(false);
   };
 
   const clearCanvas = () => {
     const canvas = activeCanvas();
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (ctx) {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
+    if (canvas) {
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+      }
     }
     setSignature(null);
+    setSignatureUploaded(false);
+  };
+
+  const handleUploadSignature = (type: 'customer' | 'staff', e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      setError('Please upload an image file (PNG or JPG).');
+      e.target.value = '';
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      setActiveSigner(type);
+      setSignature(String(reader.result));
+      setSignatureUploaded(true);
+      setIsDrawing(false);
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
   };
 
   const startDrawing = (e: React.MouseEvent | React.TouchEvent) => {
@@ -154,6 +198,7 @@ export function ContractViewer({
       };
       setContract((prev) => (prev ? { ...prev, ...updated } : prev));
       setSignature(null);
+      setSignatureUploaded(false);
       clearCanvas();
       if (onSignComplete && updated.signedByCustomer && updated.signedByStaff) {
         onSignComplete();
@@ -163,6 +208,22 @@ export function ContractViewer({
     } finally {
       setSigning(false);
     }
+  };
+
+  const handleRequestDisburse = async () => {
+    if (!onDisburse) return;
+    const confirm = await Swal.fire({
+      title: 'Confirm Disbursement',
+      text: `Disburse loan ${contract?.contractNumber ? `for ${contract.contractNumber}` : ''} and activate it? This releases the loan amount and cannot be undone.`,
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#3DA86C',
+      cancelButtonColor: '#6B655C',
+      confirmButtonText: 'Yes, disburse',
+      cancelButtonText: 'Cancel',
+    });
+    if (!confirm.isConfirmed) return;
+    onDisburse();
   };
 
   const handleDownloadPdf = async () => {
@@ -191,6 +252,11 @@ export function ContractViewer({
       setDownloading(false);
     }
   };
+
+  const termsHtml =
+    contract?.contractData?.renderedHtml && typeof contract.contractData.renderedHtml === 'string'
+      ? extractContractTerms(contract.contractData.renderedHtml as string)
+      : '';
 
   if (!open) return null;
 
@@ -255,6 +321,20 @@ export function ContractViewer({
                 </div>
               )}
 
+              {termsHtml && (
+                <div className="rounded-2xl border border-[rgba(201,160,92,0.12)] overflow-hidden">
+                  <div className="px-5 py-3 bg-[#1C1C26] border-b border-[rgba(201,160,92,0.12)]">
+                    <p className="text-[10px] font-black uppercase tracking-wider text-[#C9A05C]">
+                      Terms &amp; Conditions &amp; Pawnshop Responsibilities
+                    </p>
+                  </div>
+                  <div
+                    className="bg-[#14141B] text-[#EAE2D6] p-6 max-h-96 overflow-y-auto text-sm leading-relaxed"
+                    dangerouslySetInnerHTML={{ __html: termsHtml }}
+                  />
+                </div>
+              )}
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className={`border rounded-2xl p-5 ${contract.signedByCustomer ? 'border-emerald-200 bg-emerald-50' : 'border-[rgba(201,160,92,0.12)]'}`}>
                   <div className="flex items-center gap-2 mb-3">
@@ -276,21 +356,42 @@ export function ContractViewer({
                     </div>
                   ) : (
                     <div className="space-y-3">
-                      <canvas
-                        ref={customerCanvasRef}
-                        width={400}
-                        height={100}
-                        className="w-full border border-dashed border-slate-300 rounded-xl bg-[#14141B] touch-none"
-                        style={{ cursor: 'crosshair' }}
-                        onMouseDown={(e) => { setActiveSigner('customer'); startDrawing(e); }}
-                        onMouseMove={draw}
-                        onMouseUp={stopDrawing}
-                        onMouseLeave={stopDrawing}
-                        onTouchStart={(e) => { setActiveSigner('customer'); startDrawing(e); }}
-                        onTouchMove={draw}
-                        onTouchEnd={stopDrawing}
+                      {signatureUploaded && signatureFor === 'customer' ? (
+                        <div className="space-y-1">
+                          <img src={signature ?? undefined} alt="Uploaded customer signature" className="max-h-16 border border-[#C9A05C]/40 rounded-xl bg-white p-1" />
+                          <p className="text-[10px] font-bold text-[#6B655C]">Uploaded signature — ready to sign</p>
+                        </div>
+                      ) : (
+                        <canvas
+                          ref={customerCanvasRef}
+                          width={400}
+                          height={100}
+                          className="w-full border border-dashed border-slate-300 rounded-xl bg-[#14141B] touch-none"
+                          style={{ cursor: 'crosshair' }}
+                          onMouseDown={(e) => { setActiveSigner('customer'); startDrawing(e); }}
+                          onMouseMove={draw}
+                          onMouseUp={stopDrawing}
+                          onMouseLeave={stopDrawing}
+                          onTouchStart={(e) => { setActiveSigner('customer'); startDrawing(e); }}
+                          onTouchMove={draw}
+                          onTouchEnd={stopDrawing}
+                        />
+                      )}
+                      <input
+                        type="file"
+                        accept="image/png,image/jpeg,image/webp"
+                        className="hidden"
+                        ref={customerFileRef}
+                        onChange={(e) => handleUploadSignature('customer', e)}
                       />
-                      <div className="flex gap-2">
+                      <div className="flex gap-2 flex-wrap">
+                        <button
+                          onClick={() => customerFileRef.current?.click()}
+                          className="px-4 py-2 rounded-xl border border-[rgba(201,160,92,0.25)] text-xs font-bold text-[#C9A05C] hover:bg-[#1C1C26] inline-flex items-center gap-1"
+                        >
+                          <Upload className="w-3 h-3" />
+                          Upload Signature
+                        </button>
                         <button
                           onClick={() => { setActiveSigner('customer'); clearCanvas(); }}
                           className="px-4 py-2 rounded-xl border border-[rgba(201,160,92,0.12)] text-xs font-bold text-[#999186] hover:bg-[#1C1C26]"
@@ -329,21 +430,42 @@ export function ContractViewer({
                     </div>
                   ) : (
                     <div className="space-y-3">
-                      <canvas
-                        ref={staffCanvasRef}
-                        width={400}
-                        height={100}
-                        className="w-full border border-dashed border-slate-300 rounded-xl bg-[#14141B] touch-none"
-                        style={{ cursor: 'crosshair' }}
-                        onMouseDown={(e) => { setActiveSigner('staff'); startDrawing(e); }}
-                        onMouseMove={draw}
-                        onMouseUp={stopDrawing}
-                        onMouseLeave={stopDrawing}
-                        onTouchStart={(e) => { setActiveSigner('staff'); startDrawing(e); }}
-                        onTouchMove={draw}
-                        onTouchEnd={stopDrawing}
+                      {signatureUploaded && signatureFor === 'staff' ? (
+                        <div className="space-y-1">
+                          <img src={signature ?? undefined} alt="Uploaded staff signature" className="max-h-16 border border-[#C9A05C]/40 rounded-xl bg-white p-1" />
+                          <p className="text-[10px] font-bold text-[#6B655C]">Uploaded signature — ready to sign</p>
+                        </div>
+                      ) : (
+                        <canvas
+                          ref={staffCanvasRef}
+                          width={400}
+                          height={100}
+                          className="w-full border border-dashed border-slate-300 rounded-xl bg-[#14141B] touch-none"
+                          style={{ cursor: 'crosshair' }}
+                          onMouseDown={(e) => { setActiveSigner('staff'); startDrawing(e); }}
+                          onMouseMove={draw}
+                          onMouseUp={stopDrawing}
+                          onMouseLeave={stopDrawing}
+                          onTouchStart={(e) => { setActiveSigner('staff'); startDrawing(e); }}
+                          onTouchMove={draw}
+                          onTouchEnd={stopDrawing}
+                        />
+                      )}
+                      <input
+                        type="file"
+                        accept="image/png,image/jpeg,image/webp"
+                        className="hidden"
+                        ref={staffFileRef}
+                        onChange={(e) => handleUploadSignature('staff', e)}
                       />
-                      <div className="flex gap-2">
+                      <div className="flex gap-2 flex-wrap">
+                        <button
+                          onClick={() => staffFileRef.current?.click()}
+                          className="px-4 py-2 rounded-xl border border-[rgba(201,160,92,0.25)] text-xs font-bold text-[#C9A05C] hover:bg-[#1C1C26] inline-flex items-center gap-1"
+                        >
+                          <Upload className="w-3 h-3" />
+                          Upload Signature
+                        </button>
                         <button
                           onClick={() => { setActiveSigner('staff'); clearCanvas(); }}
                           className="px-4 py-2 rounded-xl border border-[rgba(201,160,92,0.12)] text-xs font-bold text-[#999186] hover:bg-[#1C1C26]"
@@ -384,7 +506,7 @@ export function ContractViewer({
                 )}
                 {contract.signedByCustomer && contract.signedByStaff && onDisburse && (
                   <button
-                    onClick={onDisburse}
+                    onClick={handleRequestDisburse}
                     disabled={disbursing}
                     className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-[#3DA86C] text-white text-sm font-bold hover:bg-[#4DB87C] transition-colors disabled:opacity-50"
                   >

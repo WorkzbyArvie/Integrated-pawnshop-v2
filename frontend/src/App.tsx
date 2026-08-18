@@ -67,7 +67,6 @@ import { AuditHistory } from './components/AuditHistory';
 import { PendingAccessDashboard } from './components/PendingAccessDashboard';
 import OwnerComplianceDashboard from './pages/admin/OwnerComplianceDashboard';
 import BidderKycReview from './components/BidderKycReview';
-import CustomerKycReview from './components/CustomerKycReview';
 import { TransactionHistory } from './pages/loans/TransactionHistory';
 import LandingPage from './pages/LandingPage';
 
@@ -136,7 +135,6 @@ const TAB_TO_PATH: Record<string, string> = {
   'trial-requests': '/trial-requests',
   'platform-compliance': '/platform-compliance',
   'bidder-kyc': '/bidder-kyc',
-  'customer-kyc': '/customer-kyc',
   'pending-access': '/pending-access',
   'frozen-access': '/frozen-access',
   'branch-system-settings': '/branch-system-settings',
@@ -208,6 +206,7 @@ function App() {
   const [supportAccessChecked, setSupportAccessChecked] = useState<boolean>(false);
   const [subscriptionAccessFrozen, setSubscriptionAccessFrozen] = useState<boolean>(false);
   const [subscriptionAccessChecked, setSubscriptionAccessChecked] = useState<boolean>(false);
+  const [subscriptionRefreshKey, setSubscriptionRefreshKey] = useState(0);
   const [sidebarBranding, setSidebarBranding] = useState<SidebarBranding>(DEFAULT_SIDEBAR_BRANDING);
   const [brandLogoFailed, setBrandLogoFailed] = useState(false);
   const [sidebarFilter, setSidebarFilter] = useState('');
@@ -324,11 +323,15 @@ function App() {
   useEffect(() => {
     if (!session) return;
 
+    const ownerPendingLimited = userRole === 'Owner' && ownerRegistrationStatus !== 'APPROVED';
+    const subscriptionLocked = subscriptionAccessChecked && subscriptionAccessFrozen;
+    if (ownerPendingLimited || subscriptionLocked) return;
+
     const routeTab = resolveTabFromPath(location.pathname);
-    if (routeTab && routeTab !== activeTab) {
-      setActiveTab(routeTab);
-    }
-  }, [session, location.pathname, activeTab]);
+    if (!routeTab || routeTab === activeTab) return;
+    if (routeTab === 'pending-access' || routeTab === 'frozen-access') return;
+    setActiveTab(routeTab);
+  }, [session, location.pathname, activeTab, userRole, ownerRegistrationStatus, subscriptionAccessChecked, subscriptionAccessFrozen]);
 
   const handleSidebarNavigation = useCallback((tabId: string) => {
     setActiveTab(tabId);
@@ -670,10 +673,6 @@ function App() {
         return;
       }
 
-      if (!subscriptionTierLoaded) {
-        return;
-      }
-
       const maybeShowTrialApprovedToast = () => {
         if (subscriptionTier !== 'TRIAL') {
           return;
@@ -684,6 +683,13 @@ function App() {
           localStorage.setItem(approvalToastKey, '1');
         }
       };
+
+      if (ownerRegistrationStatus === 'APPROVED') {
+        if (subscriptionTier !== 'FREE') {
+          maybeShowTrialApprovedToast();
+        }
+        return;
+      }
 
       // If owner already has a non-free subscription context, treat account as approved.
       if (subscriptionTier !== 'FREE') {
@@ -778,7 +784,7 @@ function App() {
     };
 
     syncOwnerOnboardingState();
-  }, [session?.user?.id, userRole, currentBranchId, showToast, subscriptionTier, subscriptionTierLoaded]);
+  }, [session?.user?.id, userRole, currentBranchId, showToast, subscriptionTier]);
 
   useEffect(() => {
     const loadActiveOperationalBranchName = async () => {
@@ -900,7 +906,7 @@ function App() {
     };
 
     loadSubscription();
-  }, [session, userRole, currentBranchId, ownerRegistrationStatus]);
+  }, [session, userRole, currentBranchId, ownerRegistrationStatus, subscriptionRefreshKey]);
 
   useEffect(() => {
     const loadSubscriptionAccessStatus = async () => {
@@ -910,8 +916,8 @@ function App() {
         return;
       }
 
-      // Skip for pending owners (no pawnshop assigned yet)
       if (userRole === 'Owner' && ownerRegistrationStatus !== 'APPROVED') {
+        if (ownerRegistrationStatus === 'LOADING' || !ownerRegistrationChecked) return;
         setSubscriptionAccessFrozen(false);
         setSubscriptionAccessChecked(true);
         return;
@@ -937,7 +943,7 @@ function App() {
     };
 
     loadSubscriptionAccessStatus();
-  }, [session, userRole, currentBranchId, ownerRegistrationStatus]);
+  }, [session, userRole, currentBranchId, ownerRegistrationStatus, subscriptionRefreshKey]);
 
   useEffect(() => {
     const checkSupportAccess = async () => {
@@ -1051,7 +1057,6 @@ function App() {
 
   const isSubscriptionFrozen =
     userRole !== 'Super Admin' &&
-    !isPendingLimitedMode &&
     subscriptionAccessChecked &&
     subscriptionAccessFrozen;
 
@@ -1212,7 +1217,6 @@ function App() {
     { id: 'multi-branches', label: 'Multi-Branch', icon: GitBranch, roles: ['Owner'], type: 'OPERATIONAL' },
     { id: 'sales', label: 'New Appraisal', icon: BadgePercent, roles: ['Owner', 'Admin', 'Manager', 'Staff', 'Cashier/Teller', 'Appraiser'], type: 'OPERATIONAL' },
     { id: 'approval-queue', label: 'Approval Queue', icon: ListChecks, roles: ['Owner', 'Admin', 'Manager'], type: 'OPERATIONAL' },
-    { id: 'customer-kyc', label: 'Customer KYC Review', icon: ShieldCheck, roles: ['Owner', 'Admin', 'Manager'], type: 'OPERATIONAL' },
     { id: 'audit-history', label: 'Audit History', icon: History, roles: ['Owner', 'Admin'], type: 'OPERATIONAL' },
     { id: 'crm', label: 'Customers', icon: Users2, roles: ['Owner', 'Admin', 'Manager', 'Staff', 'Cashier/Teller', 'Appraiser'], type: 'OPERATIONAL', feature: 'crm_enabled' },
     { id: 'inventory', label: 'Inventory & Vault', icon: Warehouse, roles: ['Owner', 'Admin', 'Manager', 'Inventory Custodian'], type: 'OPERATIONAL', feature: 'vault_enabled' },
@@ -1240,7 +1244,6 @@ function App() {
     'dashboard',
     'sales',
     'approval-queue',
-    'customer-kyc',
     'audit-history',
     'loan-history',
     'redemption',
@@ -1260,15 +1263,15 @@ function App() {
   ]);
 
   const filteredNavItems = allNavItems.filter(item => {
-    if (isPendingLimitedMode && ownerRegistrationChecked) {
-      return item.id === 'pending-access';
-    }
-
     if (isSubscriptionFrozen) {
       if (effectiveUserRole === 'Owner') {
         return item.id === 'subscription' || item.id === 'frozen-access';
       }
       return item.id === 'frozen-access';
+    }
+
+    if (isPendingLimitedMode && ownerRegistrationChecked) {
+      return item.id === 'pending-access';
     }
 
     if (item.id === 'pending-access') {
@@ -1356,14 +1359,14 @@ function App() {
   }, [activeTab, filteredNavItems, userRole, isImpersonating, lockImpersonationPanels]);
 
   useEffect(() => {
-    if (!session?.user?.id || userRole !== 'Owner') {
+    if (!session?.user?.id || userRole !== 'Owner' || isSubscriptionFrozen) {
       return;
     }
 
     if (hasOnboardingIntent || (isPendingLimitedMode && ownerRegistrationChecked)) {
       setActiveTab('pending-access');
     }
-  }, [session?.user?.id, userRole, hasOnboardingIntent, isPendingLimitedMode, ownerRegistrationChecked]);
+  }, [session?.user?.id, userRole, hasOnboardingIntent, isPendingLimitedMode, ownerRegistrationChecked, isSubscriptionFrozen]);
 
   useEffect(() => {
     if (!session || userRole === 'Super Admin' || !isSubscriptionFrozen) {
@@ -1378,24 +1381,73 @@ function App() {
     setActiveTab('frozen-access');
   }, [session, userRole, effectiveUserRole, isSubscriptionFrozen]);
 
-  if (loading) return (
-    <div className="h-screen w-screen bg-[#0A0A0F] flex flex-col items-center justify-center gap-6">
-      <div className="relative">
-        <div className="w-16 h-16 rounded-2xl bg-[#C9A05C]/10 border border-[#C9A05C]/20 flex items-center justify-center">
-          <ShieldCheck className="w-8 h-8 text-[#C9A05C]" />
+  const isSubscriptionReady = !session || userRole === 'Super Admin' || (subscriptionAccessChecked && subscriptionTierLoaded);
+
+  if (loading || !isSubscriptionReady || isSubscriptionFrozen || isPendingLimitedMode) {
+    if (!loading && subscriptionAccessChecked && subscriptionTierLoaded && isSubscriptionFrozen) {
+      return (
+        <div className="h-screen w-screen bg-[#0A0A0F] flex items-center justify-center p-8">
+          <div className="rounded-xl border border-[#D44545]/20 bg-[#D44545]/5 p-8 lg:p-10 max-w-4xl">
+            <div className="flex items-start gap-4">
+              <div className="w-12 h-12 rounded-xl bg-[#D44545]/10 flex items-center justify-center shrink-0">
+                <ShieldCheck className="w-6 h-6 text-[#D44545]" />
+              </div>
+              <div>
+                <h2 className="text-xl text-[#EAE2D6] tracking-tight" style={{ fontFamily: "'Syne', sans-serif" }}>Subscription Required</h2>
+                <p className="text-sm text-[#999186] mt-2 max-w-2xl leading-relaxed">
+                  Your subscription has expired or has been cancelled. All operational modules are locked for every branch until a new subscription is activated.
+                </p>
+                <div className="mt-4 p-4 rounded-lg bg-[#1C1C26] border border-[rgba(201,160,92,0.15)]">
+                  <p className="text-sm text-[#C9A05C] font-semibold">To regain access:</p>
+                  <ol className="text-xs text-[#999186] mt-2 space-y-1 list-decimal list-inside">
+                    <li>Go to <span className="text-[#C9A05C] font-medium">Subscription & Billing</span> in the sidebar</li>
+                    <li>Choose a plan and complete payment</li>
+                    <li>Access will be restored immediately after payment confirmation</li>
+                  </ol>
+                </div>
+                <p className="text-xs text-[#6B655C] mt-4 uppercase tracking-wider font-semibold">
+                  Only the pawnshop owner can reactivate access.
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
-        <div className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-[#C9A05C] animate-pulse" />
-      </div>
-      <div className="flex flex-col items-center gap-2">
-        <p className="text-[#EAE2D6] text-sm font-medium" style={{ fontFamily: "'DM Sans', sans-serif" }}>Loading your vault</p>
-        <div className="flex gap-1.5">
-          <div className="w-2 h-2 rounded-full bg-[#C9A05C] animate-bounce" style={{ animationDelay: '0ms' }} />
-          <div className="w-2 h-2 rounded-full bg-[#C9A05C]/70 animate-bounce" style={{ animationDelay: '150ms' }} />
-          <div className="w-2 h-2 rounded-full bg-[#C9A05C]/40 animate-bounce" style={{ animationDelay: '300ms' }} />
+      );
+    }
+
+    if (!loading && isPendingLimitedMode && ownerRegistrationChecked) {
+      return (
+        <PendingAccessDashboard
+          ownerEmail={session?.user?.email ?? null}
+          ownerName={
+            (session?.user?.user_metadata?.full_name as string | undefined) ||
+            (session?.user?.user_metadata?.name as string | undefined) ||
+            null
+          }
+          registrationStatus={ownerRegistrationStatus}
+        />
+      );
+    }
+
+    return (
+      <div className="h-screen w-screen bg-[#0A0A0F] flex flex-col items-center justify-center gap-6">
+        <div className="relative">
+          <div className="w-16 h-16 rounded-2xl bg-[#C9A05C]/10 border border-[#C9A05C]/20 flex items-center justify-center">
+            <ShieldCheck className="w-8 h-8 text-[#C9A05C]" />
+          </div>
+          <div className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-[#C9A05C] animate-pulse" />
+        </div>
+        <div className="flex flex-col items-center gap-2">
+          <p className="text-[#EAE2D6] text-sm font-medium" style={{ fontFamily: "'DM Sans', sans-serif" }}>Loading your vault</p>
+          <div className="flex gap-1.5">
+            <div className="w-2 h-2 rounded-full bg-[#C9A05C] animate-bounce" style={{ animationDelay: '0ms' }} />
+            <div className="w-2 h-2 rounded-full bg-[#C9A05C]/70 animate-bounce" style={{ animationDelay: '150ms' }} />
+            <div className="w-2 h-2 rounded-full bg-[#C9A05C]/40 animate-bounce" style={{ animationDelay: '300ms' }} />
+          </div>
         </div>
       </div>
-    </div>
-  );
+    );
+  }
 
   if (isResetPasswordRoute) return <ResetPassword />;
   if (!session) {
@@ -1625,9 +1677,8 @@ function App() {
                 isEnabled={isEnabled} 
               />
             )}
-            {activeTab === 'sales' && <LoanManagement branchId={currentBranchId} activeBranchId={activeOperationalBranchId} userRole={userRole} />}
+            {activeTab === 'sales' && <LoanManagement branchId={currentBranchId} activeBranchId={activeOperationalBranchId} />}
             {activeTab === 'approval-queue' && <ApprovalQueue branchId={currentBranchId} activeBranchId={activeOperationalBranchId} userRole={userRole} />}
-            {activeTab === 'customer-kyc' && <CustomerKycReview branchId={currentBranchId} activeBranchId={activeOperationalBranchId} userRole={userRole} />}
             {activeTab === 'audit-history' && (effectiveUserRole === 'Owner' || effectiveUserRole === 'Admin') && (
               <AuditHistory branchId={currentBranchId} userRole={effectiveUserRole} />
             )}
@@ -1653,7 +1704,7 @@ function App() {
             {activeTab === 'attendance' && <AttendanceTracker branchId={currentBranchId} activeBranchId={activeOperationalBranchId} userRole={userRole} />}
             {activeTab === 'payroll' && <PayrollManagement branchId={currentBranchId} activeBranchId={activeOperationalBranchId} />}
             {activeTab === 'compliance' && <OwnerComplianceDashboard />}
-            {activeTab === 'subscription' && userRole === 'Owner' && <SubscriptionManager branchId={currentBranchId} />}
+            {activeTab === 'subscription' && userRole === 'Owner' && <SubscriptionManager branchId={currentBranchId} onSubscriptionChange={() => setSubscriptionRefreshKey(k => k + 1)} />}
             {activeTab === 'support-chat' && ['Owner', 'Admin', 'Super Admin'].includes(userRole) && (
               <SupportChat pawnshopId={currentBranchId} userRole={userRole} />
             )}
