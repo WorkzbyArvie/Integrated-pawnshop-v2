@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useRef, useCallback } from 'react';
 import { useBranding } from '../context/BrandingContext';
 import { Link } from 'react-router-dom';
 import Swal from 'sweetalert2';
@@ -38,6 +38,8 @@ export default function Home() {
   );
   const [listings, setListings] = useState<AuctionListing[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [nextCursor, setNextCursor] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [pawnshopFilter, setPawnshopFilter] = useState<string>(initialPawnshopId || 'all');
@@ -49,6 +51,42 @@ export default function Home() {
   const [authName, setAuthName] = useState('');
   const [authCode, setAuthCode] = useState('');
   const [authSubmitting, setAuthSubmitting] = useState(false);
+  const [emailCheck, setEmailCheck] = useState<{ checking: boolean; exists: boolean; message: string }>({
+    checking: false,
+    exists: false,
+    message: '',
+  });
+  const emailCheckTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const checkEmailAvailability = useCallback(async (email: string) => {
+    if (!email || !email.includes('@')) {
+      setEmailCheck({ checking: false, exists: false, message: '' });
+      return;
+    }
+    setEmailCheck((prev) => ({ ...prev, checking: true }));
+    try {
+      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000';
+      const res = await fetch(`${backendUrl}/auth/check-email?email=${encodeURIComponent(email)}&role=BIDDER`);
+      const data = await res.json();
+      setEmailCheck({ checking: false, exists: data.exists, message: data.exists ? data.message : '' });
+    } catch {
+      setEmailCheck({ checking: false, exists: false, message: '' });
+    }
+  }, []);
+
+  useEffect(() => {
+    if (emailCheckTimer.current) clearTimeout(emailCheckTimer.current);
+    if (!authEmail || !authEmail.includes('@')) {
+      setEmailCheck({ checking: false, exists: false, message: '' });
+      return;
+    }
+    emailCheckTimer.current = setTimeout(() => {
+      checkEmailAvailability(authEmail);
+    }, 500);
+    return () => {
+      if (emailCheckTimer.current) clearTimeout(emailCheckTimer.current);
+    };
+  }, [authEmail, checkEmailAvailability]);
   const notifyError = (msg: string) => Swal.fire({ icon: 'error', title: 'Error', text: msg, confirmButtonColor: '#C9A05C', background: '#1C1C26', color: '#EAE2D6' });
   const notifySuccess = (msg: string) => Swal.fire({ icon: 'success', title: 'Success', text: msg, confirmButtonColor: '#C9A05C', background: '#1C1C26', color: '#EAE2D6' });
   const [now, setNow] = useState(Date.now());
@@ -66,6 +104,7 @@ export default function Home() {
       .then((data) => {
         if (!mounted) return;
         setListings(data.items || []);
+        setNextCursor(data.nextCursor ?? null);
         setError(null);
       })
       .catch((err: Error) => {
@@ -80,6 +119,19 @@ export default function Home() {
       mounted = false;
     };
   }, []);
+
+  const loadMore = useCallback(async () => {
+    if (!nextCursor || loadingMore) return;
+    setLoadingMore(true);
+    try {
+      const data = await fetchListings({ status: 'LIVE', limit: 12, cursor: nextCursor, pawnshopId: initialPawnshopId || undefined });
+      setListings((prev) => [...prev, ...(data.items || [])]);
+      setNextCursor(data.nextCursor ?? null);
+    } catch {
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [nextCursor, loadingMore, initialPawnshopId]);
 
   const pawnshops = useMemo(() => {
     const map = new Map<string, string>();
@@ -163,6 +215,9 @@ export default function Home() {
             )}
             <Link to="/my-bids" className="auth-nav-link" style={{ color: 'var(--text-secondary)' }}>
               My Bids
+            </Link>
+            <Link to="/my-winnings" className="auth-nav-link" style={{ color: 'var(--text-secondary)' }}>
+              My Winnings
             </Link>
             <Link to="/profile" className="auth-nav-link" style={{ color: 'var(--text-secondary)' }}>
               {user.user_metadata?.fullName || user.email}
@@ -314,11 +369,25 @@ export default function Home() {
         ) : error ? (
           <p className="status-error" style={{ marginTop: '2rem' }}>{error}</p>
         ) : (
-          <div className="auction-grid" style={{ marginTop: '2rem' }}>
-            {filteredListings.map((listing, index) => (
-              <AuctionCard key={listing.id} listing={listing} now={now} index={index} onBid={() => { if (!user) setLoginOpen(true); }} />
-            ))}
-          </div>
+          <>
+            <div className="auction-grid" style={{ marginTop: '2rem' }}>
+              {filteredListings.map((listing, index) => (
+                <AuctionCard key={listing.id} listing={listing} now={now} index={index} onBid={() => { if (!user) setLoginOpen(true); }} />
+              ))}
+            </div>
+            {nextCursor && !search && pawnshopFilter === 'all' && categoryFilter === 'all' && (
+              <div style={{ textAlign: 'center', marginTop: '2rem' }}>
+                <button
+                  className="ghost-button"
+                  onClick={loadMore}
+                  disabled={loadingMore}
+                  style={{ padding: '0.6rem 2rem' }}
+                >
+                  {loadingMore ? 'Loading...' : 'Load More Auctions'}
+                </button>
+              </div>
+            )}
+          </>
         )}
       </section>
 
@@ -376,6 +445,10 @@ export default function Home() {
                 if (authTab === 'signup') {
                   if (!authCode.trim()) {
                     notifyError('Enter your verification code before creating an account.');
+                    return;
+                  }
+                  if (emailCheck.exists) {
+                    notifyError('This email is already registered. Please use a different email or sign in.');
                     return;
                   }
 
@@ -437,6 +510,14 @@ export default function Home() {
                 onChange={(e) => setAuthEmail(e.target.value)}
                 required
               />
+              {emailCheck.checking && (
+                <p style={{ fontSize: '0.7rem', color: '#9A917F', margin: '-0.25rem 0' }}>Checking email...</p>
+              )}
+              {!emailCheck.checking && emailCheck.exists && (
+                <p style={{ fontSize: '0.75rem', color: '#D44545', background: 'rgba(212,69,69,0.1)', border: '1px solid rgba(212,69,69,0.2)', borderRadius: '8px', padding: '0.5rem 0.75rem', margin: '-0.25rem 0' }}>
+                  {emailCheck.message || 'This email is already registered. Please use a different email or sign in.'}
+                </p>
+              )}
               <input
                 placeholder="Password"
                 type="password"

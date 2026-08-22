@@ -8,9 +8,12 @@ import {
   simulatePaymentWebhook,
   signContract as apiSignContract,
   fetchTosTemplate,
+  fetchReceiptsByAuction,
+  downloadReceiptPdf,
   type MyWinningItem,
   type TosTemplate,
   type TosClause,
+  type AuctionReceipt,
 } from '../services/auctionApi';
 import { renderAgreementTemplate, winningBidText, agreementNumberFor } from '../lib/agreementTemplate';
 import '../App.css';
@@ -96,6 +99,8 @@ export default function MyWinnings() {
   const [contractModal, setContractModal] = useState<{ item: MyWinningItem; template: TosTemplate | null; clauses: TosClause[]; signedName: string } | null>(null);
   const [contractLoading, setContractLoading] = useState(false);
   const [bannerDismissed, setBannerDismissed] = useState(false);
+  const [receiptModal, setReceiptModal] = useState<{ item: MyWinningItem; receipts: AuctionReceipt[] } | null>(null);
+  const [receiptLoading, setReceiptLoading] = useState(false);
 
   const needsBanner = winnings.some(
     (w) => w.status.toUpperCase() === 'PENDING_COMPLIANCE' && !w.contractSignedAt,
@@ -184,6 +189,28 @@ export default function MyWinnings() {
       Swal.fire({ icon: 'error', title: 'Simulation Failed', text: err.message || 'Simulation failed', confirmButtonColor: '#C9A05C', background: '#1C1C26', color: '#EAE2D6' });
     } finally {
       setPayingId(null);
+    }
+  };
+
+  const handleViewReceipt = async (item: MyWinningItem) => {
+    if (!session?.access_token) return;
+    setReceiptLoading(true);
+    try {
+      const receipts = await fetchReceiptsByAuction(item.listingId, session.access_token);
+      setReceiptModal({ item, receipts });
+    } catch {
+      Swal.fire({ icon: 'error', title: 'Error', text: 'Failed to load receipts', confirmButtonColor: '#C9A05C', background: '#1C1C26', color: '#EAE2D6' });
+    } finally {
+      setReceiptLoading(false);
+    }
+  };
+
+  const handleDownloadReceipt = async (receiptId: string) => {
+    try {
+      const url = await downloadReceiptPdf(receiptId);
+      window.open(url, '_blank');
+    } catch {
+      Swal.fire({ icon: 'error', title: 'Error', text: 'Failed to download receipt', confirmButtonColor: '#C9A05C', background: '#1C1C26', color: '#EAE2D6' });
     }
   };
 
@@ -412,6 +439,16 @@ export default function MyWinnings() {
                         Simulate
                       </button>
                     )}
+                    {(item.status.toUpperCase() === 'COMPLIED' || item.status.toUpperCase() === 'READY_FOR_RELEASE' || item.status.toUpperCase() === 'RELEASED') && (
+                      <button
+                        className="ghost-button"
+                        style={{ padding: '0.4rem 0.7rem', fontSize: '0.75rem', whiteSpace: 'nowrap', color: 'var(--gold)' }}
+                        onClick={() => handleViewReceipt(item)}
+                        disabled={receiptLoading}
+                      >
+                        Receipt
+                      </button>
+                    )}
                   </div>
                 </div>
               );
@@ -553,6 +590,108 @@ export default function MyWinnings() {
                 {signingId === contractModal.item.id ? 'Signing...' : 'Sign & Continue to Payment'}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {receiptModal && (
+        <div
+          style={{
+            position: 'fixed', inset: 0, zIndex: 1000,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)',
+          }}
+          onClick={() => setReceiptModal(null)}
+        >
+          <div
+            style={{
+              background: '#14141B', borderRadius: '1.5rem', width: '90%', maxWidth: '600px',
+              maxHeight: '85vh', overflowY: 'auto', padding: '2rem',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+              <h2 style={{ margin: 0, fontSize: '1.2rem' }}>Auction Receipt{receiptModal.receipts.length !== 1 ? 's' : ''}</h2>
+              <button
+                onClick={() => setReceiptModal(null)}
+                style={{
+                  background: 'none', border: 'none', color: 'var(--text-muted)',
+                  cursor: 'pointer', fontSize: '1.3rem', padding: '0.25rem', lineHeight: 1,
+                }}
+              >
+                &times;
+              </button>
+            </div>
+
+            {receiptModal.receipts.length === 0 ? (
+              <p className="status-muted" style={{ textAlign: 'center', padding: '2rem 0' }}>
+                No receipts found for this auction.
+              </p>
+            ) : (
+              <div style={{ display: 'grid', gap: '1rem' }}>
+                {receiptModal.receipts.map((receipt) => (
+                  <div
+                    key={receipt.id}
+                    style={{
+                      background: 'rgba(255,255,255,0.02)',
+                      border: '1px solid var(--border-subtle)',
+                      borderRadius: 'var(--radius-lg)',
+                      padding: '1.25rem',
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+                      <div>
+                        <strong style={{ fontSize: '0.9rem' }}>{receipt.receiptNumber}</strong>
+                        <p className="status-muted" style={{ margin: '0.15rem 0 0', fontSize: '0.75rem' }}>
+                          {receipt.receiptType.replace(/_/g, ' ')} &middot; {new Date(receipt.generatedAt).toLocaleDateString('en-PH')}
+                        </p>
+                      </div>
+                      <span
+                        className="badge"
+                        style={{
+                          background: receipt.status === 'VOID' ? 'rgba(212,69,69,0.15)' : 'rgba(74,222,128,0.15)',
+                          color: receipt.status === 'VOID' ? '#ef4444' : '#4ade80',
+                          fontSize: '0.65rem',
+                        }}
+                      >
+                        {receipt.status || 'VALID'}
+                      </span>
+                    </div>
+
+                    {receipt.lineItems?.length > 0 && (
+                      <div style={{ marginBottom: '0.75rem' }}>
+                        {receipt.lineItems.map((item, idx) => (
+                          <div
+                            key={idx}
+                            style={{
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              padding: '0.35rem 0',
+                              borderBottom: idx < receipt.lineItems.length - 1 ? '1px solid var(--border-subtle)' : 'none',
+                              fontSize: '0.8rem',
+                            }}
+                          >
+                            <span className="status-muted">{item.description}</span>
+                            <span>{formatCurrency(item.amount)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid var(--border-subtle)', paddingTop: '0.75rem' }}>
+                      <strong style={{ fontSize: '0.9rem' }}>Total: {formatCurrency(receipt.amount)}</strong>
+                      <button
+                        className="ghost-button"
+                        style={{ padding: '0.3rem 0.7rem', fontSize: '0.75rem', color: 'var(--gold)' }}
+                        onClick={() => handleDownloadReceipt(receipt.id)}
+                      >
+                        Download PDF
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}

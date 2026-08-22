@@ -5,6 +5,7 @@ import { AuctionStatus, ComplianceStatus } from '@prisma/client';
 import { ContractTemplateService } from '../contract/contract-template.service';
 import { LegalProofService } from '../loan/legal-proof.service';
 import { ReceiptService } from '../receipt/receipt.service';
+import { NotificationService } from '../notification/notification.service';
 import { randomUUID } from 'crypto';
 
 @Injectable()
@@ -16,6 +17,7 @@ export class AuctionSettlementService {
     private contractTemplateService: ContractTemplateService,
     private legalProofService: LegalProofService,
     private receiptService: ReceiptService,
+    private notificationService: NotificationService,
   ) {}
 
   @Cron('*/5 * * * *')
@@ -110,6 +112,10 @@ export class AuctionSettlementService {
           winningBid,
           winnerProfile,
         );
+
+        this.notificationService.notifyAuctionWon(auction.id, winningBid.bidderId, winningBid.amount).catch((err) => {
+          this.logger.warn(`Failed to send auction won notification: ${err?.message || err}`);
+        });
 
         if (auction.pawnshopId) {
           try {

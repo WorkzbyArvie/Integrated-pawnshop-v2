@@ -901,6 +901,25 @@ export class PawnTicketService {
       }
     }
 
+    const byContact = await this.prisma.customer.findFirst({
+      where: {
+        contactNumber: dto.customerContact,
+        pawnshopId: dto.pawnshopId,
+      },
+      select: { id: true },
+    });
+
+    if (byContact) {
+      await this.prisma.customer.update({
+        where: { id: byContact.id },
+        data: {
+          fullName: dto.customerName,
+          address: dto.customerAddress,
+        },
+      });
+      return byContact.id;
+    }
+
     const existing = await this.prisma.customer.findFirst({
       where: { fullName: dto.customerName, pawnshopId: dto.pawnshopId },
       select: { id: true },

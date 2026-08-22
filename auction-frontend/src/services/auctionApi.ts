@@ -283,3 +283,36 @@ export async function simulatePaymentWebhook(
     throw new Error(data.message || 'Failed to simulate payment');
   }
 }
+
+export interface AuctionReceipt {
+  id: string;
+  receiptNumber: string;
+  receiptType: string;
+  amount: number;
+  customerName: string;
+  lineItems: { description: string; amount: number }[];
+  generatedAt: string;
+  status: string;
+}
+
+export async function fetchReceiptsByAuction(listingId: number, accessToken: string): Promise<AuctionReceipt[]> {
+  const response = await fetch(`${backendUrl}/receipts/by-reference/AUCTION/${listingId}`, {
+    headers: {
+      Accept: 'application/json',
+      Authorization: `Bearer ${accessToken}`,
+    },
+  });
+
+  if (!response.ok) return [];
+
+  const json = await response.json();
+  const data = json?.data ?? json;
+  return Array.isArray(data) ? data : [];
+}
+
+export async function downloadReceiptPdf(receiptId: string): Promise<string> {
+  const response = await fetch(`${backendUrl}/receipts/${receiptId}/pdf`);
+  if (!response.ok) throw new Error('Failed to load receipt PDF');
+  const json = await response.json();
+  return json?.pdfUrl || `${backendUrl}/receipts/${receiptId}/pdf/download`;
+}

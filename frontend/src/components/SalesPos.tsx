@@ -1,4 +1,4 @@
-﻿import { useRef, useState } from 'react';
+﻿import { useRef, useState, useEffect, useCallback } from 'react';
 import { 
   Calculator, 
   Scale, 
@@ -7,7 +7,8 @@ import {
   Loader2, 
   MapPin, 
   Phone, 
-  User 
+  User,
+  AlertTriangle 
 } from 'lucide-react';
 import { useToast } from '../App';
 import { supabase } from '../lib/supabaseClient';
@@ -60,6 +61,44 @@ export function SalesPos({ branchId, activeBranchId }: SalesPosProps) {
     customerAddress: string;
     riskScore: number | null;
   } | null>(null);
+
+  const [customerDuplicate, setCustomerDuplicate] = useState<{ checking: boolean; exists: boolean; message: string }>({
+    checking: false,
+    exists: false,
+    message: '',
+  });
+  const customerCheckTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const checkCustomerDuplicate = useCallback(async (name: string, contact: string) => {
+    if (!name.trim() || !contact.trim()) {
+      setCustomerDuplicate({ checking: false, exists: false, message: '' });
+      return;
+    }
+    setCustomerDuplicate((prev) => ({ ...prev, checking: true }));
+    try {
+      const res = await api.get<{ exists: boolean; customer?: { fullName: string }; message: string }>(
+        '/customers/check',
+        { fullName: name.trim(), contactNumber: contact.trim(), pawnshopId: branchId || undefined }
+      );
+      setCustomerDuplicate({ checking: false, exists: res.exists, message: res.exists ? res.message : '' });
+    } catch {
+      setCustomerDuplicate({ checking: false, exists: false, message: '' });
+    }
+  }, [branchId]);
+
+  useEffect(() => {
+    if (customerCheckTimer.current) clearTimeout(customerCheckTimer.current);
+    if (!formData.customerName.trim() || !formData.customerContact.trim()) {
+      setCustomerDuplicate({ checking: false, exists: false, message: '' });
+      return;
+    }
+    customerCheckTimer.current = setTimeout(() => {
+      checkCustomerDuplicate(formData.customerName, formData.customerContact);
+    }, 600);
+    return () => {
+      if (customerCheckTimer.current) clearTimeout(customerCheckTimer.current);
+    };
+  }, [formData.customerName, formData.customerContact, checkCustomerDuplicate]);
 
   const displayBranchName = branchId ? `Branch: ${String(branchId).slice(0, 8)}` : "PawnGold HQ";
 
@@ -432,6 +471,22 @@ export function SalesPos({ branchId, activeBranchId }: SalesPosProps) {
                   </div>
                 </div>
               </div>
+
+              {customerDuplicate.checking && (
+                <div className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-[#1C1C26]/50 border border-[rgba(201,160,92,0.08)]">
+                  <Loader2 className="w-3.5 h-3.5 text-[#6B655C] animate-spin" />
+                  <p className="text-[10px] text-[#6B655C] font-bold uppercase tracking-wide">Checking for existing customer...</p>
+                </div>
+              )}
+              {!customerDuplicate.checking && customerDuplicate.exists && (
+                <div className="flex items-center gap-3 px-4 py-3 rounded-2xl bg-amber-500/10 border border-amber-500/20">
+                  <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
+                  <div>
+                    <p className="text-[11px] font-bold text-amber-400 uppercase tracking-wide">Existing Customer Found</p>
+                    <p className="text-[10px] text-[#6B655C] mt-0.5">{customerDuplicate.message}. The existing record will be updated with new information.</p>
+                  </div>
+                </div>
+              )}
 
               <div className="space-y-3">
                 <label className="text-[10px] font-black text-[#6B655C] uppercase tracking-widest">Weight (grams)</label>

@@ -22,6 +22,13 @@ export interface AuctionTicket {
   description: string;
 }
 
+export interface AuctionBid {
+  id: number;
+  bidderId: string;
+  amount: number;
+  createdAt: string;
+}
+
 export interface AuctionListing {
   id: number;
   title: string;
@@ -39,6 +46,7 @@ export interface AuctionListing {
   category?: AuctionCategory | null;
   ticket: AuctionTicket;
   images: AuctionImage[];
+  bids?: AuctionBid[];
 }
 
 export interface AuctionListResponse {

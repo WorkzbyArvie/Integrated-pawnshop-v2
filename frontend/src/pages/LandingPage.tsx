@@ -1,4 +1,4 @@
-﻿import { FormEvent, useEffect, useMemo, useState } from 'react';
+﻿import { FormEvent, useEffect, useMemo, useState, useRef, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import {
   ArrowRight,
@@ -230,6 +230,43 @@ export default function LandingPage() {
     confirmPassword: '',
   });
 
+  const [emailCheck, setEmailCheck] = useState<{ checking: boolean; exists: boolean; message: string }>({
+    checking: false,
+    exists: false,
+    message: '',
+  });
+  const emailCheckTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const checkEmailAvailability = useCallback(async (email: string) => {
+    if (!email || !email.includes('@')) {
+      setEmailCheck({ checking: false, exists: false, message: '' });
+      return;
+    }
+    setEmailCheck((prev) => ({ ...prev, checking: true }));
+    try {
+      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000';
+      const res = await fetch(`${backendUrl}/auth/check-email?email=${encodeURIComponent(email)}&role=OWNER`);
+      const data = await res.json();
+      setEmailCheck({ checking: false, exists: data.exists, message: data.exists ? data.message : '' });
+    } catch {
+      setEmailCheck({ checking: false, exists: false, message: '' });
+    }
+  }, []);
+
+  useEffect(() => {
+    if (emailCheckTimer.current) clearTimeout(emailCheckTimer.current);
+    if (!authForm.email || !authForm.email.includes('@')) {
+      setEmailCheck({ checking: false, exists: false, message: '' });
+      return;
+    }
+    emailCheckTimer.current = setTimeout(() => {
+      checkEmailAvailability(authForm.email);
+    }, 500);
+    return () => {
+      if (emailCheckTimer.current) clearTimeout(emailCheckTimer.current);
+    };
+  }, [authForm.email, checkEmailAvailability]);
+
   useEffect(() => {
     document.documentElement.classList.add('landing-scroll');
     document.body.classList.add('landing-scroll');
@@ -441,6 +478,11 @@ export default function LandingPage() {
     }
     if (authForm.password !== authForm.confirmPassword) {
       setAuthError('Passwords do not match.');
+      return;
+    }
+
+    if (emailCheck.exists) {
+      setAuthError('This email is already registered. Please use a different email or sign in.');
       return;
     }
 
@@ -1227,6 +1269,14 @@ export default function LandingPage() {
                     style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(201,160,92,0.15)', color: 'var(--text-primary)' }}
                     required
                   />
+                  {emailCheck.checking && (
+                    <p className="text-[11px] px-1" style={{ color: 'var(--text-muted)' }}>Checking email...</p>
+                  )}
+                  {!emailCheck.checking && emailCheck.exists && (
+                    <p className="rounded-[10px] px-3 py-2 text-[12px]" style={{ background: 'rgba(212,69,69,0.1)', color: 'var(--red)', border: '1px solid rgba(212,69,69,0.2)' }}>
+                      {emailCheck.message || 'This email is already registered. Please use a different email or sign in.'}
+                    </p>
+                  )}
                   <div className="grid gap-3 md:grid-cols-2">
                     <input
                       value={authForm.password}

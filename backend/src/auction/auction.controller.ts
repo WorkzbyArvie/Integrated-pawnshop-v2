@@ -221,10 +221,13 @@ export class AuctionController {
     return { received: true };
   }
 
-  @Public()
   @Post('payments/webhook/simulate')
+  @RequiresPermission(PERMISSIONS['auction.settle'])
   @HttpCode(HttpStatus.OK)
-  async simulatePaymentWebhook(@Body() body: { complianceId: string }) {
+  async simulatePaymentWebhook(
+    @Body() body: { complianceId: string },
+    @Req() req: Request,
+  ) {
     this.logger.log(`Simulating payment webhook for compliance ${body.complianceId}`);
     await this.auctionPaymentService.confirmPayment(
       body.complianceId,
@@ -271,7 +274,6 @@ export class AuctionController {
     return this.auctionService.manualSettle(dto);
   }
 
-  @Public()
   @Post('settlements/:id/sign-contract')
   async signContract(
     @Param('id') id: string,

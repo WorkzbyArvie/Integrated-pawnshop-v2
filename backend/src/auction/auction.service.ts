@@ -16,6 +16,7 @@ import { PlaceBidDto } from './dto/place-bid.dto';
 import { PublishAuctionListingDto } from './dto/publish-auction-listing.dto';
 import { CreateAuctionRatingDto } from './dto/create-auction-rating.dto';
 import { FinanceService } from '../finance/finance.service';
+import { NotificationService } from '../notification/notification.service';
 import { LedgerEntryType, LedgerCategory } from '@prisma/client';
 import { createHash, randomUUID } from 'crypto';
 
@@ -28,6 +29,7 @@ export class AuctionService {
     private financeService: FinanceService,
     private tosService: TOSService,
     private contractTemplateService: ContractTemplateService,
+    private notificationService: NotificationService,
   ) {}
 
   private normalizeRole(role?: string | null): string {
@@ -840,8 +842,10 @@ export class AuctionService {
 
     const now = new Date();
 
+    let previousHighBidderId: string | null = null;
+
     try {
-      return await this.prisma.$transaction(async (tx) => {
+      const result = await this.prisma.$transaction(async (tx) => {
         let listing: any;
         try {
           listing = (await tx.auctionListing.findUnique({
@@ -932,6 +936,17 @@ export class AuctionService {
 
         if (dto.amount <= listing.currentBid) {
           throw new BadRequestException('Put Valid Amount');
+        }
+
+        if (listing.currentBid > 0) {
+          const previousHighBid = await tx.auctionBid.findFirst({
+            where: { listingId: id, amount: listing.currentBid },
+            orderBy: { createdAt: 'desc' },
+            select: { bidderId: true },
+          });
+          if (previousHighBid && previousHighBid.bidderId !== actorId) {
+            previousHighBidderId = previousHighBid.bidderId;
+          }
         }
 
         // Anti-sniping: extend auction if bid placed in last N minutes
@@ -1035,6 +1050,14 @@ export class AuctionService {
           extended: newEndAt !== listing.endAt,
         };
       });
+
+      if (previousHighBidderId) {
+        this.notificationService.notifyOutbid(id, previousHighBidderId, dto.amount).catch((err) => {
+          this.logger.warn(`Failed to send outbid notification: ${err?.message || err}`);
+        });
+      }
+
+      return result;
     } catch (error) {
       if (
         error instanceof BadRequestException ||

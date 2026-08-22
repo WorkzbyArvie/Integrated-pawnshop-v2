@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, ConflictException } from '@nestjs/common';
 import { PrismaService } from './prisma.service';
 import { FinanceService } from './finance/finance.service';
 import { LegalProofService } from './loan/legal-proof.service';
@@ -22,6 +22,7 @@ import {
   parseAndValidateDateOfBirth,
 } from './kyc/kyc-validation';
 import { PawnTicketService, assertCustomerKycVerified } from './loan/pawn-ticket.service';
+import { normalizeEmail, normalizeFullName, normalizePhoneNumber, assertEmailNotTaken, assertCustomerNotDuplicate } from './common/validation/user-validation';
 
 @Injectable()
 export class AppService {
@@ -1107,30 +1108,21 @@ export class AppService {
 
   // Register a public bidder account (used by Auction House + Mobile App)
   async registerBidder(data: any) {
-    const email = String(data?.email || '')
-      .trim()
-      .toLowerCase();
+    const email = normalizeEmail(data?.email);
     const password = String(data?.password || '');
-    const full_name = String(data?.full_name || '')
-      .trim()
-      .replace(/\s+/g, ' ');
-    const displayName = full_name || email.split('@')[0];
+    const full_name = String(data?.full_name || '').trim();
+    const displayName = full_name ? normalizeFullName(full_name) : email.split('@')[0];
 
     console.log('📥 [registerBidder] Request received:', { email, full_name });
 
-    if (!email || !password) {
-      throw new Error('Email and password are required');
+    if (!password) {
+      throw new Error('Password is required');
     }
     if (password.length < 8) {
       throw new Error('Password must be at least 8 characters');
     }
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      throw new Error('Invalid email format');
-    }
-    if (full_name.length > 100) {
-      throw new Error('Full name is too long');
-    }
+
+    await assertEmailNotTaken(this.prisma, email, 'BIDDER');
 
     this.consumeAuthVerification(data, 'BIDDER_REGISTRATION');
 
@@ -1233,30 +1225,21 @@ export class AppService {
   }
 
   async registerOwner(data: any) {
-    const email = String(data?.email || '')
-      .trim()
-      .toLowerCase();
+    const email = normalizeEmail(data?.email);
     const password = String(data?.password || '');
-    const full_name = String(data?.full_name || '')
-      .trim()
-      .replace(/\s+/g, ' ');
-    const displayName = full_name || email.split('@')[0];
+    const full_name = String(data?.full_name || '').trim();
+    const displayName = full_name ? normalizeFullName(full_name) : email.split('@')[0];
 
     console.log('📥 [registerOwner] Request received:', { email, full_name });
 
-    if (!email || !password) {
-      throw new Error('Email and password are required');
+    if (!password) {
+      throw new Error('Password is required');
     }
     if (password.length < 8) {
       throw new Error('Password must be at least 8 characters');
     }
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      throw new Error('Invalid email format');
-    }
-    if (full_name.length > 100) {
-      throw new Error('Full name is too long');
-    }
+
+    await assertEmailNotTaken(this.prisma, email, 'OWNER');
 
     this.consumeAuthVerification(data, 'OWNER_REGISTRATION');
 
@@ -1444,6 +1427,8 @@ export class AppService {
       console.error('❌ [createBranchAdmin]', msg);
       throw new Error(msg);
     }
+
+    await assertEmailNotTaken(this.prisma, email.toLowerCase(), canonicalRole);
 
     this.consumeAuthVerification(data, 'STAFF_ACCOUNT_CREATE');
 
@@ -1843,14 +1828,90 @@ export class AppService {
     });
   }
 
+  async checkEmailAvailability(email: string, role?: string) {
+    const normalized = String(email || '').trim().toLowerCase();
+    if (!normalized || !normalized.includes('@')) {
+      return { exists: false };
+    }
+
+    const where: any = { email: normalized };
+    if (role) where.role = role.toUpperCase();
+
+    const profile = await this.prisma.profile.findFirst({
+      where,
+      select: { id: true, email: true, role: true },
+    });
+
+    return {
+      exists: !!profile,
+      message: profile
+        ? `An account with this email already exists (${profile.role})`
+        : 'Email is available',
+    };
+  }
+
+  async checkCustomerDuplicate(
+    fullName: string,
+    contactNumber: string,
+    pawnshopId?: string,
+  ) {
+    const normalized = String(fullName || '').trim().replace(/\s+/g, ' ');
+    const normalizedContact = String(contactNumber || '').trim();
+
+    if (!normalized || !normalizedContact) {
+      return { exists: false };
+    }
+
+    const where: any = {
+      fullName: normalized,
+      contactNumber: normalizedContact,
+    };
+    if (pawnshopId) where.pawnshopId = pawnshopId;
+
+    const existing = await this.prisma.customer.findFirst({
+      where,
+      select: { id: true, fullName: true, contactNumber: true, pawnshopId: true },
+    });
+
+    return {
+      exists: !!existing,
+      customer: existing || null,
+      message: existing
+        ? `A customer named "${existing.fullName}" with this contact already exists`
+        : 'No duplicate found',
+    };
+  }
+
   async createCustomer(data: any) {
+    const fullName = String(data.fullName || '').trim().replace(/\s+/g, ' ');
+    const contactNumber = String(data.contactNumber || '').trim();
+    const pawnshopId = data.pawnshopId || null;
+
+    if (fullName.length < 2) {
+      throw new Error('Full name must be at least 2 characters');
+    }
+    if (!contactNumber) {
+      throw new Error('Contact number is required');
+    }
+
+    const existingCustomer = await this.prisma.customer.findFirst({
+      where: { fullName, contactNumber, ...(pawnshopId ? { pawnshopId } : {}) },
+      select: { id: true, fullName: true },
+    });
+    if (existingCustomer) {
+      throw new Error(
+        `A customer named "${existingCustomer.fullName}" with this contact number already exists.`,
+      );
+    }
+
     return await this.prisma.customer.create({
       data: {
         id: require('crypto').randomUUID(),
-        fullName: data.fullName,
-        contactNumber: data.contactNumber,
+        fullName,
+        contactNumber,
         address: data.address,
         loyaltyTier: data.loyaltyTier || 'Standard',
+        pawnshopId,
       },
     });
   }

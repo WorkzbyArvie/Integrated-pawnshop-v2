@@ -32,7 +32,7 @@ export class KycService {
     let customerId = dto.customerId;
     if (!customerId) {
       const existing = await this.prisma.customer.findFirst({
-        where: { fullName, contactNumber },
+        where: { fullName, contactNumber, pawnshopId: callerPawnshopId },
         select: { id: true },
       });
       if (existing) {

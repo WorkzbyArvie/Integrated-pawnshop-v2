@@ -9,9 +9,10 @@ import { ContractModule } from '../contract/contract.module';
 import { SubscriptionModule } from '../subscription/subscription.module';
 import { ReceiptModule } from '../receipt/receipt.module';
 import { LoanModule } from '../loan/loan.module';
+import { NotificationModule } from '../notification/notification.module';
 
 @Module({
-  imports: [FinanceModule, ContractModule, SubscriptionModule, ReceiptModule, LoanModule],
+  imports: [FinanceModule, ContractModule, SubscriptionModule, ReceiptModule, LoanModule, NotificationModule],
   controllers: [AuctionController],
   providers: [
     AuctionService,

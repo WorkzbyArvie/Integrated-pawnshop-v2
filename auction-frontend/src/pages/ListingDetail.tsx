@@ -460,6 +460,43 @@ export default function ListingDetail() {
           <p>{listing.bidCount} bids recorded</p>
         </div>
       </section>
+
+      {listing.bids && listing.bids.length > 0 && (
+        <section style={{ marginTop: '1.5rem', width: '100%' }}>
+          <h3 style={{ fontSize: '1rem', marginBottom: '0.75rem' }}>Recent Bids</h3>
+          <div style={{ display: 'grid', gap: '0.5rem' }}>
+            {listing.bids.map((bid, index) => (
+              <div
+                key={bid.id}
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  background: index === 0 ? 'rgba(201, 160, 92, 0.06)' : 'rgba(255,255,255,0.02)',
+                  border: `1px solid ${index === 0 ? 'rgba(201, 160, 92, 0.15)' : 'var(--border-subtle)'}`,
+                  borderRadius: 'var(--radius)',
+                  padding: '0.6rem 1rem',
+                  fontSize: '0.85rem',
+                }}
+              >
+                <div>
+                  <span style={{ fontWeight: index === 0 ? 600 : 400, color: index === 0 ? 'var(--gold)' : 'var(--text-primary)' }}>
+                    {formatCurrency(bid.amount)}
+                  </span>
+                  {index === 0 && (
+                    <span className="badge" style={{ marginLeft: '0.5rem', fontSize: '0.6rem', padding: '0.1rem 0.4rem', background: 'rgba(201,160,92,0.15)', color: 'var(--gold)' }}>
+                      Highest
+                    </span>
+                  )}
+                </div>
+                <span className="status-muted" style={{ fontSize: '0.75rem' }}>
+                  {new Date(bid.createdAt).toLocaleString('en-PH', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                </span>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
     </div>
   );
 }

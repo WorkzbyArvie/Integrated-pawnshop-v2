@@ -6,6 +6,7 @@ import {
   Delete,
   Param,
   Patch,
+  Query,
   Headers,
   HttpException,
   HttpStatus,
@@ -60,6 +61,23 @@ export class AppController {
     const userId = await this.appService.getUserIdFromToken(token);
     if (!userId) throw new UnauthorizedException('Invalid or expired token');
     return userId;
+  }
+
+  // --- VALIDATION ENDPOINTS ---
+  @Public()
+  @Get('auth/check-email')
+  async checkEmail(@Query('email') email: string, @Query('role') role?: string) {
+    return this.appService.checkEmailAvailability(email, role);
+  }
+
+  @Public()
+  @Get('customers/check')
+  async checkCustomer(
+    @Query('fullName') fullName: string,
+    @Query('contactNumber') contactNumber: string,
+    @Query('pawnshopId') pawnshopId?: string,
+  ) {
+    return this.appService.checkCustomerDuplicate(fullName, contactNumber, pawnshopId);
   }
 
   // --- AUTH ENDPOINTS (Development Local Auth) ---
