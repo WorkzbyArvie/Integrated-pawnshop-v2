@@ -152,6 +152,7 @@ const TAB_TO_PATH: Record<string, string> = {
   'finance': '/finance',
   'hr': '/hr',
   'auction-queue': '/auction-queue',
+  'auction-settlements': '/auction-settlements',
   'auction-live': '/auction-live',
   'decision': '/decision',
   'loan-history': '/loan-history',
@@ -199,7 +200,15 @@ function App() {
     searchParams.get('onboarding') === '1' ||
     hashParams.get('onboarding') === '1';
   const [session, setSession] = useState<any>(null);
-  const [activeTab, setActiveTab] = useState(() => resolveTabFromPath(window.location.pathname) || 'dashboard');
+  const [activeTab, setActiveTab] = useState(() =>
+    resolveTabFromPath(window.location.pathname) ||
+    localStorage.getItem('active_tab') ||
+    'dashboard'
+  );
+
+  useEffect(() => {
+    localStorage.setItem('active_tab', activeTab);
+  }, [activeTab]);
   const [loading, setLoading] = useState(true);
   const [userRole, setUserRole] = useState<string>('Staff');
   const [subscriptionTier, setSubscriptionTier] = useState<'FREE' | 'TRIAL' | 'BASIC' | 'PROFESSIONAL' | 'ENTERPRISE'>('FREE');

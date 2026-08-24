@@ -42,7 +42,7 @@ export function Dashboard({
   const [adminEmail, setAdminEmail] = useState('');
   const [adminPassword, setAdminPassword] = useState('');
   const [adminAuthCode, setAdminAuthCode] = useState('');
-  const [adminRole, setAdminRole] = useState('Branch Admin');
+  const [adminRole, setAdminRole] = useState('BRANCH_ADMIN');
   const [adminSubmitting, setAdminSubmitting] = useState(false);
   const [adminError, setAdminError] = useState<string | null>(null);
   const [successData, setSuccessData] = useState<{ email: string; password: string; role: string; pawnshop: string } | null>(null);
@@ -367,20 +367,17 @@ export function Dashboard({
         throw new Error('Pawnshop ID is missing. Please refresh and try again.');
       }
 
-      // Map role names to backend expectations
-      const roleMap: Record<string, string> = {
-        'Branch Admin': 'BRANCH_ADMIN',
-        'Manager': 'MANAGER',
-        'Staff': 'STAFF'
-      };
-      
-      const backendRole = roleMap[adminRole] || adminRole;
-      
-      // Only allow Branch Admin, Manager, and Staff roles (not Super Admin from branch view)
-      const allowedRoles = ['Branch Admin', 'Manager', 'Staff'];
-      if (!allowedRoles.includes(adminRole)) {
+      // Full role set — staff specializations map to role=STAFF + staff_type
+      const staffSpecializations = ['CASHIER_TELLER', 'APPRAISER', 'INVENTORY_CUSTODIAN', 'AUDITOR'];
+      const allowedRoles = ['BRANCH_ADMIN', 'MANAGER', 'HR', ...staffSpecializations];
+      const requestedRole = String(adminRole).trim().toUpperCase();
+      if (!allowedRoles.includes(requestedRole)) {
         throw new Error(`Invalid role. Allowed roles: ${allowedRoles.join(', ')}`);
       }
+      const backendRole = staffSpecializations.includes(requestedRole)
+        ? 'STAFF'
+        : requestedRole === 'BRANCH_ADMIN' ? 'ADMIN' : requestedRole;
+      const staffType = staffSpecializations.includes(requestedRole) ? requestedRole : undefined;
 
       // Call backend to create auth user and profile
       const backendUrl = getBackendUrl();
@@ -398,6 +395,7 @@ export function Dashboard({
           email: adminEmail,
           password: adminPassword,
           role: backendRole,
+          staff_type: staffType,
           pawnshop_id: targetUuid,
           full_name: adminEmail.split('@')[0],
           auth_code: adminAuthCode.trim(),
@@ -416,13 +414,22 @@ export function Dashboard({
 
       
       // Store credentials for success modal before clearing form
-      setSuccessData({ email: adminEmail, password: adminPassword, role: adminRole, pawnshop: activeBranchName });
-      
+      const roleLabels: Record<string, string> = {
+        BRANCH_ADMIN: 'Branch Admin',
+        MANAGER: 'Manager',
+        HR: 'HR',
+        CASHIER_TELLER: 'Cashier/Teller',
+        APPRAISER: 'Appraiser',
+        INVENTORY_CUSTODIAN: 'Inventory Custodian',
+        AUDITOR: 'Auditor',
+      };
+      setSuccessData({ email: adminEmail, password: adminPassword, role: roleLabels[requestedRole] || requestedRole, pawnshop: activeBranchName });
+
       // Clear form
       setAdminEmail('');
       setAdminPassword('');
       setAdminAuthCode('');
-      setAdminRole('Branch Admin');
+      setAdminRole('BRANCH_ADMIN');
       setShowAddAdminModal(false);
       
       // Reload data
@@ -458,7 +465,11 @@ export function Dashboard({
         throw new Error(result?.message || result?.error || 'Failed to request auth code');
       }
 
-      setAdminError('Authentication code sent to your email.');
+      if (result?.warning || result?.deliveryMethod === 'IN_APP') {
+        setAdminError(result?.warning || 'Email delivery unavailable. Use the in-app code shown by the backend.');
+      } else {
+        setAdminError('Authentication code sent to your email.');
+      }
     } catch (err: unknown) {
       setAdminError(err instanceof Error ? err.message : String(err));
     }
@@ -847,9 +858,13 @@ export function Dashboard({
                     onChange={(e) => setAdminRole(e.target.value)}
                     className="w-full px-4 py-3 bg-[#1C1C26] border border-[rgba(201,160,92,0.08)] rounded-2xl focus:ring-2 focus:ring-[#C9A05C] outline-none font-bold text-[#EAE2D6]"
                   >
-                    <option value="Branch Admin">Branch Admin (Limited Control)</option>
-                    <option value="Manager">Manager (Limited Control)</option>
-                    <option value="Staff">Staff (View Only)</option>
+                    <option value="BRANCH_ADMIN">Branch Admin</option>
+                    <option value="MANAGER">Manager</option>
+                    <option value="HR">HR</option>
+                    <option value="CASHIER_TELLER">Cashier/Teller</option>
+                    <option value="APPRAISER">Appraiser</option>
+                    <option value="INVENTORY_CUSTODIAN">Inventory Custodian</option>
+                    <option value="AUDITOR">Auditor (Read Only)</option>
                   </select>
                 </div>
 

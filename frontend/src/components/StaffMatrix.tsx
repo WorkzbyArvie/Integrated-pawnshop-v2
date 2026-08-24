@@ -268,7 +268,11 @@ export function StaffMatrix({ branchId, userRole: propUserRole, activeBranchId =
         throw new Error(result?.error || result?.message || 'Failed to request auth code');
       }
 
-      showToast('Authentication code sent to your email.', 'success');
+      if (result?.warning || result?.deliveryMethod === 'IN_APP') {
+        showToast(result?.warning || 'Email delivery unavailable. Use the in-app code shown by the backend.', 'error');
+      } else {
+        showToast('Authentication code sent to your email.', 'success');
+      }
     } catch (err: unknown) {
       showToast(`Failed to request auth code: ${err instanceof Error ? err.message : String(err)}`, 'error');
     }
