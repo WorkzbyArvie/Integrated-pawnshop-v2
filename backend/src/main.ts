@@ -68,6 +68,9 @@ async function bootstrap() {
     /^https:\/\/pawngold-production(?:-[a-z0-9]+)?\.up\.railway\.app$/i,
     /^https:\/\/pawngold-auction-house-production(?:-[a-z0-9]+)?\.up\.railway\.app$/i,
   ];
+  const vercelFrontendPatterns = [
+    /^https:\/\/integrated-pawnshop-v2(?:-[a-z0-9]+)?\.vercel\.app$/i,
+  ];
 
   app.enableCors({
     origin: (origin, callback) => {
@@ -75,11 +78,15 @@ async function bootstrap() {
       const matchesRailwayFrontend = railwayFrontendPatterns.some((pattern) =>
         pattern.test(origin),
       );
+      const matchesVercelFrontend = vercelFrontendPatterns.some((pattern) =>
+        pattern.test(origin),
+      );
 
       if (
         allowedOrigins.has(origin) ||
         localhostDevPattern.test(origin) ||
-        matchesRailwayFrontend
+        matchesRailwayFrontend ||
+        matchesVercelFrontend
       ) {
         return callback(null, true);
       }

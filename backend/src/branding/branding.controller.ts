@@ -1,6 +1,7 @@
 import { Controller, Get, Post, Body, Param, Patch, Delete } from '@nestjs/common';
 import { BrandingService } from './branding.service';
 import { Prisma } from '@prisma/client';
+import { Public } from '../common/decorators/public.decorator';
 
 @Controller('branding')
 export class BrandingController {
@@ -11,11 +12,13 @@ export class BrandingController {
     return this.brandingService.create(data);
   }
 
+  @Public()
   @Get()
   findAll() {
     return this.brandingService.findAll();
   }
 
+  @Public()
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.brandingService.findOne(Number(id));
