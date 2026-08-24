@@ -90,6 +90,10 @@ interface InventoryVaultProps {
   activeBranchId?: number | null;
 }
 
+const inventoryCache = new Map<string, InventoryItem[]>();
+const inventoryCacheKey = (pawnshopId: string | null, branchId: number | null) =>
+  `${pawnshopId ?? 'all'}::${branchId ?? 'main'}`;
+
 export function InventoryVault({ branchId, activeBranchId }: InventoryVaultProps) {
   const { showToast } = useToast();
   const STORAGE_BUCKET_CANDIDATES = ['kyc-documents', 'loan-documents', 'loan-contracts'];
@@ -111,8 +115,14 @@ export function InventoryVault({ branchId, activeBranchId }: InventoryVaultProps
   const activePawnshopId = branchId ?? null;
   const activeOperationalBranchId = Number.isInteger(activeBranchId as number) ? Number(activeBranchId) : null;
   const hasActiveOperationalBranch = activeOperationalBranchId != null && activeOperationalBranchId > 0;
+  const cacheKey = inventoryCacheKey(activePawnshopId, activeOperationalBranchId);
 
   useEffect(() => {
+    const cached = inventoryCache.get(cacheKey);
+    if (cached !== undefined) {
+      setItems(cached);
+      setIsLoading(false);
+    }
     fetchInventory();
   }, [activePawnshopId, activeOperationalBranchId]);
 
@@ -266,8 +276,10 @@ export function InventoryVault({ branchId, activeBranchId }: InventoryVaultProps
   }, [selectedItem?.ticketNumber, selectedItem?.photoUrls, modalPhotoIndex]);
 
   const fetchInventory = async () => {
-    setIsLoading(true);
-    
+    if (inventoryCache.get(cacheKey) === undefined) {
+      setIsLoading(true);
+    }
+
     try {
       // Fetch from ticket table; storage_location and pawn_date are direct columns
       let query = supabase
@@ -340,6 +352,7 @@ export function InventoryVault({ branchId, activeBranchId }: InventoryVaultProps
       });
 
       setItems(transformedData);
+      inventoryCache.set(cacheKey, transformedData);
     } catch (err) {
       console.error('Error fetching inventory:', err);
     } finally {
