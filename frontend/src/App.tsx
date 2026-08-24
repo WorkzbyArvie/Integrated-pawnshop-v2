@@ -1385,52 +1385,7 @@ function App() {
 
   const isSubscriptionReady = !session || userRole === 'Super Admin' || (subscriptionAccessChecked && subscriptionTierLoaded);
 
-  if (loading || !isSubscriptionReady || isSubscriptionFrozen || isPendingLimitedMode) {
-    if (!loading && subscriptionAccessChecked && subscriptionTierLoaded && isSubscriptionFrozen) {
-      return (
-        <div className="h-screen w-screen bg-[#0A0A0F] flex items-center justify-center p-8">
-          <div className="rounded-xl border border-[#D44545]/20 bg-[#D44545]/5 p-8 lg:p-10 max-w-4xl">
-            <div className="flex items-start gap-4">
-              <div className="w-12 h-12 rounded-xl bg-[#D44545]/10 flex items-center justify-center shrink-0">
-                <ShieldCheck className="w-6 h-6 text-[#D44545]" />
-              </div>
-              <div>
-                <h2 className="text-xl text-[#EAE2D6] tracking-tight" style={{ fontFamily: "'Syne', sans-serif" }}>Subscription Required</h2>
-                <p className="text-sm text-[#999186] mt-2 max-w-2xl leading-relaxed">
-                  Your subscription has expired or has been cancelled. All operational modules are locked for every branch until a new subscription is activated.
-                </p>
-                <div className="mt-4 p-4 rounded-lg bg-[#1C1C26] border border-[rgba(201,160,92,0.15)]">
-                  <p className="text-sm text-[#C9A05C] font-semibold">To regain access:</p>
-                  <ol className="text-xs text-[#999186] mt-2 space-y-1 list-decimal list-inside">
-                    <li>Go to <span className="text-[#C9A05C] font-medium">Subscription & Billing</span> in the sidebar</li>
-                    <li>Choose a plan and complete payment</li>
-                    <li>Access will be restored immediately after payment confirmation</li>
-                  </ol>
-                </div>
-                <p className="text-xs text-[#6B655C] mt-4 uppercase tracking-wider font-semibold">
-                  Only the pawnshop owner can reactivate access.
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      );
-    }
-
-    if (!loading && isPendingLimitedMode && ownerRegistrationChecked) {
-      return (
-        <PendingAccessDashboard
-          ownerEmail={session?.user?.email ?? null}
-          ownerName={
-            (session?.user?.user_metadata?.full_name as string | undefined) ||
-            (session?.user?.user_metadata?.name as string | undefined) ||
-            null
-          }
-          registrationStatus={ownerRegistrationStatus}
-        />
-      );
-    }
-
+  if (loading || !isSubscriptionReady) {
     return (
       <div className="h-screen w-screen bg-[#0A0A0F] flex flex-col items-center justify-center gap-6">
         <div className="relative">
@@ -1448,6 +1403,20 @@ function App() {
           </div>
         </div>
       </div>
+    );
+  }
+
+  if (!loading && isPendingLimitedMode && ownerRegistrationChecked) {
+    return (
+      <PendingAccessDashboard
+        ownerEmail={session?.user?.email ?? null}
+        ownerName={
+          (session?.user?.user_metadata?.full_name as string | undefined) ||
+          (session?.user?.user_metadata?.name as string | undefined) ||
+          null
+        }
+        registrationStatus={ownerRegistrationStatus}
+      />
     );
   }
 
