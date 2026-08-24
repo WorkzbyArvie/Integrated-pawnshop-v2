@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   CheckCircle2, XCircle, Eye, Loader2, User,
-  AlertTriangle, Scale, FileText, DollarSign,
+  AlertTriangle, Scale, FileText,
 } from 'lucide-react';
 import { useToast } from '../App';
 import api from '../lib/apiClient';
@@ -60,7 +60,7 @@ export function PendingApprovalPanel({ branchId, activeBranchId, userRole = 'STA
     contractId: string;
     ticketId: number;
   } | null>(null);
-  const [contractComplete, setContractComplete] = useState(false);
+  const [, setContractComplete] = useState(false);
   const [showContractModal, setShowContractModal] = useState(false);
   const [disbursingId, setDisbursingId] = useState<number | null>(null);
 

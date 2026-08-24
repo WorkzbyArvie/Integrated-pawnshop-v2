@@ -52,7 +52,7 @@ interface ApprovalQueueItem {
 
 interface ApprovalQueueProps {
   branchId?: string | null;
-  activeBranchId?: string | null;
+  activeBranchId?: number | null;
   userRole?: string;
 }
 
@@ -77,7 +77,10 @@ const itemSummary = (item: ApprovalQueueItem): string => {
 
 export function ApprovalQueue({ branchId, activeBranchId, userRole }: ApprovalQueueProps) {
   const { showToast } = useToast();
-  const effectiveBranchId = branchId ?? activeBranchId ?? localStorage.getItem('active_pawnshop_id');
+  const effectiveBranchId =
+    branchId ??
+    (activeBranchId != null ? String(activeBranchId) : null) ??
+    localStorage.getItem('active_pawnshop_id');
   const [activeTab, setActiveTab] = useState('APPRAISAL');
   const [records, setRecords] = useState<ApprovalQueueItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);

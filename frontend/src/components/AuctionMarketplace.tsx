@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useMemo, useRef } from 'react';
+﻿import { useState, useEffect, useMemo } from 'react';
 import {
   Search,
   Clock,
@@ -10,8 +10,6 @@ import {
   Loader2,
   ImageOff,
   Star,
-  Send,
-  AlertTriangle,
 } from 'lucide-react';
 import { useToast } from '../App';
 import { supabase } from '../lib/supabaseClient';
@@ -105,15 +103,6 @@ interface ProofTrailItem {
   createdAt: string;
 }
 
-interface KycFormData {
-  fullName: string;
-  dateOfBirth: string;
-  address: string;
-  phoneNumber: string;
-  idType: 'NATIONAL_ID' | 'PASSPORT' | 'DRIVERS_LICENSE' | 'SSS_ID' | 'PHILHEALTH_ID' | 'TIN_ID' | 'VOTERS_ID' | 'POSTAL_ID' | 'OTHER';
-  idNumber: string;
-}
-
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat('en-PH', {
     style: 'currency',
@@ -153,11 +142,6 @@ export function AuctionMarketplace({ branchId, activeBranchId }: AuctionMarketpl
   const [proofTrail, setProofTrail] = useState<ProofTrailItem[]>([]);
   const [proofTrailLoading, setProofTrailLoading] = useState(false);
 
-  // Bidding state
-  const [bidAmount, setBidAmount] = useState<string>('');
-  const [bidLoading, setBidLoading] = useState(false);
-  const [bidExtended, setBidExtended] = useState(false);
-
   // Rating state
   const [ratingSummary, setRatingSummary] = useState<RatingSummary | null>(null);
   const [ratingLoading, setRatingLoading] = useState(false);
@@ -165,28 +149,6 @@ export function AuctionMarketplace({ branchId, activeBranchId }: AuctionMarketpl
   const [myComment, setMyComment] = useState('');
   const [myRatingType, setMyRatingType] = useState<'ITEM_QUALITY' | 'TRANSACTION_EXPERIENCE' | 'SELLER_RATING'>('ITEM_QUALITY');
   const [submitRatingLoading, setSubmitRatingLoading] = useState(false);
-
-  // KYC state (web auction house)
-  const [showKycModal, setShowKycModal] = useState(false);
-  const [kycSubmitting, setKycSubmitting] = useState(false);
-  const [cameraLoading, setCameraLoading] = useState(false);
-  const [idFrontFile, setIdFrontFile] = useState<File | null>(null);
-  const [idBackFile, setIdBackFile] = useState<File | null>(null);
-  const [liveSelfieFile, setLiveSelfieFile] = useState<File | null>(null);
-  const [liveSelfiePreview, setLiveSelfiePreview] = useState<string | null>(null);
-  const [liveSelfieCapturedAt, setLiveSelfieCapturedAt] = useState<string | null>(null);
-  const [kycForm, setKycForm] = useState<KycFormData>({
-    fullName: '',
-    dateOfBirth: '',
-    address: '',
-    phoneNumber: '',
-    idType: 'NATIONAL_ID',
-    idNumber: '',
-  });
-  const videoRef = useRef<HTMLVideoElement | null>(null);
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const streamRef = useRef<MediaStream | null>(null);
-  const [webKycStatus, setWebKycStatus] = useState<'UNKNOWN' | 'VERIFIED' | 'PENDING' | 'REJECTED' | 'NOT_SUBMITTED'>('UNKNOWN');
 
   // Live countdown ticker
   useEffect(() => {
@@ -235,8 +197,6 @@ export function AuctionMarketplace({ branchId, activeBranchId }: AuctionMarketpl
   // Fetch single listing detail
   const viewDetail = async (listing: AuctionListing) => {
     setDetailLoading(true);
-    setBidAmount('');
-    setBidExtended(false);
     setRatingSummary(null);
     setBidLeaderboard(null);
     setProofTrail([]);
@@ -248,17 +208,12 @@ export function AuctionMarketplace({ branchId, activeBranchId }: AuctionMarketpl
       const raw = await res.json();
       const data = raw?.data ?? raw;
       setSelectedListing(data);
-      // Set default bid amount to next minimum
-      const nextMin = (data.currentBid || data.startingPrice) + (data.minBidIncrement || 100);
-      setBidAmount(String(nextMin));
       // Fetch ratings for this listing
       fetchRatings(data.id);
       fetchBidLeaderboard(data.id);
       fetchProofTrail(data.id);
     } catch {
       setSelectedListing(listing);
-      const nextMin = (listing.currentBid || listing.startingPrice) + (listing.minBidIncrement || 100);
-      setBidAmount(String(nextMin));
       fetchBidLeaderboard(listing.id);
       fetchProofTrail(listing.id);
     } finally {
@@ -356,326 +311,6 @@ export function AuctionMarketplace({ branchId, activeBranchId }: AuctionMarketpl
     }
   };
 
-  const extractKycStatus = (raw: any): 'VERIFIED' | 'PENDING' | 'REJECTED' | 'NOT_SUBMITTED' => {
-    const candidates = [
-      raw?.kycStatus,
-      raw?.data?.kycStatus,
-      raw?.data?.data?.kycStatus,
-      raw?.kyc?.status,
-      raw?.data?.kyc?.status,
-      raw?.data?.data?.kyc?.status,
-    ];
-    const found = candidates.find((v) => typeof v === 'string' && v.length > 0) as string | undefined;
-    const normalized = (found || 'NOT_SUBMITTED').toUpperCase();
-    if (normalized === 'VERIFIED') return 'VERIFIED';
-    if (normalized === 'PENDING') return 'PENDING';
-    if (normalized === 'REJECTED') return 'REJECTED';
-    return 'NOT_SUBMITTED';
-  };
-
-  const loadWebKycStatus = async (): Promise<'VERIFIED' | 'PENDING' | 'REJECTED' | 'NOT_SUBMITTED' | 'UNKNOWN'> => {
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token) {
-        setWebKycStatus('UNKNOWN');
-        return 'UNKNOWN';
-      }
-
-      const res = await fetch(`${backendUrl}/auth/kyc/status`, {
-        headers: {
-          Accept: 'application/json',
-          Authorization: `Bearer ${session.access_token}`,
-        },
-      });
-
-      if (!res.ok) {
-        setWebKycStatus('UNKNOWN');
-        return 'UNKNOWN';
-      }
-
-      const raw = await res.json();
-      const status = extractKycStatus(raw);
-      setWebKycStatus(status);
-      return status;
-    } catch {
-      setWebKycStatus('UNKNOWN');
-      return 'UNKNOWN';
-    }
-  };
-
-  useEffect(() => {
-    loadWebKycStatus();
-  }, []);
-
-  const stopLiveCamera = () => {
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach((track) => track.stop());
-      streamRef.current = null;
-    }
-  };
-
-  useEffect(() => {
-    return () => {
-      stopLiveCamera();
-      if (liveSelfiePreview) {
-        URL.revokeObjectURL(liveSelfiePreview);
-      }
-    };
-  }, [liveSelfiePreview]);
-
-  const openKycModal = async () => {
-    const { data: { session } } = await supabase.auth.getSession();
-    const fullName = (session?.user?.user_metadata?.fullName || session?.user?.user_metadata?.full_name || '').toString();
-    setKycForm((prev) => ({ ...prev, fullName: prev.fullName || fullName }));
-    setShowKycModal(true);
-  };
-
-  const startLiveCamera = async () => {
-    setCameraLoading(true);
-    try {
-      stopLiveCamera();
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: 'user',
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
-        },
-        audio: false,
-      });
-      streamRef.current = stream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        await videoRef.current.play();
-      }
-    } catch {
-      showToast('Unable to access camera. Please allow camera permission.', 'error');
-    } finally {
-      setCameraLoading(false);
-    }
-  };
-
-  const captureLiveSelfie = async () => {
-    if (!videoRef.current || !canvasRef.current) {
-      showToast('Camera is not ready', 'error');
-      return;
-    }
-
-    const video = videoRef.current;
-    const canvas = canvasRef.current;
-    const width = video.videoWidth || 720;
-    const height = video.videoHeight || 1280;
-    canvas.width = width;
-    canvas.height = height;
-
-    const ctx = canvas.getContext('2d');
-    if (!ctx) {
-      showToast('Failed to capture selfie', 'error');
-      return;
-    }
-    ctx.drawImage(video, 0, 0, width, height);
-
-    const blob = await new Promise<Blob | null>((resolve) =>
-      canvas.toBlob(resolve, 'image/jpeg', 0.92),
-    );
-    if (!blob) {
-      showToast('Failed to capture selfie', 'error');
-      return;
-    }
-
-    const file = new File([blob], `live-selfie-${Date.now()}.jpg`, {
-      type: 'image/jpeg',
-    });
-
-    if (liveSelfiePreview) {
-      URL.revokeObjectURL(liveSelfiePreview);
-    }
-
-    setLiveSelfieFile(file);
-    setLiveSelfiePreview(URL.createObjectURL(file));
-    setLiveSelfieCapturedAt(new Date().toISOString());
-    showToast('Live selfie captured', 'success');
-  };
-
-  const uploadKycFile = async (file: File, folder: string, userId: string) => {
-    const ext = file.name.includes('.') ? file.name.split('.').pop() : 'jpg';
-    const safeExt = (ext || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '') || 'jpg';
-    const path = `${folder}/${userId}_${Date.now()}.${safeExt}`;
-
-    const { error } = await supabase.storage
-      .from('kyc-documents')
-      .upload(path, file, {
-        contentType: file.type || 'image/jpeg',
-        upsert: true,
-      });
-
-    if (error) {
-      throw new Error(error.message || 'Failed to upload KYC file');
-    }
-
-    const { data } = supabase.storage.from('kyc-documents').getPublicUrl(path);
-    return data.publicUrl;
-  };
-
-  const submitWebKyc = async () => {
-    if (!kycForm.fullName || !kycForm.dateOfBirth || !kycForm.address || !kycForm.phoneNumber || !kycForm.idNumber) {
-      showToast('Please complete all required fields', 'error');
-      return;
-    }
-    if (!idFrontFile) {
-      showToast('Please upload the front of your ID', 'error');
-      return;
-    }
-    if (!liveSelfieFile || !liveSelfieCapturedAt) {
-      showToast('Please capture a live selfie using camera', 'error');
-      return;
-    }
-
-    setKycSubmitting(true);
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token || !session?.user?.id) {
-        showToast('Please sign in again', 'error');
-        return;
-      }
-
-      const idFrontUrl = await uploadKycFile(idFrontFile, 'id-front', session.user.id);
-      const idBackUrl = idBackFile
-        ? await uploadKycFile(idBackFile, 'id-back', session.user.id)
-        : null;
-      const selfieUrl = await uploadKycFile(liveSelfieFile, 'selfie', session.user.id);
-
-      const res = await fetch(`${backendUrl}/auth/kyc/submit`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({
-          fullName: kycForm.fullName.trim(),
-          dateOfBirth: kycForm.dateOfBirth,
-          address: kycForm.address.trim(),
-          phoneNumber: kycForm.phoneNumber.trim(),
-          idType: kycForm.idType,
-          idNumber: kycForm.idNumber.trim(),
-          idFrontUrl,
-          idBackUrl,
-          selfieUrl,
-          liveSelfieUrl: selfieUrl,
-          selfieCaptureMode: 'LIVE',
-          selfieCapturedAt: liveSelfieCapturedAt,
-        }),
-      });
-
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err?.message || 'KYC submission failed');
-      }
-
-      showToast('KYC submitted. Please wait for admin approval.', 'success');
-      stopLiveCamera();
-      setShowKycModal(false);
-    } catch (err: unknown) {
-      showToast(err instanceof Error ? err.message : String(err) || 'KYC submission failed', 'error');
-    } finally {
-      setKycSubmitting(false);
-    }
-  };
-
-  const handlePlaceBid = async () => {
-    if (!selectedListing) return;
-    const amount = parseFloat(bidAmount);
-    if (isNaN(amount) || amount <= 0) {
-      showToast('Put Valid Amount', 'error');
-      return;
-    }
-
-    const nextMin = (selectedListing.currentBid || selectedListing.startingPrice) + (selectedListing.minBidIncrement || 100);
-    if (amount < nextMin) {
-      showToast('Put Valid Amount', 'error');
-      return;
-    }
-
-    setBidLoading(true);
-    setBidExtended(false);
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token) {
-        showToast('Please sign in to place a bid', 'error');
-        return;
-      }
-
-      const kycStatus = await loadWebKycStatus();
-
-      if (kycStatus !== 'VERIFIED') {
-        if (kycStatus === 'PENDING') {
-          showToast('Your KYC is under review. Bidding is enabled after approval.', 'error');
-        } else {
-          showToast('Complete KYC verification with live selfie before bidding.', 'error');
-          await openKycModal();
-        }
-        return;
-      }
-
-      const res = await fetch(`${backendUrl}/auction/listings/${selectedListing.id}/bids`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({ amount }),
-      });
-
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        const message = String(err?.message || 'Failed to place bid');
-        if (message.toLowerCase().includes('valid amount')) {
-          throw new Error('Put Valid Amount');
-        }
-        throw new Error(message);
-      }
-
-      const rawResult = await res.json();
-      const result = rawResult?.data ?? rawResult;
-
-      // Update selected listing with new bid data
-      setSelectedListing(prev => prev ? {
-        ...prev,
-        currentBid: amount,
-        bidCount: (prev.bidCount || 0) + 1,
-        endAt: result.endAt || prev.endAt,
-      } : prev);
-
-      // Also update in listings array
-      setListings(prev => prev.map(l => l.id === selectedListing.id ? {
-        ...l,
-        currentBid: amount,
-        bidCount: (l.bidCount || 0) + 1,
-        endAt: result.endAt || l.endAt,
-      } : l));
-
-      if (result.extended) {
-        setBidExtended(true);
-        showToast(`Bid placed! Timer extended by ${selectedListing.bidExtensionMin || 5} minutes (anti-sniping)`, 'success');
-      } else {
-        showToast('Bid placed successfully!', 'success');
-      }
-
-      fetchBidLeaderboard(selectedListing.id);
-
-      // Update bid amount to next minimum
-      const newNextMin = amount + (selectedListing.minBidIncrement || 100);
-      setBidAmount(String(newNextMin));
-    } catch (err: unknown) {
-      const msg = String(err instanceof Error ? err.message : String(err) || 'Failed to place bid');
-      if (msg.toLowerCase().includes('verification') || msg.toLowerCase().includes('kyc')) {
-        await openKycModal();
-      }
-      showToast(err instanceof Error ? err.message : String(err) || 'Failed to place bid', 'error');
-    } finally {
-      setBidLoading(false);
-    }
-  };
-
   const handleSubmitRating = async () => {
     if (!selectedListing) return;
 
@@ -738,150 +373,6 @@ export function AuctionMarketplace({ branchId, activeBranchId }: AuctionMarketpl
   const liveCount = listings.filter(l => l.status === 'LIVE').length;
   const totalBids = listings.reduce((acc, l) => acc + (l.bidCount || 0), 0);
   const totalValue = listings.reduce((acc, l) => acc + (l.currentBid || l.startingPrice || 0), 0);
-
-  const kycBadge = (() => {
-    if (webKycStatus === 'VERIFIED') return { text: 'BIDDER KYC VERIFIED', cls: 'bg-emerald-50 text-emerald-700 border-emerald-200' };
-    if (webKycStatus === 'PENDING') return { text: 'BIDDER KYC PENDING', cls: 'bg-amber-50 text-amber-700 border-amber-200' };
-    if (webKycStatus === 'REJECTED') return { text: 'BIDDER KYC REJECTED', cls: 'bg-rose-50 text-rose-700 border-rose-200' };
-    if (webKycStatus === 'NOT_SUBMITTED') return { text: 'BIDDER KYC NOT SUBMITTED', cls: 'bg-[#1C1C26] text-[#6B655C] border-[rgba(201,160,92,0.12)]' };
-    return { text: 'BIDDER KYC UNKNOWN', cls: 'bg-[#1C1C26] text-[#6B655C] border-[rgba(201,160,92,0.12)]' };
-  })();
-
-  const kycModal = showKycModal ? (
-    <div className="fixed inset-0 z-[100] bg-black/55 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="w-full max-w-3xl bg-[#14141B] rounded-[2rem] border border-[rgba(201,160,92,0.12)] shadow-2xl overflow-hidden">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[rgba(201,160,92,0.08)]">
-          <div>
-            <p className="text-[10px] font-black uppercase tracking-widest text-amber-500">Auction House KYC</p>
-            <h3 className="text-xl font-black text-[#EAE2D6]">Verify Identity With Live Selfie</h3>
-          </div>
-          <button
-            onClick={() => {
-              stopLiveCamera();
-              setShowKycModal(false);
-            }}
-            className="text-[#6B655C] hover:text-[#6B655C] text-sm font-black"
-          >
-            CLOSE
-          </button>
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 p-6 max-h-[78vh] overflow-y-auto">
-          <div className="space-y-3">
-            <p className="text-[10px] font-black uppercase tracking-widest text-[#6B655C]">Personal Details</p>
-            <input
-              value={kycForm.fullName}
-              onChange={(e) => setKycForm((prev) => ({ ...prev, fullName: e.target.value }))}
-              placeholder="Full legal name"
-              className="w-full rounded-xl border border-[rgba(201,160,92,0.12)] px-3 py-2 text-sm font-medium"
-            />
-            <input
-              type="date"
-              value={kycForm.dateOfBirth}
-              onChange={(e) => setKycForm((prev) => ({ ...prev, dateOfBirth: e.target.value }))}
-              className="w-full rounded-xl border border-[rgba(201,160,92,0.12)] px-3 py-2 text-sm font-medium"
-            />
-            <input
-              value={kycForm.address}
-              onChange={(e) => setKycForm((prev) => ({ ...prev, address: e.target.value }))}
-              placeholder="Address"
-              className="w-full rounded-xl border border-[rgba(201,160,92,0.12)] px-3 py-2 text-sm font-medium"
-            />
-            <input
-              value={kycForm.phoneNumber}
-              onChange={(e) => setKycForm((prev) => ({ ...prev, phoneNumber: e.target.value }))}
-              placeholder="Phone number"
-              className="w-full rounded-xl border border-[rgba(201,160,92,0.12)] px-3 py-2 text-sm font-medium"
-            />
-            <select
-              value={kycForm.idType}
-              onChange={(e) => setKycForm((prev) => ({ ...prev, idType: e.target.value as KycFormData['idType'] }))}
-              className="w-full rounded-xl border border-[rgba(201,160,92,0.12)] px-3 py-2 text-sm font-bold text-[#6B655C]"
-            >
-              <option value="NATIONAL_ID">National ID</option>
-              <option value="PASSPORT">Passport</option>
-              <option value="DRIVERS_LICENSE">Driver's License</option>
-              <option value="SSS_ID">SSS ID</option>
-              <option value="PHILHEALTH_ID">PhilHealth ID</option>
-              <option value="TIN_ID">TIN ID</option>
-              <option value="VOTERS_ID">Voter's ID</option>
-              <option value="POSTAL_ID">Postal ID</option>
-              <option value="OTHER">Other</option>
-            </select>
-            <input
-              value={kycForm.idNumber}
-              onChange={(e) => setKycForm((prev) => ({ ...prev, idNumber: e.target.value }))}
-              placeholder="ID number"
-              className="w-full rounded-xl border border-[rgba(201,160,92,0.12)] px-3 py-2 text-sm font-medium"
-            />
-
-            <div className="pt-2 space-y-2">
-              <label className="block text-[10px] font-black uppercase tracking-widest text-[#6B655C]">ID Front (required)</label>
-              <input type="file" accept="image/*" onChange={(e) => setIdFrontFile(e.target.files?.[0] || null)} className="w-full text-xs" />
-              <label className="block text-[10px] font-black uppercase tracking-widest text-[#6B655C]">ID Back (optional)</label>
-              <input type="file" accept="image/*" onChange={(e) => setIdBackFile(e.target.files?.[0] || null)} className="w-full text-xs" />
-            </div>
-          </div>
-
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <p className="text-[10px] font-black uppercase tracking-widest text-[#6B655C]">Live Selfie Capture</p>
-              <button
-                onClick={startLiveCamera}
-                disabled={cameraLoading}
-                className="px-3 py-2 rounded-xl bg-slate-900 text-white text-[10px] font-black uppercase tracking-widest hover:bg-amber-600 disabled:opacity-60"
-              >
-                {cameraLoading ? 'Starting...' : 'Start Camera'}
-              </button>
-            </div>
-
-            <div className="relative w-full aspect-[4/3] rounded-2xl overflow-hidden border border-[rgba(201,160,92,0.12)] bg-[#1C1C26]">
-              <video ref={videoRef} autoPlay muted playsInline className="w-full h-full object-cover" />
-              <div className="absolute inset-4 border-2 border-amber-400/70 rounded-[1.5rem] pointer-events-none" />
-            </div>
-
-            <button
-              onClick={captureLiveSelfie}
-              className="w-full px-3 py-3 rounded-xl bg-emerald-600 text-white text-[10px] font-black uppercase tracking-widest hover:bg-emerald-700"
-            >
-              Capture Live Selfie
-            </button>
-
-            {liveSelfiePreview && (
-              <div className="rounded-2xl overflow-hidden border border-emerald-200">
-                <img src={liveSelfiePreview} alt="Live selfie" className="w-full h-40 object-cover" />
-              </div>
-            )}
-
-            <p className="text-[10px] text-[#6B655C] font-bold">
-              Use your device camera now. Gallery selfies are not accepted.
-            </p>
-          </div>
-        </div>
-
-        <div className="px-6 py-4 border-t border-[rgba(201,160,92,0.08)] flex items-center justify-end gap-3">
-          <button
-            onClick={() => {
-              stopLiveCamera();
-              setShowKycModal(false);
-            }}
-            className="px-4 py-2 rounded-xl border border-[rgba(201,160,92,0.12)] text-[#999186] text-[10px] font-black uppercase tracking-widest"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={submitWebKyc}
-            disabled={kycSubmitting}
-            className="px-5 py-2 rounded-xl bg-amber-500 text-white text-[10px] font-black uppercase tracking-widest hover:bg-amber-600 disabled:opacity-60 flex items-center gap-2"
-          >
-            {kycSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-            Submit KYC
-          </button>
-        </div>
-      </div>
-      <canvas ref={canvasRef} className="hidden" />
-    </div>
-  ) : null;
 
   // ==================== DETAIL VIEW ====================
   if (selectedListing) {
@@ -1162,7 +653,6 @@ export function AuctionMarketplace({ branchId, activeBranchId }: AuctionMarketpl
           </div>
         </div>
       </div>
-      {kycModal}
       </>
     );
   }
@@ -1357,7 +847,6 @@ export function AuctionMarketplace({ branchId, activeBranchId }: AuctionMarketpl
         </div>
       )}
     </div>
-    {kycModal}
     </>
   );
 }

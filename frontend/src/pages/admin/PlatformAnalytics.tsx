@@ -1,25 +1,19 @@
 import { useState, useEffect } from 'react';
 import {
-  Building2, Users, Activity, CreditCard,
-  AlertTriangle, Clock, DollarSign, Loader2, RefreshCcw,
-  Plus, Send, UserPlus, ChevronDown, ChevronUp,
-  BarChart3, PieChart, ArrowUpRight, ArrowDownRight,
+  Building2, Users, Activity,
+  Clock, DollarSign, Loader2, RefreshCcw,
+  Plus, UserPlus,
 } from 'lucide-react';
 import Swal from 'sweetalert2';
 import api from '../../lib/apiClient';
 
-interface PlatformAnalyticsProps {
-  onNavigate?: (tab: string) => void;
-}
-
-export function PlatformAnalytics({ onNavigate }: PlatformAnalyticsProps) {
+export function PlatformAnalytics() {
   const [analytics, setAnalytics] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [creatingPawnshop, setCreatingPawnshop] = useState(false);
   const [invitingOwner, setInvitingOwner] = useState(false);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [showInviteForm, setShowInviteForm] = useState(false);
-  const [selectedPawnshop, setSelectedPawnshop] = useState<any>(null);
 
   const [createForm, setCreateForm] = useState({
     name: '',
@@ -41,6 +35,7 @@ export function PlatformAnalytics({ onNavigate }: PlatformAnalyticsProps) {
     type: 'extend' | 'upgrade' | 'status';
     pawnshopId: string;
     pawnshopName: string;
+    additionalDays?: number;
   } | null>(null);
 
   const [subForm, setSubForm] = useState({

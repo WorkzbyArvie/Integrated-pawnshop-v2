@@ -46,7 +46,7 @@ function getStatusBadge(status: string): { label: string; color: string; bg: str
   }
 }
 
-export function AuctionSettlements({ branchId, activeBranchId }: AuctionSettlementsProps) {
+export function AuctionSettlements({ branchId: _branchId, activeBranchId: _activeBranchId }: AuctionSettlementsProps) {
   const { showToast } = useToast();
   const [items, setItems] = useState<SettlementItem[]>([]);
   const [loading, setLoading] = useState(true);

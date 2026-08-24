@@ -12,17 +12,6 @@ import {
 import { api } from '../../lib/apiClient';
 import { supabase } from '../../lib/supabaseClient';
 
-interface Document {
-  id: string;
-  documentType: string;
-  fileName: string;
-  status: string;
-  expiryDate: string | null;
-  rejectionReason: string | null;
-  verifiedAt: string | null;
-  createdAt: string;
-}
-
 interface ComplianceData {
   score: number;
   documents: Array<{
