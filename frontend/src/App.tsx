@@ -210,7 +210,7 @@ function App() {
     localStorage.setItem('active_tab', activeTab);
   }, [activeTab]);
   const [loading, setLoading] = useState(true);
-  const [userRole, setUserRole] = useState<string>('Staff');
+  const [userRole, setUserRole] = useState<string>(() => localStorage.getItem('user_role') || 'Staff');
   const [subscriptionTier, setSubscriptionTier] = useState<'FREE' | 'TRIAL' | 'BASIC' | 'PROFESSIONAL' | 'ENTERPRISE'>('FREE');
   const [subscriptionTierLoaded, setSubscriptionTierLoaded] = useState<boolean>(false);
   const [hasApprovedSupportAccess, setHasApprovedSupportAccess] = useState<boolean>(false);
@@ -589,7 +589,7 @@ function App() {
             if (resolvedBranch) localStorage.setItem('active_pawnshop_id', resolvedBranch);
           }
         })();
-      } else {
+      } else if (_event === 'SIGNED_OUT') {
         localStorage.clear();
         setUserRole('Staff');
         setCurrentBranchId(null);
@@ -1358,6 +1358,7 @@ function App() {
     .filter((section) => section.items.length > 0);
 
   useEffect(() => {
+    if (loading || !session) return;
     if (userRole === 'Super Admin') return;
     if (lockImpersonationPanels) {
       setActiveTab('dashboard');
@@ -1367,7 +1368,7 @@ function App() {
     if (!canAccessActiveTab) {
       setActiveTab(filteredNavItems[0]?.id || 'dashboard');
     }
-  }, [activeTab, filteredNavItems, userRole, isImpersonating, lockImpersonationPanels]);
+  }, [activeTab, filteredNavItems, userRole, isImpersonating, lockImpersonationPanels, loading, session]);
 
   useEffect(() => {
     if (!session?.user?.id || userRole !== 'Owner' || isSubscriptionFrozen) {

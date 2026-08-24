@@ -24,6 +24,8 @@ interface StaffMember {
   email?: string;
 }
 
+const STAFF_DRAFT_KEY = 'staffmatrix_add_staff_draft';
+
 export function StaffMatrix({ branchId, userRole: propUserRole, activeBranchId = null }: StaffMatrixProps) {
   const normalizeRole = (rawRole: string | null | undefined): string => {
     const normalized = String(rawRole || '')
@@ -52,6 +54,46 @@ export function StaffMatrix({ branchId, userRole: propUserRole, activeBranchId =
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [changeRoleData, setChangeRoleData] = useState<{ staffId: string; staffName: string; currentRole: string; currentRoleCode: string } | null>(null);
   const [manageMenuId, setManageMenuId] = useState<string | null>(null);
+  const [inAppCodeInfo, setInAppCodeInfo] = useState<string | null>(null);
+  const [authCodeCooldown, setAuthCodeCooldown] = useState(0);
+  const [authCodeRequested, setAuthCodeRequested] = useState(false);
+
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem(STAFF_DRAFT_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === 'object') {
+          setNewStaffData((prev) => ({ ...prev, ...parsed }));
+          setShowAddStaffModal(true);
+        }
+      }
+    } catch {
+      sessionStorage.removeItem(STAFF_DRAFT_KEY);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!showAddStaffModal) {
+      sessionStorage.removeItem(STAFF_DRAFT_KEY);
+      return;
+    }
+    sessionStorage.setItem(STAFF_DRAFT_KEY, JSON.stringify(newStaffData));
+  }, [showAddStaffModal, newStaffData]);
+
+  const closeAddStaffModal = () => {
+    setShowAddStaffModal(false);
+    setInAppCodeInfo(null);
+    setAuthCodeCooldown(0);
+    setAuthCodeRequested(false);
+  };
+
+  useEffect(() => {
+    if (authCodeCooldown <= 0) return;
+    const id = setTimeout(() => setAuthCodeCooldown((t) => t - 1), 1000);
+    return () => clearTimeout(id);
+  }, [authCodeCooldown]);
+
   const { showToast } = useToast();
 
   // Get current user role
@@ -238,7 +280,7 @@ export function StaffMatrix({ branchId, userRole: propUserRole, activeBranchId =
 
       showToast(`Account "${newStaffData.name}" (${roleLabelFromCode(newStaffData.role)}) created successfully`, "success");
       setNewStaffData({ name: '', email: '', password: '', authCode: '', role: 'CASHIER_TELLER' });
-      setShowAddStaffModal(false);
+      closeAddStaffModal();
       fetchStaffData();
     } catch (err: unknown) {
       console.error("Error creating staff:", err);
@@ -264,13 +306,23 @@ export function StaffMatrix({ branchId, userRole: propUserRole, activeBranchId =
       });
 
       const result = await response.json();
+      const payload = result?.data ?? result;
       if (!response.ok) {
-        throw new Error(result?.error || result?.message || 'Failed to request auth code');
+        throw new Error(payload?.error || payload?.message || 'Failed to request auth code');
       }
 
-      if (result?.warning || result?.deliveryMethod === 'IN_APP') {
-        showToast(result?.warning || 'Email delivery unavailable. Use the in-app code shown by the backend.', 'error');
+      setAuthCodeCooldown(60);
+      setAuthCodeRequested(true);
+
+      if (payload?.deliveryMethod === 'IN_APP' || payload?.warning) {
+        if (payload?.authCode) {
+          setInAppCodeInfo(`Email delivery is unavailable. Use this verification code instead: ${payload.authCode}`);
+        } else {
+          setInAppCodeInfo(payload?.warning || 'Email delivery is unavailable.');
+        }
+        showToast('Email delivery unavailable. Use the code shown in the form.', 'error');
       } else {
+        setInAppCodeInfo(null);
         showToast('Authentication code sent to your email.', 'success');
       }
     } catch (err: unknown) {
@@ -379,7 +431,7 @@ export function StaffMatrix({ branchId, userRole: propUserRole, activeBranchId =
       </div>
 
       {showAddStaffModal && canManageStaff && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowAddStaffModal(false)}>
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={closeAddStaffModal}>
           <div className="bg-[#14141B] rounded-2xl p-6 w-96 shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <h3 className="text-xl font-black text-[#EAE2D6] mb-4">Add Staff Account</h3>
             <form onSubmit={handleAddStaff} className="space-y-4">
@@ -405,8 +457,8 @@ export function StaffMatrix({ branchId, userRole: propUserRole, activeBranchId =
                 className="w-full px-3 py-2 border border-[rgba(201,160,92,0.12)] rounded-lg text-sm"
               />
               <div className="flex gap-2">
-                <input 
-                  type="text" 
+                <input
+                  type="text"
                   placeholder="Authentication code"
                   value={newStaffData.authCode}
                   onChange={(e) => setNewStaffData({...newStaffData, authCode: e.target.value})}
@@ -415,11 +467,36 @@ export function StaffMatrix({ branchId, userRole: propUserRole, activeBranchId =
                 <button
                   type="button"
                   onClick={handleRequestAuthCode}
-                  className="px-3 py-2 bg-[#222228] text-[#EAE2D6] rounded-lg font-bold text-[10px] uppercase tracking-wide hover:bg-slate-300"
+                  disabled={authCodeCooldown > 0}
+                  className="px-3 py-2 bg-[#222228] text-[#EAE2D6] rounded-lg font-bold text-[10px] uppercase tracking-wide hover:bg-slate-300 disabled:opacity-40 disabled:cursor-not-allowed"
                 >
-                  Get Code
+                  {authCodeCooldown > 0 ? `${authCodeCooldown}s` : 'Get Code'}
                 </button>
               </div>
+              {authCodeRequested && (
+                <div className="text-[10px] font-semibold text-[#6B655C]">
+                  {authCodeCooldown > 0 ? (
+                    <span>
+                      Resend code in{' '}
+                      <span className="font-bold text-[#EAE2D6]">{authCodeCooldown}s</span>
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={handleRequestAuthCode}
+                      className="font-semibold underline transition-colors"
+                      style={{ color: '#C9A05C' }}
+                    >
+                      Didn't receive code? Resend
+                    </button>
+                  )}
+                </div>
+              )}
+              {inAppCodeInfo && (
+                <div className="p-3 rounded-lg bg-[#D4A84B]/10 border border-[#D4A84B]/30 text-xs font-semibold text-[#EAE2D6] break-all">
+                  ⚠️ {inAppCodeInfo}
+                </div>
+              )}
               <select 
                 value={newStaffData.role}
                 onChange={(e) => setNewStaffData({...newStaffData, role: e.target.value})}
@@ -436,9 +513,9 @@ export function StaffMatrix({ branchId, userRole: propUserRole, activeBranchId =
                 >
                   Create Account
                 </button>
-                <button 
+                <button
                   type="button"
-                  onClick={() => setShowAddStaffModal(false)}
+                  onClick={closeAddStaffModal}
                   className="flex-1 bg-[#222228] text-[#EAE2D6] py-2 rounded-lg font-bold text-sm hover:bg-slate-300"
                 >
                   Cancel

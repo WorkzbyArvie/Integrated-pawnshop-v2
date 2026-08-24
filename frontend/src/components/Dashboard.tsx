@@ -17,6 +17,8 @@ export interface DashboardProps {
   isEnabled: (featureKey: string) => boolean;
 }
 
+const ADMIN_DRAFT_KEY = 'dashboard_add_admin_draft';
+
 
 export function Dashboard({
   branchId,
@@ -56,6 +58,41 @@ export function Dashboard({
     return ['BRANCH_ADMIN', 'BRANCH ADMIN', 'BRANCHADMIN', 'ADMIN'].includes(storedRole);
   });
   const [lastLoadedPawnshopId, setLastLoadedPawnshopId] = useState<string | null>(null);
+  const [inAppCodeInfo, setInAppCodeInfo] = useState<string | null>(null);
+
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem(ADMIN_DRAFT_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === 'object') {
+          if (parsed.open) setShowAddAdminModal(true);
+          if (typeof parsed.email === 'string') setAdminEmail(parsed.email);
+          if (typeof parsed.password === 'string') setAdminPassword(parsed.password);
+          if (typeof parsed.authCode === 'string') setAdminAuthCode(parsed.authCode);
+          if (typeof parsed.role === 'string') setAdminRole(parsed.role);
+        }
+      }
+    } catch {
+      sessionStorage.removeItem(ADMIN_DRAFT_KEY);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!showAddAdminModal) {
+      sessionStorage.removeItem(ADMIN_DRAFT_KEY);
+      return;
+    }
+    sessionStorage.setItem(
+      ADMIN_DRAFT_KEY,
+      JSON.stringify({ open: true, email: adminEmail, password: adminPassword, authCode: adminAuthCode, role: adminRole })
+    );
+  }, [showAddAdminModal, adminEmail, adminPassword, adminAuthCode, adminRole]);
+
+  const closeAddAdminModal = () => {
+    setShowAddAdminModal(false);
+    setInAppCodeInfo(null);
+  };
 
   // Determine targetUuid: priority is query param > localStorage > prop > null
   const getTargetUuid = () => {
@@ -107,7 +144,7 @@ export function Dashboard({
 
     const channel = supabase
       .channel('dashboard_sync')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'ticket' }, (payload) => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'ticket' }, () => {
         if (mounted) {
           loadDashboardData();
         }
@@ -430,7 +467,7 @@ export function Dashboard({
       setAdminPassword('');
       setAdminAuthCode('');
       setAdminRole('BRANCH_ADMIN');
-      setShowAddAdminModal(false);
+      closeAddAdminModal();
       
       // Reload data
       loadDashboardData();
@@ -461,13 +498,20 @@ export function Dashboard({
       });
 
       const result = await res.json();
+      const payload = result?.data ?? result;
       if (!res.ok) {
-        throw new Error(result?.message || result?.error || 'Failed to request auth code');
+        throw new Error(payload?.message || payload?.error || 'Failed to request auth code');
       }
 
-      if (result?.warning || result?.deliveryMethod === 'IN_APP') {
-        setAdminError(result?.warning || 'Email delivery unavailable. Use the in-app code shown by the backend.');
+      if (payload?.deliveryMethod === 'IN_APP' || payload?.warning) {
+        if (payload?.authCode) {
+          setInAppCodeInfo(`Email delivery is unavailable. Use this verification code instead: ${payload.authCode}`);
+        } else {
+          setInAppCodeInfo(payload?.warning || 'Email delivery is unavailable.');
+        }
+        setAdminError('Email delivery unavailable. Use the code shown in the form.');
       } else {
+        setInAppCodeInfo(null);
         setAdminError('Authentication code sent to your email.');
       }
     } catch (err: unknown) {
@@ -794,7 +838,7 @@ export function Dashboard({
                   </p>
                 </div>
                 <button
-                  onClick={() => setShowAddAdminModal(false)}
+                  onClick={closeAddAdminModal}
                   className="w-8 h-8 rounded-full bg-[#1C1C26] flex items-center justify-center hover:bg-[#222228] transition-all text-[#6B655C]"
                 >
                   <span className="text-sm">✕</span>
@@ -849,6 +893,11 @@ export function Dashboard({
                       Get Code
                     </button>
                   </div>
+                  {inAppCodeInfo && (
+                    <div className="mt-3 p-3 rounded-xl bg-[#D4A84B]/10 border border-[#D4A84B]/30 text-xs font-semibold text-[#EAE2D6] break-all">
+                      ⚠️ {inAppCodeInfo}
+                    </div>
+                  )}
                 </div>
 
                 <div>
@@ -884,7 +933,7 @@ export function Dashboard({
                   </button>
                   <button
                     type="button"
-                    onClick={() => setShowAddAdminModal(false)}
+                    onClick={closeAddAdminModal}
                     className="flex-1 py-3 bg-[#1C1C26] text-[#6B655C] rounded-full font-black uppercase tracking-widest text-[10px] hover:bg-[#222228] transition-all"
                   >
                     Cancel
