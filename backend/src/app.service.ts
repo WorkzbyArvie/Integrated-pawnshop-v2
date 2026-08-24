@@ -910,8 +910,8 @@ export class AppService {
 
     const { role: requestedRole, staffType: requestedStaffType } =
       this.parseRoleAndStaffType(newRoleRaw);
-    if (!['OWNER', 'ADMIN', 'MANAGER', 'STAFF', 'HR'].includes(requestedRole)) {
-      throw new Error('Invalid role. Allowed roles: OWNER, ADMIN, MANAGER, HR, and staff specializations');
+    if (!['OWNER', 'ADMIN', 'MANAGER', 'STAFF', 'HR', 'APPROVER'].includes(requestedRole)) {
+      throw new Error('Invalid role. Allowed roles: OWNER, ADMIN, MANAGER, HR, APPROVER, and staff specializations');
     }
 
     const actor = await this.prisma.profile.findUnique({
@@ -1364,8 +1364,8 @@ export class AppService {
     const { role: canonicalRole, staffType: normalizedStaffType } =
       this.parseRoleAndStaffType(role, staff_type);
 
-    if (!['OWNER', 'ADMIN', 'MANAGER', 'STAFF', 'HR'].includes(canonicalRole)) {
-      throw new Error('Invalid role. Allowed roles: OWNER, ADMIN, MANAGER, HR, and staff specialization roles');
+    if (!['OWNER', 'ADMIN', 'MANAGER', 'STAFF', 'HR', 'APPROVER'].includes(canonicalRole)) {
+      throw new Error('Invalid role. Allowed roles: OWNER, ADMIN, MANAGER, HR, APPROVER, and staff specialization roles');
     }
 
     const actor = await this.prisma.profile.findUnique({

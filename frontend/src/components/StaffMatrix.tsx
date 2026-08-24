@@ -127,6 +127,7 @@ export function StaffMatrix({ branchId, userRole: propUserRole, activeBranchId =
     ADMIN: 'Admin',
     MANAGER: 'Manager',
     HR: 'HR',
+    APPROVER: 'Approver',
   };
 
   const toRolePayload = (selectedRole: string): { role: string; staff_type?: string } => {
@@ -158,6 +159,7 @@ export function StaffMatrix({ branchId, userRole: propUserRole, activeBranchId =
   const getSelectableRoleOptions = () => {
     const options = [
       { value: 'MANAGER', label: 'Manager' },
+      { value: 'APPROVER', label: 'Approver' },
       { value: 'HR', label: 'HR' },
       { value: 'CASHIER_TELLER', label: 'Cashier/Teller' },
       { value: 'APPRAISER', label: 'Appraiser' },

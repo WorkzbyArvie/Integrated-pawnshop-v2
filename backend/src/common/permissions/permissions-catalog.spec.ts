@@ -313,6 +313,14 @@ const MATRIX: Record<string, { tuple: string[]; permission: string }> = {
     tuple: ['OWNER', 'ADMIN'],
     permission: 'auction.manual_settle',
   },
+  'auction.controller.ts::simulatePaymentWebhook': {
+    tuple: ['OWNER', 'ADMIN', 'MANAGER'],
+    permission: 'auction.settle',
+  },
+  'tenant-governance.controller.ts::updatePawnshopContractTerms': {
+    tuple: ['OWNER'],
+    permission: 'tenant.manage',
+  },
 };
 
 function findControllerFiles(dir: string): string[] {
@@ -393,9 +401,9 @@ describe('permission catalog consistency', () => {
     expect(new Set(sqlNames)).toEqual(new Set(constNames));
   });
 
-  it('ROLE_PERMISSIONS references only const values and sums to 103 mappings', () => {
+  it('ROLE_PERMISSIONS references only const values and sums to 109 mappings', () => {
     const mapped = Object.values(ROLE_PERMISSIONS).flat();
-    expect(mapped.length).toBe(103);
+    expect(mapped.length).toBe(109);
     for (const name of mapped) {
       expect(PERMISSIONS[name]).toBe(name);
     }
@@ -418,12 +426,12 @@ describe('69-site equivalence scan', () => {
     }
   });
 
-  it('finds all 71 migrated endpoints across the 8 controllers', () => {
+  it('finds all 73 guarded endpoints across the controllers', () => {
     const total = [...sitesByFile.values()].reduce((sum, sites) => {
       const withAny = sites.filter((s) => s.roles || s.permissions);
       return sum + withAny.length;
     }, 0);
-    expect(total).toBe(71);
+    expect(total).toBe(73);
   });
 
   it('matrix tuples match the current @Roles tuples (RED-phase calibration)', () => {

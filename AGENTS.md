@@ -21,7 +21,7 @@
 ## Key Architecture
 - **Monorepo**: frontend/, backend/, auction-frontend/, mobile/
 - **23 Prisma models** + 23 enums
-- **10 User Roles**: SUPER_ADMIN, OWNER, ADMIN, MANAGER, STAFF, HR, CASHIER_TELLER, APPRAISER, INVENTORY_CUSTODIAN, AUDITOR
+- **11 User Roles**: SUPER_ADMIN, OWNER, ADMIN, MANAGER, STAFF, HR, CASHIER_TELLER, APPRAISER, INVENTORY_CUSTODIAN, AUDITOR, APPROVER (approves loans + redemptions)
 
 ---
 

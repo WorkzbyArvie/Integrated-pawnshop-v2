@@ -1218,16 +1218,16 @@ function App() {
 
     // Owner onboarding limited mode
     { id: 'pending-access', label: 'Pending Access', icon: Clock, roles: ['Owner'], type: 'OPERATIONAL' },
-    { id: 'frozen-access', label: 'Subscription Required', icon: ShieldCheck, roles: ['Owner', 'Admin', 'Manager', 'Staff', 'HR', 'Cashier/Teller', 'Appraiser', 'Inventory Custodian', 'Auditor'], type: 'OPERATIONAL' },
+    { id: 'frozen-access', label: 'Subscription Required', icon: ShieldCheck, roles: ['Owner', 'Admin', 'Manager', 'Staff', 'HR', 'Cashier/Teller', 'Appraiser', 'Inventory Custodian', 'Auditor', 'Approver'], type: 'OPERATIONAL' },
 
     // OPERATIONAL-level (Branch roles)
-    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['Owner', 'Admin', 'Manager', 'Staff', 'HR', 'Cashier/Teller', 'Appraiser', 'Inventory Custodian', 'Auditor'], type: 'OPERATIONAL' },
+    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['Owner', 'Admin', 'Manager', 'Staff', 'HR', 'Cashier/Teller', 'Appraiser', 'Inventory Custodian', 'Auditor', 'Approver'], type: 'OPERATIONAL' },
 
     // BRANCH-level System Control (Pawnshop settings)
     { id: 'branch-system-settings', label: 'System Control', icon: Settings2, roles: ['Owner', 'Admin'], type: 'OPERATIONAL' },
     { id: 'multi-branches', label: 'Multi-Branch', icon: GitBranch, roles: ['Owner'], type: 'OPERATIONAL' },
     { id: 'sales', label: 'New Appraisal', icon: BadgePercent, roles: ['Owner', 'Admin', 'Manager', 'Staff', 'Cashier/Teller', 'Appraiser'], type: 'OPERATIONAL' },
-    { id: 'approval-queue', label: 'Approval Queue', icon: ListChecks, roles: ['Owner', 'Admin', 'Manager'], type: 'OPERATIONAL' },
+    { id: 'approval-queue', label: 'Approval Queue', icon: ListChecks, roles: ['Owner', 'Admin', 'Manager', 'Approver'], type: 'OPERATIONAL' },
     { id: 'audit-history', label: 'Audit History', icon: History, roles: ['Owner', 'Admin'], type: 'OPERATIONAL' },
     { id: 'crm', label: 'Customers', icon: Users2, roles: ['Owner', 'Admin', 'Manager', 'Staff', 'Cashier/Teller', 'Appraiser'], type: 'OPERATIONAL', feature: 'crm_enabled' },
     { id: 'inventory', label: 'Inventory & Vault', icon: Warehouse, roles: ['Owner', 'Admin', 'Manager', 'Inventory Custodian'], type: 'OPERATIONAL', feature: 'vault_enabled' },
@@ -1239,7 +1239,7 @@ function App() {
     { id: 'bidder-kyc', label: 'Bidder KYC Review', icon: Shield, roles: ['Super Admin'], type: 'PLATFORM' },
     { id: 'auction-live', label: 'Live Auctions', icon: Gavel, roles: ['Owner', 'Admin', 'Manager'], type: 'OPERATIONAL', feature: 'auction_enabled' },
     { id: 'decision', label: 'Decision Support', icon: BrainCircuit, roles: ['Owner', 'Admin', 'Manager'], type: 'OPERATIONAL', feature: 'decision_enabled' },
-    { id: 'loan-history', label: 'Transaction History', icon: History, roles: ['Owner', 'Admin', 'Manager', 'Staff', 'Cashier/Teller', 'Appraiser', 'Auditor'], type: 'OPERATIONAL' },
+    { id: 'loan-history', label: 'Transaction History', icon: History, roles: ['Owner', 'Admin', 'Manager', 'Staff', 'Cashier/Teller', 'Appraiser', 'Auditor', 'Approver'], type: 'OPERATIONAL' },
     { id: 'queue-mgmt', label: 'Queue Management', icon: ListOrdered, roles: ['Owner', 'Admin', 'Manager', 'Staff', 'Cashier/Teller'], type: 'OPERATIONAL' },
     { id: 'finance-ledger', label: 'Finance Ledger', icon: BookOpen, roles: ['Owner', 'Admin', 'Manager', 'Auditor'], type: 'OPERATIONAL', feature: 'finance_enabled' },
     { id: 'attendance', label: 'Attendance', icon: Clock, roles: ['Owner', 'Admin', 'Manager', 'HR'], type: 'OPERATIONAL' },

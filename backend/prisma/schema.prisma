@@ -412,6 +412,7 @@ enum Role {
   MANAGER
   HR
   STAFF
+  APPROVER
   @@schema("public")
 }
 
@@ -1026,6 +1027,7 @@ model QueueTicket {
 enum MessageSenderRole {
   CUSTOMER
   STAFF
+  APPROVER
   @@schema("public")
 }
 

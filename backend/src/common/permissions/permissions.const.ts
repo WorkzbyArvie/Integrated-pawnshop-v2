@@ -151,4 +151,12 @@ export const ROLE_PERMISSIONS: Record<string, PermissionName[]> = {
   ],
   INVENTORY_CUSTODIAN: ['pawn_ticket.view', 'inventory.manage'],
   AUDITOR: ['pawn_ticket.view', 'reports.view', 'tenant.view_audit', 'finance.manage'],
+  APPROVER: [
+    'pawn_ticket.view',
+    'pawn_ticket.approve',
+    'pawn_ticket.decline',
+    'approval.view_queue',
+    'approval.approve_appraisal',
+    'approval.approve_redemption',
+  ],
 };
