@@ -25,7 +25,7 @@ import { ContractViewer } from './ContractViewer';
 
 interface ApprovalQueueItem {
   id: number;
-  targetType: 'APPRAISAL' | 'REDEMPTION';
+  targetType: 'APPRAISAL' | 'REDEMPTION' | 'LISTING_EDIT';
   targetId?: number | string;
   status?: string;
   amount?: number;
@@ -48,6 +48,20 @@ interface ApprovalQueueItem {
   threshold?: number;
   decisionComment?: string;
   payload?: Record<string, unknown>;
+  listingTitle?: string | null;
+  listingId?: number | null;
+  listingEdit?: {
+    itemCondition?: string | null;
+    itemSpecifications?: string | null;
+    provenanceDetails?: string | null;
+    disclosureNotes?: string | null;
+    previous?: {
+      itemCondition?: string | null;
+      itemSpecifications?: string | null;
+      provenanceDetails?: string | null;
+      disclosureNotes?: string | null;
+    };
+  } | null;
 }
 
 interface ApprovalQueueProps {
@@ -169,15 +183,20 @@ export function ApprovalQueue({ branchId, activeBranchId, userRole }: ApprovalQu
       const isRedemption = records.some(
         (record) => record.id === id && record.targetType === 'REDEMPTION',
       );
+      const isListingEdit = records.some(
+        (record) => record.id === id && record.targetType === 'LISTING_EDIT',
+      );
       if (applicationId || contractId) {
         setContractHandoff({ applicationId, contractId, loanId });
       }
       showToast(
         isRedemption
           ? 'Redemption approved — item released'
-          : Boolean(result?.resumed)
-            ? 'Resuming contract signing'
-            : 'Contract generated — sign to continue',
+          : isListingEdit
+            ? 'Auction listing edit approved and applied'
+            : Boolean(result?.resumed)
+              ? 'Resuming contract signing'
+              : 'Contract generated — sign to continue',
         'success',
       );
       await loadQueue(activeTab);
@@ -248,7 +267,10 @@ export function ApprovalQueue({ branchId, activeBranchId, userRole }: ApprovalQu
   const redemptionCount = records.filter(
     (record) => record.targetType === 'REDEMPTION' && record.status === 'PENDING',
   ).length;
-  const pendingTotal = appraisalCount + redemptionCount;
+  const listingEditCount = records.filter(
+    (record) => record.targetType === 'LISTING_EDIT' && record.status === 'PENDING',
+  ).length;
+  const pendingTotal = appraisalCount + redemptionCount + listingEditCount;
 
   return (
     <div className="p-8 space-y-6 min-h-screen" style={{ background: 'rgba(28,28,38,0.5)' }}>
@@ -256,7 +278,7 @@ export function ApprovalQueue({ branchId, activeBranchId, userRole }: ApprovalQu
         <div>
           <h1 className="text-3xl font-black text-[#C9A05C] uppercase tracking-tight">Approval Queue</h1>
           <p className="text-[10px] font-black mt-1 uppercase tracking-widest" style={{ color: 'var(--text-muted)' }}>
-            Review appraisals and redemptions pending owner sign-off
+            Review appraisals, redemptions, and auction edits pending owner sign-off
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -296,6 +318,15 @@ export function ApprovalQueue({ branchId, activeBranchId, userRole }: ApprovalQu
             Redemption
             <Badge className="ml-2 bg-[#C9A05C]/10 text-[#C9A05C] border border-[rgba(201,160,92,0.2)]">
               {redemptionCount}
+            </Badge>
+          </TabsTrigger>
+          <TabsTrigger
+            value="LISTING_EDIT"
+            className="text-[10px] font-black uppercase tracking-widest px-4 py-2 data-[state=active]:bg-[#C9A05C] data-[state=active]:text-[#0A0A0F] data-[state=inactive]:text-[#6B655C] data-[state=active]:shadow-none"
+          >
+            Auction Edits
+            <Badge className="ml-2 bg-[#C9A05C]/10 text-[#C9A05C] border border-[rgba(201,160,92,0.2)]">
+              {listingEditCount}
             </Badge>
           </TabsTrigger>
           <TabsTrigger
@@ -354,7 +385,11 @@ export function ApprovalQueue({ branchId, activeBranchId, userRole }: ApprovalQu
             <>
               <p className="text-lg font-black text-[#EAE2D6]">All caught up!</p>
               <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
-                {activeTab === 'APPRAISAL' ? 'No pending appraisals' : 'No pending redemptions'}
+                {activeTab === 'APPRAISAL'
+                  ? 'No pending appraisals'
+                  : activeTab === 'REDEMPTION'
+                    ? 'No pending redemptions'
+                    : 'No pending auction edits'}
               </p>
             </>
           )}
@@ -429,10 +464,12 @@ export function ApprovalQueue({ branchId, activeBranchId, userRole }: ApprovalQu
                   className={
                     reviewItem.targetType === 'APPRAISAL'
                       ? 'bg-[#C9A05C]/10 text-[#C9A05C] border border-[rgba(201,160,92,0.2)]'
-                      : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                      : reviewItem.targetType === 'LISTING_EDIT'
+                        ? 'bg-violet-500/10 text-violet-400 border border-violet-500/20'
+                        : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
                   }
                 >
-                  {reviewItem.targetType}
+                  {reviewItem.targetType === 'LISTING_EDIT' ? 'AUCTION EDIT' : reviewItem.targetType}
                 </Badge>
                 <span className="text-[10px] font-black uppercase tracking-widest text-[#C9A05C]">
                   {ticketNumber(reviewItem)}
@@ -549,6 +586,37 @@ export function ApprovalQueue({ branchId, activeBranchId, userRole }: ApprovalQu
                     </p>
                   )}
                 </div>
+              ) : reviewItem.targetType === 'LISTING_EDIT' ? (
+                <div className="rounded-2xl p-4" style={{ background: 'rgba(255,255,255,0.035)' }}>
+                  <p className="text-[10px] font-black uppercase tracking-widest mb-3" style={{ color: 'var(--text-muted)' }}>
+                    Requested change to auction listing
+                  </p>
+                  <div className="space-y-2">
+                    <ListingChangeRow
+                      label="Condition"
+                      previous={reviewItem.listingEdit?.previous?.itemCondition}
+                      next={reviewItem.listingEdit?.itemCondition}
+                    />
+                    <ListingChangeRow
+                      label="Specifications"
+                      previous={reviewItem.listingEdit?.previous?.itemSpecifications}
+                      next={reviewItem.listingEdit?.itemSpecifications}
+                    />
+                    <ListingChangeRow
+                      label="Provenance"
+                      previous={reviewItem.listingEdit?.previous?.provenanceDetails}
+                      next={reviewItem.listingEdit?.provenanceDetails}
+                    />
+                    <ListingChangeRow
+                      label="Disclosures"
+                      previous={reviewItem.listingEdit?.previous?.disclosureNotes}
+                      next={reviewItem.listingEdit?.disclosureNotes}
+                    />
+                  </div>
+                  <p className="text-[10px] font-semibold mt-3" style={{ color: 'var(--text-muted)' }}>
+                    Changes apply to the listing after approval.
+                  </p>
+                </div>
               ) : (
                 <div className="rounded-2xl p-4" style={{ background: 'rgba(255,255,255,0.035)' }}>
                   <div className="flex items-center justify-between">
@@ -636,10 +704,12 @@ function ApprovalRow({
               className={
                 record.targetType === 'APPRAISAL'
                   ? 'bg-[#C9A05C]/10 text-[#C9A05C] border border-[rgba(201,160,92,0.2)]'
-                  : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                  : record.targetType === 'LISTING_EDIT'
+                    ? 'bg-violet-500/10 text-violet-400 border border-violet-500/20'
+                    : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
               }
             >
-              {record.targetType}
+              {record.targetType === 'LISTING_EDIT' ? 'AUCTION EDIT' : record.targetType}
             </Badge>
             <span className="text-[10px] font-black uppercase tracking-widest text-[#C9A05C]">
               {ticketNumber(record)}
@@ -656,7 +726,13 @@ function ApprovalRow({
           </p>
         </div>
         <div className="text-right shrink-0">
-          <p className="text-lg font-black text-[#C9A05C]">{formatCurrency(itemAmount(record))}</p>
+          {record.targetType === 'LISTING_EDIT' ? (
+            <p className="text-[10px] font-black uppercase tracking-widest text-[#C9A05C]">
+              Auction Edit
+            </p>
+          ) : (
+            <p className="text-lg font-black text-[#C9A05C]">{formatCurrency(itemAmount(record))}</p>
+          )}
           {record.targetType === 'REDEMPTION' && (
             <p className="text-[10px] font-semibold mt-1" style={{ color: 'var(--text-muted)' }}>
               Needs owner approval
@@ -664,6 +740,34 @@ function ApprovalRow({
           )}
         </div>
       </div>
+
+      {record.targetType === 'LISTING_EDIT' && (
+        <div className="mt-3 rounded-xl border border-[rgba(201,160,92,0.15)] bg-[#1C1C26] p-4 space-y-2">
+          <p className="text-[10px] font-black uppercase tracking-widest text-[#C9A05C]">
+            Requested changes
+          </p>
+          <ListingChangeRow
+            label="Condition"
+            previous={record.listingEdit?.previous?.itemCondition}
+            next={record.listingEdit?.itemCondition}
+          />
+          <ListingChangeRow
+            label="Specifications"
+            previous={record.listingEdit?.previous?.itemSpecifications}
+            next={record.listingEdit?.itemSpecifications}
+          />
+          <ListingChangeRow
+            label="Provenance"
+            previous={record.listingEdit?.previous?.provenanceDetails}
+            next={record.listingEdit?.provenanceDetails}
+          />
+          <ListingChangeRow
+            label="Disclosures"
+            previous={record.listingEdit?.previous?.disclosureNotes}
+            next={record.listingEdit?.disclosureNotes}
+          />
+        </div>
+      )}
 
       <div className="mt-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex items-center gap-2 flex-wrap">
@@ -677,7 +781,11 @@ function ApprovalRow({
             className="bg-[#C9A05C] text-[#0A0A0F] hover:bg-[#d4b36e]"
           >
             {processing ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
-            {record.targetType === 'REDEMPTION' ? 'Approve & Release' : 'Approve & Generate Contract'}
+            {record.targetType === 'REDEMPTION'
+              ? 'Approve & Release'
+              : record.targetType === 'LISTING_EDIT'
+                ? 'Approve Edit'
+                : 'Approve & Generate Contract'}
           </Button>
           <Button
             size="sm"
@@ -703,6 +811,24 @@ function ApprovalRow({
           You cannot approve your own request.
         </p>
       )}
+    </div>
+  );
+}
+
+function ListingChangeRow({ label, previous, next }: { label: string; previous?: string | null; next?: string | null }) {
+  return (
+    <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-1 text-xs">
+      <span className="w-28 shrink-0 font-black uppercase tracking-widest text-[10px] pt-1" style={{ color: 'var(--text-muted)' }}>
+        {label}
+      </span>
+      <div className="flex-1 min-w-0">
+        <p className="font-medium text-[#EAE2D6] whitespace-pre-wrap break-words">{next?.trim() || '—'}</p>
+        {(previous ?? '') !== (next ?? '') && previous?.trim() ? (
+          <p className="mt-0.5 line-through font-semibold text-[#D44545]/70 whitespace-pre-wrap break-words">
+            {previous.trim()}
+          </p>
+        ) : null}
+      </div>
     </div>
   );
 }

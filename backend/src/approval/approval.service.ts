@@ -54,8 +54,12 @@ export class ApprovalService {
     const needsRedemptionSettings = records.some(
       (record) => record.targetType === 'REDEMPTION',
     );
+    const listingEditTargets = records
+      .filter((record) => record.targetType === 'LISTING_EDIT')
+      .map((record) => Number(record.targetId))
+      .filter((id) => Number.isFinite(id) && id > 0);
 
-    const [tickets, pawnshop] = await Promise.all([
+    const [tickets, pawnshop, listings] = await Promise.all([
       targetIds.length
         ? this.prisma.ticket.findMany({
             where: {
@@ -88,16 +92,47 @@ export class ApprovalService {
             select: { settings: true },
           })
         : Promise.resolve(null),
+      listingEditTargets.length
+        ? this.prisma.auctionListing.findMany({
+            where: { id: { in: listingEditTargets } },
+            select: {
+              id: true,
+              title: true,
+              ticketId: true,
+              ticket: {
+                select: {
+                  ticketNumber: true,
+                  description: true,
+                  category: true,
+                  customer: {
+                    select: {
+                      fullName: true,
+                      contactNumber: true,
+                      loyaltyTier: true,
+                    },
+                  },
+                },
+              },
+            },
+          })
+        : Promise.resolve([]),
     ]);
 
     const foundTickets = tickets ?? [];
     const ticketById = new Map(foundTickets.map((ticket) => [String(ticket.id), ticket]));
+    const listingById = new Map(
+      (listings ?? []).map((listing) => [String(listing.id), listing]),
+    );
 
     const settings = (pawnshop?.settings ?? {}) as Record<string, unknown>;
     const threshold = Number(settings.redemptionApprovalThreshold ?? 50000);
 
     return records.map((record) => {
-      const ticket = ticketById.get(String(record.targetId));
+      const listing = listingById.get(String(record.targetId));
+      const ticket =
+        record.targetType === 'LISTING_EDIT'
+          ? listing?.ticket
+          : ticketById.get(String(record.targetId));
       const payload = (record.payload ?? {}) as Record<string, unknown>;
       const description = ticket?.description ?? '';
       const photoUrlMatch = description.match(/\[PHOTO_URLS\]\s+(\[[\s\S]*?\])/i);
@@ -113,6 +148,7 @@ export class ApprovalService {
         }
       }
       const itemName = description.split('[PHOTO_URLS]')[0].trim() || null;
+      const previous = (payload.previous ?? {}) as Record<string, unknown>;
       return {
         id: record.id,
         targetType: record.targetType,
@@ -138,6 +174,23 @@ export class ApprovalService {
         appraisalNotes: payload.appraisalNotes ?? null,
         amountPaid: record.targetType === 'REDEMPTION' ? record.amount : undefined,
         threshold: record.targetType === 'REDEMPTION' ? threshold : undefined,
+        listingTitle: listing?.title ?? null,
+        listingId: record.targetType === 'LISTING_EDIT' ? Number(record.targetId) : null,
+        listingEdit: record.targetType === 'LISTING_EDIT'
+          ? {
+              listingId: Number(record.targetId),
+              itemCondition: (payload.itemCondition as string | null) ?? null,
+              itemSpecifications: (payload.itemSpecifications as string | null) ?? null,
+              provenanceDetails: (payload.provenanceDetails as string | null) ?? null,
+              disclosureNotes: (payload.disclosureNotes as string | null) ?? null,
+              previous: {
+                itemCondition: (previous.itemCondition as string | null) ?? null,
+                itemSpecifications: (previous.itemSpecifications as string | null) ?? null,
+                provenanceDetails: (previous.provenanceDetails as string | null) ?? null,
+                disclosureNotes: (previous.disclosureNotes as string | null) ?? null,
+              },
+            }
+          : null,
         requestedBy: record.requestedBy
           ? { id: record.requestedBy.id, fullName: record.requestedBy.fullName ?? '' }
           : null,
@@ -217,6 +270,12 @@ export class ApprovalService {
           decidedBy,
           userRole,
         )) as unknown as Record<string, unknown>;
+      } else if (record.targetType === 'LISTING_EDIT') {
+        handoff = await this.applyListingEditApproval(
+          Number(record.targetId),
+          payload,
+          decidedBy,
+        );
       }
     } else if (record.targetType === 'APPRAISAL') {
       await this.pawnTicketService.rejectAppraisal(Number(record.targetId), userRole);
@@ -277,6 +336,38 @@ export class ApprovalService {
       applicationId: contract?.applicationId ?? loan?.applicationId,
       contractId: contractId ?? null,
       loanId: loan?.id,
+    };
+  }
+
+  private async applyListingEditApproval(
+    listingId: number,
+    payload: Record<string, unknown>,
+    decidedBy: string,
+  ) {
+    const listing = await this.prisma.auctionListing.findUnique({
+      where: { id: listingId },
+      select: { id: true, pawnshopId: true },
+    });
+    if (!listing) return null;
+
+    const changes: Record<string, string | null> = {
+      itemCondition: (payload.itemCondition as string)?.trim() || null,
+      itemSpecifications: (payload.itemSpecifications as string)?.trim() || null,
+      provenanceDetails: (payload.provenanceDetails as string)?.trim() || null,
+      disclosureNotes: (payload.disclosureNotes as string)?.trim() || null,
+    };
+
+    await this.prisma.auctionListing.update({
+      where: { id: listingId },
+      data: changes as any,
+      select: { id: true },
+    });
+
+    return {
+      listingId,
+      approved: true,
+      approvedBy: decidedBy,
+      pawnshopId: listing.pawnshopId,
     };
   }
 }

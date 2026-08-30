@@ -12,6 +12,12 @@ vi.mock('../../App', () => ({
   useToast: () => ({ showToast: vi.fn() }),
 }));
 
+vi.mock('sweetalert2', () => ({
+  default: {
+    fire: vi.fn().mockResolvedValue({ isConfirmed: true }),
+  },
+}));
+
 describe('AuctionQueue', () => {
   it('renders the auction queue header and empty state', async () => {
     vi.stubGlobal(
@@ -61,6 +67,7 @@ describe('AuctionQueue', () => {
       expect(screen.getByText('Gold Necklace')).toBeInTheDocument();
     });
 
+    fireEvent.click(screen.getByText('Gold Necklace'));
     fireEvent.click(screen.getByText('Return to Vault'));
 
     await waitFor(() => {

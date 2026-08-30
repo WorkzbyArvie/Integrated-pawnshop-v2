@@ -23,6 +23,7 @@ import { AuctionService } from './auction.service';
 import { AuctionAuthService } from './auction-auth.service';
 import { AuctionPaymentService } from './auction-payment.service';
 import { CreateAuctionListingDto } from './dto/create-auction-listing.dto';
+import { UpdateListingDetailsDto } from './dto/update-listing-details.dto';
 import { ListAuctionListingsQueryDto } from './dto/list-auction-listings.dto';
 import { PlaceBidDto } from './dto/place-bid.dto';
 import { PublishAuctionListingDto } from './dto/publish-auction-listing.dto';
@@ -98,6 +99,16 @@ export class AuctionController {
   ) {
     const actorId = await this.auctionAuthService.getActorId(authHeader);
     return this.auctionService.publishListing(id, dto, actorId);
+  }
+
+  @Patch('listings/:id/details')
+  async updateListingDetails(
+    @Param('id', ParseIntPipe) id: number,
+    @Headers('authorization') authHeader: string | undefined,
+    @Body() dto: UpdateListingDetailsDto,
+  ) {
+    const actorId = await this.auctionAuthService.getActorId(authHeader);
+    return this.auctionService.updateListingDetails(id, dto, actorId);
   }
 
   @Patch('listings/:id/cancel')

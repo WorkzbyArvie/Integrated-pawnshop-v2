@@ -87,6 +87,10 @@ model AuctionListing {
   categoryId      Int?                      @map("category_id")
   title           String
   description     String?
+  itemCondition   String?                 @map("item_condition")
+  itemSpecifications String?              @map("item_specifications")
+  provenanceDetails String?               @map("provenance_details")
+  disclosureNotes String?                 @map("disclosure_notes")
   startingPrice   Float                     @map("starting_price")
   reservePrice    Float?                    @map("reserve_price")
   currentBid      Float                     @map("current_bid") @default(0)
@@ -1849,6 +1853,7 @@ enum ApprovalTargetType {
   APPRAISAL
   REDEMPTION
   LOAN_APPLICATION
+  LISTING_EDIT
   @@schema("public")
 }
 

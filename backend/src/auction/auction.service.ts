@@ -6,11 +6,12 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { AuctionStatus } from '@prisma/client';
+import { AuctionStatus, ApprovalTargetType, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma.service';
 import { TOSService } from '../contract/tos.service';
 import { ContractTemplateService } from '../contract/contract-template.service';
 import { CreateAuctionListingDto } from './dto/create-auction-listing.dto';
+import { UpdateListingDetailsDto } from './dto/update-listing-details.dto';
 import { ListAuctionListingsQueryDto } from './dto/list-auction-listings.dto';
 import { PlaceBidDto } from './dto/place-bid.dto';
 import { PublishAuctionListingDto } from './dto/publish-auction-listing.dto';
@@ -357,6 +358,10 @@ export class AuctionService {
             pawnshopId: ticket.pawnshopId,
             title,
             description,
+            itemCondition: dto.itemCondition?.trim() || null,
+            itemSpecifications: dto.itemSpecifications?.trim() || null,
+            provenanceDetails: dto.provenanceDetails?.trim() || null,
+            disclosureNotes: dto.disclosureNotes?.trim() || null,
             startingPrice: dto.startingPrice,
             reservePrice: dto.reservePrice,
             minBidIncrement: dto.minBidIncrement ?? 100,
@@ -570,6 +575,169 @@ export class AuctionService {
     });
 
     return published;
+  }
+
+  async updateListingDetails(
+    id: number,
+    dto: UpdateListingDetailsDto,
+    actorId: string,
+  ) {
+    const listing = await this.prisma.auctionListing.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        status: true,
+        pawnshopId: true,
+        itemCondition: true,
+        itemSpecifications: true,
+        provenanceDetails: true,
+        disclosureNotes: true,
+      },
+    });
+
+    if (!listing) {
+      throw new NotFoundException('Auction listing not found');
+    }
+
+    const profile = await this.prisma.profile.findUnique({
+      where: { id: actorId },
+      select: { role: true, pawnshopId: true },
+    });
+
+    if (!profile || !this.isAdminRole(profile.role)) {
+      throw new ForbiddenException('Insufficient permissions');
+    }
+
+    const role = this.normalizeRole(profile.role);
+    if (role !== 'SUPER_ADMIN' && profile.pawnshopId !== listing.pawnshopId) {
+      throw new ForbiddenException('Cross-pawnshop access denied');
+    }
+
+    const isPublished =
+      listing.status === AuctionStatus.LIVE ||
+      listing.status === AuctionStatus.SCHEDULED;
+
+    if (isPublished) {
+      return this.submitListingEditApproval(
+        id,
+        listing,
+        dto,
+        actorId,
+        role,
+      );
+    }
+
+    const changes: Record<string, string | null> = {
+      itemCondition: dto.itemCondition?.trim() || null,
+      itemSpecifications: dto.itemSpecifications?.trim() || null,
+      provenanceDetails: dto.provenanceDetails?.trim() || null,
+      disclosureNotes: dto.disclosureNotes?.trim() || null,
+    };
+
+    const edited = await this.prisma.auctionListing.update({
+      where: { id },
+      data: changes as any,
+      select: { id: true },
+    });
+
+    await this.logAuctionAudit({
+      pawnshopId: listing.pawnshopId,
+      actorUserId: actorId,
+      action: 'AUCTION_LISTING_DETAILS_UPDATED',
+      metadata: {
+        listingId: id,
+        changes,
+      },
+    });
+
+    return {
+      listingId: edited.id,
+      approved: true,
+    };
+  }
+
+  private async submitListingEditApproval(
+    id: number,
+    listing: {
+      pawnshopId: string;
+      itemCondition: string | null;
+      itemSpecifications: string | null;
+      provenanceDetails: string | null;
+      disclosureNotes: string | null;
+    },
+    dto: UpdateListingDetailsDto,
+    actorId: string,
+    requesterRole: string,
+  ) {
+    const pending = await this.prisma.approvalRecord.findFirst({
+      where: {
+        targetType: ApprovalTargetType.LISTING_EDIT,
+        targetId: String(id),
+        status: 'PENDING',
+      },
+      select: { id: true },
+    });
+
+    if (pending) {
+      throw new BadRequestException(
+        'A listing edit is already pending approval for this listing',
+      );
+    }
+
+    const payload: Prisma.InputJsonValue = {
+      itemCondition: dto.itemCondition?.trim() || null,
+      itemSpecifications: dto.itemSpecifications?.trim() || null,
+      provenanceDetails: dto.provenanceDetails?.trim() || null,
+      disclosureNotes: dto.disclosureNotes?.trim() || null,
+      previous: {
+        itemCondition: listing.itemCondition,
+        itemSpecifications: listing.itemSpecifications,
+        provenanceDetails: listing.provenanceDetails,
+        disclosureNotes: listing.disclosureNotes,
+      },
+    };
+
+    const isTopApprover = ['OWNER', 'SUPER_ADMIN'].includes(
+      requesterRole.toUpperCase(),
+    );
+    if (isTopApprover) {
+      await this.prisma.auctionListing.update({
+        where: { id },
+        data: {
+          itemCondition: payload.itemCondition as string | null,
+          itemSpecifications: payload.itemSpecifications as string | null,
+          provenanceDetails: payload.provenanceDetails as string | null,
+          disclosureNotes: payload.disclosureNotes as string | null,
+        },
+        select: { id: true },
+      });
+      return {
+        listingId: id,
+        approved: true,
+        requestedApproval: false,
+        note: 'Top-level approver edits apply immediately.',
+      };
+    }
+
+    const record = await this.prisma.approvalRecord.create({
+      data: {
+        pawnshopId: listing.pawnshopId,
+        targetType: ApprovalTargetType.LISTING_EDIT,
+        targetId: String(id),
+        status: 'PENDING',
+        requestedById: actorId,
+        payload,
+      },
+      select: { id: true },
+    });
+
+    return {
+      listingId: id,
+      approved: false,
+      requestedApproval: true,
+      approvalRecordId: record.id,
+      note: 'Edit submitted for approval by an owner or higher.',
+    };
   }
 
   async listListings(query: ListAuctionListingsQueryDto) {
@@ -1288,11 +1456,35 @@ export class AuctionService {
           select: {
             id: true,
             status: true,
+            itemCondition: true,
+            itemSpecifications: true,
+            provenanceDetails: true,
+            disclosureNotes: true,
           },
         },
       },
       orderBy: { id: 'desc' },
     });
+
+    const listingIds = tickets
+      .map((ticket) => ticket.auctionListing?.id)
+      .filter((id): id is number => Number.isFinite(id) && id !== null);
+
+    const pendingEdits = listingIds.length
+      ? await this.prisma.approvalRecord.findMany({
+          where: {
+            pawnshopId: profile.pawnshopId,
+            targetType: ApprovalTargetType.LISTING_EDIT,
+            targetId: { in: listingIds.map((id) => String(id)) },
+            status: 'PENDING',
+          },
+          select: { id: true, targetId: true },
+        })
+      : [];
+
+    const pendingEditByListing = new Map(
+      pendingEdits.map((record) => [Number(record.targetId), record.id]),
+    );
 
     return tickets.map((ticket) => ({
       id: ticket.id,
@@ -1303,6 +1495,18 @@ export class AuctionService {
       expiryDate: ticket.expiryDate,
       listingId: ticket.auctionListing?.id ?? null,
       listingStatus: ticket.auctionListing?.status ?? null,
+      itemCondition: ticket.auctionListing?.itemCondition ?? null,
+      itemSpecifications: ticket.auctionListing?.itemSpecifications ?? null,
+      provenanceDetails: ticket.auctionListing?.provenanceDetails ?? null,
+      disclosureNotes: ticket.auctionListing?.disclosureNotes ?? null,
+      detailsPendingApproval:
+        ticket.auctionListing?.id != null
+          ? pendingEditByListing.has(ticket.auctionListing.id)
+          : false,
+      detailsApprovalRecordId:
+        ticket.auctionListing?.id != null
+          ? pendingEditByListing.get(ticket.auctionListing.id) ?? null
+          : null,
     }));
   }
 

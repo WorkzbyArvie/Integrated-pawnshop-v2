@@ -1,5 +1,5 @@
 ﻿import { useEffect, useState } from 'react';
-import { Calendar, Clock, Gavel, Loader2, Search, Tag, TrendingUp } from 'lucide-react';
+import { Calendar, ChevronLeft, ChevronRight, Clock, Gavel, ImageOff, Info, Loader2, Maximize, Package, Search, Tag, TrendingUp, X } from 'lucide-react';
 import Swal from 'sweetalert2';
 import { supabase } from '../lib/supabaseClient';
 import { useToast } from '../App';
@@ -30,6 +30,8 @@ interface AuctionQueueItem {
   itemSpecifications: string;
   provenanceDetails: string;
   disclosureNotes: string;
+  detailsPendingApproval?: boolean;
+  detailsApprovalRecordId?: string | null;
 }
 
 export function AuctionQueue({ branchId, activeBranchId }: AuctionQueueProps) {
@@ -40,7 +42,51 @@ export function AuctionQueue({ branchId, activeBranchId }: AuctionQueueProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [publishingId, setPublishingId] = useState<number | null>(null);
   const [actionId, setActionId] = useState<number | null>(null);
+  const [selectedItem, setSelectedItem] = useState<AuctionQueueItem | null>(null);
+  const [selectedImages, setSelectedImages] = useState<string[]>([]);
+  const [loadingImages, setLoadingImages] = useState(false);
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  const [savingDetailsId, setSavingDetailsId] = useState<number | null>(null);
   const auctionBaseUrl = getAuctionFrontendUrl();
+
+  useEffect(() => {
+    const load = async () => {
+      if (!selectedItem) {
+        setSelectedImages([]);
+        setLightboxIndex(null);
+        return;
+      }
+      setLoadingImages(true);
+      try {
+        setSelectedImages(await resolveTicketImageUrls(selectedItem));
+      } catch {
+        setSelectedImages([]);
+      } finally {
+        setLoadingImages(false);
+      }
+    };
+    load();
+  }, [selectedItem?.id]);
+
+  useEffect(() => {
+    if (lightboxIndex === null) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setLightboxIndex(null);
+      } else if (e.key === 'ArrowRight' && selectedImages.length > 1) {
+        setLightboxIndex((lightboxIndex + 1) % selectedImages.length);
+      } else if (e.key === 'ArrowLeft' && selectedImages.length > 1) {
+        setLightboxIndex((lightboxIndex - 1 + selectedImages.length) % selectedImages.length);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [lightboxIndex, selectedImages.length]);
+
+  const updateItem = (id: number, patch: Partial<AuctionQueueItem>) => {
+    setItems((prev) => prev.map((entry) => (entry.id === id ? { ...entry, ...patch } : entry)));
+    setSelectedItem((prev) => (prev?.id === id ? { ...prev, ...patch } : prev));
+  };
 
   const extractPhotoUrlsFromDescription = (text?: string | null): string[] => {
     if (!text) return [];
@@ -135,10 +181,12 @@ export function AuctionQueue({ branchId, activeBranchId }: AuctionQueueProps) {
         minBidIncrement: 100,
         durationHours: 168, // 7 days default 
         bidExtensionMin: 5,
-        itemCondition: 'Pre-owned',
-        itemSpecifications: '',
-        provenanceDetails: '',
-        disclosureNotes: '',
+        itemCondition: ticket.itemCondition ?? '',
+        itemSpecifications: ticket.itemSpecifications ?? '',
+        provenanceDetails: ticket.provenanceDetails ?? '',
+        disclosureNotes: ticket.disclosureNotes ?? '',
+        detailsPendingApproval: Boolean(ticket.detailsPendingApproval),
+        detailsApprovalRecordId: ticket.detailsApprovalRecordId ?? null,
       }));
 
       setItems(formatted);
@@ -205,17 +253,75 @@ export function AuctionQueue({ branchId, activeBranchId }: AuctionQueueProps) {
       });
 
       showToast(`Ticket ${item.ticketNumber} published to Auction House`, 'success');
-      setItems(prev => prev.map(entry => (
-        entry.id === item.id
-          ? { ...entry, listingId: listing.id, listingStatus: published.status ?? 'LIVE' }
-          : entry
-      )));
+      updateItem(item.id, { listingId: listing.id, listingStatus: published.status ?? 'LIVE' });
+      setSelectedItem(null);
       window.open(`${auctionBaseUrl}/listing/${listing.id}`, '_blank');
     } catch (err: unknown) {
       console.error('Publish error:', err);
       showToast(err instanceof Error ? err.message : String(err) || 'Failed to publish listing', 'error');
     } finally {
       setPublishingId(null);
+    }
+  };
+
+  const handleSaveDetails = async (item: AuctionQueueItem) => {
+    const isPublished =
+      item.listingId &&
+      (item.listingStatus === 'LIVE' || item.listingStatus === 'SCHEDULED');
+
+    const confirm = await Swal.fire({
+      title: isPublished ? 'Submit edit for approval?' : 'Save item details?',
+      text: isPublished
+        ? `Editing a published listing requires approval from an owner or higher. Continue?`
+        : `Save the item details for ticket ${item.ticketNumber}?`,
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonText: isPublished ? 'Submit for Approval' : 'Save Details',
+      cancelButtonText: 'Cancel',
+      reverseButtons: true,
+      confirmButtonColor: '#C9A05C',
+    });
+
+    if (!confirm.isConfirmed) {
+      return;
+    }
+
+    setSavingDetailsId(item.id);
+
+    try {
+      if (!item.listingId) {
+        showToast('Item details saved — they will apply when this item is published', 'success');
+        return;
+      }
+
+      const result = await api.patch<any>(
+        `/auction/listings/${item.listingId}/details`,
+        {
+          itemCondition: item.itemCondition || undefined,
+          itemSpecifications: item.itemSpecifications || undefined,
+          provenanceDetails: item.provenanceDetails || undefined,
+          disclosureNotes: item.disclosureNotes || undefined,
+        },
+      );
+
+      if (result?.requestedApproval) {
+        updateItem(item.id, {
+          detailsPendingApproval: true,
+          detailsApprovalRecordId: result.approvalRecordId ?? undefined,
+        });
+        showToast('Edit submitted for approval by an owner or higher', 'success');
+      } else {
+        updateItem(item.id, { detailsPendingApproval: false });
+        showToast('Item details saved', 'success');
+      }
+    } catch (err: unknown) {
+      console.error('Save details error:', err);
+      showToast(
+        err instanceof Error ? err.message : String(err) || 'Failed to save item details',
+        'error',
+      );
+    } finally {
+      setSavingDetailsId(null);
     }
   };
 
@@ -236,11 +342,7 @@ export function AuctionQueue({ branchId, activeBranchId }: AuctionQueueProps) {
     setPublishingId(item.id);
     try {
       const cancelled = await api.patch<any>(`/auction/listings/${item.listingId}/cancel`);
-      setItems(prev => prev.map(entry => (
-        entry.id === item.id
-          ? { ...entry, listingStatus: cancelled.status ?? 'CANCELLED' }
-          : entry
-      )));
+      updateItem(item.id, { listingStatus: cancelled.status ?? 'CANCELLED' });
       showToast(`Ticket ${item.ticketNumber} returned to auction queue`, 'success');
     } catch (err: unknown) {
       console.error('Cancel error:', err);
@@ -272,6 +374,7 @@ export function AuctionQueue({ branchId, activeBranchId }: AuctionQueueProps) {
       await api.patch(`/auction/queue/${item.id}/return`);
 
       setItems(prev => prev.filter(entry => entry.id !== item.id));
+      setSelectedItem(null);
       showToast(`Ticket ${item.ticketNumber} returned to vault`, 'success');
     } catch (err: unknown) {
       console.error('Return to vault error:', err);
@@ -303,6 +406,7 @@ export function AuctionQueue({ branchId, activeBranchId }: AuctionQueueProps) {
       await api.patch(`/auction/queue/${item.id}/sold`);
 
       setItems(prev => prev.filter(entry => entry.id !== item.id));
+      setSelectedItem(null);
       showToast(`Ticket ${item.ticketNumber} marked as sold`, 'success');
     } catch (err: unknown) {
       console.error('Mark sold error:', err);
@@ -322,26 +426,31 @@ export function AuctionQueue({ branchId, activeBranchId }: AuctionQueueProps) {
   });
 
   return (
-    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
+    <>
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
-          <h1 className="text-3xl font-black text-[#EAE2D6] flex items-center gap-3 tracking-tight">
-            <div className="p-2 bg-purple-600 rounded-xl shadow-lg shadow-purple-200">
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-gradient-to-br from-[#C9A05C] to-[#8a6d37] rounded-2xl shadow-lg shadow-[#C9A05C]/20">
               <Gavel className="w-6 h-6 text-white" />
             </div>
-            Auction Queue
-          </h1>
-          <p className="text-[#6B655C] font-medium mt-1">
-            Items flagged for auction before publishing to the marketplace.
-          </p>
+            <div>
+              <h1 className="text-3xl font-black text-[#EAE2D6] tracking-tight" style={{ fontFamily: "'Syne', sans-serif" }}>
+                Auction Queue
+              </h1>
+              <p className="text-[#6B655C] font-medium mt-1 text-sm">
+                Items flagged for auction before publishing to the marketplace.
+              </p>
+            </div>
+          </div>
         </div>
 
         <div className="relative group">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-[#6B655C] group-focus-within:text-purple-500 transition-colors" />
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-[#6B655C] group-focus-within:text-[#C9A05C] transition-colors" />
           <input
             type="text"
             placeholder="Search by ticket or item..."
-            className="pl-12 pr-6 py-4 border border-[rgba(201,160,92,0.12)] rounded-2xl w-full md:w-80 focus:ring-4 focus:ring-purple-500/10 focus:border-purple-500 outline-none transition-all shadow-sm text-sm"
+            className="pl-12 pr-6 py-3.5 bg-[#1C1C26] border border-[rgba(201,160,92,0.12)] rounded-2xl w-full md:w-80 text-[#EAE2D6] placeholder-[#6B655C] focus:ring-4 focus:ring-[#C9A05C]/10 focus:border-[#C9A05C] outline-none transition-all shadow-lg shadow-black/20"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
@@ -349,248 +458,475 @@ export function AuctionQueue({ branchId, activeBranchId }: AuctionQueueProps) {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-[#14141B] border border-[rgba(201,160,92,0.08)] p-6 rounded-[2rem] shadow-sm">
+        <div className="relative overflow-hidden bg-[#14141B] border border-[rgba(201,160,92,0.1)] p-6 rounded-[2rem]">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-[#C9A05C]/5 rounded-full blur-2xl" />
           <div className="flex items-center gap-3 mb-4">
-            <div className="p-2 bg-purple-50 text-purple-600 rounded-lg"><Gavel className="w-4 h-4" /></div>
+            <div className="p-2.5 bg-[#C9A05C]/10 text-[#C9A05C] rounded-xl"><Gavel className="w-4 h-4" /></div>
             <p className="text-[#6B655C] text-[10px] font-black uppercase tracking-widest">Queued Items</p>
           </div>
-          <p className="text-3xl font-black text-[#EAE2D6]">{items.length}</p>
+          <p className="text-4xl font-black text-[#EAE2D6]">{items.length}</p>
+          <p className="text-[10px] text-[#6B655C] mt-2 uppercase tracking-wider">Ready for publication</p>
         </div>
 
-        <div className="bg-[#14141B] border border-[rgba(201,160,92,0.08)] p-6 rounded-[2rem] shadow-sm">
+        <div className="relative overflow-hidden bg-[#14141B] border border-[rgba(201,160,92,0.1)] p-6 rounded-[2rem]">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-[#4ade80]/5 rounded-full blur-2xl" />
           <div className="flex items-center gap-3 mb-4">
-            <div className="p-2 bg-emerald-50 text-emerald-600 rounded-lg"><TrendingUp className="w-4 h-4" /></div>
+            <div className="p-2.5 bg-[#4ade80]/10 text-[#4ade80] rounded-xl"><TrendingUp className="w-4 h-4" /></div>
             <p className="text-[#6B655C] text-[10px] font-black uppercase tracking-widest">Target Recovery</p>
           </div>
-          <p className="text-3xl font-black text-[#EAE2D6]">
+          <p className="text-4xl font-black text-[#EAE2D6]">
             {formatCurrency(items.reduce((acc, curr) => acc + curr.auctionPrice, 0))}
           </p>
+          <p className="text-[10px] text-[#6B655C] mt-2 uppercase tracking-wider">Cumulative reserve value</p>
         </div>
 
-        <div className="bg-slate-900 p-6 rounded-[2rem] shadow-xl shadow-slate-200">
-          <p className="text-[#6B655C] text-[10px] font-black uppercase tracking-widest">Queue Status</p>
-          <p className="text-xl font-bold text-white leading-tight mt-4">Awaiting publishing approvals</p>
+        <div className="relative overflow-hidden p-6 rounded-[2rem] bg-gradient-to-br from-[#C9A05C] to-[#8a6d37] shadow-lg shadow-[#C9A05C]/20">
+          <p className="text-white/70 text-[10px] font-black uppercase tracking-widest">Queue Status</p>
+          <div className="flex items-center gap-2 mt-3 mb-3">
+            <span className="w-2.5 h-2.5 rounded-full bg-white animate-pulse" />
+            <span className="text-[10px] font-black uppercase tracking-widest text-white/90">Awaiting Review</span>
+          </div>
+          <p className="text-xl font-bold text-white leading-tight" style={{ fontFamily: "'Syne', sans-serif" }}>
+            Awaiting publishing approvals
+          </p>
         </div>
       </div>
 
       {isLoading ? (
         <div className="py-20 text-center">
-          <Loader2 className="w-10 h-10 text-purple-600 animate-spin mx-auto" />
+          <Loader2 className="w-10 h-10 text-[#C9A05C] animate-spin mx-auto" />
           <p className="text-[#6B655C] text-[10px] font-black uppercase mt-4 tracking-widest">Loading auction queue...</p>
         </div>
+      ) : filteredItems.length === 0 ? (
+        <div className="border-2 border-dashed border-[rgba(201,160,92,0.1)] rounded-[2rem] flex flex-col items-center justify-center py-24 px-8 text-center">
+          <Info className="w-8 h-8 text-[#6B655C] mb-4" />
+          <p className="text-[#6B655C] font-black uppercase text-[10px] tracking-[0.3em]">
+            No items currently marked for auction.
+          </p>
+        </div>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {filteredItems.length > 0 ? (
-            filteredItems.map((item) => (
-              <div key={item.id} className="group bg-[#14141B] border border-[rgba(201,160,92,0.12)] rounded-[2.5rem] overflow-hidden hover:shadow-2xl hover:shadow-purple-900/5 transition-all duration-500 flex flex-col">
-                <div className="p-8 flex-1">
-                  <div className="flex justify-between items-start mb-6">
-                    <span className="px-4 py-1.5 bg-[#1C1C26] text-[#999186] rounded-full text-[11px] font-black tracking-wider border border-[rgba(201,160,92,0.12)]">
-                      {item.ticketNumber}
-                    </span>
-                    <div className="flex items-center gap-1.5 text-purple-600 bg-purple-50 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-tighter">
-                      {item.listingStatus === 'LIVE' || item.listingStatus === 'SCHEDULED'
-                        ? 'Published'
-                        : item.listingStatus === 'CANCELLED'
-                          ? 'Cancelled'
-                          : 'Auction Queue'}
-                    </div>
-                  </div>
-
-                  <h3 className="text-2xl font-black text-slate-800 mb-2 leading-tight group-hover:text-purple-600 transition-colors">
-                    {item.description}
-                  </h3>
-                  <p className="text-[#6B655C] text-sm mb-6 flex items-center gap-2 font-medium">
-                    <Tag className="w-4 h-4" /> {item.category}
-                  </p>
-
-                  <div className="grid grid-cols-2 gap-6 py-6 border-y border-slate-50 mb-8">
-                    <div>
-                      <p className="text-[10px] text-[#6B655C] uppercase font-black tracking-[0.1em] mb-1">Loan Principal</p>
-
-                  <div className="mb-6 grid grid-cols-1 gap-3">
-                    <input
-                      type="text"
-                      value={item.itemCondition}
-                      onChange={(e) =>
-                        setItems((prev) =>
-                          prev.map((entry) =>
-                            entry.id === item.id
-                              ? { ...entry, itemCondition: e.target.value }
-                              : entry,
-                          ),
-                        )
-                      }
-                      className="rounded-xl border border-[rgba(201,160,92,0.12)] px-3 py-2 text-sm"
-                      placeholder="Item condition (e.g. Excellent, Good, Fair)"
-                    />
-                    <textarea
-                      value={item.itemSpecifications}
-                      onChange={(e) =>
-                        setItems((prev) =>
-                          prev.map((entry) =>
-                            entry.id === item.id
-                              ? { ...entry, itemSpecifications: e.target.value }
-                              : entry,
-                          ),
-                        )
-                      }
-                      className="min-h-16 rounded-xl border border-[rgba(201,160,92,0.12)] px-3 py-2 text-sm"
-                      placeholder="Item specifications (brand, model, size, material, serials)"
-                    />
-                    <textarea
-                      value={item.provenanceDetails}
-                      onChange={(e) =>
-                        setItems((prev) =>
-                          prev.map((entry) =>
-                            entry.id === item.id
-                              ? { ...entry, provenanceDetails: e.target.value }
-                              : entry,
-                          ),
-                        )
-                      }
-                      className="min-h-16 rounded-xl border border-[rgba(201,160,92,0.12)] px-3 py-2 text-sm"
-                      placeholder="Provenance details (history/source of item)"
-                    />
-                    <textarea
-                      value={item.disclosureNotes}
-                      onChange={(e) =>
-                        setItems((prev) =>
-                          prev.map((entry) =>
-                            entry.id === item.id
-                              ? { ...entry, disclosureNotes: e.target.value }
-                              : entry,
-                          ),
-                        )
-                      }
-                      className="min-h-16 rounded-xl border border-[rgba(201,160,92,0.12)] px-3 py-2 text-sm"
-                      placeholder="Disclosure notes (defects, missing accessories, known issues)"
-                    />
-                  </div>
-                      <p className="font-bold text-[#6B655C] text-lg">{formatCurrency(item.loanAmount)}</p>
-                    </div>
-                    <div>
-                      <p className="text-[10px] text-purple-500 uppercase font-black tracking-[0.1em] mb-1">Target Recovery</p>
-                      <div className="flex items-center gap-1">
-                        <span className="text-purple-600 font-bold text-lg">₱</span>
-                        <input
-                          type="number"
-                          value={Math.round(item.auctionPrice)}
-                          className="font-black text-purple-600 bg-purple-50/50 w-full rounded-xl px-3 py-1 border border-transparent focus:border-purple-200 focus:ring-0 transition-all text-lg"
-                          onChange={(e) => {
-                            const newPrice = parseInt(e.target.value) || 0;
-                            setItems((prev) => prev.map(i => i.id === item.id ? { ...i, auctionPrice: newPrice } : i));
-                          }}
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-2 text-[#6B655C] text-xs font-bold">
-                    <Calendar className="w-4 h-4" />
-                    Deadline: {item.expiryDate ? new Date(item.expiryDate).toLocaleDateString() : 'Not set'}
-                  </div>
-                </div>
-
-                <div className="px-8 pb-8">
-                  {item.listingId && (item.listingStatus === 'LIVE' || item.listingStatus === 'SCHEDULED') ? (
-                    <button
-                      onClick={() => handleCancel(item)}
-                      disabled={publishingId === item.id}
-                      className="w-full bg-slate-900 text-white py-4 rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg transition-all disabled:opacity-60 flex items-center justify-center gap-2"
+        <div className="bg-[#14141B] border border-[rgba(201,160,92,0.1)] rounded-[2rem] overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-[rgba(201,160,92,0.08)]">
+                  <th className="px-5 py-4 text-left text-[10px] font-black uppercase tracking-wider text-[#6B655C]">Ticket</th>
+                  <th className="px-5 py-4 text-left text-[10px] font-black uppercase tracking-wider text-[#6B655C]">Item</th>
+                  <th className="px-5 py-4 text-left text-[10px] font-black uppercase tracking-wider text-[#6B655C]">Category</th>
+                  <th className="px-5 py-4 text-right text-[10px] font-black uppercase tracking-wider text-[#6B655C]">Loan</th>
+                  <th className="px-5 py-4 text-right text-[10px] font-black uppercase tracking-wider text-[#6B655C]">Recovery</th>
+                  <th className="px-5 py-4 text-center text-[10px] font-black uppercase tracking-wider text-[#6B655C]">Status</th>
+                  <th className="px-5 py-4 text-center text-[10px] font-black uppercase tracking-wider text-[#6B655C]">Deadline</th>
+                  <th className="px-5 py-4 text-right text-[10px] font-black uppercase tracking-wider text-[#6B655C]"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredItems.map((item) => {
+                  const isPublished = item.listingStatus === 'LIVE' || item.listingStatus === 'SCHEDULED';
+                  const badgeLabel = isPublished
+                    ? 'Published'
+                    : item.listingStatus === 'CANCELLED'
+                      ? 'Cancelled'
+                      : 'Queued';
+                  const badgeClass = isPublished
+                    ? 'text-[#4ade80] bg-[#4ade80]/10 border-[#4ade80]/20'
+                    : item.listingStatus === 'CANCELLED'
+                      ? 'text-[#D44545] bg-[#D44545]/10 border-[#D44545]/20'
+                      : 'text-[#C9A05C] bg-[#C9A05C]/10 border-[#C9A05C]/20';
+                  return (
+                    <tr
+                      key={item.id}
+                      onClick={() => setSelectedItem(item)}
+                      className="border-b border-[rgba(201,160,92,0.04)] hover:bg-[rgba(201,160,92,0.03)] transition-colors cursor-pointer group"
                     >
-                      {publishingId === item.id ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Cancel Listing'}
-                    </button>
-                  ) : (
-                    <div className="space-y-3">
-                      {/* Auction Settings */}
-                      <div className="bg-[#1C1C26] rounded-2xl p-4 space-y-3 mb-2">
-                        <p className="text-[10px] text-[#6B655C] uppercase font-black tracking-[0.1em] flex items-center gap-1"><Clock className="w-3 h-3" /> Auction Settings</p>
-                        <div className="grid grid-cols-2 gap-3">
-                          <div>
-                            <label className="text-[10px] text-[#6B655C] font-bold block mb-1">Min Bid Increment (₱)</label>
-                            <input
-                              type="number"
-                              min={1}
-                              value={item.minBidIncrement}
-                              onChange={(e) => {
-                                const v = parseInt(e.target.value) || 100;
-                                setItems((prev) => prev.map(i => i.id === item.id ? { ...i, minBidIncrement: v } : i));
-                              }}
-                              className="w-full rounded-xl px-3 py-2 border border-[rgba(201,160,92,0.12)] bg-[#14141B] text-sm font-bold text-[#6B655C] focus:border-purple-300 focus:ring-0 transition-all"
-                            />
-                          </div>
-                          <div>
-                            <label className="text-[10px] text-[#6B655C] font-bold block mb-1">Anti-Snipe Extension (min)</label>
-                            <input
-                              type="number"
-                              min={1}
-                              value={item.bidExtensionMin}
-                              onChange={(e) => {
-                                const v = parseInt(e.target.value) || 5;
-                                setItems((prev) => prev.map(i => i.id === item.id ? { ...i, bidExtensionMin: v } : i));
-                              }}
-                              className="w-full rounded-xl px-3 py-2 border border-[rgba(201,160,92,0.12)] bg-[#14141B] text-sm font-bold text-[#6B655C] focus:border-purple-300 focus:ring-0 transition-all"
-                            />
-                          </div>
-                        </div>
-                        <div>
-                          <label className="text-[10px] text-[#6B655C] font-bold block mb-1">Auction Duration</label>
-                          <select
-                            value={item.durationHours}
-                            onChange={(e) => {
-                              const v = parseInt(e.target.value);
-                              setItems((prev) => prev.map(i => i.id === item.id ? { ...i, durationHours: v } : i));
-                            }}
-                            className="w-full rounded-xl px-3 py-2 border border-[rgba(201,160,92,0.12)] bg-[#14141B] text-sm font-bold text-[#6B655C] focus:border-purple-300 focus:ring-0 transition-all"
-                          >
-                            <option value={1}>1 Hour</option>
-                            <option value={6}>6 Hours</option>
-                            <option value={12}>12 Hours</option>
-                            <option value={24}>1 Day</option>
-                            <option value={48}>2 Days</option>
-                            <option value={72}>3 Days</option>
-                            <option value={168}>7 Days (Default)</option>
-                            <option value={336}>14 Days</option>
-                          </select>
-                        </div>
-                      </div>
-
-                      <button
-                        onClick={() => handlePublish(item)}
-                        disabled={publishingId === item.id}
-                        className="w-full bg-purple-600 text-white py-4 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-purple-700 shadow-lg transition-all disabled:opacity-60 flex items-center justify-center gap-2"
-                      >
-                        {publishingId === item.id ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Publish to Auction House'}
-                      </button>
-                      <div className="grid grid-cols-2 gap-3">
+                      <td className="px-5 py-4">
+                        <span className="px-3 py-1 bg-[#1C1C26] text-[#999186] rounded-full text-[11px] font-black tracking-wider border border-[rgba(201,160,92,0.12)]">
+                          {item.ticketNumber}
+                        </span>
+                      </td>
+                      <td className="px-5 py-4">
+                        <p className="font-bold text-[#EAE2D6] group-hover:text-[#C9A05C] transition-colors">
+                          {item.description}
+                        </p>
+                      </td>
+                      <td className="px-5 py-4">
+                        <span className="flex items-center gap-1.5 font-bold text-[#6B655C]">
+                          <Tag className="w-3.5 h-3.5 text-[#C9A05C]" /> {item.category}
+                        </span>
+                      </td>
+                      <td className="px-5 py-4 text-right font-bold text-[#6B655C]">
+                        {formatCurrency(item.loanAmount)}
+                      </td>
+                      <td className="px-5 py-4 text-right font-black text-[#C9A05C]">
+                        {formatCurrency(item.auctionPrice)}
+                      </td>
+                      <td className="px-5 py-4 text-center">
+                        <span className={`inline-block px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border ${badgeClass}`}>
+                          {badgeLabel}
+                        </span>
+                      </td>
+                      <td className="px-5 py-4 text-center text-[#6B655C] text-xs font-bold whitespace-nowrap">
+                        {item.expiryDate ? new Date(item.expiryDate).toLocaleDateString() : 'Not set'}
+                      </td>
+                      <td className="px-5 py-4 text-right">
                         <button
-                          onClick={() => handleReturnToVault(item)}
-                          disabled={actionId === item.id}
-                          className="w-full bg-[#14141B] text-[#EAE2D6] py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest border border-[rgba(201,160,92,0.12)] hover:bg-[#1C1C26] transition-all disabled:opacity-60 flex items-center justify-center gap-2"
+                          onClick={(e) => { e.stopPropagation(); setSelectedItem(item); }}
+                          className="px-4 py-2 rounded-xl bg-[#1C1C26] text-[#EAE2D6] text-[10px] font-black uppercase tracking-wider border border-[rgba(201,160,92,0.15)] hover:bg-[#C9A05C] hover:text-white hover:border-[#C9A05C] transition-all"
                         >
-                          {actionId === item.id ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Return to Vault'}
+                          View
                         </button>
-                        <button
-                          onClick={() => handleMarkSold(item)}
-                          disabled={actionId === item.id}
-                          className="w-full bg-emerald-600 text-white py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-emerald-700 transition-all disabled:opacity-60 flex items-center justify-center gap-2"
-                        >
-                          {actionId === item.id ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Mark Sold'}
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            ))
-          ) : (
-            <div className="col-span-full text-center py-24 text-[#6B655C] font-bold">
-              No items currently marked for auction.
-            </div>
-          )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
     </div>
+
+    {selectedItem && (
+      <div
+        className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"
+        onClick={() => { if (publishingId !== selectedItem.id && actionId !== selectedItem.id) setSelectedItem(null); }}
+      >
+        <div
+          className="bg-[#14141B] border border-[rgba(201,160,92,0.15)] rounded-[2.5rem] shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto mx-4 animate-in fade-in zoom-in-95 duration-200"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="sticky top-0 z-10 bg-[#14141B] border-b border-[rgba(201,160,92,0.1)] px-6 sm:px-8 py-5 flex items-start justify-between gap-4 rounded-t-[2.5rem]">
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="p-2.5 bg-[#C9A05C]/10 text-[#C9A05C] rounded-xl">
+                <Gavel className="w-5 h-5" />
+              </div>
+              <div>
+                <h2 className="text-xl font-black text-[#EAE2D6] tracking-tight" style={{ fontFamily: "'Syne', sans-serif" }}>
+                  Auction Details
+                </h2>
+                <p className="text-[10px] text-[#6B655C] font-bold uppercase tracking-wider">{selectedItem.ticketNumber}</p>
+              </div>
+            </div>
+            <button
+              onClick={() => setSelectedItem(null)}
+              disabled={publishingId === selectedItem.id || actionId === selectedItem.id}
+              className="w-10 h-10 rounded-xl bg-[#1C1C26] flex items-center justify-center hover:bg-[#222228] transition-colors disabled:opacity-50"
+              aria-label="Close"
+            >
+              <X className="w-5 h-5 text-[#999186]" />
+            </button>
+          </div>
+
+          <div className="p-6 sm:p-8 space-y-6">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h3 className="text-2xl font-black text-[#EAE2D6] leading-tight" style={{ fontFamily: "'Syne', sans-serif" }}>
+                {selectedItem.description}
+              </h3>
+              {(() => {
+                const isPublished = selectedItem.listingStatus === 'LIVE' || selectedItem.listingStatus === 'SCHEDULED';
+                const label = isPublished ? 'Published' : selectedItem.listingStatus === 'CANCELLED' ? 'Cancelled' : 'Queued';
+                const cls = isPublished
+                  ? 'text-[#4ade80] bg-[#4ade80]/10 border-[#4ade80]/20'
+                  : selectedItem.listingStatus === 'CANCELLED'
+                    ? 'text-[#D44545] bg-[#D44545]/10 border-[#D44545]/20'
+                    : 'text-[#C9A05C] bg-[#C9A05C]/10 border-[#C9A05C]/20';
+                return (
+                  <span className={`inline-block px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border ${cls}`}>
+                    {label}
+                  </span>
+                );
+              })()}
+            </div>
+            <p className="text-[#6B655C] text-sm flex items-center gap-2 font-medium">
+              <Tag className="w-4 h-4 text-[#C9A05C]" /> {selectedItem.category}
+            </p>
+
+            <div className="mt-2">
+              <p className="text-[10px] text-[#6B655C] uppercase font-black tracking-[0.1em] mb-3">Item Photos</p>
+              {loadingImages ? (
+                <div className="flex items-center justify-center gap-2 bg-[#1C1C26] border border-[rgba(201,160,92,0.1)] rounded-2xl h-48 text-[#6B655C] text-xs font-black uppercase tracking-widest">
+                  <Loader2 className="w-4 h-4 text-[#C9A05C] animate-spin" /> Loading photos...
+                </div>
+              ) : selectedImages.length > 0 ? (
+                <div className="flex flex-wrap gap-3">
+                  {selectedImages.map((src, idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => setLightboxIndex(idx)}
+                      className="relative w-40 h-40 rounded-2xl overflow-hidden border border-[rgba(201,160,92,0.15)] bg-[#1C1C26] group/img cursor-zoom-in hover:border-[#C9A05C] hover:shadow-lg hover:shadow-[#C9A05C]/20 transition-all"
+                      aria-label={`View ${selectedItem.description} photo ${idx + 1}`}
+                    >
+                      <img
+                        src={src}
+                        alt={`${selectedItem.description} photo ${idx + 1}`}
+                        className="w-full h-full object-cover"
+                        onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+                      />
+                      <span className="absolute inset-0 flex items-center justify-center bg-black/0 hover:bg-black/30 transition-colors">
+                        <Maximize className="w-5 h-5 text-white opacity-0 group-hover/img:opacity-100 transition-opacity" />
+                      </span>
+                      {selectedImages.length > 1 && (
+                        <span className="absolute top-2 right-2 px-2 py-0.5 bg-black/60 text-white text-[10px] font-black rounded-lg">
+                          {idx + 1}/{selectedImages.length}
+                        </span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <div className="flex items-center justify-center bg-[#1C1C26] border border-dashed border-[rgba(201,160,92,0.15)] rounded-2xl h-40 text-[#6B655C]">
+                  <div className="flex flex-col items-center gap-2">
+                    <ImageOff className="w-6 h-6" />
+                    <p className="text-[10px] font-black uppercase tracking-widest">No photo available</p>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="grid grid-cols-2 gap-6 py-6 border-y border-[rgba(201,160,92,0.08)]">
+              <div>
+                <div className="flex items-center gap-2 mb-2">
+                  <Package className="w-3.5 h-3.5 text-[#C9A05C]" />
+                  <p className="text-[10px] text-[#6B655C] uppercase font-black tracking-[0.1em]">Loan Principal</p>
+                </div>
+                <p className="font-black text-[#EAE2D6] text-xl">{formatCurrency(selectedItem.loanAmount)}</p>
+              </div>
+              <div>
+                <div className="flex items-center gap-2 mb-2">
+                  <TrendingUp className="w-3.5 h-3.5 text-[#C9A05C]" />
+                  <p className="text-[10px] text-[#C9A05C] uppercase font-black tracking-[0.1em]">Target Recovery</p>
+                </div>
+                <div className="flex items-center gap-1 bg-[#C9A05C]/10 border border-[#C9A05C]/20 rounded-xl px-3 py-2">
+                  <span className="text-[#C9A05C] font-black text-lg">₱</span>
+                  <input
+                    type="number"
+                    value={Math.round(selectedItem.auctionPrice)}
+                    onChange={(e) => {
+                      const newPrice = parseInt(e.target.value) || 0;
+                      updateItem(selectedItem.id, { auctionPrice: newPrice });
+                    }}
+                    className="font-black text-[#C9A05C] bg-transparent w-full outline-none transition-all text-lg"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-3">
+              <label className="block">
+                <span className="text-[10px] text-[#6B655C] uppercase font-black tracking-[0.1em] block mb-1">Item Condition</span>
+                <input
+                  type="text"
+                  value={selectedItem.itemCondition}
+                  onChange={(e) => updateItem(selectedItem.id, { itemCondition: e.target.value })}
+                  className="w-full rounded-xl bg-[#1C1C26] border border-[rgba(201,160,92,0.12)] px-3 py-2.5 text-sm text-[#EAE2D6] placeholder-[#6B655C] focus:border-[#C9A05C] focus:outline-none transition-all"
+                  placeholder="Item condition (e.g. Excellent, Good, Fair)"
+                />
+              </label>
+              <label className="block">
+                <span className="text-[10px] text-[#6B655C] uppercase font-black tracking-[0.1em] block mb-1">Item Specifications</span>
+                <textarea
+                  value={selectedItem.itemSpecifications}
+                  onChange={(e) => updateItem(selectedItem.id, { itemSpecifications: e.target.value })}
+                  className="w-full min-h-16 rounded-xl bg-[#1C1C26] border border-[rgba(201,160,92,0.12)] px-3 py-2.5 text-sm text-[#EAE2D6] placeholder-[#6B655C] focus:border-[#C9A05C] focus:outline-none transition-all resize-none"
+                  placeholder="Item specifications (brand, model, size, material, serials)"
+                />
+              </label>
+              <label className="block">
+                <span className="text-[10px] text-[#6B655C] uppercase font-black tracking-[0.1em] block mb-1">Provenance Details</span>
+                <textarea
+                  value={selectedItem.provenanceDetails}
+                  onChange={(e) => updateItem(selectedItem.id, { provenanceDetails: e.target.value })}
+                  className="w-full min-h-16 rounded-xl bg-[#1C1C26] border border-[rgba(201,160,92,0.12)] px-3 py-2.5 text-sm text-[#EAE2D6] placeholder-[#6B655C] focus:border-[#C9A05C] focus:outline-none transition-all resize-none"
+                  placeholder="Provenance details (history/source of item)"
+                />
+              </label>
+              <label className="block">
+                <span className="text-[10px] text-[#6B655C] uppercase font-black tracking-[0.1em] block mb-1">Disclosure Notes</span>
+                <textarea
+                  value={selectedItem.disclosureNotes}
+                  onChange={(e) => updateItem(selectedItem.id, { disclosureNotes: e.target.value })}
+                  className="w-full min-h-16 rounded-xl bg-[#1C1C26] border border-[rgba(201,160,92,0.12)] px-3 py-2.5 text-sm text-[#EAE2D6] placeholder-[#6B655C] focus:border-[#C9A05C] focus:outline-none transition-all resize-none"
+                  placeholder="Disclosure notes (defects, missing accessories, known issues)"
+                />
+              </label>
+            </div>
+
+            {selectedItem.detailsPendingApproval && (
+              <div className="flex items-start gap-3 bg-[#8a6d37]/15 border border-[#C9A05C]/30 rounded-2xl px-4 py-3">
+                <Info className="w-4 h-4 text-[#C9A05C] mt-0.5 shrink-0" />
+                <div>
+                  <p className="text-xs font-black uppercase tracking-widest text-[#E5C88C]">
+                    Edit Pending Approval
+                  </p>
+                  <p className="text-xs font-semibold text-[#6B655C] mt-0.5">
+                    Changes you made to this published listing are awaiting review by an owner or higher. They will apply once approved.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            <button
+              onClick={() => handleSaveDetails(selectedItem)}
+              disabled={savingDetailsId === selectedItem.id}
+              className="w-full bg-[#1C1C26] text-[#E5C88C] py-3 rounded-2xl font-black text-xs uppercase tracking-widest border border-[#C9A05C]/30 hover:bg-[#C9A05C]/10 transition-all disabled:opacity-60 flex items-center justify-center gap-2"
+            >
+              {savingDetailsId === selectedItem.id ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Save Item Details'}
+            </button>
+
+            <div className="flex items-center gap-2 text-[#6B655C] text-xs font-bold">
+              <Calendar className="w-4 h-4 text-[#C9A05C]" />
+              Deadline: {selectedItem.expiryDate ? new Date(selectedItem.expiryDate).toLocaleDateString() : 'Not set'}
+            </div>
+
+            {(!selectedItem.listingId || (selectedItem.listingStatus !== 'LIVE' && selectedItem.listingStatus !== 'SCHEDULED')) && (
+              <div className="bg-[#1C1C26] rounded-2xl p-5 space-y-4 border border-[rgba(201,160,92,0.1)]">
+                <p className="text-[10px] text-[#C9A05C] uppercase font-black tracking-[0.1em] flex items-center gap-1.5">
+                  <Clock className="w-3.5 h-3.5" /> Auction Settings
+                </p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-[10px] text-[#6B655C] font-bold block mb-1.5">Min Bid Increment (₱)</label>
+                    <input
+                      type="number"
+                      min={1}
+                      value={selectedItem.minBidIncrement}
+                      onChange={(e) => {
+                        const v = parseInt(e.target.value) || 100;
+                        updateItem(selectedItem.id, { minBidIncrement: v });
+                      }}
+                      className="w-full rounded-xl px-3 py-2.5 border border-[rgba(201,160,92,0.12)] bg-[#14141B] text-sm font-bold text-[#EAE2D6] focus:border-[#C9A05C] focus:outline-none transition-all"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] text-[#6B655C] font-bold block mb-1.5">Anti-Snipe Extension (min)</label>
+                    <input
+                      type="number"
+                      min={1}
+                      value={selectedItem.bidExtensionMin}
+                      onChange={(e) => {
+                        const v = parseInt(e.target.value) || 5;
+                        updateItem(selectedItem.id, { bidExtensionMin: v });
+                      }}
+                      className="w-full rounded-xl px-3 py-2.5 border border-[rgba(201,160,92,0.12)] bg-[#14141B] text-sm font-bold text-[#EAE2D6] focus:border-[#C9A05C] focus:outline-none transition-all"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="text-[10px] text-[#6B655C] font-bold block mb-1.5">Auction Duration</label>
+                  <select
+                    value={selectedItem.durationHours}
+                    onChange={(e) => {
+                      const v = parseInt(e.target.value);
+                      updateItem(selectedItem.id, { durationHours: v });
+                    }}
+                    className="w-full rounded-xl px-3 py-2.5 border border-[rgba(201,160,92,0.12)] bg-[#14141B] text-sm font-bold text-[#EAE2D6] focus:border-[#C9A05C] focus:outline-none transition-all"
+                  >
+                    <option value={1}>1 Hour</option>
+                    <option value={6}>6 Hours</option>
+                    <option value={12}>12 Hours</option>
+                    <option value={24}>1 Day</option>
+                    <option value={48}>2 Days</option>
+                    <option value={72}>3 Days</option>
+                    <option value={168}>7 Days (Default)</option>
+                    <option value={336}>14 Days</option>
+                  </select>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="sticky bottom-0 bg-[#14141B] border-t border-[rgba(201,160,92,0.1)] px-6 sm:px-8 py-5 rounded-b-[2.5rem]">
+            {selectedItem.listingId && (selectedItem.listingStatus === 'LIVE' || selectedItem.listingStatus === 'SCHEDULED') ? (
+              <button
+                onClick={() => handleCancel(selectedItem)}
+                disabled={publishingId === selectedItem.id}
+                className="w-full bg-[#1C1C26] text-[#EAE2D6] py-3.5 rounded-2xl font-black text-xs uppercase tracking-widest border border-[#D44545]/30 hover:border-[#D44545] hover:text-[#D44545] shadow-lg transition-all disabled:opacity-60 flex items-center justify-center gap-2"
+              >
+                {publishingId === selectedItem.id ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Cancel Listing'}
+              </button>
+            ) : (
+              <div className="space-y-3">
+                <button
+                  onClick={() => handlePublish(selectedItem)}
+                  disabled={publishingId === selectedItem.id}
+                  className="w-full bg-gradient-to-r from-[#C9A05C] to-[#8a6d37] text-white py-3.5 rounded-2xl font-black text-xs uppercase tracking-widest hover:from-[#E5C88C] hover:to-[#C9A05C] shadow-lg shadow-[#C9A05C]/20 transition-all disabled:opacity-60 flex items-center justify-center gap-2"
+                >
+                  {publishingId === selectedItem.id ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Publish to Auction House'}
+                </button>
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    onClick={() => handleReturnToVault(selectedItem)}
+                    disabled={actionId === selectedItem.id}
+                    className="w-full bg-[#1C1C26] text-[#EAE2D6] py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest border border-[rgba(201,160,92,0.15)] hover:bg-[#14141B] transition-all disabled:opacity-60 flex items-center justify-center gap-2"
+                  >
+                    {actionId === selectedItem.id ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Return to Vault'}
+                  </button>
+                  <button
+                    onClick={() => handleMarkSold(selectedItem)}
+                    disabled={actionId === selectedItem.id}
+                    className="w-full bg-gradient-to-r from-[#2f8f5b] to-[#1f6b43] text-white py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:from-[#3baa6c] hover:to-[#2f8f5b] transition-all disabled:opacity-60 flex items-center justify-center gap-2"
+                  >
+                    {actionId === selectedItem.id ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Mark Sold'}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    )}
+
+    {lightboxIndex !== null && (
+      <div
+        className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 backdrop-blur-sm p-4"
+        onClick={() => setLightboxIndex(null)}
+      >
+        <button
+          type="button"
+          onClick={() => setLightboxIndex(null)}
+          className="absolute top-5 right-5 w-11 h-11 rounded-xl bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors z-10"
+          aria-label="Close viewer"
+        >
+          <X className="w-6 h-6 text-white" />
+        </button>
+
+        {selectedImages.length > 1 && (
+          <>
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); setLightboxIndex((lightboxIndex - 1 + selectedImages.length) % selectedImages.length); }}
+              className="absolute left-4 sm:left-8 top-1/2 -translate-y-1/2 w-12 h-12 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors z-10"
+              aria-label="Previous photo"
+            >
+              <ChevronLeft className="w-7 h-7 text-white" />
+            </button>
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); setLightboxIndex((lightboxIndex + 1) % selectedImages.length); }}
+              className="absolute right-4 sm:right-8 top-1/2 -translate-y-1/2 w-12 h-12 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors z-10"
+              aria-label="Next photo"
+            >
+              <ChevronRight className="w-7 h-7 text-white" />
+            </button>
+          </>
+        )}
+
+        <div className="relative max-w-4xl w-full" onClick={(e) => e.stopPropagation()}>
+          <img
+            src={selectedImages[lightboxIndex]}
+            alt={`${selectedItem?.description ?? 'Item'} photo ${lightboxIndex + 1}`}
+            className="w-full max-h-[80vh] object-contain rounded-2xl"
+          />
+          <div className="flex items-center justify-center gap-2 mt-4">
+            <p className="text-xs font-bold text-white/70 uppercase tracking-widest">
+              {selectedItem?.ticketNumber} &middot; Photo {lightboxIndex + 1}
+              {selectedImages.length > 1 ? ` of ${selectedImages.length}` : ''}
+            </p>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   );
 }

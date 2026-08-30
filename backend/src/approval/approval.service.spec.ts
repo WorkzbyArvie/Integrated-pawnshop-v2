@@ -23,6 +23,7 @@ describe('ApprovalService (RBAC-05 / RBAC-06)', () => {
       update: jest.Mock;
     };
     ticket: { findMany: jest.Mock; findUnique: jest.Mock };
+    auctionListing: { findMany: jest.Mock; findUnique: jest.Mock; update: jest.Mock };
   };
   let pawnTicketService: {
     applyApprovedAppraisal: jest.Mock;
@@ -56,6 +57,11 @@ describe('ApprovalService (RBAC-05 / RBAC-06)', () => {
         update: jest.fn(),
       },
       ticket: { findMany: jest.fn(), findUnique: jest.fn() },
+      auctionListing: {
+        findMany: jest.fn(),
+        findUnique: jest.fn(),
+        update: jest.fn(),
+      },
     };
     pawnTicketService = {
       applyApprovedAppraisal: jest.fn(),
@@ -125,6 +131,54 @@ describe('ApprovalService (RBAC-05 / RBAC-06)', () => {
         }),
       );
     });
+
+    it('enriches LISTING_EDIT records with the listing and its ticket', async () => {
+      const listingEditRecord = {
+        ...pendingRecord,
+        id: 3,
+        targetType: 'LISTING_EDIT',
+        targetId: 300,
+        payload: {
+          itemCondition: 'Excellent',
+          previous: { itemCondition: 'Pre-owned' },
+        },
+      };
+      prisma.approvalRecord.findMany.mockResolvedValue([listingEditRecord]);
+      prisma.auctionListing.findMany.mockResolvedValue([
+        {
+          id: 300,
+          title: 'Gold Necklace',
+          ticketId: 900,
+          ticket: {
+            ticketNumber: 'TKT-900',
+            description: 'A gold necklace',
+            category: 'Jewelry',
+            customer: { fullName: 'Juan', contactNumber: '0917', loyaltyTier: 'GOLD' },
+          },
+        },
+      ]);
+
+      const result = await service.getQueue({}, 'ps_1');
+
+      expect(prisma.auctionListing.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ id: { in: [300] } }),
+        }),
+      );
+      expect(result[0]).toMatchObject({
+        targetType: 'LISTING_EDIT',
+        listingId: 300,
+        listingTitle: 'Gold Necklace',
+        ticketNumber: 'TKT-900',
+        itemName: 'A gold necklace',
+        category: 'Jewelry',
+        customer: expect.objectContaining({ fullName: 'Juan' }),
+        listingEdit: expect.objectContaining({
+          itemCondition: 'Excellent',
+          previous: expect.objectContaining({ itemCondition: 'Pre-owned' }),
+        }),
+      });
+    });
   });
 
   describe('decideApproval(id, dto, decidedBy, userRole, approve, callerPawnshopId)', () => {
@@ -183,6 +237,61 @@ describe('ApprovalService (RBAC-05 / RBAC-06)', () => {
 
       expect(pawnTicketService.releaseApprovedRedemption).toHaveBeenCalled();
       expect(pawnTicketService.applyApprovedAppraisal).not.toHaveBeenCalled();
+    });
+
+    it('approves a LISTING_EDIT record and applies the changes to the listing', async () => {
+      const listingEditRecord = {
+        ...pendingRecord,
+        id: 3,
+        targetType: 'LISTING_EDIT',
+        targetId: 300,
+        requestedById: 'teller_1',
+        payload: {
+          itemCondition: 'Excellent',
+          itemSpecifications: '18k, 20g',
+          provenanceDetails: 'Estate lot',
+          disclosureNotes: 'Minor clasp wear',
+          previous: { itemCondition: 'Pre-owned' },
+        },
+      };
+      prisma.approvalRecord.findUnique.mockResolvedValue(listingEditRecord);
+      prisma.approvalRecord.update.mockResolvedValue({
+        ...listingEditRecord,
+        status: 'APPROVED',
+      });
+      prisma.auctionListing.findUnique.mockResolvedValue({
+        id: 300,
+        pawnshopId: 'ps_1',
+      });
+      prisma.auctionListing.update.mockResolvedValue({ id: 300 });
+
+      await service.decideApproval(
+        '3',
+        { decisionComment: 'looks accurate' },
+        'owner_1',
+        'OWNER',
+        true,
+        'ps_1',
+      );
+
+      expect(prisma.auctionListing.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ id: 300 }),
+          data: expect.objectContaining({
+            itemCondition: 'Excellent',
+            itemSpecifications: '18k, 20g',
+            provenanceDetails: 'Estate lot',
+            disclosureNotes: 'Minor clasp wear',
+          }),
+        }),
+      );
+      expect(prisma.approvalRecord.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ status: 'APPROVED' }),
+        }),
+      );
+      expect(pawnTicketService.applyApprovedAppraisal).not.toHaveBeenCalled();
+      expect(pawnTicketService.releaseApprovedRedemption).not.toHaveBeenCalled();
     });
 
     it('rejects an appraisal with a comment and dispatches rejectAppraisal', async () => {
