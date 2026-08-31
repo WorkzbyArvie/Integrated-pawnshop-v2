@@ -41,7 +41,7 @@ async function bootstrap() {
 
   const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
   const auctionFrontendUrl =
-    process.env.AUCTION_FRONTEND_URL || 'http://localhost:5174';
+    process.env.AUCTION_FRONTEND_URL || 'https://pawngold-auctionhouse-v2.vercel.app';
   const mobileWebUrl = process.env.MOBILE_WEB_URL || 'http://localhost:7357';
   const corsOriginsEnv = process.env.CORS_ALLOWED_ORIGINS || '';
   const corsOriginsFromEnv = corsOriginsEnv
@@ -56,6 +56,7 @@ async function bootstrap() {
     'http://localhost:7357',
     'http://127.0.0.1:7357',
     'https://pawngold-auction-house-production.up.railway.app',
+    'https://pawngold-auctionhouse-v2.vercel.app',
     'https://pawngold-production.up.railway.app',
     frontendUrl,
     auctionFrontendUrl,
@@ -70,6 +71,7 @@ async function bootstrap() {
   ];
   const vercelFrontendPatterns = [
     /^https:\/\/integrated-pawnshop-v2(?:-[a-z0-9]+)?\.vercel\.app$/i,
+    /^https:\/\/pawngold-auctionhouse-v2(?:-[a-z0-9]+)?\.vercel\.app$/i,
   ];
 
   app.enableCors({

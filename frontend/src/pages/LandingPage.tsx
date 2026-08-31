@@ -196,7 +196,7 @@ const HERO_STATS = [
   { label: 'Platform Uptime', value: '99.9%' },
 ];
 
-const AUCTION_URL = import.meta.env.VITE_AUCTION_URL || 'http://localhost:5174';
+const AUCTION_URL = import.meta.env.VITE_AUCTION_URL || 'https://pawngold-auctionhouse-v2.vercel.app';
 
 const HEADER_LINKS: Array<{ href: string; label: string; external?: boolean; url?: string }> = [
   { href: '#home', label: 'Home' },

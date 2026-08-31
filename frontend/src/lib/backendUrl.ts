@@ -6,9 +6,9 @@ const configuredAuctionFallbackUrl =
   import.meta.env.VITE_AUCTION_URL_FALLBACK?.replace(/\/$/, '') || '';
 
 const LOCAL_BACKEND_URL = 'http://localhost:3000';
-const LOCAL_AUCTION_URL = 'http://localhost:5174';
+const LOCAL_AUCTION_URL = 'https://pawngold-auctionhouse-v2.vercel.app';
 const FALLBACK_BACKEND_URL = 'https://pawngold-backend-production.up.railway.app';
-const FALLBACK_AUCTION_URL = 'https://pawngold-auction-house-production.up.railway.app';
+const FALLBACK_AUCTION_URL = 'https://pawngold-auctionhouse-v2.vercel.app';
 
 const isLocalRuntime =
   typeof window !== 'undefined' &&

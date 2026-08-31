@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, createContext, useContext, lazy, Suspense } from 'react';
+import { useState, useEffect, useCallback, useMemo, createContext, useContext, lazy, Suspense } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import Swal from 'sweetalert2';
 import {
@@ -174,6 +174,71 @@ const resolveTabFromPath = (rawPath: string): string | null => {
   const normalized = rawPath.replace(/\/+$/, '') || '/';
   return PATH_TO_TAB[normalized] || null;
 };
+
+const STATIC_NAV_ITEMS = [
+    // PLATFORM-level (Super Admin only)
+    { id: 'platform-control', label: 'Platform Control', icon: Globe, roles: ['Super Admin'], type: 'PLATFORM' },
+    { id: 'platform-analytics', label: 'Platform Analytics', icon: BarChart3, roles: ['Super Admin'], type: 'PLATFORM' },
+    { id: 'system-settings', label: 'System Control', icon: Settings2, roles: ['Super Admin'], type: 'PLATFORM' },
+    { id: 'trial-requests', label: 'Trial Requests', icon: ClipboardList, roles: ['Super Admin'], type: 'PLATFORM' },
+    { id: 'platform-compliance', label: 'Compliance', icon: Shield, roles: ['Super Admin'], type: 'PLATFORM' },
+    { id: 'support-chat', label: 'Support Hub', icon: Users2, roles: ['Super Admin'], type: 'PLATFORM' },
+
+    // Owner onboarding limited mode
+    { id: 'pending-access', label: 'Pending Access', icon: Clock, roles: ['Owner'], type: 'OPERATIONAL' },
+    { id: 'frozen-access', label: 'Subscription Required', icon: ShieldCheck, roles: ['Owner', 'Admin', 'Manager', 'Staff', 'HR', 'Cashier/Teller', 'Appraiser', 'Inventory Custodian', 'Auditor', 'Approver'], type: 'OPERATIONAL' },
+
+    // OPERATIONAL-level (Branch roles)
+    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['Owner', 'Admin', 'Manager', 'Staff', 'HR', 'Cashier/Teller', 'Appraiser', 'Inventory Custodian', 'Auditor', 'Approver'], type: 'OPERATIONAL' },
+
+    // BRANCH-level System Control (Pawnshop settings)
+    { id: 'branch-system-settings', label: 'System Control', icon: Settings2, roles: ['Owner', 'Admin'], type: 'OPERATIONAL' },
+    { id: 'multi-branches', label: 'Multi-Branch', icon: GitBranch, roles: ['Owner'], type: 'OPERATIONAL' },
+    { id: 'sales', label: 'New Appraisal', icon: BadgePercent, roles: ['Owner', 'Admin', 'Manager', 'Staff', 'Cashier/Teller', 'Appraiser'], type: 'OPERATIONAL' },
+    { id: 'approval-queue', label: 'Approval Queue', icon: ListChecks, roles: ['Owner', 'Admin', 'Manager', 'Approver'], type: 'OPERATIONAL' },
+    { id: 'audit-history', label: 'Audit History', icon: History, roles: ['Owner', 'Admin'], type: 'OPERATIONAL' },
+    { id: 'crm', label: 'Customers', icon: Users2, roles: ['Owner', 'Admin', 'Manager', 'Staff', 'Cashier/Teller', 'Appraiser'], type: 'OPERATIONAL', feature: 'crm_enabled' },
+    { id: 'inventory', label: 'Inventory & Vault', icon: Warehouse, roles: ['Owner', 'Admin', 'Manager', 'Inventory Custodian'], type: 'OPERATIONAL', feature: 'vault_enabled' },
+    { id: 'redemption', label: 'Redemption', icon: Undo2, roles: ['Owner', 'Admin', 'Manager', 'Staff', 'Cashier/Teller'], type: 'OPERATIONAL' },
+    { id: 'finance', label: 'Finance & Treasury', icon: Wallet, roles: ['Owner', 'Admin', 'Manager'], type: 'OPERATIONAL', feature: 'finance_enabled' },
+    { id: 'hr', label: 'Staff Matrix', icon: Users, roles: ['Owner', 'Admin', 'HR'], type: 'OPERATIONAL', feature: 'hr_enabled' },
+    { id: 'auction-queue', label: 'Auction Queue', icon: Gavel, roles: ['Owner', 'Admin', 'Manager'], type: 'OPERATIONAL', feature: 'auction_enabled' },
+    { id: 'auction-settlements', label: 'Auction Settlements', icon: Gavel, roles: ['Owner', 'Admin', 'Manager'], type: 'OPERATIONAL', feature: 'auction_enabled' },
+    { id: 'bidder-kyc', label: 'Bidder KYC Review', icon: Shield, roles: ['Super Admin'], type: 'PLATFORM' },
+    { id: 'auction-live', label: 'Live Auctions', icon: Gavel, roles: ['Owner', 'Admin', 'Manager'], type: 'OPERATIONAL', feature: 'auction_enabled' },
+    { id: 'decision', label: 'Decision Support', icon: BrainCircuit, roles: ['Owner', 'Admin', 'Manager'], type: 'OPERATIONAL', feature: 'decision_enabled' },
+    { id: 'loan-history', label: 'Transaction History', icon: History, roles: ['Owner', 'Admin', 'Manager', 'Staff', 'Cashier/Teller', 'Appraiser', 'Auditor', 'Approver'], type: 'OPERATIONAL' },
+    { id: 'queue-mgmt', label: 'Queue Management', icon: ListOrdered, roles: ['Owner', 'Admin', 'Manager', 'Staff', 'Cashier/Teller'], type: 'OPERATIONAL' },
+    { id: 'finance-ledger', label: 'Finance Ledger', icon: BookOpen, roles: ['Owner', 'Admin', 'Manager', 'Auditor'], type: 'OPERATIONAL', feature: 'finance_enabled' },
+    { id: 'attendance', label: 'Attendance', icon: Clock, roles: ['Owner', 'Admin', 'Manager', 'HR'], type: 'OPERATIONAL' },
+    { id: 'payroll', label: 'Payroll', icon: Receipt, roles: ['Owner', 'Admin', 'HR'], type: 'OPERATIONAL' },
+    { id: 'compliance', label: 'Compliance', icon: FileCheck2, roles: ['Owner', 'Admin', 'Manager', 'HR', 'Auditor'], type: 'OPERATIONAL' },
+    { id: 'subscription', label: 'Subscription', icon: CreditCard, roles: ['Owner'], type: 'OPERATIONAL' },
+];
+
+const FREE_ALLOWED_NAV_IDS = new Set([
+    'branch-system-settings',
+    'multi-branches',
+    'dashboard',
+    'sales',
+    'approval-queue',
+    'audit-history',
+    'loan-history',
+    'redemption',
+    'queue-mgmt',
+    'attendance',
+    'subscription',
+    'support-chat',
+]);
+
+const TRIAL_RESTRICTED_OWNER_NAV_IDS = new Set([
+    'branch-system-settings',
+    'multi-branches',
+    'auction-queue',
+    'auction-settlements',
+    'auction-live',
+    'decision',
+]);
 
 function App() {
   const location = useLocation();
@@ -1206,74 +1271,8 @@ function App() {
   };
 
   // --- NAVIGATION CONFIG ---
-  // Role Hierarchy: Super Admin (platform) | Owner > Admin/Manager > Staff > HR (tenant)
-  const allNavItems = [
-    // PLATFORM-level (Super Admin only)
-    { id: 'platform-control', label: 'Platform Control', icon: Globe, roles: ['Super Admin'], type: 'PLATFORM' },
-    { id: 'platform-analytics', label: 'Platform Analytics', icon: BarChart3, roles: ['Super Admin'], type: 'PLATFORM' },
-    { id: 'system-settings', label: 'System Control', icon: Settings2, roles: ['Super Admin'], type: 'PLATFORM' },
-    { id: 'trial-requests', label: 'Trial Requests', icon: ClipboardList, roles: ['Super Admin'], type: 'PLATFORM' },
-    { id: 'platform-compliance', label: 'Compliance', icon: Shield, roles: ['Super Admin'], type: 'PLATFORM' },
-    { id: 'support-chat', label: 'Support Hub', icon: Users2, roles: ['Super Admin'], type: 'PLATFORM' },
-
-    // Owner onboarding limited mode
-    { id: 'pending-access', label: 'Pending Access', icon: Clock, roles: ['Owner'], type: 'OPERATIONAL' },
-    { id: 'frozen-access', label: 'Subscription Required', icon: ShieldCheck, roles: ['Owner', 'Admin', 'Manager', 'Staff', 'HR', 'Cashier/Teller', 'Appraiser', 'Inventory Custodian', 'Auditor', 'Approver'], type: 'OPERATIONAL' },
-
-    // OPERATIONAL-level (Branch roles)
-    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['Owner', 'Admin', 'Manager', 'Staff', 'HR', 'Cashier/Teller', 'Appraiser', 'Inventory Custodian', 'Auditor', 'Approver'], type: 'OPERATIONAL' },
-
-    // BRANCH-level System Control (Pawnshop settings)
-    { id: 'branch-system-settings', label: 'System Control', icon: Settings2, roles: ['Owner', 'Admin'], type: 'OPERATIONAL' },
-    { id: 'multi-branches', label: 'Multi-Branch', icon: GitBranch, roles: ['Owner'], type: 'OPERATIONAL' },
-    { id: 'sales', label: 'New Appraisal', icon: BadgePercent, roles: ['Owner', 'Admin', 'Manager', 'Staff', 'Cashier/Teller', 'Appraiser'], type: 'OPERATIONAL' },
-    { id: 'approval-queue', label: 'Approval Queue', icon: ListChecks, roles: ['Owner', 'Admin', 'Manager', 'Approver'], type: 'OPERATIONAL' },
-    { id: 'audit-history', label: 'Audit History', icon: History, roles: ['Owner', 'Admin'], type: 'OPERATIONAL' },
-    { id: 'crm', label: 'Customers', icon: Users2, roles: ['Owner', 'Admin', 'Manager', 'Staff', 'Cashier/Teller', 'Appraiser'], type: 'OPERATIONAL', feature: 'crm_enabled' },
-    { id: 'inventory', label: 'Inventory & Vault', icon: Warehouse, roles: ['Owner', 'Admin', 'Manager', 'Inventory Custodian'], type: 'OPERATIONAL', feature: 'vault_enabled' },
-    { id: 'redemption', label: 'Redemption', icon: Undo2, roles: ['Owner', 'Admin', 'Manager', 'Staff', 'Cashier/Teller'], type: 'OPERATIONAL' },
-    { id: 'finance', label: 'Finance & Treasury', icon: Wallet, roles: ['Owner', 'Admin', 'Manager'], type: 'OPERATIONAL', feature: 'finance_enabled' },
-    { id: 'hr', label: 'Staff Matrix', icon: Users, roles: ['Owner', 'Admin', 'HR'], type: 'OPERATIONAL', feature: 'hr_enabled' },
-    { id: 'auction-queue', label: 'Auction Queue', icon: Gavel, roles: ['Owner', 'Admin', 'Manager'], type: 'OPERATIONAL', feature: 'auction_enabled' },
-    { id: 'auction-settlements', label: 'Auction Settlements', icon: Gavel, roles: ['Owner', 'Admin', 'Manager'], type: 'OPERATIONAL', feature: 'auction_enabled' },
-    { id: 'bidder-kyc', label: 'Bidder KYC Review', icon: Shield, roles: ['Super Admin'], type: 'PLATFORM' },
-    { id: 'auction-live', label: 'Live Auctions', icon: Gavel, roles: ['Owner', 'Admin', 'Manager'], type: 'OPERATIONAL', feature: 'auction_enabled' },
-    { id: 'decision', label: 'Decision Support', icon: BrainCircuit, roles: ['Owner', 'Admin', 'Manager'], type: 'OPERATIONAL', feature: 'decision_enabled' },
-    { id: 'loan-history', label: 'Transaction History', icon: History, roles: ['Owner', 'Admin', 'Manager', 'Staff', 'Cashier/Teller', 'Appraiser', 'Auditor', 'Approver'], type: 'OPERATIONAL' },
-    { id: 'queue-mgmt', label: 'Queue Management', icon: ListOrdered, roles: ['Owner', 'Admin', 'Manager', 'Staff', 'Cashier/Teller'], type: 'OPERATIONAL' },
-    { id: 'finance-ledger', label: 'Finance Ledger', icon: BookOpen, roles: ['Owner', 'Admin', 'Manager', 'Auditor'], type: 'OPERATIONAL', feature: 'finance_enabled' },
-    { id: 'attendance', label: 'Attendance', icon: Clock, roles: ['Owner', 'Admin', 'Manager', 'HR'], type: 'OPERATIONAL' },
-    { id: 'payroll', label: 'Payroll', icon: Receipt, roles: ['Owner', 'Admin', 'HR'], type: 'OPERATIONAL' },
-    { id: 'compliance', label: 'Compliance', icon: FileCheck2, roles: ['Owner', 'Admin', 'Manager', 'HR', 'Auditor'], type: 'OPERATIONAL' },
-    { id: 'subscription', label: 'Subscription', icon: CreditCard, roles: ['Owner'], type: 'OPERATIONAL' },
-    { id: 'support-chat', label: 'Support Chat', icon: Users2, roles: ['Owner', 'Admin'], type: 'OPERATIONAL' },
-  ];
-
-  const FREE_ALLOWED_NAV = new Set([
-    'branch-system-settings',
-    'multi-branches',
-    'dashboard',
-    'sales',
-    'approval-queue',
-    'audit-history',
-    'loan-history',
-    'redemption',
-    'queue-mgmt',
-    'attendance',
-    'subscription',
-    'support-chat',
-  ]);
-
-  const TRIAL_RESTRICTED_OWNER_NAV = new Set([
-    'branch-system-settings',
-    'multi-branches',
-    'auction-queue',
-    'auction-settlements',
-    'auction-live',
-    'decision',
-  ]);
-
-  const filteredNavItems = allNavItems.filter(item => {
+  const filteredNavItems = useMemo(() =>
+    STATIC_NAV_ITEMS.filter(item => {
     if (isSubscriptionFrozen) {
       if (effectiveUserRole === 'Owner') {
         return item.id === 'subscription' || item.id === 'frozen-access';
@@ -1306,14 +1305,17 @@ function App() {
       : true;
 
     const trialAllowed = effectiveUserRole === 'Owner' && subscriptionTier === 'TRIAL'
-      ? !TRIAL_RESTRICTED_OWNER_NAV.has(item.id)
+      ? !TRIAL_RESTRICTED_OWNER_NAV_IDS.has(item.id)
       : true;
 
     const subscriptionAllowed = effectiveUserRole === 'Owner'
-      ? (subscriptionTier !== 'FREE' || FREE_ALLOWED_NAV.has(item.id))
+      ? (subscriptionTier !== 'FREE' || FREE_ALLOWED_NAV_IDS.has(item.id))
       : true;
     return item.type === 'OPERATIONAL' && roleMatch && featureEnabled && subscriptionAllowed && trialAllowed;
-  });
+    }),
+    [isSubscriptionFrozen, effectiveUserRole, isPendingLimitedMode, ownerRegistrationChecked,
+     userRole, isImpersonating, subscriptionTier, globalOverrides, systemConfig]
+  );
 
   const getSidebarCategory = (item: { id: string; type: string }) => {
     if (item.id === 'pending-access' || item.id === 'frozen-access' || item.id === 'subscription') {
@@ -1366,9 +1368,14 @@ function App() {
     }
     const canAccessActiveTab = filteredNavItems.some((item) => item.id === activeTab);
     if (!canAccessActiveTab) {
-      setActiveTab(filteredNavItems[0]?.id || 'dashboard');
+      const fallbackId = filteredNavItems[0]?.id || 'dashboard';
+      setActiveTab(fallbackId);
+      const fallbackPath = TAB_TO_PATH[fallbackId];
+      if (fallbackPath && normalizedPath !== fallbackPath) {
+        navigate(fallbackPath, { replace: true });
+      }
     }
-  }, [activeTab, filteredNavItems, userRole, isImpersonating, lockImpersonationPanels, loading, session]);
+  }, [activeTab, filteredNavItems, userRole, isImpersonating, lockImpersonationPanels, loading, session, normalizedPath, navigate]);
 
   useEffect(() => {
     if (!session?.user?.id || userRole !== 'Owner' || isSubscriptionFrozen) {
