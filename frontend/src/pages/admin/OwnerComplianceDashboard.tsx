@@ -91,6 +91,12 @@ function getScoreLabel(score: number) {
   return 'Critical - Features Locked';
 }
 
+function formatExpiryDate(value: string) {
+  const date = new Date(value);
+  if (isNaN(date.getTime())) return value;
+  return date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+}
+
 export default function OwnerComplianceDashboard() {
   const [compliance, setCompliance] = useState<ComplianceData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -286,6 +292,16 @@ export default function OwnerComplianceDashboard() {
                       {doc.fileName && (
                         <div className="text-xs text-gilded-muted mt-0.5">{doc.fileName}</div>
                       )}
+                      {doc.expiryDate && (
+                        <div
+                          className={`text-xs mt-0.5 ${
+                            doc.status === 'EXPIRED' ? 'text-red-400' : 'text-gilded-muted'
+                          }`}
+                        >
+                          {doc.status === 'EXPIRED' ? 'Expired: ' : 'Expires: '}
+                          {formatExpiryDate(doc.expiryDate)}
+                        </div>
+                      )}
                       {doc.rejectionReason && doc.status === 'REJECTED' && (
                         <div className="text-xs text-red-400 mt-0.5">
                           Reason: {doc.rejectionReason}
@@ -294,17 +310,25 @@ export default function OwnerComplianceDashboard() {
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
-                    {doc.daysUntilExpiry !== null && doc.daysUntilExpiry <= 30 && doc.status === 'VERIFIED' && (
+                    {doc.expiryDate && (
                       <span
                         className={`text-xs px-2 py-0.5 rounded ${
-                          doc.daysUntilExpiry <= 7
+                          doc.status === 'EXPIRED'
                             ? 'bg-red-500/20 text-red-400'
-                            : doc.daysUntilExpiry <= 14
+                            : doc.daysUntilExpiry !== null && doc.daysUntilExpiry <= 7
+                            ? 'bg-red-500/20 text-red-400'
+                            : doc.daysUntilExpiry !== null && doc.daysUntilExpiry <= 14
                             ? 'bg-orange-500/20 text-orange-400'
-                            : 'bg-yellow-500/20 text-yellow-400'
+                            : doc.daysUntilExpiry !== null && doc.daysUntilExpiry <= 30
+                            ? 'bg-yellow-500/20 text-yellow-400'
+                            : 'bg-gray-500/10 text-gilded-muted'
                         }`}
                       >
-                        {doc.daysUntilExpiry}d left
+                        {doc.status === 'EXPIRED'
+                          ? 'Expired'
+                          : doc.daysUntilExpiry !== null
+                          ? `${doc.daysUntilExpiry}d left`
+                          : 'No expiry set'}
                       </span>
                     )}
                     <span className={`text-xs font-medium ${config.color}`}>

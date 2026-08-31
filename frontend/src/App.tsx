@@ -1318,7 +1318,7 @@ function App() {
   );
 
   const getSidebarCategory = (item: { id: string; type: string }) => {
-    if (item.id === 'pending-access' || item.id === 'frozen-access' || item.id === 'subscription') {
+    if (item.id === 'pending-access' || item.id === 'frozen-access' || item.id === 'subscription' || item.id === 'compliance') {
       return 'Access';
     }
     if (item.type === 'PLATFORM') {
@@ -1338,7 +1338,7 @@ function App() {
     if (item.id === 'hr' || item.id === 'attendance') {
       return 'People';
     }
-    if (item.id === 'auction-queue' || item.id === 'auction-settlements' || item.id === 'auction-live' || item.id === 'compliance') {
+    if (item.id === 'auction-queue' || item.id === 'auction-settlements' || item.id === 'auction-live') {
       return 'Auctions';
     }
     if (item.id === 'support-chat') {

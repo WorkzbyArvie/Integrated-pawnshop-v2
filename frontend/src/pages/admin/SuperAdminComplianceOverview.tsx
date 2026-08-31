@@ -83,6 +83,13 @@ const DOCUMENT_LABELS: Record<string, string> = {
   SEC_REGISTRATION: 'SEC Registration',
 };
 
+function formatDate(value: string | null) {
+  if (!value) return 'No expiry';
+  const date = new Date(value);
+  if (isNaN(date.getTime())) return value;
+  return date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+}
+
 function SignedDocImage({ url, alt }: { url: string; alt: string }) {
   const [signedUrl, setSignedUrl] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
@@ -482,25 +489,60 @@ export default function SuperAdminComplianceOverview() {
                     <span className="text-yellow-400">{ps.summary.notExpired}</span>
                   </div>
                 </div>
-                <div className="mt-3 pt-3 border-t border-gilded-border">
-                  <div className="flex flex-wrap gap-1">
-                    {ps.documents.map((doc) => (
-                      <span
+                <div className="mt-3 pt-3 border-t border-gilded-border space-y-1.5">
+                  {ps.documents.map((doc) => {
+                    const expired = doc.status === 'EXPIRED';
+                    const expiring =
+                      !expired &&
+                      doc.daysUntilExpiry !== null &&
+                      doc.daysUntilExpiry <= 30;
+                    const label =
+                      (DOCUMENT_LABELS[doc.type] || doc.type).split(' ')[0];
+                    return (
+                      <div
                         key={doc.type}
-                        className={`text-[10px] px-1.5 py-0.5 rounded ${
-                          doc.status === 'VERIFIED'
-                            ? 'bg-emerald-500/10 text-emerald-400'
-                            : doc.status === 'REJECTED'
-                            ? 'bg-red-500/10 text-red-400'
-                            : doc.status === 'NOT_UPLOADED'
-                            ? 'bg-gray-500/10 text-gray-400'
-                            : 'bg-yellow-500/10 text-yellow-400'
-                        }`}
+                        className="flex items-center justify-between text-[11px]"
                       >
-                        {doc.type.split('_')[0]}
-                      </span>
-                    ))}
-                  </div>
+                        <span
+                          className={`flex items-center gap-1.5 text-gilded-light truncate ${
+                            expired ? 'text-red-400' : ''
+                          }`}
+                        >
+                          <span
+                            className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
+                              expired
+                                ? 'bg-red-400'
+                                : expiring
+                                ? 'bg-amber-400'
+                                : doc.status === 'VERIFIED'
+                                ? 'bg-emerald-400'
+                                : 'bg-gray-400'
+                            }`}
+                          />
+                          {label}
+                        </span>
+                        <span
+                          className={`ml-2 text-right ${
+                            expired
+                              ? 'text-red-400 font-medium'
+                              : expiring
+                              ? 'text-amber-400 font-medium'
+                              : 'text-gilded-muted'
+                          }`}
+                        >
+                          {doc.expiryDate
+                            ? `${expired ? 'Expired' : 'Expires'} ${formatDate(doc.expiryDate)}${
+                                expiring && doc.daysUntilExpiry !== null
+                                  ? ` (${doc.daysUntilExpiry}d)`
+                                  : ''
+                              }`
+                            : doc.status === 'NOT_UPLOADED'
+                            ? 'Not uploaded'
+                            : 'No expiry'}
+                        </span>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             ))}
