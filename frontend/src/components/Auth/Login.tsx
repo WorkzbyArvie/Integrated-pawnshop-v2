@@ -211,7 +211,7 @@ export default function Login() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="w-full pl-10 pr-4 py-3 bg-[#1C1C26] border border-[rgba(201,160,92,0.1)] rounded-xl focus:ring-2 focus:ring-[#C9A05C]/30 focus:border-[#C9A05C]/30 outline-none font-medium text-[#EAE2D6] placeholder:text-[#4A4540] transition-all"
-                  placeholder="admin@pawngold.com"
+                  placeholder="Type your email address"
                   required
                 />
               </div>
@@ -227,7 +227,7 @@ export default function Login() {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     className="w-full pl-10 pr-4 py-3 bg-[#1C1C26] border border-[rgba(201,160,92,0.1)] rounded-xl focus:ring-2 focus:ring-[#C9A05C]/30 focus:border-[#C9A05C]/30 outline-none font-medium text-[#EAE2D6] placeholder:text-[#4A4540] transition-all"
-                    placeholder="\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022"
+                    placeholder="Enter your password"
                     required
                   />
                 </div>
