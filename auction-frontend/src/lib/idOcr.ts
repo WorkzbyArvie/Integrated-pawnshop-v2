@@ -244,8 +244,9 @@ function extractIdNumber(text: string): string {
   const patterns = [
     { re: /(?:PSN|PSO|PCN|ID\s*(?:No|Number|No\.))\s*[:.]?\s*(\d[\d\s-]{8,20}\d)/i, priority: 1 },
     { re: /\b(\d{4}[\s-]?\d{4}[\s-]?\d{4}[\s-]?\d{4}[\s-]?\d{0,4})\b/, priority: 2 },
-    { re: /\b(\d{12,16})\b/, priority: 3 },
-    { re: /\b(\d[\d\s-]{10,20}\d)\b/, priority: 4 },
+    { re: /\b(\d{4}[\s-]?\d{4}[\s-]?\d{4})\b/, priority: 3 },
+    { re: /\b(\d{12,16})\b/, priority: 4 },
+    { re: /\b(\d[\d\s-]{10,20}\d)\b/, priority: 5 },
   ];
 
   const candidates: Array<{ raw: string; digits: string; priority: number; len: number }> = [];
@@ -264,7 +265,7 @@ function extractIdNumber(text: string): string {
 
   if (candidates.length === 0) return '';
 
-  const idealLens = new Set([16]);
+  const idealLens = new Set([12, 16]);
   candidates.sort((a, b) => {
     const aIdeal = idealLens.has(a.len) ? 0 : Math.abs(a.len - 12);
     const bIdeal = idealLens.has(b.len) ? 0 : Math.abs(b.len - 12);
@@ -275,7 +276,7 @@ function extractIdNumber(text: string): string {
 
   let best = candidates[0];
 
-  if (best.len >= 10 && best.len < 16) {
+  if (best.len >= 10 && best.len < 12) {
     const lines = text.split('\n').map((l) => l.trim()).filter(Boolean);
     let matchLineIdx = -1;
 
@@ -286,29 +287,29 @@ function extractIdNumber(text: string): string {
         const idx = lineDigits.indexOf(best.digits);
         const remaining = lineDigits.substring(idx + best.len);
         if (remaining.length > 0) {
-          const extra = remaining.substring(0, 16 - best.len);
+          const extra = remaining.substring(0, 12 - best.len);
           best = { raw: best.digits + extra, digits: best.digits + extra, priority: best.priority, len: best.len + extra.length };
         }
         break;
       }
     }
 
-    if (best.len < 16 && matchLineIdx >= 0) {
+    if (best.len < 12 && matchLineIdx >= 0) {
       let extraDigits = '';
       for (let j = matchLineIdx + 1; j < Math.min(matchLineIdx + 6, lines.length); j++) {
         const nextLineDigits = lines[j].replace(/[^\d]/g, '');
         if (/^\d{1,8}$/.test(nextLineDigits) && nextLineDigits.length <= 8) {
           extraDigits += nextLineDigits;
         }
-        if (best.len + extraDigits.length >= 16) break;
+        if (best.len + extraDigits.length >= 12) break;
       }
       if (extraDigits.length > 0) {
-        const extra = extraDigits.substring(0, 16 - best.len);
+        const extra = extraDigits.substring(0, 12 - best.len);
         best = { raw: best.digits + extra, digits: best.digits + extra, priority: best.priority, len: best.len + extra.length };
       }
     }
 
-    if (best.len < 16) {
+    if (best.len < 12) {
       for (let i = 0; i < lines.length; i++) {
         const lineDigits = lines[i].replace(/[^\d]/g, '');
         if (lineDigits.length >= 4 && best.digits.startsWith(lineDigits) && lineDigits.length < best.len) {
@@ -316,7 +317,7 @@ function extractIdNumber(text: string): string {
           for (let j = i + 1; j < Math.min(i + 5, lines.length); j++) {
             const nd = lines[j].replace(/[^\d]/g, '');
             if (/^\d{1,8}$/.test(nd)) combined += nd;
-            if (combined.length >= 16) break;
+            if (combined.length >= 12) break;
           }
           if (combined.length > best.len) {
             best = { raw: combined, digits: combined, priority: best.priority, len: combined.length };
@@ -326,7 +327,7 @@ function extractIdNumber(text: string): string {
       }
     }
 
-    if (best.len < 16) {
+    if (best.len < 12) {
       const allDigitRuns = text.match(/\d{3,}/g) || [];
       const nearDigits = allDigitRuns.filter((run) => best.digits.includes(run) || run.includes(best.digits.substring(best.len - Math.min(4, best.len))));
       const extraFromText = nearDigits.join('');
@@ -334,7 +335,7 @@ function extractIdNumber(text: string): string {
       if (pos >= 0) {
         const remaining = extraFromText.substring(pos + best.len);
         if (remaining.length > 0) {
-          const extra = remaining.substring(0, 16 - best.len);
+          const extra = remaining.substring(0, 12 - best.len);
           best = { raw: best.digits + extra, digits: best.digits + extra, priority: best.priority, len: best.len + extra.length };
         }
       }

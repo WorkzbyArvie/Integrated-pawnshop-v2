@@ -182,8 +182,8 @@ class _KycVerificationPageState extends State<KycVerificationPage> {
     }
 
     final compare = id.replaceAll(RegExp(r'[^A-Z0-9]'), '');
-    if (_idType == 'NATIONAL_ID' && !RegExp(r'^\d{12}$').hasMatch(compare)) {
-      return 'National ID must be 12 digits';
+    if (_idType == 'NATIONAL_ID' && !RegExp(r'^(\d{12}|\d{16})$').hasMatch(compare)) {
+      return 'National ID must be 12 or 16 digits';
     }
     return null;
   }

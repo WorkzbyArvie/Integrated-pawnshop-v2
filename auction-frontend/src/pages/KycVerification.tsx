@@ -272,7 +272,7 @@ export default function KycVerification() {
   const isIdNumberValid = (): boolean => {
     const raw = idNumber.replace(/[\s-]/g, '');
     switch (idType) {
-      case 'NATIONAL_ID': return /^\d{16}$/.test(raw);
+      case 'NATIONAL_ID': return /^(?:\d{12}|\d{16})$/.test(raw);
       case 'PASSPORT': return /^[A-Z0-9]{6,9}$/i.test(raw);
       case 'TIN_ID':
       case 'SSS_ID':
@@ -585,7 +585,7 @@ export default function KycVerification() {
                 <input
                   value={idNumber}
                   onChange={(e) => setIdNumber(e.target.value)}
-                  placeholder={idType === 'NATIONAL_ID' ? '16-digit PhilSys number (PCN)' : 'Enter the ID number shown on your document'}
+                  placeholder={idType === 'NATIONAL_ID' ? '12 or 16 digit PhilSys number (PSN / PCN)' : 'Enter the ID number shown on your document'}
                   maxLength={idType === 'NATIONAL_ID' ? 16 : 32}
                   required
                   style={{
@@ -593,9 +593,9 @@ export default function KycVerification() {
                     ...(idType === 'NATIONAL_ID' ? { letterSpacing: '0.15em', fontVariantNumeric: 'tabular-nums' } : {}),
                   }}
                 />
-                {idType === 'NATIONAL_ID' && idNumber && !/^\d{16}$/.test(idNumber) && (
+                {idType === 'NATIONAL_ID' && idNumber && !/^(?:\d{12}|\d{16})$/.test(idNumber) && (
                   <p style={{ color: '#ff8a7c', fontSize: '0.8rem', margin: '0.3rem 0 0' }}>
-                    National ID must be exactly 16 digits — {idNumber.length} entered
+                    National ID must be exactly 12 or 16 digits — {idNumber.length} entered
                   </p>
                 )}
               </div>

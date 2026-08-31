@@ -1254,7 +1254,7 @@ export default function LandingPage() {
                     <input
                       value={authForm.fullName}
                       onChange={(e) => setAuthForm((prev) => ({ ...prev, fullName: e.target.value }))}
-                      placeholder="Owner Full Name"
+                      placeholder="Enter your full name"
                       className="w-full rounded-[12px] px-3.5 py-2.5 text-[13px] outline-none"
                       style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(201,160,92,0.15)', color: 'var(--text-primary)' }}
                       required
@@ -1264,7 +1264,9 @@ export default function LandingPage() {
                     value={authForm.email}
                     onChange={(e) => setAuthForm((prev) => ({ ...prev, email: e.target.value }))}
                     type="email"
-                    placeholder="Owner Email"
+                    name="ownerEmail"
+                    autoComplete="off"
+                    placeholder="Type your email address"
                     className="w-full rounded-[12px] px-3.5 py-2.5 text-[13px] outline-none"
                     style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(201,160,92,0.15)', color: 'var(--text-primary)' }}
                     required
@@ -1282,7 +1284,9 @@ export default function LandingPage() {
                       value={authForm.password}
                       onChange={(e) => setAuthForm((prev) => ({ ...prev, password: e.target.value }))}
                       type="password"
-                      placeholder="Password"
+                      name="ownerPassword"
+                      autoComplete="new-password"
+                      placeholder="Enter your password"
                       className="rounded-[12px] px-3.5 py-2.5 text-[13px] outline-none"
                       style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(201,160,92,0.15)', color: 'var(--text-primary)' }}
                       required
@@ -1292,7 +1296,9 @@ export default function LandingPage() {
                         value={authForm.confirmPassword}
                         onChange={(e) => setAuthForm((prev) => ({ ...prev, confirmPassword: e.target.value }))}
                         type="password"
-                        placeholder="Confirm Password"
+                        name="ownerConfirmPassword"
+                        autoComplete="new-password"
+                        placeholder="Re-enter your password"
                         className="rounded-[12px] px-3.5 py-2.5 text-[13px] outline-none"
                         style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(201,160,92,0.15)', color: 'var(--text-primary)' }}
                         required

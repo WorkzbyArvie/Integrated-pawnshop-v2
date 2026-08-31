@@ -45,8 +45,16 @@ describe('kyc-validation', () => {
 
     it('rejects invalid national id length', () => {
       expect(() => normalizeAndValidateKycIdNumber('NATIONAL_ID', '1234567890')).toThrow(
-        'National ID must contain exactly 12 digits',
+        'National ID must contain exactly 12 or 16 digits',
       );
+    });
+
+    it('accepts a 12-digit national id', () => {
+      expect(normalizeAndValidateKycIdNumber('NATIONAL_ID', '123456789012')).toBe('123456789012');
+    });
+
+    it('accepts a 16-digit national id', () => {
+      expect(normalizeAndValidateKycIdNumber('NATIONAL_ID', '1234567890123456')).toBe('1234567890123456');
     });
   });
 

@@ -190,11 +190,17 @@ describe('KycService (KYC-01 / KYC-02)', () => {
       expect(prisma.$transaction).not.toHaveBeenCalled();
     });
 
-    it('rejects a non-12-digit National ID', async () => {
+    it('rejects an invalid National ID length', async () => {
+      await expect(
+        service.upsertCustomerKyc({ ...upsertDto, idNumber: '1234567890' }, 'ps_1'),
+      ).rejects.toThrow('National ID must contain exactly 12 or 16 digits');
+      expect(prisma.$transaction).not.toHaveBeenCalled();
+    });
+
+    it('accepts a valid 16-digit National ID', async () => {
       await expect(
         service.upsertCustomerKyc({ ...upsertDto, idNumber: '1234567890123456' }, 'ps_1'),
-      ).rejects.toThrow('National ID must contain exactly 12 digits');
-      expect(prisma.$transaction).not.toHaveBeenCalled();
+      ).resolves.not.toThrow();
     });
 
     it('rejects a non-https document URL', async () => {
