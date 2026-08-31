@@ -856,7 +856,7 @@ export function Dashboard({
                     type="email"
                     value={adminEmail}
                     onChange={(e) => setAdminEmail(e.target.value)}
-                    placeholder="admin@pawngold.com"
+                    placeholder="admin@branch.com"
                     className="w-full px-4 py-3 bg-[#1C1C26] border border-[rgba(201,160,92,0.08)] rounded-2xl focus:ring-2 focus:ring-[#C9A05C] outline-none font-bold text-[#EAE2D6] placeholder:text-[#6B655C]/50"
                     required
                   />
