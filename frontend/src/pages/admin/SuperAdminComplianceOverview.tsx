@@ -215,8 +215,8 @@ export default function SuperAdminComplianceOverview() {
   const [verifyingId, setVerifyingId] = useState<string | null>(null);
   const [verifyingKycId, setVerifyingKycId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState('');
-  const [showRejectModal, setShowRejectModal] = useState<string | null>(null);
   const [showKycRejectModal, setShowKycRejectModal] = useState<string | null>(null);
+  const [docRejectOpen, setDocRejectOpen] = useState(false);
   const [kycRejectReason, setKycRejectReason] = useState('');
   const [activeTab, setActiveTab] = useState<'pending' | 'kyc' | 'overview'>('pending');
   const [viewingKyc, setViewingKyc] = useState<KycPendingReview | null>(null);
@@ -247,8 +247,8 @@ export default function SuperAdminComplianceOverview() {
         status,
         rejectionReason: status === 'REJECTED' ? rejectReason : undefined,
       });
-      setShowRejectModal(null);
       setRejectReason('');
+      setDocRejectOpen(false);
       fetchData();
     } catch (err) {
       console.error('Verification failed:', err);
@@ -376,57 +376,8 @@ export default function SuperAdminComplianceOverview() {
                         <Eye className="w-4 h-4" />
                         View
                       </button>
-                      <button
-                        onClick={() => handleVerify(review.id, 'VERIFIED')}
-                        disabled={verifyingId === review.id}
-                        className="flex items-center gap-1 px-3 py-1.5 bg-emerald-500/10 text-emerald-400 rounded-lg hover:bg-emerald-500/20 transition-colors disabled:opacity-50"
-                      >
-                        <CheckCircle className="w-4 h-4" />
-                        Approve
-                      </button>
-                      <button
-                        onClick={() => setShowRejectModal(review.id)}
-                        disabled={verifyingId === review.id}
-                        className="flex items-center gap-1 px-3 py-1.5 bg-red-500/10 text-red-400 rounded-lg hover:bg-red-500/20 transition-colors disabled:opacity-50"
-                      >
-                        <XCircle className="w-4 h-4" />
-                        Reject
-                      </button>
                     </div>
                   </div>
-
-                  {showRejectModal === review.id && (
-                    <div className="mt-4 p-4 bg-gilded-darker border border-red-500/30 rounded-lg">
-                      <label className="block text-sm text-gilded-muted mb-2">
-                        Rejection Reason
-                      </label>
-                      <textarea
-                        value={rejectReason}
-                        onChange={(e) => setRejectReason(e.target.value)}
-                        className="w-full px-3 py-2 bg-gilded-dark border border-gilded-border rounded-lg text-gilded-light text-sm"
-                        rows={3}
-                        placeholder="Enter reason for rejection..."
-                      />
-                      <div className="flex gap-2 mt-2">
-                        <button
-                          onClick={() => handleVerify(review.id, 'REJECTED')}
-                          disabled={!rejectReason.trim()}
-                          className="px-4 py-1.5 bg-red-500 text-white rounded-lg text-sm font-medium disabled:opacity-50"
-                        >
-                          Confirm Reject
-                        </button>
-                        <button
-                          onClick={() => {
-                            setShowRejectModal(null);
-                            setRejectReason('');
-                          }}
-                          className="px-4 py-1.5 bg-gilded-dark border border-gilded-border rounded-lg text-gilded-light text-sm"
-                        >
-                          Cancel
-                        </button>
-                      </div>
-                    </div>
-                  )}
                 </div>
               ))
             )}
@@ -745,6 +696,39 @@ export default function SuperAdminComplianceOverview() {
 
               <SignedDocViewer url={viewingDoc.fileUrl} fileName={viewingDoc.fileName} />
 
+              {docRejectOpen && (
+                <div className="p-4 bg-gilded-darker border border-red-500/30 rounded-lg">
+                  <label className="block text-sm text-gilded-muted mb-2">
+                    Rejection Reason
+                  </label>
+                  <textarea
+                    value={rejectReason}
+                    onChange={(e) => setRejectReason(e.target.value)}
+                    className="w-full px-3 py-2 bg-gilded-dark border border-gilded-border rounded-lg text-gilded-light text-sm"
+                    rows={3}
+                    placeholder="Enter reason for rejection..."
+                  />
+                  <div className="flex gap-2 mt-2">
+                    <button
+                      onClick={() => { handleVerify(viewingDoc.id, 'REJECTED'); setViewingDoc(null); }}
+                      disabled={!rejectReason.trim()}
+                      className="px-4 py-1.5 bg-red-500 text-white rounded-lg text-sm font-medium disabled:opacity-50"
+                    >
+                      Confirm Reject
+                    </button>
+                    <button
+                      onClick={() => {
+                        setDocRejectOpen(false);
+                        setRejectReason('');
+                      }}
+                      className="px-4 py-1.5 bg-gilded-dark border border-gilded-border rounded-lg text-gilded-light text-sm"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
+
               <div className="flex items-center justify-end gap-3 pt-3 border-t border-gilded-border">
                 <button onClick={() => setViewingDoc(null)} className="px-4 py-2 bg-gilded-darker border border-gilded-border rounded-lg text-gilded-light text-sm hover:border-gilded-gold/30 transition-colors">
                   Close
@@ -758,7 +742,7 @@ export default function SuperAdminComplianceOverview() {
                   Approve
                 </button>
                 <button
-                  onClick={() => { setViewingDoc(null); setShowRejectModal(viewingDoc.id); }}
+                  onClick={() => setDocRejectOpen(true)}
                   disabled={verifyingId === viewingDoc.id}
                   className="flex items-center gap-1.5 px-4 py-2 bg-red-500/10 text-red-400 rounded-lg hover:bg-red-500/20 transition-colors disabled:opacity-50 text-sm font-medium"
                 >
