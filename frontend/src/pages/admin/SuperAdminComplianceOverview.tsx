@@ -15,6 +15,7 @@ import {
   CreditCard,
   Loader2,
   ExternalLink,
+  Printer,
 } from 'lucide-react';
 import { api } from '../../lib/apiClient';
 import { getSignedKycDocUrl } from '../../lib/kycDocs';
@@ -57,6 +58,12 @@ interface KycPendingReview {
 interface PawnshopCompliance {
   pawnshopId: string;
   pawnshopName: string;
+  registrationNumber?: string | null;
+  address?: string | null;
+  contactPhone?: string | null;
+  contactEmail?: string | null;
+  ownerEmail?: string | null;
+  createdAt?: string | null;
   score: number;
   documents: Array<{
     type: string;
@@ -92,6 +99,132 @@ function formatDate(value: string | null) {
   const date = new Date(value);
   if (isNaN(date.getTime())) return value;
   return date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+}
+
+function shortLabel(type: string) {
+  return (DOCUMENT_LABELS[type] || type).split(' ')[0];
+}
+
+function isDocMissing(status: string) {
+  return status === 'NOT_UPLOADED' || status === 'REJECTED';
+}
+
+function missingDocs(ps: PawnshopCompliance) {
+  return ps.documents.filter((d) => isDocMissing(d.status));
+}
+
+function complianceBand(ps: PawnshopCompliance) {
+  if (ps.summary.verified === ps.summary.totalRequired) {
+    return { label: 'Fully Compliant', className: 'text-emerald-400 border-emerald-500/30 bg-emerald-500/10' };
+  }
+  if (ps.score >= 60) {
+    return { label: 'Partially Compliant', className: 'text-amber-400 border-amber-500/30 bg-amber-500/10' };
+  }
+  return { label: 'Non-Compliant', className: 'text-red-400 border-red-500/30 bg-red-500/10' };
+}
+
+function docStatusBadge(status: string) {
+  switch (status) {
+    case 'VERIFIED':
+      return { text: '✓', className: 'text-emerald-400', title: 'Verified' };
+    case 'UPLOADED':
+      return { text: 'U', className: 'text-blue-400', title: 'Submitted / pending review' };
+    case 'UNDER_REVIEW':
+      return { text: '~', className: 'text-amber-400', title: 'Under review' };
+    case 'REJECTED':
+      return { text: '✗', className: 'text-red-400', title: 'Rejected' };
+    case 'EXPIRED':
+      return { text: 'E', className: 'text-red-400', title: 'Expired' };
+    default:
+      return { text: '—', className: 'text-gilded-muted', title: 'Missing' };
+  }
+}
+
+function buildRegisterHtml(all: PawnshopCompliance[]) {
+  const shortTypes = all[0]?.documents.map((d) => d.type) || [];
+  const now = new Date().toLocaleString();
+  const rows = all
+    .map((ps) => {
+      const missing = missingDocs(ps).map((d) => shortLabel(d.type)).join(', ') || 'None';
+      const badges = shortTypes
+        .map((type) => {
+          const doc = ps.documents.find((d) => d.type === type);
+          const st = doc?.status || 'NOT_UPLOADED';
+          const map: Record<string, string> = {
+            VERIFIED: '✓ Verified',
+            UPLOADED: 'Submitted',
+            UNDER_REVIEW: 'Under review',
+            REJECTED: 'Rejected',
+            EXPIRED: 'Expired',
+          };
+          const cls = st === 'VERIFIED' ? 'ok' : st === 'NOT_UPLOADED' ? 'miss' : st === 'REJECTED' || st === 'EXPIRED' ? 'bad' : 'pend';
+          return `<td class="${cls}">${map[st] || '—'}</td>`;
+        })
+        .join('');
+      return `<tr>
+        <td class="name"><strong>${ps.pawnshopName}</strong>${ps.registrationNumber ? `<br><small>Reg. ${ps.registrationNumber}</small>` : ''}</td>
+        ${badges}
+        <td class="${missing === 'None' ? 'ok' : 'bad'}">${missing}</td>
+        <td class="score">${ps.score}%</td>
+      </tr>`;
+    })
+    .join('');
+
+  const headers = shortTypes.map((t) => `<th>${shortLabel(t)}</th>`).join('');
+
+  return `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Regulatory Compliance Register</title>
+<style>
+  * { box-sizing: border-box; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; color: #111; margin: 32px; }
+  .head { border-bottom: 3px solid #C9A05C; padding-bottom: 12px; margin-bottom: 20px; }
+  .head h1 { margin: 0; font-size: 22px; letter-spacing: 0.4px; }
+  .head p { margin: 4px 0 0; color: #555; font-size: 12px; }
+  .chips { margin-bottom: 18px; }
+  .chip { display: inline-block; margin-right: 8px; padding: 5px 12px; border-radius: 999px; font-size: 12px; border: 1px solid #ddd; background: #f7f7f8; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  th { text-align: left; background: #f2f2f3; padding: 7px 8px; border: 1px solid #ddd; white-space: nowrap; }
+  td { padding: 7px 8px; border: 1px solid #e2e2e4; }
+  tr:nth-child(even) td { background: #fafafa; }
+  td.name strong { font-size: 13px; }
+  td.name small { color: #888; }
+  .ok { color: #1a7f37; }
+  .miss { color: #b45309; }
+  .bad { color: #c0392b; }
+  .pend { color: #2563eb; }
+  td.score { font-weight: 700; }
+  .foot { margin-top: 20px; font-size: 11px; color: #888; }
+</style>
+</head>
+<body>
+  <div class="head">
+    <h1>PawnGold &mdash; Regulatory Compliance Register</h1>
+    <p>Compiled ${now} &middot; Summarizes all regulatory documents required for each active pawnshop</p>
+  </div>
+  <div class="chips">
+    <span class="chip">Active pawnshops: <b>${all.length}</b></span>
+    <span class="chip">Fully compliant: <b>${all.filter((p) => p.summary.verified === p.summary.totalRequired).length}</b></span>
+    <span class="chip">With missing docs: <b>${all.filter((p) => missingDocs(p).length > 0).length}</b></span>
+  </div>
+  <table>
+    <thead><tr><th>Pawnshop</th>${headers}<th>Missing</th><th>Score</th></tr></thead>
+    <tbody>${rows}</tbody>
+  </table>
+  <div class="foot">Generated by PawnGold &middot; Integrated Pawnshop Management System</div>
+</body>
+</html>`;
+}
+
+function printRegister(all: PawnshopCompliance[]) {
+  const w = window.open('', '_blank', 'width=1000,height=900');
+  if (!w) return;
+  w.document.write(buildRegisterHtml(all));
+  w.document.close();
+  w.focus();
+  w.print();
 }
 
 function SignedDocImage({ url, alt }: { url: string; alt: string }) {
@@ -484,101 +617,202 @@ export default function SuperAdminComplianceOverview() {
         )}
 
         {activeTab === 'overview' && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {allCompliance.map((ps) => (
-              <div
-                key={ps.pawnshopId}
-                className="bg-gilded-dark border border-gilded-border rounded-xl p-5"
+          <div className="space-y-5">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-display font-bold text-gilded-gold">
+                  Regulatory Compliance Register
+                </h2>
+                <p className="text-xs text-gilded-muted mt-0.5">
+                  Compiled {new Date().toLocaleString()} &middot; {' '}
+                  {allCompliance.length} active pawnshops
+                </p>
+              </div>
+              <button
+                onClick={() => printRegister(allCompliance)}
+                className="flex items-center gap-2 px-4 py-2 bg-gilded-dark border border-gilded-gold/40 rounded-lg text-gilded-gold hover:border-gilded-gold/70 transition-colors"
               >
-                <div className="flex items-center justify-between mb-3">
-                  <h4 className="font-semibold text-gilded-light">{ps.pawnshopName}</h4>
-                  <span
-                    className={`text-lg font-bold ${
-                      ps.score >= 80
-                        ? 'text-emerald-400'
-                        : ps.score >= 60
-                        ? 'text-yellow-400'
-                        : ps.score >= 40
-                        ? 'text-orange-400'
-                        : 'text-red-400'
-                    }`}
-                  >
-                    {ps.score}%
-                  </span>
-                </div>
-                <div className="space-y-2">
-                  <div className="flex justify-between text-xs">
-                    <span className="text-gilded-muted">Uploaded</span>
-                    <span className="text-gilded-light">
-                      {ps.summary.uploaded}/{ps.summary.totalRequired}
-                    </span>
-                  </div>
-                  <div className="flex justify-between text-xs">
-                    <span className="text-gilded-muted">Verified</span>
-                    <span className="text-emerald-400">{ps.summary.verified}</span>
-                  </div>
-                  <div className="flex justify-between text-xs">
-                    <span className="text-gilded-muted">Not Expired</span>
-                    <span className="text-yellow-400">{ps.summary.notExpired}</span>
-                  </div>
-                </div>
-                <div className="mt-3 pt-3 border-t border-gilded-border space-y-1.5">
-                  {ps.documents.map((doc) => {
-                    const expired = doc.status === 'EXPIRED';
-                    const expiring =
-                      !expired &&
-                      doc.daysUntilExpiry !== null &&
-                      doc.daysUntilExpiry <= 30;
-                    const label =
-                      (DOCUMENT_LABELS[doc.type] || doc.type).split(' ')[0];
+                <Printer className="w-4 h-4" />
+                Print / Export
+              </button>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              <span className="px-3 py-1.5 rounded-full text-xs bg-emerald-500/10 border border-emerald-500/30 text-emerald-400">
+                Fully Compliant: {allCompliance.filter((p) => p.summary.verified === p.summary.totalRequired).length}
+              </span>
+              <span className="px-3 py-1.5 rounded-full text-xs bg-amber-500/10 border border-amber-500/30 text-amber-400">
+                Partial: {allCompliance.filter((p) => p.summary.verified !== p.summary.totalRequired && missingDocs(p).length === 0).length}
+              </span>
+              <span className="px-3 py-1.5 rounded-full text-xs bg-red-500/10 border border-red-500/30 text-red-400">
+                With Missing Docs: {allCompliance.filter((p) => missingDocs(p).length > 0).length}
+              </span>
+            </div>
+
+            <div className="overflow-x-auto bg-gilded-dark border border-gilded-border rounded-xl">
+              <table className="w-full text-xs min-w-[760px]">
+                <thead>
+                  <tr className="border-b border-gilded-border text-gilded-muted">
+                    <th className="text-left px-4 py-3 font-medium">Pawnshop</th>
+                    {allCompliance[0]?.documents.map((d) => (
+                      <th key={d.type} className="text-center px-2 py-3 font-medium" title={DOCUMENT_LABELS[d.type]}>
+                        {shortLabel(d.type)}
+                      </th>
+                    ))}
+                    <th className="text-left px-4 py-3 font-medium">Missing</th>
+                    <th className="text-center px-4 py-3 font-medium">Score</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {allCompliance.map((ps) => {
+                    const missing = missingDocs(ps);
                     return (
-                      <div
-                        key={doc.type}
-                        className="flex items-center justify-between text-[11px]"
-                      >
-                        <span
-                          className={`flex items-center gap-1.5 text-gilded-light truncate ${
-                            expired ? 'text-red-400' : ''
-                          }`}
-                        >
-                          <span
-                            className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
-                              expired
-                                ? 'bg-red-400'
-                                : expiring
-                                ? 'bg-amber-400'
-                                : doc.status === 'VERIFIED'
-                                ? 'bg-emerald-400'
-                                : 'bg-gray-400'
-                            }`}
-                          />
-                          {label}
-                        </span>
-                        <span
-                          className={`ml-2 text-right ${
-                            expired
-                              ? 'text-red-400 font-medium'
-                              : expiring
-                              ? 'text-amber-400 font-medium'
-                              : 'text-gilded-muted'
-                          }`}
-                        >
-                          {doc.expiryDate
-                            ? `${expired ? 'Expired' : 'Expires'} ${formatDate(doc.expiryDate)}${
-                                expiring && doc.daysUntilExpiry !== null
-                                  ? ` (${doc.daysUntilExpiry}d)`
-                                  : ''
-                              }`
-                            : doc.status === 'NOT_UPLOADED'
-                            ? 'Not uploaded'
-                            : 'No expiry'}
-                        </span>
-                      </div>
+                      <tr key={ps.pawnshopId} className="border-b border-gilded-border/50 last:border-0">
+                        <td className="px-4 py-3">
+                          <p className="font-semibold text-gilded-light">{ps.pawnshopName}</p>
+                          <p className="text-[11px] text-gilded-muted truncate max-w-[180px]">
+                            {[ps.address, ps.contactPhone].filter(Boolean).join(' · ') || 'No contact info'}
+                          </p>
+                        </td>
+                        {ps.documents.map((doc) => {
+                          const badge = docStatusBadge(doc.status);
+                          return (
+                            <td key={doc.type} className="text-center px-2 py-3" title={`${DOCUMENT_LABELS[doc.type]}: ${badge.title}`}>
+                              <span className={`inline-flex h-7 w-7 items-center justify-center rounded-full text-sm font-bold border border-current/30 ${badge.className}`}>
+                                {badge.text}
+                              </span>
+                            </td>
+                          );
+                        })}
+                        <td className="px-4 py-3">
+                          {missing.length === 0 ? (
+                            <span className="text-emerald-400">None</span>
+                          ) : (
+                            <span className="text-red-400 font-medium">
+                              {missing.map((d) => shortLabel(d.type)).join(', ')}
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          <span className={`font-bold ${
+                            ps.score >= 80 ? 'text-emerald-400' : ps.score >= 60 ? 'text-amber-400' : 'text-red-400'
+                          }`}>
+                            {ps.score}%
+                          </span>
+                        </td>
+                      </tr>
                     );
                   })}
-                </div>
-              </div>
-            ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {allCompliance.map((ps) => {
+                const missing = missingDocs(ps);
+                const band = complianceBand(ps);
+                return (
+                  <div
+                    key={ps.pawnshopId}
+                    className="bg-gilded-dark border border-gilded-border rounded-xl p-5"
+                  >
+                    <div className="flex items-center justify-between mb-3 gap-2">
+                      <div className="min-w-0">
+                        <h4 className="font-semibold text-gilded-light truncate">{ps.pawnshopName}</h4>
+                        <p className="text-[11px] text-gilded-muted truncate">
+                          {[ps.address, ps.contactPhone, ps.ownerEmail].filter(Boolean).join(' · ') || 'No contact info'}
+                        </p>
+                      </div>
+                      <span className={`shrink-0 text-xs font-medium px-2.5 py-1 rounded-full border ${band.className}`}>
+                        {band.label} {ps.score}%
+                      </span>
+                    </div>
+
+                    {missing.length > 0 && (
+                      <div className="mb-3 p-2.5 rounded-lg bg-red-500/10 border border-red-500/30">
+                        <p className="text-[11px] text-red-400 font-semibold mb-1">Missing Documents</p>
+                        <p className="text-xs text-red-300">{missing.map((d) => DOCUMENT_LABELS[d.type] || d.type).join(' · ')}</p>
+                      </div>
+                    )}
+
+                    <div className="space-y-2">
+                      <div className="flex justify-between text-xs">
+                        <span className="text-gilded-muted">Verified</span>
+                        <span className="text-emerald-400">{ps.summary.verified}/{ps.summary.totalRequired}</span>
+                      </div>
+                      <div className="flex justify-between text-xs">
+                        <span className="text-gilded-muted">Submitted / Pending</span>
+                        <span className="text-blue-400">
+                          {ps.documents.filter((d) => d.status === 'UPLOADED' || d.status === 'UNDER_REVIEW').length}
+                        </span>
+                      </div>
+                      <div className="flex justify-between text-xs">
+                        <span className="text-gilded-muted">Expired</span>
+                        <span className="text-red-400">{ps.documents.filter((d) => d.status === 'EXPIRED').length}</span>
+                      </div>
+                      <div className="flex justify-between text-xs">
+                        <span className="text-gilded-muted">Subscription</span>
+                        <span className={ps.summary.subscriptionActive ? 'text-emerald-400' : 'text-red-400'}>
+                          {ps.summary.subscriptionActive ? 'Active' : 'Inactive'}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="mt-3 pt-3 border-t border-gilded-border space-y-1.5">
+                      {ps.documents.map((doc) => {
+                        const expired = doc.status === 'EXPIRED';
+                        const expiring =
+                          !expired &&
+                          doc.daysUntilExpiry !== null &&
+                          doc.daysUntilExpiry <= 30;
+                        return (
+                          <div
+                            key={doc.type}
+                            className="flex items-center justify-between text-[11px]"
+                          >
+                            <span className={`flex items-center gap-1.5 text-gilded-light truncate ${expired ? 'text-red-400' : ''}`}>
+                              <span
+                                className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
+                                  expired
+                                    ? 'bg-red-400'
+                                    : expiring
+                                    ? 'bg-amber-400'
+                                    : doc.status === 'VERIFIED'
+                                    ? 'bg-emerald-400'
+                                    : doc.status === 'NOT_UPLOADED' || doc.status === 'REJECTED'
+                                    ? 'bg-red-400/70'
+                                    : 'bg-blue-400'
+                                }`}
+                              />
+                              {DOCUMENT_LABELS[doc.type] || doc.type}
+                            </span>
+                            <span
+                              className={`ml-2 text-right ${
+                                expired
+                                  ? 'text-red-400 font-medium'
+                                  : expiring
+                                  ? 'text-amber-400 font-medium'
+                                  : 'text-gilded-muted'
+                              }`}
+                            >
+                              {doc.status === 'NOT_UPLOADED'
+                                ? 'Missing'
+                                : doc.status === 'REJECTED'
+                                ? 'Rejected'
+                                : doc.expiryDate
+                                ? `${expired ? 'Expired' : 'Expires'} ${formatDate(doc.expiryDate)}${
+                                    expiring && doc.daysUntilExpiry !== null ? ` (${doc.daysUntilExpiry}d)` : ''
+                                  }`
+                                : 'No expiry'}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         )}
       </div>

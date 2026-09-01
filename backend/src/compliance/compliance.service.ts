@@ -326,7 +326,16 @@ export class ComplianceService {
   async getAllPawnshopCompliance() {
     const pawnshops = await this.prisma.pawnshop.findMany({
       where: { status: 'ACTIVE', isActive: true },
-      select: { id: true, name: true },
+      select: {
+        id: true,
+        name: true,
+        registrationNumber: true,
+        address: true,
+        contactPhone: true,
+        contactEmail: true,
+        ownerEmail: true,
+        createdAt: true,
+      },
     });
 
     if (pawnshops.length === 0) return [];
