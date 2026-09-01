@@ -198,6 +198,7 @@ describe('KycService (KYC-01 / KYC-02)', () => {
     });
 
     it('accepts a valid 16-digit National ID', async () => {
+      prisma.customer.findUnique.mockResolvedValue({ id: 'cust_1' });
       await expect(
         service.upsertCustomerKyc({ ...upsertDto, idNumber: '1234567890123456' }, 'ps_1'),
       ).resolves.not.toThrow();

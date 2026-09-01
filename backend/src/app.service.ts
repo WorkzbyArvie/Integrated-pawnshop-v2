@@ -1831,22 +1831,35 @@ export class AppService {
   async checkEmailAvailability(email: string, role?: string) {
     const normalized = String(email || '').trim().toLowerCase();
     if (!normalized || !normalized.includes('@')) {
-      return { exists: false };
+      return { exists: false, emailExists: false, role: null };
     }
 
-    const where: any = { email: normalized };
-    if (role) where.role = role.toUpperCase();
-
     const profile = await this.prisma.profile.findFirst({
-      where,
+      where: { email: normalized },
       select: { id: true, email: true, role: true },
     });
 
+    if (!profile) {
+      return { exists: false, emailExists: false, role: null, message: 'Email is available' };
+    }
+
+    if (!role) {
+      return {
+        exists: true,
+        emailExists: true,
+        role: profile.role,
+        message: `An account with this email already exists (${profile.role})`,
+      };
+    }
+
+    const roleMatches = String(profile.role).toUpperCase() === String(role).toUpperCase();
     return {
-      exists: !!profile,
-      message: profile
+      exists: roleMatches,
+      emailExists: true,
+      role: profile.role,
+      message: roleMatches
         ? `An account with this email already exists (${profile.role})`
-        : 'Email is available',
+        : `This email is registered as ${profile.role}, not ${role.toUpperCase()}`,
     };
   }
 

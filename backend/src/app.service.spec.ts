@@ -9,7 +9,7 @@ import { StateMachineService } from './common/state-machine/state-machine.servic
 import { PawnTicketService } from './loan/pawn-ticket.service';
 
 const mockPrisma = {
-  profile: { findUnique: jest.fn() },
+  profile: { findUnique: jest.fn(), findFirst: jest.fn() },
   customer: { findFirst: jest.fn(), create: jest.fn() },
   ticket: { create: jest.fn() },
 };
@@ -98,6 +98,48 @@ describe('AppService', () => {
         success: true,
         data: { id: 1, ticketNumber: 'MOB-ABC', status: 'PENDING' },
       });
+    });
+  });
+
+  describe('checkEmailAvailability forgot-password support', () => {
+    it('reports an email as not existing when no account matches', async () => {
+      mockPrisma.profile.findFirst.mockResolvedValue(null);
+
+      const result = await service.checkEmailAvailability('ghost@example.com', 'OWNER');
+
+      expect(result).toMatchObject({ exists: false, emailExists: false, role: null });
+    });
+
+    it('returns the account role when no role filter is provided', async () => {
+      mockPrisma.profile.findFirst.mockResolvedValue({ id: 'u1', email: 'a@example.com', role: 'OWNER' });
+
+      const result = await service.checkEmailAvailability('a@example.com');
+
+      expect(result).toMatchObject({
+        exists: true,
+        emailExists: true,
+        role: 'OWNER',
+      });
+    });
+
+    it('reports a role mismatch (not an owner) for forgot-password checks', async () => {
+      mockPrisma.profile.findFirst.mockResolvedValue({ id: 'u1', email: 'staff@example.com', role: 'STAFF' });
+
+      const result = await service.checkEmailAvailability('staff@example.com', 'OWNER');
+
+      expect(result.exists).toBe(false);
+      expect(result.emailExists).toBe(true);
+      expect(result.role).toBe('STAFF');
+    });
+
+    it('confirms an owner email matches the requested role', async () => {
+      mockPrisma.profile.findFirst.mockResolvedValue({ id: 'u1', email: 'owner@example.com', role: 'OWNER' });
+
+      const result = await service.checkEmailAvailability('owner@example.com', 'OWNER');
+
+      expect(result.exists).toBe(true);
+      expect(result.emailExists).toBe(true);
+      expect(result.role).toBe('OWNER');
     });
   });
 });
