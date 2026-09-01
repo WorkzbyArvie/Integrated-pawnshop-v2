@@ -165,8 +165,8 @@ function SignedDocViewer({ url, fileName }: { url: string; fileName: string }) {
   if (failed) {
     return (
       <div className="flex h-72 w-full flex-col items-center justify-center gap-3 rounded-lg border border-gilded-border bg-gilded-darker/60">
-        <p className="text-sm text-gilded-muted">Document unavailable</p>
-        <p className="text-xs text-gilded-muted/70">{fileName}</p>
+        <p className="text-sm text-gilded-muted">Document missing from storage</p>
+        <p className="text-xs text-gilded-muted/70">{fileName} &middot; Ask the pawnshop to re-upload</p>
       </div>
     );
   }
