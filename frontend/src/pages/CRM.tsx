@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Search, Filter, MoreVertical, Phone, Mail, Shield, X } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 import { CustomerHistory } from '../components/CustomerHistory';
@@ -77,7 +77,7 @@ export function CrmTable({ branchId }: CrmTableProps) {
     return (
       <div className="p-20 text-center">
         <div className="animate-spin w-8 h-8 border-4 border-[#C9A05C] border-t-transparent rounded-full mx-auto mb-4"></div>
-        <p className="text-[#6B655C] font-black text-[10px] uppercase tracking-widest">Querying Client Ledger...</p>
+        <p className="text-[#8A8279] font-black text-[10px] uppercase tracking-widest">Querying Client Ledger...</p>
       </div>
     );
   }
@@ -87,7 +87,7 @@ export function CrmTable({ branchId }: CrmTableProps) {
       {/* Table Controls */}
       <div className="p-4 flex flex-col md:flex-row gap-4 justify-between items-center">
         <div className="relative w-full md:w-96">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-[#6B655C] w-4 h-4" />
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-[#8A8279] w-4 h-4" />
           <input
             type="text"
             placeholder="Search by name or phone..."
@@ -97,11 +97,11 @@ export function CrmTable({ branchId }: CrmTableProps) {
           />
         </div>
         <div className="flex items-center gap-2">
-          <Filter className="w-4 h-4 text-[#6B655C]" />
+          <Filter className="w-4 h-4 text-[#8A8279]" />
           <select
             value={tierFilter}
             onChange={(e) => setTierFilter(e.target.value)}
-            className="bg-[#1C1C26] border-none rounded-xl px-4 py-3 text-xs font-bold text-[#999186] outline-none focus:ring-2 focus:ring-[#C9A05C] transition-all"
+            className="bg-[#1C1C26] border-none rounded-xl px-4 py-3 text-xs font-bold text-[#B8B0A4] outline-none focus:ring-2 focus:ring-[#C9A05C] transition-all"
           >
             <option value="all">All Tiers</option>
             <option value="Standard">Standard</option>
@@ -118,16 +118,16 @@ export function CrmTable({ branchId }: CrmTableProps) {
         <table className="w-full text-left border-collapse">
           <thead>
             <tr className="border-b border-slate-50">
-              <th className="px-6 py-4 text-[10px] font-black text-[#6B655C] uppercase tracking-widest">Client Identity</th>
-              <th className="px-6 py-4 text-[10px] font-black text-[#6B655C] uppercase tracking-widest">Contact Info</th>
-              <th className="px-6 py-4 text-[10px] font-black text-[#6B655C] uppercase tracking-widest">Verification</th>
-              <th className="px-6 py-4 text-[10px] font-black text-[#6B655C] uppercase tracking-widest text-right">Actions</th>
+              <th className="px-6 py-4 text-[10px] font-black text-[#8A8279] uppercase tracking-widest">Client Identity</th>
+              <th className="px-6 py-4 text-[10px] font-black text-[#8A8279] uppercase tracking-widest">Contact Info</th>
+              <th className="px-6 py-4 text-[10px] font-black text-[#8A8279] uppercase tracking-widest">Verification</th>
+              <th className="px-6 py-4 text-[10px] font-black text-[#8A8279] uppercase tracking-widest text-right">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-50">
             {filteredCustomers.length === 0 && (
               <tr>
-                <td colSpan={4} className="px-6 py-10 text-center text-sm text-[#6B655C]">
+                <td colSpan={4} className="px-6 py-10 text-center text-sm text-[#8A8279]">
                   No customers found.
                 </td>
               </tr>
@@ -144,18 +144,18 @@ export function CrmTable({ branchId }: CrmTableProps) {
                       {(customer.full_name || '?').charAt(0).toUpperCase()}
                     </div>
                     <div>
-                      <p className="font-bold text-[#EAE2D6]">{customer.full_name}</p>
-                      <p className="text-[10px] text-[#6B655C] font-medium">UID: {(customer.id || '').slice(0, 8)}</p>
+                      <p className="font-bold text-[#F5F0E8]">{customer.full_name}</p>
+                      <p className="text-[10px] text-[#8A8279] font-medium">UID: {(customer.id || '').slice(0, 8)}</p>
                     </div>
                   </div>
                 </td>
                 <td className="px-6 py-5">
                   <div className="space-y-1">
-                    <div className="flex items-center gap-2 text-xs text-[#999186]">
-                      <Phone className="w-3 h-3 text-[#6B655C]" /> {customer.contact_number}
+                    <div className="flex items-center gap-2 text-xs text-[#B8B0A4]">
+                      <Phone className="w-3 h-3 text-[#8A8279]" /> {customer.contact_number}
                     </div>
-                    <div className="flex items-center gap-2 text-xs text-[#999186]">
-                      <Mail className="w-3 h-3 text-[#6B655C]" /> {customer.address}
+                    <div className="flex items-center gap-2 text-xs text-[#B8B0A4]">
+                      <Mail className="w-3 h-3 text-[#8A8279]" /> {customer.address}
                     </div>
                   </div>
                 </td>
@@ -166,7 +166,7 @@ export function CrmTable({ branchId }: CrmTableProps) {
                       <span className={`inline-block px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider ${tierColors[normalizeTier(customer.loyaltytier)] || 'bg-gray-500/20 text-gray-400'}`}>
                         {normalizeTier(customer.loyaltytier)}
                       </span>
-                      <p className="text-[10px] text-[#6B655C] font-medium mt-1">{(customer.id || '').slice(0, 8)}</p>
+                      <p className="text-[10px] text-[#8A8279] font-medium mt-1">{(customer.id || '').slice(0, 8)}</p>
                     </div>
                   </div>
                 </td>
@@ -178,7 +178,7 @@ export function CrmTable({ branchId }: CrmTableProps) {
                       setSelectedCustomer(customer);
                     }}
                   >
-                    <MoreVertical className="w-4 h-4 text-[#6B655C]" />
+                    <MoreVertical className="w-4 h-4 text-[#8A8279]" />
                   </button>
                 </td>
               </tr>
@@ -201,25 +201,25 @@ export function CrmTable({ branchId }: CrmTableProps) {
                     {(selectedCustomer.full_name || '?').charAt(0).toUpperCase()}
                   </div>
                   <div>
-                    <h3 className="text-xl font-black text-[#EAE2D6] uppercase italic tracking-tight">{selectedCustomer.full_name}</h3>
+                    <h3 className="text-xl font-black text-[#F5F0E8] uppercase italic tracking-tight">{selectedCustomer.full_name}</h3>
                     <span className={`inline-block mt-1 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${tierColors[normalizeTier(selectedCustomer.loyaltytier)] || 'bg-gray-500/20 text-gray-400'}`}>
                       {normalizeTier(selectedCustomer.loyaltytier)}
                     </span>
                   </div>
                 </div>
-                <div className="mt-4 space-y-1 text-xs text-[#999186]">
+                <div className="mt-4 space-y-1 text-xs text-[#B8B0A4]">
                   <div className="flex items-center gap-2">
-                    <Phone className="w-3.5 h-3.5 text-[#6B655C]" /> {selectedCustomer.contact_number}
+                    <Phone className="w-3.5 h-3.5 text-[#8A8279]" /> {selectedCustomer.contact_number}
                   </div>
                   <div className="flex items-center gap-2">
-                    <Mail className="w-3.5 h-3.5 text-[#6B655C]" /> {selectedCustomer.address}
+                    <Mail className="w-3.5 h-3.5 text-[#8A8279]" /> {selectedCustomer.address}
                   </div>
-                  <p className="text-[10px] text-[#6B655C] font-medium pt-1">UID: {selectedCustomer.id}</p>
+                  <p className="text-[10px] text-[#8A8279] font-medium pt-1">UID: {selectedCustomer.id}</p>
                 </div>
               </div>
               <button
                 onClick={() => setSelectedCustomer(null)}
-                className="p-2 rounded-lg bg-[#1C1C26] text-[#999186] hover:text-[#EAE2D6] transition-colors"
+                className="p-2 rounded-lg bg-[#1C1C26] text-[#B8B0A4] hover:text-[#F5F0E8] transition-colors"
               >
                 <X className="w-5 h-5" />
               </button>

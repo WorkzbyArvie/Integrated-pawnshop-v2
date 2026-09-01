@@ -40,7 +40,7 @@ describe('KycStatusBadge', () => {
 
     const badge = screen.getByTestId('kyc-status-badge');
     expect(badge).toHaveClass('bg-[#1C1C26]');
-    expect(badge).toHaveClass('text-[#6B655C]');
+    expect(badge).toHaveClass('text-[#8A8279]');
     expect(screen.getByText('Not Submitted')).toBeInTheDocument();
     expect(screen.getByTestId('kyc-icon-not-submitted')).toBeInTheDocument();
   });

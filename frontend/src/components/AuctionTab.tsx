@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Gavel, Search, Tag, ExternalLink, AlertTriangle, TrendingUp, Package, Loader2 } from 'lucide-react';
 import Swal from 'sweetalert2';
 import { useToast } from '../App';
@@ -145,19 +145,19 @@ export function AuctionTab({ branchId }: AuctionTabProps) {
       {/* Header Section */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
-          <h1 className="text-3xl font-black text-[#EAE2D6] flex items-center gap-3 tracking-tight">
+          <h1 className="text-3xl font-black text-[#F5F0E8] flex items-center gap-3 tracking-tight">
             <div className="p-2 bg-blue-600 rounded-xl shadow-lg shadow-blue-200">
                 <Gavel className="w-6 h-6 text-white" />
             </div>
             Auction House
           </h1>
-          <p className="text-[#6B655C] font-medium mt-1">
+          <p className="text-[#8A8279] font-medium mt-1">
             Convert forfeited collateral into revenue via the mobile marketplace.
           </p>
         </div>
         
         <div className="relative group">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-[#6B655C] group-focus-within:text-blue-500 transition-colors" />
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-[#8A8279] group-focus-within:text-blue-500 transition-colors" />
           <input 
             type="text"
             placeholder="Search by ticket or item..."
@@ -173,24 +173,24 @@ export function AuctionTab({ branchId }: AuctionTabProps) {
         <div className="bg-[#14141B] border border-[rgba(201,160,92,0.08)] p-6 rounded-[2rem] shadow-sm">
           <div className="flex items-center gap-3 mb-4">
             <div className="p-2 bg-[#C9A05C]/10 text-[#C9A05C] rounded-lg"><Package className="w-4 h-4" /></div>
-            <p className="text-[#6B655C] text-[10px] font-black uppercase tracking-widest">Active Lots</p>
+            <p className="text-[#8A8279] text-[10px] font-black uppercase tracking-widest">Active Lots</p>
           </div>
-          <p className="text-3xl font-black text-[#EAE2D6]">{items.length}</p>
+          <p className="text-3xl font-black text-[#F5F0E8]">{items.length}</p>
         </div>
 
         <div className="bg-[#14141B] border border-[rgba(201,160,92,0.08)] p-6 rounded-[2rem] shadow-sm">
           <div className="flex items-center gap-3 mb-4">
             <div className="p-2 bg-emerald-50 text-emerald-600 rounded-lg"><TrendingUp className="w-4 h-4" /></div>
-            <p className="text-[#6B655C] text-[10px] font-black uppercase tracking-widest">Recovery Value</p>
+            <p className="text-[#8A8279] text-[10px] font-black uppercase tracking-widest">Recovery Value</p>
           </div>
-          <p className="text-3xl font-black text-[#EAE2D6]">
+          <p className="text-3xl font-black text-[#F5F0E8]">
             {formatCurrency(items.reduce((acc, curr) => acc + curr.auctionPrice, 0))}
           </p>
         </div>
 
         <div className="bg-slate-900 p-6 rounded-[2rem] shadow-xl shadow-slate-200">
           <div className="flex justify-between items-start mb-4">
-            <p className="text-[#6B655C] text-[10px] font-black uppercase tracking-widest">Mobile Marketplace</p>
+            <p className="text-[#8A8279] text-[10px] font-black uppercase tracking-widest">Mobile Marketplace</p>
             <span className="flex h-2 w-2 rounded-full bg-emerald-400 animate-pulse"></span>
           </div>
           <p className="text-xl font-bold text-white leading-tight">Syncing Live with Customer App</p>
@@ -201,7 +201,7 @@ export function AuctionTab({ branchId }: AuctionTabProps) {
       {isLoading ? (
         <div className="py-20 text-center">
             <Loader2 className="w-10 h-10 text-[#C9A05C] animate-spin mx-auto" />
-            <p className="text-[#6B655C] text-[10px] font-black uppercase mt-4 tracking-widest">Auditing Forfeited Assets...</p>
+            <p className="text-[#8A8279] text-[10px] font-black uppercase mt-4 tracking-widest">Auditing Forfeited Assets...</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -210,7 +210,7 @@ export function AuctionTab({ branchId }: AuctionTabProps) {
               <div key={item.id} className="group bg-[#14141B] border border-[rgba(201,160,92,0.12)] rounded-[2.5rem] overflow-hidden hover:shadow-2xl hover:shadow-blue-900/5 transition-all duration-500 flex flex-col">
                 <div className="p-8 flex-1">
                   <div className="flex justify-between items-start mb-6">
-                    <span className="px-4 py-1.5 bg-[#1C1C26] text-[#999186] rounded-full text-[11px] font-black tracking-wider border border-[rgba(201,160,92,0.12)]">
+                    <span className="px-4 py-1.5 bg-[#1C1C26] text-[#B8B0A4] rounded-full text-[11px] font-black tracking-wider border border-[rgba(201,160,92,0.12)]">
                       {item.ticketNumber}
                     </span>
                     <div className="flex items-center gap-1.5 text-rose-600 bg-rose-50 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-tighter">
@@ -222,14 +222,14 @@ export function AuctionTab({ branchId }: AuctionTabProps) {
                   <h3 className="text-2xl font-black text-slate-800 mb-2 leading-tight group-hover:text-[#C9A05C] transition-colors">
                       {item.description}
                   </h3>
-                  <p className="text-[#6B655C] text-sm mb-6 flex items-center gap-2 font-medium">
+                  <p className="text-[#8A8279] text-sm mb-6 flex items-center gap-2 font-medium">
                     <Tag className="w-4 h-4" /> {item.category}
                   </p>
 
                   <div className="grid grid-cols-2 gap-6 py-6 border-y border-slate-50 mb-8">
                     <div>
-                      <p className="text-[10px] text-[#6B655C] uppercase font-black tracking-[0.1em] mb-1">Loan Principal</p>
-                      <p className="font-bold text-[#6B655C] text-lg">{formatCurrency(item.loanAmount)}</p>
+                      <p className="text-[10px] text-[#8A8279] uppercase font-black tracking-[0.1em] mb-1">Loan Principal</p>
+                      <p className="font-bold text-[#8A8279] text-lg">{formatCurrency(item.loanAmount)}</p>
                     </div>
                     <div>
                       <p className="text-[10px] text-blue-500 uppercase font-black tracking-[0.1em] mb-1">Target Recovery</p>
@@ -266,7 +266,7 @@ export function AuctionTab({ branchId }: AuctionTabProps) {
           ) : (
             <div className="col-span-full py-20 text-center bg-[#1C1C26] rounded-[3rem] border-2 border-dashed border-[rgba(201,160,92,0.12)]">
                 <Package className="w-12 h-12 text-slate-300 mx-auto mb-4" />
-                <p className="text-[#6B655C] font-bold text-[10px] uppercase tracking-widest">No forfeited assets detected for this branch.</p>
+                <p className="text-[#8A8279] font-bold text-[10px] uppercase tracking-widest">No forfeited assets detected for this branch.</p>
             </div>
           )}
         </div>

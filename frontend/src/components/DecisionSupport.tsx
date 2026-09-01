@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { 
   BrainCircuit,
   Activity,
@@ -170,7 +170,7 @@ export function DecisionSupport({ branchId, activeBranchId }: DecisionSupportPro
     return (
       <div className="flex flex-col items-center justify-center h-96 bg-[#14141B] rounded-[32px] border border-[rgba(201,160,92,0.08)] shadow-sm">
         <BrainCircuit className="w-12 h-12 text-[#C9A05C] animate-pulse" />
-        <p className="mt-4 text-[10px] font-black uppercase tracking-widest text-[#6B655C]">Analyzing Branch Ecosystem...</p>
+        <p className="mt-4 text-[10px] font-black uppercase tracking-widest text-[#8A8279]">Analyzing Branch Ecosystem...</p>
       </div>
     );
   }
@@ -179,8 +179,8 @@ export function DecisionSupport({ branchId, activeBranchId }: DecisionSupportPro
     return (
       <div className="flex flex-col items-center justify-center h-[500px] bg-[#14141B] rounded-[32px] border border-[rgba(201,160,92,0.08)] text-center p-8">
         <SearchX className="w-12 h-12 text-slate-300 mb-4" />
-        <h3 className="text-xl font-bold text-[#EAE2D6]">No Neural Data Found</h3>
-        <p className="text-[#6B655C] text-sm mt-2">No active tickets detected for Branch: {branchId}</p>
+        <h3 className="text-xl font-bold text-[#F5F0E8]">No Neural Data Found</h3>
+        <p className="text-[#8A8279] text-sm mt-2">No active tickets detected for Branch: {branchId}</p>
         <button onClick={fetchLiveData} className="mt-6 flex items-center gap-2 px-6 py-3 bg-[#C9A05C] text-white rounded-xl font-bold">
            <RefreshCcw className="w-4 h-4" /> Retry Sync
         </button>
@@ -192,11 +192,11 @@ export function DecisionSupport({ branchId, activeBranchId }: DecisionSupportPro
     <div className="space-y-6 animate-in fade-in duration-700">
       <div className="flex justify-between items-end">
         <div>
-          <h2 className="text-4xl font-black text-[#EAE2D6] italic uppercase tracking-tighter">Neural <span className="text-[#C9A05C]">Engine</span></h2>
-          <p className="text-[#6B655C] text-xs font-bold tracking-widest uppercase">Predictive Intelligence & Risk Mitigation</p>
+          <h2 className="text-4xl font-black text-[#F5F0E8] italic uppercase tracking-tighter">Neural <span className="text-[#C9A05C]">Engine</span></h2>
+          <p className="text-[#8A8279] text-xs font-bold tracking-widest uppercase">Predictive Intelligence & Risk Mitigation</p>
         </div>
         <div className="flex gap-2">
-           <button onClick={fetchLiveData} className="p-3 text-[#6B655C] hover:text-[#C9A05C] bg-[#14141B] rounded-xl border border-[rgba(201,160,92,0.08)] shadow-sm transition-all">
+           <button onClick={fetchLiveData} className="p-3 text-[#8A8279] hover:text-[#C9A05C] bg-[#14141B] rounded-xl border border-[rgba(201,160,92,0.08)] shadow-sm transition-all">
              <RefreshCcw className="w-5 h-5"/>
            </button>
            <div className="bg-emerald-50 text-emerald-700 px-4 py-2 rounded-xl border border-emerald-100 flex items-center gap-2">
@@ -217,23 +217,23 @@ export function DecisionSupport({ branchId, activeBranchId }: DecisionSupportPro
         </div>
 
         <div className="bg-[#14141B] rounded-[32px] p-6 border border-[rgba(201,160,92,0.08)] shadow-sm">
-          <p className="text-[10px] font-black text-[#6B655C] uppercase tracking-widest mb-1">Exposure</p>
-          <p className="text-3xl font-black text-[#EAE2D6] italic">{formatCurrency(metrics.total)}</p>
+          <p className="text-[10px] font-black text-[#8A8279] uppercase tracking-widest mb-1">Exposure</p>
+          <p className="text-3xl font-black text-[#F5F0E8] italic">{formatCurrency(metrics.total)}</p>
           <div className="w-full bg-[#1C1C26] h-1.5 rounded-full mt-4">
             <div className="bg-[#C9A05C] h-full rounded-full w-2/3"></div>
           </div>
         </div>
 
         <div className="bg-[#14141B] rounded-[32px] p-6 border border-[rgba(201,160,92,0.08)] shadow-sm">
-          <p className="text-[10px] font-black text-[#6B655C] uppercase tracking-widest mb-1">Risk Status</p>
+          <p className="text-[10px] font-black text-[#8A8279] uppercase tracking-widest mb-1">Risk Status</p>
           <p className={`text-3xl font-black italic ${metrics.riskLevel === 'Optimal' ? 'text-emerald-500' : 'text-amber-500'}`}>
             {metrics.riskLevel}
           </p>
-          <p className="text-[9px] text-[#6B655C] font-bold mt-2 uppercase">{metrics.highRiskCount} Aging Assets</p>
+          <p className="text-[9px] text-[#8A8279] font-bold mt-2 uppercase">{metrics.highRiskCount} Aging Assets</p>
         </div>
 
         <div className="bg-[#14141B] rounded-[32px] p-6 border border-[rgba(201,160,92,0.08)] shadow-sm">
-          <p className="text-[10px] font-black text-[#6B655C] uppercase tracking-widest mb-1">Live Activity</p>
+          <p className="text-[10px] font-black text-[#8A8279] uppercase tracking-widest mb-1">Live Activity</p>
           <Activity className="w-6 h-6 text-[#C9A05C] mb-1" />
           <p className="text-xl font-black text-[#C9A05C] italic">SECURE</p>
         </div>
@@ -242,7 +242,7 @@ export function DecisionSupport({ branchId, activeBranchId }: DecisionSupportPro
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 bg-[#14141B] rounded-[40px] p-8 border border-[rgba(201,160,92,0.08)] shadow-sm">
           <div className="flex items-center justify-between mb-8">
-            <h3 className="font-black text-[#EAE2D6] uppercase italic tracking-tight flex items-center gap-2">
+            <h3 className="font-black text-[#F5F0E8] uppercase italic tracking-tight flex items-center gap-2">
               <LineChart className="text-[#C9A05C] w-5 h-5" /> Asset Concentration
             </h3>
           </div>
@@ -262,7 +262,7 @@ export function DecisionSupport({ branchId, activeBranchId }: DecisionSupportPro
                 </BarChart>
               </ResponsiveContainer>
             ) : (
-              <div className="flex items-center justify-center h-full text-[#6B655C] text-xs font-bold uppercase">
+              <div className="flex items-center justify-center h-full text-[#8A8279] text-xs font-bold uppercase">
                 No data available
               </div>
             )}

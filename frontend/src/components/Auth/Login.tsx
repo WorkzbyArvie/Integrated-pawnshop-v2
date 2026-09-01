@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabaseClient';
-import { getSiteUrl } from '../../lib/backendUrl';
+import { getSiteUrl, getBackendUrl } from '../../lib/backendUrl';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Loader2, Lock, Mail, AlertTriangle, ChevronLeft } from "lucide-react";
 
@@ -154,9 +154,31 @@ export default function Login() {
     setError(null);
     setSuccessMessage(null);
 
+    const trimmedEmail = email.trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
+      setError('Please enter a valid email address.');
+      setLoading(false);
+      return;
+    }
+
     try {
+      const backendUrl = getBackendUrl();
+      const res = await fetch(
+        `${backendUrl}/auth/check-email?email=${encodeURIComponent(trimmedEmail)}&role=OWNER`,
+      );
+      const data = await res.json();
+
+      if (!data.emailExists) {
+        setError('This email is not associated with an account.');
+        return;
+      }
+      if (!data.exists) {
+        setError('This email is not associated with an owner account.');
+        return;
+      }
+
       const redirectTo = `${getSiteUrl()}/reset-password?type=recovery`;
-      const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, { redirectTo });
+      const { error: resetError } = await supabase.auth.resetPasswordForEmail(trimmedEmail, { redirectTo });
 
       if (resetError) {
         throw new Error(resetError.message);
@@ -182,7 +204,7 @@ export default function Login() {
             <button
               type="button"
               onClick={handleBack}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-[rgba(201,160,92,0.15)] px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-[#6B655C] transition-all hover:border-[#C9A05C]/40 hover:text-[#C9A05C]"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-[rgba(201,160,92,0.15)] px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-[#8A8279] transition-all hover:border-[#C9A05C]/40 hover:text-[#C9A05C]"
               aria-label="Back"
             >
               <ChevronLeft className="h-3.5 w-3.5" />
@@ -194,23 +216,23 @@ export default function Login() {
               <Lock className="text-[#C9A05C] w-7 h-7" />
             </div>
           </div>
-          <CardTitle className="text-xl tracking-tight text-[#EAE2D6]" style={{ fontFamily: "'Syne', sans-serif" }}>
+          <CardTitle className="text-xl tracking-tight text-[#F5F0E8]" style={{ fontFamily: "'Syne', sans-serif" }}>
             Pawn<span className="text-[#C9A05C]">Gold</span>
           </CardTitle>
-          <p className="text-[#6B655C] text-[10px] font-semibold uppercase tracking-[0.18em] mt-2">Secure Access Portal</p>
+          <p className="text-[#8A8279] text-[10px] font-semibold uppercase tracking-[0.18em] mt-2">Secure Access Portal</p>
         </CardHeader>
 
         <CardContent className="p-8 space-y-6">
           <form onSubmit={isForgotPasswordMode ? handleResetPasswordEmail : handleLogin} className="space-y-4">
             <div className="space-y-2 text-left">
-              <label className="text-[10px] font-semibold text-[#6B655C] uppercase tracking-widest ml-1">Email</label>
+              <label className="text-[10px] font-semibold text-[#8A8279] uppercase tracking-widest ml-1">Email</label>
               <div className="relative">
-                <Mail className="absolute left-3.5 top-3 h-4 w-4 text-[#6B655C]" />
+                <Mail className="absolute left-3.5 top-3 h-4 w-4 text-[#8A8279]" />
                 <input 
                   type="email" 
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 bg-[#1C1C26] border border-[rgba(201,160,92,0.1)] rounded-xl focus:ring-2 focus:ring-[#C9A05C]/30 focus:border-[#C9A05C]/30 outline-none font-medium text-[#EAE2D6] placeholder:text-[#4A4540] transition-all"
+                  className="w-full pl-10 pr-4 py-3 bg-[#1C1C26] border border-[rgba(201,160,92,0.1)] rounded-xl focus:ring-2 focus:ring-[#C9A05C]/30 focus:border-[#C9A05C]/30 outline-none font-medium text-[#F5F0E8] placeholder:text-[#6B655C] transition-all"
                   placeholder="Type your email address"
                   required
                 />
@@ -219,14 +241,14 @@ export default function Login() {
 
             {!isForgotPasswordMode && (
               <div className="space-y-2 text-left">
-                <label className="text-[10px] font-semibold text-[#6B655C] uppercase tracking-widest ml-1">Password</label>
+                <label className="text-[10px] font-semibold text-[#8A8279] uppercase tracking-widest ml-1">Password</label>
                 <div className="relative">
-                  <Lock className="absolute left-3.5 top-3 h-4 w-4 text-[#6B655C]" />
+                  <Lock className="absolute left-3.5 top-3 h-4 w-4 text-[#8A8279]" />
                   <input 
                     type="password" 
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="w-full pl-10 pr-4 py-3 bg-[#1C1C26] border border-[rgba(201,160,92,0.1)] rounded-xl focus:ring-2 focus:ring-[#C9A05C]/30 focus:border-[#C9A05C]/30 outline-none font-medium text-[#EAE2D6] placeholder:text-[#4A4540] transition-all"
+                    className="w-full pl-10 pr-4 py-3 bg-[#1C1C26] border border-[rgba(201,160,92,0.1)] rounded-xl focus:ring-2 focus:ring-[#C9A05C]/30 focus:border-[#C9A05C]/30 outline-none font-medium text-[#F5F0E8] placeholder:text-[#6B655C] transition-all"
                     placeholder="Enter your password"
                     required
                   />
@@ -270,7 +292,7 @@ export default function Login() {
                 setSuccessMessage(null);
                 setIsForgotPasswordMode((prev) => !prev);
               }}
-              className="w-full text-[10px] font-semibold text-[#6B655C] uppercase tracking-[0.16em] hover:text-[#C9A05C] transition-colors disabled:opacity-50"
+              className="w-full text-[10px] font-semibold text-[#8A8279] uppercase tracking-[0.16em] hover:text-[#C9A05C] transition-colors disabled:opacity-50"
             >
               {isForgotPasswordMode ? 'Back to Login' : 'Forgot Password?'}
             </button>
@@ -280,7 +302,7 @@ export default function Login() {
             <button 
               type="button"
               onClick={() => { localStorage.clear(); window.location.reload(); }}
-              className="text-[9px] font-semibold text-[#4A4540] uppercase tracking-widest hover:text-[#C9A05C] transition-colors"
+              className="text-[9px] font-semibold text-[#6B655C] uppercase tracking-widest hover:text-[#C9A05C] transition-colors"
             >
               Reset Session
             </button>

@@ -1,4 +1,4 @@
-﻿/**
+/**
  * AttendanceTracker -- Staff attendance with clock-in/out and leave management.
  *
  * Features:
@@ -302,7 +302,7 @@ export function AttendanceTracker({ branchId: _branchId, activeBranchId, userRol
     if (status === 'ABSENT') return <Badge className="bg-rose-100 text-rose-700">Absent</Badge>;
     if (status === 'ON_LEAVE') return <Badge className="bg-sky-100 text-sky-700">On Leave</Badge>;
     if (status === 'HALF_DAY') return <Badge className="bg-orange-100 text-orange-700">Half Day</Badge>;
-    return <Badge variant="outline" className="text-[#6B655C]">Not Clocked In</Badge>;
+    return <Badge variant="outline" className="text-[#8A8279]">Not Clocked In</Badge>;
   };
 
   return (
@@ -310,8 +310,8 @@ export function AttendanceTracker({ branchId: _branchId, activeBranchId, userRol
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-black text-[#EAE2D6] tracking-tight">Attendance Tracker</h1>
-          <p className="text-[#6B655C] mt-1">Staff clock-in/out, leave management, and attendance reports</p>
+          <h1 className="text-3xl font-black text-[#F5F0E8] tracking-tight">Attendance Tracker</h1>
+          <p className="text-[#8A8279] mt-1">Staff clock-in/out, leave management, and attendance reports</p>
         </div>
         <div className="flex items-center gap-3">
           <Button variant="outline" size="sm" onClick={refetchAll}>
@@ -330,8 +330,8 @@ export function AttendanceTracker({ branchId: _branchId, activeBranchId, userRol
             <div className="flex items-center gap-3">
               <div className="p-2 bg-[#C9A05C]/15 rounded-xl"><Users className="w-5 h-5 text-[#C9A05C]" /></div>
               <div>
-                <p className="text-2xl font-black text-[#EAE2D6]">{staff.length}</p>
-                <p className="text-xs text-[#6B655C]">Total Staff</p>
+                <p className="text-2xl font-black text-[#F5F0E8]">{staff.length}</p>
+                <p className="text-xs text-[#8A8279]">Total Staff</p>
               </div>
             </div>
           </CardContent>
@@ -341,8 +341,8 @@ export function AttendanceTracker({ branchId: _branchId, activeBranchId, userRol
             <div className="flex items-center gap-3">
               <div className="p-2 bg-emerald-100 rounded-xl"><UserCheck className="w-5 h-5 text-emerald-600" /></div>
               <div>
-                <p className="text-2xl font-black text-[#EAE2D6]">{presentCount}</p>
-                <p className="text-xs text-[#6B655C]">Present Today</p>
+                <p className="text-2xl font-black text-[#F5F0E8]">{presentCount}</p>
+                <p className="text-xs text-[#8A8279]">Present Today</p>
               </div>
             </div>
           </CardContent>
@@ -352,8 +352,8 @@ export function AttendanceTracker({ branchId: _branchId, activeBranchId, userRol
             <div className="flex items-center gap-3">
               <div className="p-2 bg-amber-100 rounded-xl"><Timer className="w-5 h-5 text-amber-600" /></div>
               <div>
-                <p className="text-2xl font-black text-[#EAE2D6]">{lateCount}</p>
-                <p className="text-xs text-[#6B655C]">Late</p>
+                <p className="text-2xl font-black text-[#F5F0E8]">{lateCount}</p>
+                <p className="text-xs text-[#8A8279]">Late</p>
               </div>
             </div>
           </CardContent>
@@ -363,8 +363,8 @@ export function AttendanceTracker({ branchId: _branchId, activeBranchId, userRol
             <div className="flex items-center gap-3">
               <div className="p-2 bg-rose-100 rounded-xl"><UserX className="w-5 h-5 text-rose-600" /></div>
               <div>
-                <p className="text-2xl font-black text-[#EAE2D6]">{absentCount}</p>
-                <p className="text-xs text-[#6B655C]">Absent</p>
+                <p className="text-2xl font-black text-[#F5F0E8]">{absentCount}</p>
+                <p className="text-xs text-[#8A8279]">Absent</p>
               </div>
             </div>
           </CardContent>
@@ -374,8 +374,8 @@ export function AttendanceTracker({ branchId: _branchId, activeBranchId, userRol
             <div className="flex items-center gap-3">
               <div className="p-2 bg-sky-100 rounded-xl"><CalendarDays className="w-5 h-5 text-sky-600" /></div>
               <div>
-                <p className="text-2xl font-black text-[#EAE2D6]">{onLeaveCount}</p>
-                <p className="text-xs text-[#6B655C]">On Leave</p>
+                <p className="text-2xl font-black text-[#F5F0E8]">{onLeaveCount}</p>
+                <p className="text-xs text-[#8A8279]">On Leave</p>
               </div>
             </div>
           </CardContent>
@@ -386,7 +386,7 @@ export function AttendanceTracker({ branchId: _branchId, activeBranchId, userRol
               <div className="p-2 bg-violet-100 rounded-xl"><TrendingUp className="w-5 h-5 text-violet-600" /></div>
               <div>
                 <p className="text-sm font-bold text-violet-600">View Stats</p>
-                <p className="text-xs text-[#6B655C]">Per-staff report</p>
+                <p className="text-xs text-[#8A8279]">Per-staff report</p>
               </div>
             </div>
           </CardContent>
@@ -406,7 +406,7 @@ export function AttendanceTracker({ branchId: _branchId, activeBranchId, userRol
               <Loader2 className="w-6 h-6 animate-spin text-[#C9A05C]" />
             </div>
           ) : staff.length === 0 ? (
-            <p className="text-center text-[#6B655C] py-8">No staff members found for this pawnshop</p>
+            <p className="text-center text-[#8A8279] py-8">No staff members found for this pawnshop</p>
           ) : (
             <Table>
               <TableHeader>
@@ -445,7 +445,7 @@ export function AttendanceTracker({ branchId: _branchId, activeBranchId, userRol
                                 className={`w-8 h-8 text-xs rounded-full font-semibold transition-colors ${
                                   scheduleForm.workingDays & DAY_BITS[i]
                                     ? 'bg-[#C9A05C] text-white'
-                                    : 'bg-[#1C1C26] text-[#6B655C]'
+                                    : 'bg-[#1C1C26] text-[#8A8279]'
                                 }`}
                                 onClick={() => toggleDay(DAY_BITS[i])}
                               >
@@ -458,10 +458,10 @@ export function AttendanceTracker({ branchId: _branchId, activeBranchId, userRol
                     ) : (
                       <>
                         <TableCell className="font-mono text-sm">
-                          {s.schedule?.shiftStart || <span className="text-[#6B655C]">--</span>}
+                          {s.schedule?.shiftStart || <span className="text-[#8A8279]">--</span>}
                         </TableCell>
                         <TableCell className="font-mono text-sm">
-                          {s.schedule?.shiftEnd || <span className="text-[#6B655C]">--</span>}
+                          {s.schedule?.shiftEnd || <span className="text-[#8A8279]">--</span>}
                         </TableCell>
                         <TableCell>
                           <div className="flex gap-0.5">
@@ -531,7 +531,7 @@ export function AttendanceTracker({ branchId: _branchId, activeBranchId, userRol
 
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-3">
-        <Filter className="w-4 h-4 text-[#6B655C]" />
+        <Filter className="w-4 h-4 text-[#8A8279]" />
         <Select value={staffIdFilter || 'all'} onValueChange={(v) => setStaffIdFilter(v === 'all' ? '' : v)}>
           <SelectTrigger className="w-64">
             <SelectValue placeholder="Filter by staff..." />
@@ -627,7 +627,7 @@ export function AttendanceTracker({ branchId: _branchId, activeBranchId, userRol
                 })}
                 {attendanceRecords.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={11} className="text-center text-[#6B655C] py-8">No attendance records found</TableCell>
+                    <TableCell colSpan={11} className="text-center text-[#8A8279] py-8">No attendance records found</TableCell>
                   </TableRow>
                 )}
               </TableBody>
@@ -645,16 +645,16 @@ export function AttendanceTracker({ branchId: _branchId, activeBranchId, userRol
           <div className="space-y-5 py-4">
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="text-sm font-medium text-[#6B655C]">Shift Start</label>
+                <label className="text-sm font-medium text-[#8A8279]">Shift Start</label>
                 <Input type="time" value={scheduleForm.shiftStart} onChange={(e) => setScheduleForm({ ...scheduleForm, shiftStart: e.target.value })} />
               </div>
               <div>
-                <label className="text-sm font-medium text-[#6B655C]">Shift End</label>
+                <label className="text-sm font-medium text-[#8A8279]">Shift End</label>
                 <Input type="time" value={scheduleForm.shiftEnd} onChange={(e) => setScheduleForm({ ...scheduleForm, shiftEnd: e.target.value })} />
               </div>
             </div>
             <div>
-              <label className="text-sm font-medium text-[#6B655C] block mb-2">Working Days</label>
+              <label className="text-sm font-medium text-[#8A8279] block mb-2">Working Days</label>
               <div className="flex gap-2">
                 {DAY_LABELS.map((day, i) => (
                   <button
@@ -662,7 +662,7 @@ export function AttendanceTracker({ branchId: _branchId, activeBranchId, userRol
                     className={`w-10 h-10 text-xs rounded-full font-semibold transition-colors ${
                       scheduleForm.workingDays & DAY_BITS[i]
                         ? 'bg-[#C9A05C] text-white'
-                        : 'bg-[#1C1C26] text-[#6B655C] hover:bg-[#222228]'
+                        : 'bg-[#1C1C26] text-[#8A8279] hover:bg-[#222228]'
                     }`}
                     onClick={() => toggleDay(DAY_BITS[i])}
                   >
@@ -672,10 +672,10 @@ export function AttendanceTracker({ branchId: _branchId, activeBranchId, userRol
               </div>
             </div>
             <div>
-              <label className="text-sm font-medium text-[#6B655C]">Late Threshold (minutes)</label>
+              <label className="text-sm font-medium text-[#8A8279]">Late Threshold (minutes)</label>
               <Input type="number" min={0} max={120} value={scheduleForm.lateThreshold} onChange={(e) => setScheduleForm({ ...scheduleForm, lateThreshold: parseInt(e.target.value) || 0 })} />
             </div>
-            <p className="text-xs text-[#6B655C]">
+            <p className="text-xs text-[#8A8279]">
               This will apply the same schedule to all {staff.length} staff members. To set individual schedules, use the Edit button on each row in the roster.
             </p>
           </div>
@@ -697,7 +697,7 @@ export function AttendanceTracker({ branchId: _branchId, activeBranchId, userRol
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div>
-              <label className="text-sm font-medium text-[#6B655C]">Select Staff *</label>
+              <label className="text-sm font-medium text-[#8A8279]">Select Staff *</label>
               <Select value={leaveForm.staffId} onValueChange={(v) => setLeaveForm({ ...leaveForm, staffId: v })}>
                 <SelectTrigger>
                   <SelectValue placeholder="Choose staff member..." />
@@ -710,7 +710,7 @@ export function AttendanceTracker({ branchId: _branchId, activeBranchId, userRol
               </Select>
             </div>
             <div>
-              <label className="text-sm font-medium text-[#6B655C]">Date *</label>
+              <label className="text-sm font-medium text-[#8A8279]">Date *</label>
               <Input
                 type="date"
                 value={leaveForm.date}
@@ -718,7 +718,7 @@ export function AttendanceTracker({ branchId: _branchId, activeBranchId, userRol
               />
             </div>
             <div>
-              <label className="text-sm font-medium text-[#6B655C]">Leave Type *</label>
+              <label className="text-sm font-medium text-[#8A8279]">Leave Type *</label>
               <Select value={leaveForm.leaveType} onValueChange={(v) => setLeaveForm({ ...leaveForm, leaveType: v as LeaveType })}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -729,7 +729,7 @@ export function AttendanceTracker({ branchId: _branchId, activeBranchId, userRol
               </Select>
             </div>
             <div>
-              <label className="text-sm font-medium text-[#6B655C]">Reason *</label>
+              <label className="text-sm font-medium text-[#8A8279]">Reason *</label>
               <Input
                 placeholder="Reason for leave..."
                 value={leaveForm.leaveReason}
@@ -768,36 +768,36 @@ export function AttendanceTracker({ branchId: _branchId, activeBranchId, userRol
             {stats && (
               <div className="grid grid-cols-2 gap-4 pt-4">
                 <div className="p-3 bg-[#1C1C26] rounded-xl">
-                  <p className="text-xs text-[#6B655C]">Total Days</p>
+                  <p className="text-xs text-[#8A8279]">Total Days</p>
                   <p className="text-lg font-black">{stats.totalDays}</p>
                 </div>
                 <div className="p-3 bg-emerald-50 rounded-xl">
-                  <p className="text-xs text-[#6B655C]">Attendance Rate</p>
+                  <p className="text-xs text-[#8A8279]">Attendance Rate</p>
                   <p className="text-lg font-black text-emerald-700">{stats.attendanceRate?.toFixed(1) ?? 0}%</p>
                 </div>
                 <div className="p-3 bg-sky-50 rounded-xl">
-                  <p className="text-xs text-[#6B655C]">Punctuality Rate</p>
+                  <p className="text-xs text-[#8A8279]">Punctuality Rate</p>
                   <p className="text-lg font-black text-sky-700">{stats.punctualityRate?.toFixed(1) ?? 0}%</p>
                 </div>
                 <div className="p-3 bg-violet-50 rounded-xl">
-                  <p className="text-xs text-[#6B655C]">Total Work Hours</p>
+                  <p className="text-xs text-[#8A8279]">Total Work Hours</p>
                   <p className="text-lg font-black text-violet-700">{formatNumber(stats.totalWorkHours, 1)}h</p>
                 </div>
                 <div className="p-3 bg-amber-50 rounded-xl">
-                  <p className="text-xs text-[#6B655C]">Total Overtime</p>
+                  <p className="text-xs text-[#8A8279]">Total Overtime</p>
                   <p className="text-lg font-black text-amber-700">{formatNumber(stats.totalOvertime, 1)}h</p>
                 </div>
                 <div className="p-3 bg-rose-50 rounded-xl">
-                  <p className="text-xs text-[#6B655C]">Absent Days</p>
+                  <p className="text-xs text-[#8A8279]">Absent Days</p>
                   <p className="text-lg font-black text-rose-700">{stats.absent}</p>
                 </div>
               </div>
             )}
             {!stats && statsStaffId && (
-              <p className="text-sm text-[#6B655C] text-center py-8">Loading statistics...</p>
+              <p className="text-sm text-[#8A8279] text-center py-8">Loading statistics...</p>
             )}
             {!stats && !statsStaffId && (
-              <p className="text-sm text-[#6B655C] text-center py-8">Select a staff member to view statistics</p>
+              <p className="text-sm text-[#8A8279] text-center py-8">Select a staff member to view statistics</p>
             )}
           </div>
         </DialogContent>

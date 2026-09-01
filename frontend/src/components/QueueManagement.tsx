@@ -1,4 +1,4 @@
-﻿/**
+/**
  * QueueManagement -- Real-time customer queue dashboard.
  *
  * Features:
@@ -225,7 +225,7 @@ export function QueueManagement({ branchId: _branchId }: QueueManagementProps) {
       icon: 'question',
       showCancelButton: true,
       confirmButtonColor: '#C9A05C',
-      cancelButtonColor: '#6B655C',
+      cancelButtonColor: '#8A8279',
       confirmButtonText: 'Yes, proceed',
       cancelButtonText: 'Cancel',
     });
@@ -249,8 +249,8 @@ export function QueueManagement({ branchId: _branchId }: QueueManagementProps) {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-black text-[#EAE2D6] tracking-tight">Queue Management</h1>
-          <p className="text-[#6B655C] mt-1">Real-time customer service queue</p>
+          <h1 className="text-3xl font-black text-[#F5F0E8] tracking-tight">Queue Management</h1>
+          <p className="text-[#8A8279] mt-1">Real-time customer service queue</p>
         </div>
         <div className="flex items-center gap-3">
           <Button variant="outline" size="sm" onClick={refetchAll}>
@@ -274,8 +274,8 @@ export function QueueManagement({ branchId: _branchId }: QueueManagementProps) {
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-[#C9A05C]/15 rounded-xl"><Users className="w-5 h-5 text-[#C9A05C]" /></div>
                 <div>
-                  <p className="text-2xl font-black text-[#EAE2D6]">{stats.totalToday}</p>
-                  <p className="text-xs text-[#6B655C]">Today Total</p>
+                  <p className="text-2xl font-black text-[#F5F0E8]">{stats.totalToday}</p>
+                  <p className="text-xs text-[#8A8279]">Today Total</p>
                 </div>
               </div>
             </CardContent>
@@ -285,8 +285,8 @@ export function QueueManagement({ branchId: _branchId }: QueueManagementProps) {
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-amber-100 rounded-xl"><Clock className="w-5 h-5 text-amber-600" /></div>
                 <div>
-                  <p className="text-2xl font-black text-[#EAE2D6]">{stats.waiting}</p>
-                  <p className="text-xs text-[#6B655C]">Waiting</p>
+                  <p className="text-2xl font-black text-[#F5F0E8]">{stats.waiting}</p>
+                  <p className="text-xs text-[#8A8279]">Waiting</p>
                 </div>
               </div>
             </CardContent>
@@ -296,8 +296,8 @@ export function QueueManagement({ branchId: _branchId }: QueueManagementProps) {
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-sky-100 rounded-xl"><PhoneCall className="w-5 h-5 text-sky-600" /></div>
                 <div>
-                  <p className="text-2xl font-black text-[#EAE2D6]">{stats.serving}</p>
-                  <p className="text-xs text-[#6B655C]">Serving</p>
+                  <p className="text-2xl font-black text-[#F5F0E8]">{stats.serving}</p>
+                  <p className="text-xs text-[#8A8279]">Serving</p>
                 </div>
               </div>
             </CardContent>
@@ -307,8 +307,8 @@ export function QueueManagement({ branchId: _branchId }: QueueManagementProps) {
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-emerald-100 rounded-xl"><CheckCircle2 className="w-5 h-5 text-emerald-600" /></div>
                 <div>
-                  <p className="text-2xl font-black text-[#EAE2D6]">{stats.completed}</p>
-                  <p className="text-xs text-[#6B655C]">Completed</p>
+                  <p className="text-2xl font-black text-[#F5F0E8]">{stats.completed}</p>
+                  <p className="text-xs text-[#8A8279]">Completed</p>
                 </div>
               </div>
             </CardContent>
@@ -318,8 +318,8 @@ export function QueueManagement({ branchId: _branchId }: QueueManagementProps) {
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-rose-100 rounded-xl"><XCircle className="w-5 h-5 text-rose-600" /></div>
                 <div>
-                  <p className="text-2xl font-black text-[#EAE2D6]">{stats.noShow + stats.cancelled}</p>
-                  <p className="text-xs text-[#6B655C]">No Show / Cancel</p>
+                  <p className="text-2xl font-black text-[#F5F0E8]">{stats.noShow + stats.cancelled}</p>
+                  <p className="text-xs text-[#8A8279]">No Show / Cancel</p>
                 </div>
               </div>
             </CardContent>
@@ -329,8 +329,8 @@ export function QueueManagement({ branchId: _branchId }: QueueManagementProps) {
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-violet-100 rounded-xl"><Clock className="w-5 h-5 text-violet-600" /></div>
                 <div>
-                  <p className="text-2xl font-black text-[#EAE2D6]">{stats.averageWaitMinutes?.toFixed(0) ?? 0}m</p>
-                  <p className="text-xs text-[#6B655C]">Avg Wait</p>
+                  <p className="text-2xl font-black text-[#F5F0E8]">{stats.averageWaitMinutes?.toFixed(0) ?? 0}m</p>
+                  <p className="text-xs text-[#8A8279]">Avg Wait</p>
                 </div>
               </div>
             </CardContent>
@@ -340,7 +340,7 @@ export function QueueManagement({ branchId: _branchId }: QueueManagementProps) {
 
       {/* Filters */}
       <div className="flex items-center gap-3">
-        <Filter className="w-4 h-4 text-[#6B655C]" />
+        <Filter className="w-4 h-4 text-[#8A8279]" />
         <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as QueueStatus | '')}>
           <SelectTrigger className="w-44"><SelectValue placeholder="All Statuses" /></SelectTrigger>
           <SelectContent>
@@ -382,17 +382,17 @@ export function QueueManagement({ branchId: _branchId }: QueueManagementProps) {
                 <Card key={ticket.id} className="border-l-4 border-l-amber-400 shadow-sm hover:shadow-md transition-shadow">
                   <CardContent className="p-4">
                     <div className="flex items-center justify-between mb-2">
-                      <span className="font-mono font-black text-lg text-[#EAE2D6]">{ticket.queueNumber}</span>
+                      <span className="font-mono font-black text-lg text-[#F5F0E8]">{ticket.queueNumber}</span>
                       <Badge className={statusColor(ticket.status)}>{humanizeStatus(ticket.status)}</Badge>
                     </div>
-                    <p className="text-xs text-[#6B655C] mb-1">
+                    <p className="text-xs text-[#8A8279] mb-1">
                       <Hash className="w-3 h-3 inline mr-1" />{humanizeStatus(ticket.queueType)}
                     </p>
-                    <p className="text-xs text-[#6B655C]">Created: {formatTime(ticket.createdAt)}</p>
+                    <p className="text-xs text-[#8A8279]">Created: {formatTime(ticket.createdAt)}</p>
                     {ticket.estimatedWaitMinutes != null && (
-                      <p className="text-xs text-[#6B655C] mt-1">Est. wait: ~{ticket.estimatedWaitMinutes}m</p>
+                      <p className="text-xs text-[#8A8279] mt-1">Est. wait: ~{ticket.estimatedWaitMinutes}m</p>
                     )}
-                    {ticket.notes && <p className="text-xs text-[#6B655C] mt-1 italic">{ticket.notes}</p>}
+                    {ticket.notes && <p className="text-xs text-[#8A8279] mt-1 italic">{ticket.notes}</p>}
                     <div className="flex gap-2 mt-3">
                       <Button size="sm" className="bg-sky-600 hover:bg-sky-700 text-xs" onClick={() => handleUpdateStatus(ticket.id, 'SERVING')}>
                         Serve
@@ -408,7 +408,7 @@ export function QueueManagement({ branchId: _branchId }: QueueManagementProps) {
                 </Card>
               ))}
               {waiting.length === 0 && (
-                <p className="text-sm text-[#6B655C] text-center py-8">No customers waiting</p>
+                <p className="text-sm text-[#8A8279] text-center py-8">No customers waiting</p>
               )}
             </div>
 
@@ -424,16 +424,16 @@ export function QueueManagement({ branchId: _branchId }: QueueManagementProps) {
                 <Card key={ticket.id} className="border-l-4 border-l-sky-400 shadow-sm hover:shadow-md transition-shadow">
                   <CardContent className="p-4">
                     <div className="flex items-center justify-between mb-2">
-                      <span className="font-mono font-black text-lg text-[#EAE2D6]">{ticket.queueNumber}</span>
+                      <span className="font-mono font-black text-lg text-[#F5F0E8]">{ticket.queueNumber}</span>
                       <Badge className={statusColor(ticket.status)}>{humanizeStatus(ticket.status)}</Badge>
                     </div>
-                    <p className="text-xs text-[#6B655C] mb-1">
+                    <p className="text-xs text-[#8A8279] mb-1">
                       <Hash className="w-3 h-3 inline mr-1" />{humanizeStatus(ticket.queueType)}
                     </p>
                     {ticket.counterNumber && (
-                      <p className="text-xs text-[#6B655C]">Counter: {ticket.counterNumber}</p>
+                      <p className="text-xs text-[#8A8279]">Counter: {ticket.counterNumber}</p>
                     )}
-                    <p className="text-xs text-[#6B655C]">Serving since: {formatTime(ticket.servedAt)}</p>
+                    <p className="text-xs text-[#8A8279]">Serving since: {formatTime(ticket.servedAt)}</p>
                     <div className="flex gap-2 mt-3">
                       <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-xs" onClick={() => handleUpdateStatus(ticket.id, 'COMPLETED')}>
                         Complete
@@ -449,7 +449,7 @@ export function QueueManagement({ branchId: _branchId }: QueueManagementProps) {
                 </Card>
               ))}
               {serving.length === 0 && (
-                <p className="text-sm text-[#6B655C] text-center py-8">No customers being served</p>
+                <p className="text-sm text-[#8A8279] text-center py-8">No customers being served</p>
               )}
             </div>
 
@@ -465,18 +465,18 @@ export function QueueManagement({ branchId: _branchId }: QueueManagementProps) {
                 <Card key={ticket.id} className="border-l-4 border-l-emerald-400 shadow-sm opacity-80">
                   <CardContent className="p-4">
                     <div className="flex items-center justify-between mb-2">
-                      <span className="font-mono font-bold text-[#6B655C]">{ticket.queueNumber}</span>
+                      <span className="font-mono font-bold text-[#8A8279]">{ticket.queueNumber}</span>
                       <Badge className={statusColor(ticket.status)}>{humanizeStatus(ticket.status)}</Badge>
                     </div>
-                    <p className="text-xs text-[#6B655C]">
+                    <p className="text-xs text-[#8A8279]">
                       <Hash className="w-3 h-3 inline mr-1" />{humanizeStatus(ticket.queueType)}
                     </p>
-                    <p className="text-xs text-[#6B655C]">Done: {formatTime(ticket.completedAt)}</p>
+                    <p className="text-xs text-[#8A8279]">Done: {formatTime(ticket.completedAt)}</p>
                   </CardContent>
                 </Card>
               ))}
               {completed.length === 0 && (
-                <p className="text-sm text-[#6B655C] text-center py-8">No completed tickets today</p>
+                <p className="text-sm text-[#8A8279] text-center py-8">No completed tickets today</p>
               )}
             </div>
           </div>
@@ -537,7 +537,7 @@ export function QueueManagement({ branchId: _branchId }: QueueManagementProps) {
                 ))}
                 {tickets.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={9} className="text-center text-[#6B655C] py-8">No tickets found</TableCell>
+                    <TableCell colSpan={9} className="text-center text-[#8A8279] py-8">No tickets found</TableCell>
                   </TableRow>
                 )}
               </TableBody>
@@ -554,7 +554,7 @@ export function QueueManagement({ branchId: _branchId }: QueueManagementProps) {
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div>
-              <label className="text-sm font-medium text-[#6B655C]">Customer ID *</label>
+              <label className="text-sm font-medium text-[#8A8279]">Customer ID *</label>
               <Input
                 placeholder="Enter customer UUID"
                 value={newTicket.customerId}
@@ -562,7 +562,7 @@ export function QueueManagement({ branchId: _branchId }: QueueManagementProps) {
               />
             </div>
             <div>
-              <label className="text-sm font-medium text-[#6B655C]">Service Type *</label>
+              <label className="text-sm font-medium text-[#8A8279]">Service Type *</label>
               <Select value={newTicket.queueType} onValueChange={(v) => setNewTicket({ ...newTicket, queueType: v as QueueType })}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -573,7 +573,7 @@ export function QueueManagement({ branchId: _branchId }: QueueManagementProps) {
               </Select>
             </div>
             <div>
-              <label className="text-sm font-medium text-[#6B655C]">Priority</label>
+              <label className="text-sm font-medium text-[#8A8279]">Priority</label>
               <Input
                 type="number"
                 min={0}
@@ -581,10 +581,10 @@ export function QueueManagement({ branchId: _branchId }: QueueManagementProps) {
                 value={newTicket.priority}
                 onChange={(e) => setNewTicket({ ...newTicket, priority: parseInt(e.target.value) || 0 })}
               />
-              <p className="text-xs text-[#6B655C] mt-1">0 = normal priority, higher = served first</p>
+              <p className="text-xs text-[#8A8279] mt-1">0 = normal priority, higher = served first</p>
             </div>
             <div>
-              <label className="text-sm font-medium text-[#6B655C]">Notes</label>
+              <label className="text-sm font-medium text-[#8A8279]">Notes</label>
               <Input
                 placeholder="Optional notes..."
                 value={newTicket.notes}
@@ -614,10 +614,10 @@ export function QueueManagement({ branchId: _branchId }: QueueManagementProps) {
           <div className="h-80 overflow-y-auto border rounded-lg bg-[#1C1C26] p-3 space-y-2">
             {chatLoading && chatMessages.length === 0 ? (
               <div className="flex items-center justify-center h-full">
-                <Loader2 className="w-5 h-5 animate-spin text-[#6B655C]" />
+                <Loader2 className="w-5 h-5 animate-spin text-[#8A8279]" />
               </div>
             ) : chatMessages.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-full text-[#6B655C] text-sm">
+              <div className="flex flex-col items-center justify-center h-full text-[#8A8279] text-sm">
                 <MessageSquare className="w-8 h-8 mb-2 opacity-30" />
                 No messages yet
               </div>
@@ -639,7 +639,7 @@ export function QueueManagement({ branchId: _branchId }: QueueManagementProps) {
                     }`}>
                       {!isStaff && <p className="text-[10px] font-semibold text-amber-600 mb-0.5">Customer</p>}
                       <p>{msg.message}</p>
-                      <p className={`text-[10px] mt-1 ${isStaff ? 'text-[#E5C88C]' : 'text-[#6B655C]'}`}>{timeLabel}</p>
+                      <p className={`text-[10px] mt-1 ${isStaff ? 'text-[#E5C88C]' : 'text-[#8A8279]'}`}>{timeLabel}</p>
                     </div>
                   </div>
                 );

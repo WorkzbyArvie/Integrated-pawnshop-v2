@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import Swal from 'sweetalert2';
 import {
   CheckCircle2,
@@ -205,7 +205,7 @@ export function ApprovalWorkflow({
     <div className="space-y-6">
       {/* Approval Timeline */}
       <div className="bg-[#14141B] rounded-2xl shadow-sm border border-[rgba(201,160,92,0.1)] p-8">
-        <h2 className="text-xl font-black text-[#EAE2D6] mb-6">Approval Progress</h2>
+        <h2 className="text-xl font-black text-[#F5F0E8] mb-6">Approval Progress</h2>
 
         <div className="relative">
           {/* Timeline Line */}
@@ -228,7 +228,7 @@ export function ApprovalWorkflow({
                   )}
                   {step.status === 'PENDING' && (
                     <div className="w-10 h-10 bg-gray-300 rounded-full flex items-center justify-center">
-                      <Clock className="w-6 h-6 text-[#6B655C]" />
+                      <Clock className="w-6 h-6 text-[#8A8279]" />
                     </div>
                   )}
                 </div>
@@ -236,7 +236,7 @@ export function ApprovalWorkflow({
                 {/* Step Content */}
                 <div className="flex-1 pb-8">
                   <div className="flex items-center justify-between mb-2">
-                    <h3 className="text-lg font-bold text-[#EAE2D6]">{step.label}</h3>
+                    <h3 className="text-lg font-bold text-[#F5F0E8]">{step.label}</h3>
                     {step.status === 'COMPLETED' && (
                       <span className="px-3 py-1 bg-green-100 text-green-800 text-xs font-bold rounded-full">
                         Completed
@@ -250,14 +250,14 @@ export function ApprovalWorkflow({
                   </div>
 
                   {step.approver && (
-                    <div className="flex items-center gap-2 text-sm text-[#999186] mb-1">
+                    <div className="flex items-center gap-2 text-sm text-[#B8B0A4] mb-1">
                       <User className="w-4 h-4" />
                       <span>Approved by {step.approver}</span>
                     </div>
                   )}
 
                   {step.date && (
-                    <div className="flex items-center gap-2 text-sm text-[#6B655C] mb-2">
+                    <div className="flex items-center gap-2 text-sm text-[#8A8279] mb-2">
                       <Clock className="w-4 h-4" />
                       <span>{formatDate(step.date)}</span>
                     </div>
@@ -266,8 +266,8 @@ export function ApprovalWorkflow({
                   {step.comments && (
                     <div className="mt-3 p-3 bg-gray-50 rounded-lg">
                       <div className="flex items-start gap-2">
-                        <MessageSquare className="w-4 h-4 text-[#6B655C] mt-0.5 flex-shrink-0" />
-                        <p className="text-sm text-[#999186]">{step.comments}</p>
+                        <MessageSquare className="w-4 h-4 text-[#8A8279] mt-0.5 flex-shrink-0" />
+                        <p className="text-sm text-[#B8B0A4]">{step.comments}</p>
                       </div>
                     </div>
                   )}
@@ -283,7 +283,7 @@ export function ApprovalWorkflow({
         <div className="bg-[#14141B] rounded-2xl shadow-sm border border-[rgba(201,160,92,0.1)] p-8">
           <div className="flex items-center gap-3 mb-6">
             <AlertCircle className="w-6 h-6 text-[#C9A05C]" />
-            <h2 className="text-xl font-black text-[#EAE2D6]">Your Decision Required</h2>
+            <h2 className="text-xl font-black text-[#F5F0E8]">Your Decision Required</h2>
           </div>
 
           {!showDecisionForm ? (
@@ -334,7 +334,7 @@ export function ApprovalWorkflow({
 
               {/* Comments */}
               <div>
-                <label className="block text-sm font-bold text-[#999186] mb-2">
+                <label className="block text-sm font-bold text-[#B8B0A4] mb-2">
                   Comments / Reason <span className="text-red-600">*</span>
                 </label>
                 <textarea
@@ -349,7 +349,7 @@ export function ApprovalWorkflow({
                   }
                   required
                 />
-                <p className="text-sm text-[#6B655C] mt-2">
+                <p className="text-sm text-[#8A8279] mt-2">
                   Your comments will be recorded in the approval history
                 </p>
               </div>
@@ -362,7 +362,7 @@ export function ApprovalWorkflow({
                     setDecision(null);
                     setComments('');
                   }}
-                  className="px-6 py-3 bg-gray-100 text-[#999186] font-bold rounded-xl hover:bg-gray-200 transition"
+                  className="px-6 py-3 bg-gray-100 text-[#B8B0A4] font-bold rounded-xl hover:bg-gray-200 transition"
                   disabled={loading}
                 >
                   Cancel

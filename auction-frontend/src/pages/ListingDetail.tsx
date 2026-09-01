@@ -232,7 +232,7 @@ export default function ListingDetail() {
                           await acceptBidderTos(listing.id, session.access_token);
                           setTosAccepted(true);
                         } catch {
-                          Swal.fire({ icon: 'error', title: 'Error', text: 'Failed to accept terms. Please try again.', confirmButtonColor: '#C9A05C', background: '#1C1C26', color: '#EAE2D6' });
+                          Swal.fire({ icon: 'error', title: 'Error', text: 'Failed to accept terms. Please try again.', confirmButtonColor: '#C9A05C', background: '#1C1C26', color: '#F5F0E8' });
                         } finally {
                           setAcceptingTos(false);
                         }
@@ -292,16 +292,16 @@ export default function ListingDetail() {
                       disabled={bidding}
                       onClick={async () => {
                         if (!session?.access_token) {
-                          Swal.fire({ icon: 'error', title: 'Session Expired', text: 'Your session expired. Please log in again.', confirmButtonColor: '#C9A05C', background: '#1C1C26', color: '#EAE2D6' });
+                          Swal.fire({ icon: 'error', title: 'Session Expired', text: 'Your session expired. Please log in again.', confirmButtonColor: '#C9A05C', background: '#1C1C26', color: '#F5F0E8' });
                           return;
                         }
                         if (String(listing.status || '').toUpperCase() !== 'LIVE') {
-                          Swal.fire({ icon: 'error', title: 'Not Available', text: 'This listing is not live for bidding.', confirmButtonColor: '#C9A05C', background: '#1C1C26', color: '#EAE2D6' });
+                          Swal.fire({ icon: 'error', title: 'Not Available', text: 'This listing is not live for bidding.', confirmButtonColor: '#C9A05C', background: '#1C1C26', color: '#F5F0E8' });
                           return;
                         }
                         const amount = Number(bidAmount);
                         if (!amount || amount <= 0 || amount < minBid) {
-                          Swal.fire({ icon: 'warning', title: 'Invalid Amount', text: `Minimum bid is ${formatCurrency(minBid)}`, confirmButtonColor: '#C9A05C', background: '#1C1C26', color: '#EAE2D6' });
+                          Swal.fire({ icon: 'warning', title: 'Invalid Amount', text: `Minimum bid is ${formatCurrency(minBid)}`, confirmButtonColor: '#C9A05C', background: '#1C1C26', color: '#F5F0E8' });
                           return;
                         }
                         const { isConfirmed } = await Swal.fire({
@@ -310,22 +310,22 @@ export default function ListingDetail() {
                           icon: 'question',
                           showCancelButton: true,
                           confirmButtonColor: '#C9A05C',
-                          cancelButtonColor: '#6B655C',
+                          cancelButtonColor: '#8A8279',
                           confirmButtonText: 'Yes, Place Bid',
                           cancelButtonText: 'Cancel',
                           background: '#1C1C26',
-                          color: '#EAE2D6',
+                          color: '#F5F0E8',
                         });
                         if (!isConfirmed) return;
                         setBidding(true);
                         try {
                           const data = await placeBid(listing.id, amount, session.access_token);
-                          Swal.fire({ icon: 'success', title: 'Bid Placed!', text: `New bid: ${formatCurrency(data.currentBid)}`, confirmButtonColor: '#C9A05C', background: '#1C1C26', color: '#EAE2D6' });
+                          Swal.fire({ icon: 'success', title: 'Bid Placed!', text: `New bid: ${formatCurrency(data.currentBid)}`, confirmButtonColor: '#C9A05C', background: '#1C1C26', color: '#F5F0E8' });
                           setBidAmount('');
                           fetchListing(listingId).then(setListing).catch(() => {});
                         } catch (err: unknown) {
                           const message = err instanceof Error ? err.message : 'Unable to place bid right now. Please try again.';
-                          Swal.fire({ icon: 'error', title: 'Bid Failed', text: message.toLowerCase().includes('valid amount') ? 'Put Valid Amount' : message.toLowerCase().includes('internal server') ? 'Unable to place bid right now. Please try again.' : message, confirmButtonColor: '#C9A05C', background: '#1C1C26', color: '#EAE2D6' });
+                          Swal.fire({ icon: 'error', title: 'Bid Failed', text: message.toLowerCase().includes('valid amount') ? 'Put Valid Amount' : message.toLowerCase().includes('internal server') ? 'Unable to place bid right now. Please try again.' : message, confirmButtonColor: '#C9A05C', background: '#1C1C26', color: '#F5F0E8' });
                         } finally {
                           setBidding(false);
                         }

@@ -96,7 +96,7 @@ export function PendingApprovalPanel({ branchId, activeBranchId, userRole = 'STA
       icon: 'question',
       showCancelButton: true,
       confirmButtonColor: '#C9A05C',
-      cancelButtonColor: '#6B655C',
+      cancelButtonColor: '#8A8279',
       confirmButtonText: 'Yes, proceed',
       cancelButtonText: 'Cancel',
     });
@@ -193,7 +193,7 @@ export function PendingApprovalPanel({ branchId, activeBranchId, userRole = 'STA
     <div className="p-8 space-y-6 min-h-screen" style={{ background: 'rgba(28,28,38,0.5)' }}>
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-black text-[#EAE2D6] uppercase tracking-tight">
+          <h1 className="text-2xl font-black text-[#F5F0E8] uppercase tracking-tight">
             Pending <span style={{ color: 'var(--gold)' }}>Approvals</span>
           </h1>
           <p className="text-[10px] font-black mt-1 uppercase tracking-widest" style={{ color: 'var(--text-muted)' }}>
@@ -236,7 +236,7 @@ export function PendingApprovalPanel({ branchId, activeBranchId, userRole = 'STA
               <div className="flex items-start justify-between mb-4">
                 <div>
                   <p className="text-[9px] font-black uppercase tracking-widest" style={{ color: 'var(--text-muted)' }}>Ticket</p>
-                  <p className="text-sm font-bold text-[#EAE2D6]">{ticket.ticketNumber}</p>
+                  <p className="text-sm font-bold text-[#F5F0E8]">{ticket.ticketNumber}</p>
                 </div>
                 <div className="px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest"
                   style={{ background: 'rgba(201,160,92,0.1)', color: 'var(--gold)' }}>
@@ -247,7 +247,7 @@ export function PendingApprovalPanel({ branchId, activeBranchId, userRole = 'STA
               <div className="space-y-2 mb-5">
                 <div className="flex items-center gap-2 text-xs" style={{ color: 'var(--text-secondary)' }}>
                   <User className="w-3.5 h-3.5" />
-                  <span className="font-semibold text-[#EAE2D6]">{ticket.customer?.fullName || 'Unknown'}</span>
+                  <span className="font-semibold text-[#F5F0E8]">{ticket.customer?.fullName || 'Unknown'}</span>
                   <span className={`px-2 py-0.5 rounded-full text-[9px] font-black text-white ${tierColors[ticket.customer?.loyaltyTier || 'Standard'] || 'bg-gray-600'}`}>
                     {ticket.customer?.loyaltyTier || 'Standard'}
                   </span>
@@ -306,8 +306,8 @@ export function PendingApprovalPanel({ branchId, activeBranchId, userRole = 'STA
           >
             <div className="flex items-center justify-between mb-6">
               <div>
-                <h3 className="font-black text-[#EAE2D6] text-lg">{selectedTicket.ticketNumber}</h3>
-                <p className="text-[10px] text-[#6B655C] font-black uppercase tracking-widest">Pending Approval</p>
+                <h3 className="font-black text-[#F5F0E8] text-lg">{selectedTicket.ticketNumber}</h3>
+                <p className="text-[10px] text-[#8A8279] font-black uppercase tracking-widest">Pending Approval</p>
               </div>
               <button onClick={() => setSelectedTicket(null)} className="p-2 rounded-xl hover:bg-white/5" style={{ color: 'var(--text-muted)' }}>
                 <XCircle className="w-5 h-5" />
@@ -317,7 +317,7 @@ export function PendingApprovalPanel({ branchId, activeBranchId, userRole = 'STA
             <div className="space-y-3 mb-8">
               <div className="flex justify-between px-4 py-3 rounded-2xl" style={{ background: 'rgba(255,255,255,0.035)' }}>
                 <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>Customer</span>
-                <span className="text-[11px] font-semibold text-[#EAE2D6] flex items-center gap-2">
+                <span className="text-[11px] font-semibold text-[#F5F0E8] flex items-center gap-2">
                   {selectedTicket.customer?.fullName || 'Unknown'}
                   <span className={`px-2 py-0.5 rounded-full text-[9px] font-black text-white ${tierColors[selectedTicket.customer?.loyaltyTier || 'Standard'] || 'bg-gray-600'}`}>
                     {selectedTicket.customer?.loyaltyTier || 'Standard'}
@@ -326,19 +326,19 @@ export function PendingApprovalPanel({ branchId, activeBranchId, userRole = 'STA
               </div>
               <div className="flex justify-between px-4 py-3 rounded-2xl" style={{ background: 'rgba(255,255,255,0.035)' }}>
                 <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>Contact</span>
-                <span className="text-[11px] font-semibold text-[#EAE2D6]">{selectedTicket.customer?.contactNumber || '—'}</span>
+                <span className="text-[11px] font-semibold text-[#F5F0E8]">{selectedTicket.customer?.contactNumber || '—'}</span>
               </div>
               <div className="flex justify-between px-4 py-3 rounded-2xl" style={{ background: 'rgba(255,255,255,0.035)' }}>
                 <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>Address</span>
-                <span className="text-[11px] font-semibold text-[#EAE2D6] truncate max-w-[200px]">{selectedTicket.customer?.address || '—'}</span>
+                <span className="text-[11px] font-semibold text-[#F5F0E8] truncate max-w-[200px]">{selectedTicket.customer?.address || '—'}</span>
               </div>
               <div className="flex justify-between px-4 py-3 rounded-2xl" style={{ background: 'rgba(255,255,255,0.035)' }}>
                 <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>Category</span>
-                <span className="text-[11px] font-semibold text-[#EAE2D6]">{selectedTicket.category}</span>
+                <span className="text-[11px] font-semibold text-[#F5F0E8]">{selectedTicket.category}</span>
               </div>
               <div className="flex justify-between px-4 py-3 rounded-2xl" style={{ background: 'rgba(255,255,255,0.035)' }}>
                 <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>Weight</span>
-                <span className="text-[11px] font-semibold text-[#EAE2D6]">{selectedTicket.weight ? `${selectedTicket.weight}g` : 'N/A'}</span>
+                <span className="text-[11px] font-semibold text-[#F5F0E8]">{selectedTicket.weight ? `${selectedTicket.weight}g` : 'N/A'}</span>
               </div>
               <div className="flex justify-between px-4 py-3 rounded-2xl" style={{ background: 'rgba(255,255,255,0.035)' }}>
                 <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>Loan Amount</span>
@@ -395,7 +395,7 @@ export function PendingApprovalPanel({ branchId, activeBranchId, userRole = 'STA
               <div className="w-10 h-10 rounded-2xl flex items-center justify-center" style={{ background: 'rgba(239,68,68,0.1)' }}>
                 <AlertTriangle className="w-5 h-5 text-red-500" />
               </div>
-              <h3 className="font-black text-[#EAE2D6]">Decline Reason</h3>
+              <h3 className="font-black text-[#F5F0E8]">Decline Reason</h3>
             </div>
             <textarea
               value={declineReason}

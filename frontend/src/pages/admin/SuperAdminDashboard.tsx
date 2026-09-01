@@ -1,4 +1,4 @@
-﻿
+
 import { PlatformControl } from './PlatformControl';
 import { PlatformAnalytics } from './PlatformAnalytics';
 import { SystemSettings } from './SystemSettings';
@@ -32,10 +32,10 @@ export function SuperAdminDashboard({
           
           <div className="flex justify-between items-end">
             <div className="text-left">
-              <h1 className="text-3xl font-black text-[#EAE2D6] tracking-tighter uppercase italic">
+              <h1 className="text-3xl font-black text-[#F5F0E8] tracking-tighter uppercase italic">
                 Network <span className="text-[#C9A05C]">Commander</span>
               </h1>
-              <p className="text-[#6B655C] text-xs font-bold uppercase tracking-widest mt-1">
+              <p className="text-[#8A8279] text-xs font-bold uppercase tracking-widest mt-1">
                 Global Platform Oversight & Administration
               </p>
             </div>
@@ -43,7 +43,7 @@ export function SuperAdminDashboard({
 
           {/* QUICK ACTIONS SECTION - Mapped to Role Access Guidelines [cite: 2026-01-22] */}
           <div className="mt-12">
-            <h2 className="text-xl font-black text-[#EAE2D6] tracking-tighter uppercase italic mb-8 flex items-center gap-2">
+            <h2 className="text-xl font-black text-[#F5F0E8] tracking-tighter uppercase italic mb-8 flex items-center gap-2">
               <Zap className="text-[#C9A05C]" size={20} />
               Administrative <span className="text-[#C9A05C]">Gateways</span>
             </h2>
@@ -62,8 +62,8 @@ export function SuperAdminDashboard({
                   <div className="p-4 w-fit bg-[#C9A05C]/10 rounded-2xl text-[#C9A05C] group-hover:bg-[#C9A05C] group-hover:text-white transition-colors mb-6">
                     <Building2 size={32} />
                   </div>
-                  <h3 className="text-2xl font-black text-[#EAE2D6] mb-2 uppercase tracking-tighter">Platform Control</h3>
-                  <p className="text-sm text-[#6B655C] font-bold mb-8 leading-relaxed uppercase tracking-tight opacity-70">
+                  <h3 className="text-2xl font-black text-[#F5F0E8] mb-2 uppercase tracking-tighter">Platform Control</h3>
+                  <p className="text-sm text-[#8A8279] font-bold mb-8 leading-relaxed uppercase tracking-tight opacity-70">
                     Onboard new shop locations, manage branch administrators, and monitor network health.
                   </p>
                   <div className="text-[10px] font-black uppercase tracking-[0.2em] text-[#C9A05C] flex items-center gap-2">
@@ -84,11 +84,11 @@ export function SuperAdminDashboard({
                   <div className="p-4 w-fit bg-slate-900 rounded-2xl text-white mb-6">
                     <ShieldCheck size={32} />
                   </div>
-                  <h3 className="text-2xl font-black text-[#EAE2D6] mb-2 uppercase tracking-tighter">System Control</h3>
-                  <p className="text-sm text-[#6B655C] font-bold mb-8 leading-relaxed uppercase tracking-tight opacity-70">
+                  <h3 className="text-2xl font-black text-[#F5F0E8] mb-2 uppercase tracking-tighter">System Control</h3>
+                  <p className="text-sm text-[#8A8279] font-bold mb-8 leading-relaxed uppercase tracking-tight opacity-70">
                     Configure interest caps, audit logs, and global security protocols for all tenants.
                   </p>
-                  <div className="text-[10px] font-black uppercase tracking-[0.2em] text-[#EAE2D6] flex items-center gap-2">
+                  <div className="text-[10px] font-black uppercase tracking-[0.2em] text-[#F5F0E8] flex items-center gap-2">
                     Open Protocols <span className="group-hover:translate-x-2 transition-transform">â†’</span>
                   </div>
                 </div>
@@ -106,8 +106,8 @@ export function SuperAdminDashboard({
                   <div className="p-4 w-fit bg-cyan-50 rounded-2xl text-cyan-700 mb-6 group-hover:bg-cyan-600 group-hover:text-white transition-colors">
                     <ClipboardList size={32} />
                   </div>
-                  <h3 className="text-2xl font-black text-[#EAE2D6] mb-2 uppercase tracking-tighter">Trial Requests</h3>
-                  <p className="text-sm text-[#6B655C] font-bold mb-8 leading-relaxed uppercase tracking-tight opacity-80">
+                  <h3 className="text-2xl font-black text-[#F5F0E8] mb-2 uppercase tracking-tighter">Trial Requests</h3>
+                  <p className="text-sm text-[#8A8279] font-bold mb-8 leading-relaxed uppercase tracking-tight opacity-80">
                     Review onboarding submissions, chat with owners, and approve or reject trial access requests.
                   </p>
                   <div className="text-[10px] font-black uppercase tracking-[0.2em] text-cyan-700 flex items-center gap-2">
@@ -128,8 +128,8 @@ export function SuperAdminDashboard({
                   <div className="p-4 w-fit bg-amber-50 rounded-2xl text-amber-700 mb-6 group-hover:bg-amber-600 group-hover:text-white transition-colors">
                     <Shield size={32} />
                   </div>
-                  <h3 className="text-2xl font-black text-[#EAE2D6] mb-2 uppercase tracking-tighter">Compliance</h3>
-                  <p className="text-sm text-[#6B655C] font-bold mb-8 leading-relaxed uppercase tracking-tight opacity-80">
+                  <h3 className="text-2xl font-black text-[#F5F0E8] mb-2 uppercase tracking-tighter">Compliance</h3>
+                  <p className="text-sm text-[#8A8279] font-bold mb-8 leading-relaxed uppercase tracking-tight opacity-80">
                     Review pawnshop documents, verify regulatory compliance, and manage document lifecycle.
                   </p>
                   <div className="text-[10px] font-black uppercase tracking-[0.2em] text-amber-700 flex items-center gap-2">
@@ -150,8 +150,8 @@ export function SuperAdminDashboard({
                   <div className="p-4 w-fit bg-purple-50 rounded-2xl text-purple-700 mb-6 group-hover:bg-purple-600 group-hover:text-white transition-colors">
                     <Shield size={32} />
                   </div>
-                  <h3 className="text-2xl font-black text-[#EAE2D6] mb-2 uppercase tracking-tighter">Bidder KYC Review</h3>
-                  <p className="text-sm text-[#6B655C] font-bold mb-8 leading-relaxed uppercase tracking-tight opacity-80">
+                  <h3 className="text-2xl font-black text-[#F5F0E8] mb-2 uppercase tracking-tighter">Bidder KYC Review</h3>
+                  <p className="text-sm text-[#8A8279] font-bold mb-8 leading-relaxed uppercase tracking-tight opacity-80">
                     Review auction bidder identity submissions, OCR/face verification results, and approve or reject KYC applications.
                   </p>
                   <div className="text-[10px] font-black uppercase tracking-[0.2em] text-purple-700 flex items-center gap-2">

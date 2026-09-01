@@ -1,4 +1,4 @@
-﻿/**
+/**
  * FinanceLedger -- Immutable cash ledger with reconciliation.
  *
  * Features:
@@ -273,7 +273,7 @@ export function FinanceLedger({ branchId: _branchId, activeBranchId }: FinanceLe
       icon: 'question',
       showCancelButton: true,
       confirmButtonColor: '#C9A05C',
-      cancelButtonColor: '#6B655C',
+      cancelButtonColor: '#8A8279',
       confirmButtonText: 'Yes, proceed',
       cancelButtonText: 'Cancel',
     });
@@ -356,8 +356,8 @@ export function FinanceLedger({ branchId: _branchId, activeBranchId }: FinanceLe
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-black text-[#EAE2D6] tracking-tight">Finance & Ledger</h1>
-          <p className="text-[#6B655C] mt-1">Immutable cash book with daily reconciliation</p>
+          <h1 className="text-3xl font-black text-[#F5F0E8] tracking-tight">Finance & Ledger</h1>
+          <p className="text-[#8A8279] mt-1">Immutable cash book with daily reconciliation</p>
         </div>
         <div className="flex items-center gap-3">
           <Button variant="outline" size="sm" onClick={refetchAll}>
@@ -390,8 +390,8 @@ export function FinanceLedger({ branchId: _branchId, activeBranchId }: FinanceLe
             <div className="flex items-center gap-3">
               <div className="p-2 bg-emerald-100 rounded-xl"><TrendingUp className="w-5 h-5 text-emerald-600" /></div>
               <div>
-                <p className="text-2xl font-black text-[#EAE2D6]">{formatCurrency(summaryView.totalCredits)}</p>
-                <p className="text-xs text-[#6B655C]">Total Credits</p>
+                <p className="text-2xl font-black text-[#F5F0E8]">{formatCurrency(summaryView.totalCredits)}</p>
+                <p className="text-xs text-[#8A8279]">Total Credits</p>
               </div>
             </div>
           </CardContent>
@@ -401,8 +401,8 @@ export function FinanceLedger({ branchId: _branchId, activeBranchId }: FinanceLe
             <div className="flex items-center gap-3">
               <div className="p-2 bg-rose-100 rounded-xl"><TrendingDown className="w-5 h-5 text-rose-600" /></div>
               <div>
-                <p className="text-2xl font-black text-[#EAE2D6]">{formatCurrency(summaryView.totalDebits)}</p>
-                <p className="text-xs text-[#6B655C]">Total Debits</p>
+                <p className="text-2xl font-black text-[#F5F0E8]">{formatCurrency(summaryView.totalDebits)}</p>
+                <p className="text-xs text-[#8A8279]">Total Debits</p>
               </div>
             </div>
           </CardContent>
@@ -412,8 +412,8 @@ export function FinanceLedger({ branchId: _branchId, activeBranchId }: FinanceLe
             <div className="flex items-center gap-3">
               <div className="p-2 bg-sky-100 rounded-xl"><Receipt className="w-5 h-5 text-sky-600" /></div>
               <div>
-                <p className="text-2xl font-black text-[#EAE2D6]">{formatCurrency(summaryView.netFlow)}</p>
-                <p className="text-xs text-[#6B655C]">Net Flow</p>
+                <p className="text-2xl font-black text-[#F5F0E8]">{formatCurrency(summaryView.netFlow)}</p>
+                <p className="text-xs text-[#8A8279]">Net Flow</p>
               </div>
             </div>
           </CardContent>
@@ -422,7 +422,7 @@ export function FinanceLedger({ branchId: _branchId, activeBranchId }: FinanceLe
 
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-3">
-        <Filter className="w-4 h-4 text-[#6B655C]" />
+        <Filter className="w-4 h-4 text-[#8A8279]" />
         <Select value={categoryFilter} onValueChange={setCategoryFilter}>
           <SelectTrigger className="w-52"><SelectValue placeholder="All Categories" /></SelectTrigger>
           <SelectContent>
@@ -491,7 +491,7 @@ export function FinanceLedger({ branchId: _branchId, activeBranchId }: FinanceLe
                       {entry.entryType === 'DEBIT' ? '-' : '+'}{formatCurrency(entry.amount)}
                     </TableCell>
                     <TableCell className="text-right font-mono">{formatCurrency(entry.balanceAfter)}</TableCell>
-                    <TableCell className="text-xs text-[#6B655C]">{staffNameMap[entry.performedBy] || entry.performedBy}</TableCell>
+                    <TableCell className="text-xs text-[#8A8279]">{staffNameMap[entry.performedBy] || entry.performedBy}</TableCell>
                     <TableCell className="text-xs">
                       {formatDateTime(
                         (entry as any).transactionDate ||
@@ -503,7 +503,7 @@ export function FinanceLedger({ branchId: _branchId, activeBranchId }: FinanceLe
                 ))}
                 {entries.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center text-[#6B655C] py-8">No ledger entries found</TableCell>
+                    <TableCell colSpan={8} className="text-center text-[#8A8279] py-8">No ledger entries found</TableCell>
                   </TableRow>
                 )}
               </TableBody>
@@ -552,14 +552,14 @@ export function FinanceLedger({ branchId: _branchId, activeBranchId }: FinanceLe
                         <Button size="sm" variant="outline" className="text-rose-600" onClick={() => openRejectDialog(req.id)}>Reject</Button>
                       </div>
                     ) : (
-                      <span className="text-xs text-[#6B655C]">Awaiting approval</span>
+                      <span className="text-xs text-[#8A8279]">Awaiting approval</span>
                     )}
                   </TableCell>
                 </TableRow>
               ))}
               {pendingRequests.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center text-[#6B655C] py-6">
+                  <TableCell colSpan={7} className="text-center text-[#8A8279] py-6">
                     No pending ledger requests
                   </TableCell>
                 </TableRow>
@@ -576,7 +576,7 @@ export function FinanceLedger({ branchId: _branchId, activeBranchId }: FinanceLe
             <DialogTitle>Reject Ledger Request</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
-            <p className="text-[#999186]">Please provide a reason for rejecting this ledger request. This will be recorded for audit purposes.</p>
+            <p className="text-[#B8B0A4]">Please provide a reason for rejecting this ledger request. This will be recorded for audit purposes.</p>
             <textarea
               className="w-full min-h-[80px] rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-rose-500 bg-[#1C1C26]"
               placeholder="Rejection reason (optional)"
@@ -608,7 +608,7 @@ export function FinanceLedger({ branchId: _branchId, activeBranchId }: FinanceLe
           <div className="space-y-4 py-4">
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="text-sm font-medium text-[#6B655C]">Entry Type *</label>
+                <label className="text-sm font-medium text-[#8A8279]">Entry Type *</label>
                 <Select value={newEntry.entryType} onValueChange={(v) => setNewEntry({ ...newEntry, entryType: v as LedgerEntryType })}>
                   <SelectTrigger><SelectValue placeholder="Select entry type..." /></SelectTrigger>
                   <SelectContent>
@@ -619,7 +619,7 @@ export function FinanceLedger({ branchId: _branchId, activeBranchId }: FinanceLe
                 </Select>
               </div>
               <div>
-                <label className="text-sm font-medium text-[#6B655C]">Category *</label>
+                <label className="text-sm font-medium text-[#8A8279]">Category *</label>
                 <Select value={newEntry.category} onValueChange={(v) => setNewEntry({ ...newEntry, category: v as LedgerCategory })}>
                   <SelectTrigger><SelectValue placeholder="Select category..." /></SelectTrigger>
                   <SelectContent>
@@ -633,7 +633,7 @@ export function FinanceLedger({ branchId: _branchId, activeBranchId }: FinanceLe
               </div>
             </div>
             <div>
-              <label className="text-sm font-medium text-[#6B655C]">Amount (₱) *</label>
+              <label className="text-sm font-medium text-[#8A8279]">Amount (₱) *</label>
               <Input
                 type="number"
                 min={0}
@@ -644,7 +644,7 @@ export function FinanceLedger({ branchId: _branchId, activeBranchId }: FinanceLe
               />
             </div>
             <div>
-              <label className="text-sm font-medium text-[#6B655C]">Description *</label>
+              <label className="text-sm font-medium text-[#8A8279]">Description *</label>
               <Input
                 placeholder="Describe the transaction..."
                 value={newEntry.description}
@@ -653,8 +653,8 @@ export function FinanceLedger({ branchId: _branchId, activeBranchId }: FinanceLe
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="text-sm font-medium text-[#6B655C]">Performed By</label>
-                <label className="text-sm font-medium text-[#6B655C]">Performed By *</label>
+                <label className="text-sm font-medium text-[#8A8279]">Performed By</label>
+                <label className="text-sm font-medium text-[#8A8279]">Performed By *</label>
                 {(!staffList || staffList.length === 0) ? (
                   <Select disabled value="">
                     <SelectTrigger>
@@ -680,7 +680,7 @@ export function FinanceLedger({ branchId: _branchId, activeBranchId }: FinanceLe
                 )}
               </div>
               <div>
-                <label className="text-sm font-medium text-[#6B655C]">Payment Method</label>
+                <label className="text-sm font-medium text-[#8A8279]">Payment Method</label>
                 <Input
                   placeholder="Cash, GCash, Bank..."
                   value={newEntry.paymentMethod}
@@ -690,7 +690,7 @@ export function FinanceLedger({ branchId: _branchId, activeBranchId }: FinanceLe
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="text-sm font-medium text-[#6B655C]">Counterparty</label>
+                <label className="text-sm font-medium text-[#8A8279]">Counterparty</label>
                 <Input
                   placeholder="Customer/Vendor name"
                   value={newEntry.counterparty}
@@ -698,7 +698,7 @@ export function FinanceLedger({ branchId: _branchId, activeBranchId }: FinanceLe
                 />
               </div>
               <div>
-                <label className="text-sm font-medium text-[#6B655C]">Receipt Number</label>
+                <label className="text-sm font-medium text-[#8A8279]">Receipt Number</label>
                 <Input
                   placeholder="Auto-generated after approval"
                   value={newEntry.receiptNumber}
@@ -709,7 +709,7 @@ export function FinanceLedger({ branchId: _branchId, activeBranchId }: FinanceLe
             <div className="grid grid-cols-2 gap-4">
               {/* Approved By field removed for security reasons */}
               <div>
-                <label className="text-sm font-medium text-[#6B655C]">Approval Notes</label>
+                <label className="text-sm font-medium text-[#8A8279]">Approval Notes</label>
                 <Input
                   placeholder="Optional approval remarks"
                   value={newEntry.approvalNotes}
@@ -735,11 +735,11 @@ export function FinanceLedger({ branchId: _branchId, activeBranchId }: FinanceLe
             <DialogTitle>Daily Reconciliation</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4">
-            <p className="text-sm text-[#6B655C]">
+            <p className="text-sm text-[#8A8279]">
               Record the physical cash count for today. The system will compare it against the computed balance.
             </p>
             <div>
-              <label className="text-sm font-medium text-[#6B655C]">Physical Cash Count (₱)</label>
+              <label className="text-sm font-medium text-[#8A8279]">Physical Cash Count (₱)</label>
               <Input
                 type="number"
                 min={0}

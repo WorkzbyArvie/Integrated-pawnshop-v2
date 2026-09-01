@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { FileText, Search, Filter, Eye, Clock, CheckCircle2, XCircle, Loader2, Plus } from 'lucide-react';
 import { LoanApplicationForm } from './LoanApplicationForm';
 import { getBackendUrl } from '../../lib/backendUrl';
@@ -98,8 +98,8 @@ export function ApplicationsList({ pawnshopId, onViewApplication }: Applications
       {/* Header */}
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-3xl font-black text-[#EAE2D6]">Loan Applications</h1>
-          <p className="text-[#999186] mt-1">Manage and review loan applications</p>
+          <h1 className="text-3xl font-black text-[#F5F0E8]">Loan Applications</h1>
+          <p className="text-[#B8B0A4] mt-1">Manage and review loan applications</p>
         </div>
         <button
           onClick={() => setShowNewForm(true)}
@@ -115,7 +115,7 @@ export function ApplicationsList({ pawnshopId, onViewApplication }: Applications
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {/* Search */}
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[#6B655C]" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[#8A8279]" />
             <input
               type="text"
               value={searchTerm}
@@ -127,7 +127,7 @@ export function ApplicationsList({ pawnshopId, onViewApplication }: Applications
 
           {/* Status Filter */}
           <div className="relative">
-            <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[#6B655C]" />
+            <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[#8A8279]" />
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
@@ -153,8 +153,8 @@ export function ApplicationsList({ pawnshopId, onViewApplication }: Applications
       ) : filteredApplications.length === 0 ? (
         <div className="bg-[#14141B] rounded-2xl shadow-sm border border-[rgba(201,160,92,0.1)] p-12 text-center">
           <FileText className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-          <h3 className="text-lg font-bold text-[#EAE2D6] mb-2">No Applications Found</h3>
-          <p className="text-[#999186]">
+          <h3 className="text-lg font-bold text-[#F5F0E8] mb-2">No Applications Found</h3>
+          <p className="text-[#B8B0A4]">
             {searchTerm
               ? 'Try adjusting your search filters'
               : 'Get started by creating a new loan application'}
@@ -170,12 +170,12 @@ export function ApplicationsList({ pawnshopId, onViewApplication }: Applications
               <div className="flex items-start justify-between">
                 <div className="flex-1">
                   <div className="flex items-center gap-3 mb-3">
-                    <h3 className="text-lg font-bold text-[#EAE2D6]">
+                    <h3 className="text-lg font-bold text-[#F5F0E8]">
                       {app.customer.fullName}
                     </h3>
                     <span
                       className={`px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1 ${
-                        STATUS_COLORS[app.status] || 'bg-gray-100 text-[#EAE2D6]'
+                        STATUS_COLORS[app.status] || 'bg-gray-100 text-[#F5F0E8]'
                       }`}
                     >
                       {STATUS_ICONS[app.status] || <Clock className="w-4 h-4" />}
@@ -185,20 +185,20 @@ export function ApplicationsList({ pawnshopId, onViewApplication }: Applications
 
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                     <div>
-                      <p className="text-[#6B655C] mb-1">Loan Amount</p>
-                      <p className="font-bold text-[#EAE2D6]">{formatCurrency(app.loanAmount)}</p>
+                      <p className="text-[#8A8279] mb-1">Loan Amount</p>
+                      <p className="font-bold text-[#F5F0E8]">{formatCurrency(app.loanAmount)}</p>
                     </div>
                     <div>
-                      <p className="text-[#6B655C] mb-1">Loan Type</p>
-                      <p className="font-bold text-[#EAE2D6]">{app.loanType}</p>
+                      <p className="text-[#8A8279] mb-1">Loan Type</p>
+                      <p className="font-bold text-[#F5F0E8]">{app.loanType}</p>
                     </div>
                     <div>
-                      <p className="text-[#6B655C] mb-1">Term</p>
-                      <p className="font-bold text-[#EAE2D6]">{app.termMonths} months</p>
+                      <p className="text-[#8A8279] mb-1">Term</p>
+                      <p className="font-bold text-[#F5F0E8]">{app.termMonths} months</p>
                     </div>
                     <div>
-                      <p className="text-[#6B655C] mb-1">Submitted</p>
-                      <p className="font-bold text-[#EAE2D6]">{formatDate(app.submittedAt)}</p>
+                      <p className="text-[#8A8279] mb-1">Submitted</p>
+                      <p className="font-bold text-[#F5F0E8]">{formatDate(app.submittedAt)}</p>
                     </div>
                   </div>
                 </div>

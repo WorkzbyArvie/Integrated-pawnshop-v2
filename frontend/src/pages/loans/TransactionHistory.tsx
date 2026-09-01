@@ -155,15 +155,15 @@ export function TransactionHistory() {
       )
     : transactions;
 
-  const metaFor = (type: string) => TYPE_META[type] || { label: type || 'Transaction', badge: 'bg-[#1C1C26] text-[#999186] border-white/10', icon: 'in' as const };
+  const metaFor = (type: string) => TYPE_META[type] || { label: type || 'Transaction', badge: 'bg-[#1C1C26] text-[#B8B0A4] border-white/10', icon: 'in' as const };
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700 text-left max-w-5xl">
       <div>
-        <h2 className="text-3xl font-black text-[#EAE2D6] tracking-tight uppercase italic leading-none">
+        <h2 className="text-3xl font-black text-[#F5F0E8] tracking-tight uppercase italic leading-none">
           Transaction <span className="text-[#C9A05C]">History</span>
         </h2>
-        <p className="mt-2 text-[11px] font-black uppercase tracking-widest text-[#6B655C] flex items-center gap-2">
+        <p className="mt-2 text-[11px] font-black uppercase tracking-widest text-[#8A8279] flex items-center gap-2">
           <History className="w-4 h-4 text-[#C9A05C]" />
           Immutable record of every financial transaction
         </p>
@@ -171,7 +171,7 @@ export function TransactionHistory() {
 
       <div className="bg-[#14141B] rounded-[2rem] border border-[rgba(201,160,92,0.08)] p-4 flex flex-col md:flex-row gap-3">
         <div className="relative flex-1">
-          <Search className="w-4 h-4 text-[#6B655C] absolute left-4 top-1/2 -translate-y-1/2" />
+          <Search className="w-4 h-4 text-[#8A8279] absolute left-4 top-1/2 -translate-y-1/2" />
           <input
             type="text"
             value={search}
@@ -190,7 +190,7 @@ export function TransactionHistory() {
             <option key={type} value={type}>{TYPE_META[type].label}</option>
           ))}
         </select>
-        <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#1C1C26] text-[11px] font-black uppercase tracking-wider text-[#999186] shrink-0">
+        <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#1C1C26] text-[11px] font-black uppercase tracking-wider text-[#B8B0A4] shrink-0">
           <ReceiptIcon className="w-4 h-4 text-[#C9A05C]" />
           {filtered.length.toLocaleString()} / {total.toLocaleString()} transactions
         </div>
@@ -202,7 +202,7 @@ export function TransactionHistory() {
             <Loader2 className="w-6 h-6 text-[#C9A05C] animate-spin" />
           </div>
         ) : filtered.length === 0 ? (
-          <p className="text-xs text-[#6B655C] py-16 text-center">
+          <p className="text-xs text-[#8A8279] py-16 text-center">
             {query || typeFilter ? 'No transactions match your filters.' : 'No transactions found.'}
           </p>
         ) : (
@@ -210,13 +210,13 @@ export function TransactionHistory() {
             <table className="w-full text-left">
               <thead>
                 <tr className="border-b border-[rgba(201,160,92,0.1)]">
-                  <th className="px-5 py-3 text-[10px] font-black uppercase tracking-widest text-[#6B655C]">Receipt No.</th>
-                  <th className="px-5 py-3 text-[10px] font-black uppercase tracking-widest text-[#6B655C]">Type</th>
-                  <th className="px-5 py-3 text-[10px] font-black uppercase tracking-widest text-[#6B655C]">Customer</th>
-                  <th className="px-5 py-3 text-[10px] font-black uppercase tracking-widest text-[#6B655C]">Reference</th>
-                  <th className="px-5 py-3 text-[10px] font-black uppercase tracking-widest text-[#6B655C]">Date</th>
-                  <th className="px-5 py-3 text-right text-[10px] font-black uppercase tracking-widest text-[#6B655C]">Amount</th>
-                  <th className="px-5 py-3 text-right text-[10px] font-black uppercase tracking-widest text-[#6B655C]">Receipt</th>
+                  <th className="px-5 py-3 text-[10px] font-black uppercase tracking-widest text-[#8A8279]">Receipt No.</th>
+                  <th className="px-5 py-3 text-[10px] font-black uppercase tracking-widest text-[#8A8279]">Type</th>
+                  <th className="px-5 py-3 text-[10px] font-black uppercase tracking-widest text-[#8A8279]">Customer</th>
+                  <th className="px-5 py-3 text-[10px] font-black uppercase tracking-widest text-[#8A8279]">Reference</th>
+                  <th className="px-5 py-3 text-[10px] font-black uppercase tracking-widest text-[#8A8279]">Date</th>
+                  <th className="px-5 py-3 text-right text-[10px] font-black uppercase tracking-widest text-[#8A8279]">Amount</th>
+                  <th className="px-5 py-3 text-right text-[10px] font-black uppercase tracking-widest text-[#8A8279]">Receipt</th>
                 </tr>
               </thead>
               <tbody>
@@ -234,7 +234,7 @@ export function TransactionHistory() {
                             <ReceiptIcon className="w-4 h-4" />
                           </div>
                           <div className="flex flex-col">
-                            <span className="text-xs font-black text-[#EAE2D6] tracking-tight">{t.receiptNumber}</span>
+                            <span className="text-xs font-black text-[#F5F0E8] tracking-tight">{t.receiptNumber}</span>
                             {t.isVoid && (
                               <span className="text-[9px] font-black uppercase tracking-widest text-red-400">
                                 Void{t.voidReason ? ` — ${t.voidReason}` : ''}
@@ -250,19 +250,19 @@ export function TransactionHistory() {
                         </span>
                       </td>
                       <td className="px-5 py-3.5">
-                        <span className="text-xs font-bold text-[#EAE2D6]">{t.customerName || '—'}</span>
+                        <span className="text-xs font-bold text-[#F5F0E8]">{t.customerName || '—'}</span>
                         {t.referenceType && (
-                          <div className="text-[9px] text-[#6B655C] uppercase tracking-wider mt-0.5">{t.referenceType}</div>
+                          <div className="text-[9px] text-[#8A8279] uppercase tracking-wider mt-0.5">{t.referenceType}</div>
                         )}
                       </td>
                       <td className="px-5 py-3.5">
-                        <span className="text-[10px] font-mono text-[#999186]">{t.referenceId ? t.referenceId.slice(0, 12) : '—'}</span>
+                        <span className="text-[10px] font-mono text-[#B8B0A4]">{t.referenceId ? t.referenceId.slice(0, 12) : '—'}</span>
                       </td>
                       <td className="px-5 py-3.5">
-                        <span className="text-[11px] text-[#999186] whitespace-nowrap">{formatDateTime(t.generatedAt)}</span>
+                        <span className="text-[11px] text-[#B8B0A4] whitespace-nowrap">{formatDateTime(t.generatedAt)}</span>
                       </td>
                       <td className="px-5 py-3.5 text-right whitespace-nowrap">
-                        <span className={`inline-flex items-center gap-1.5 text-xs font-black ${t.isVoid ? 'text-[#6B655C] line-through' : meta.icon === 'out' ? 'text-[#F0A68C]' : 'text-[#7BD88F]'}`}>
+                        <span className={`inline-flex items-center gap-1.5 text-xs font-black ${t.isVoid ? 'text-[#8A8279] line-through' : meta.icon === 'out' ? 'text-[#F0A68C]' : 'text-[#7BD88F]'}`}>
                           <AmountIcon className="w-3.5 h-3.5" />
                           {formatMoney(t.totalAmount)}
                         </span>
@@ -271,7 +271,7 @@ export function TransactionHistory() {
                         <button
                           onClick={() => downloadReceipt(t)}
                           title="Download receipt PDF"
-                          className="inline-flex items-center justify-center w-8 h-8 rounded-xl bg-[#1C1C26] hover:bg-[#C9A05C] text-[#999186] hover:text-white transition-colors"
+                          className="inline-flex items-center justify-center w-8 h-8 rounded-xl bg-[#1C1C26] hover:bg-[#C9A05C] text-[#B8B0A4] hover:text-white transition-colors"
                         >
                           <FileDown className="w-4 h-4" />
                         </button>
@@ -286,7 +286,7 @@ export function TransactionHistory() {
 
         {!loading && filtered.length > 0 && (
           <div className="px-5 py-4 border-t border-[rgba(201,160,92,0.08)] flex items-center justify-between">
-            <span className="text-[10px] font-black uppercase tracking-widest text-[#6B655C]">
+            <span className="text-[10px] font-black uppercase tracking-widest text-[#8A8279]">
               Showing {filtered.length.toLocaleString()} of {total.toLocaleString()}
             </span>
             {hasMore && (

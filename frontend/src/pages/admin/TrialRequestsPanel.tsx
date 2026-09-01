@@ -1,4 +1,4 @@
-﻿import { FormEvent, useEffect, useState } from 'react';
+import { FormEvent, useEffect, useState } from 'react';
 import { Loader2, MessageSquare, RefreshCcw, Send, Upload, X } from 'lucide-react';
 import api from '../../lib/apiClient';
 import { getSignedKycDocUrl } from '../../lib/kycDocs';
@@ -49,7 +49,7 @@ const REQUIRED_DOC_COUNT = 7;
 const toneByStatus = (status: string) => {
   const normalized = (status || '').toUpperCase();
   if (normalized === 'APPROVED') return 'text-emerald-700 bg-emerald-50 border-emerald-200';
-  if (normalized === 'CANCELLED') return 'text-[#6B655C] bg-[#1C1C26] border-slate-300';
+  if (normalized === 'CANCELLED') return 'text-[#8A8279] bg-[#1C1C26] border-slate-300';
   if (normalized === 'REJECTED') return 'text-rose-700 bg-rose-50 border-rose-200';
   if (normalized === 'CONTACTED') return 'text-amber-700 bg-amber-50 border-amber-200';
   return 'text-[#C9A05C] bg-[#C9A05C]/10 border-[rgba(201,160,92,0.2)]';
@@ -269,14 +269,14 @@ export function TrialRequestsPanel() {
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
             <p className="text-xs font-black uppercase tracking-[0.2em] text-[#C9A05C]">Onboarding Queue</p>
-            <h2 className="mt-1 text-2xl font-black text-[#EAE2D6]">Trial Requests</h2>
-            <p className="mt-1 text-sm text-[#999186]">Review, approve, reject, and message owners from one workspace.</p>
+            <h2 className="mt-1 text-2xl font-black text-[#F5F0E8]">Trial Requests</h2>
+            <p className="mt-1 text-sm text-[#B8B0A4]">Review, approve, reject, and message owners from one workspace.</p>
           </div>
           <div className="flex items-center gap-3">
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value as RequestStatus)}
-              className="rounded-xl border border-[rgba(201,160,92,0.12)] bg-[#14141B] px-3 py-2 text-xs font-bold uppercase tracking-wider text-[#6B655C]"
+              className="rounded-xl border border-[rgba(201,160,92,0.12)] bg-[#14141B] px-3 py-2 text-xs font-bold uppercase tracking-wider text-[#8A8279]"
             >
               {STATUS_OPTIONS.map((status) => (
                 <option key={status} value={status}>{status}</option>
@@ -285,7 +285,7 @@ export function TrialRequestsPanel() {
             <button
               type="button"
               onClick={loadRequests}
-              className="inline-flex items-center gap-2 rounded-xl border border-[rgba(201,160,92,0.12)] px-3 py-2 text-xs font-bold uppercase tracking-wider text-[#6B655C] hover:bg-[#1C1C26]"
+              className="inline-flex items-center gap-2 rounded-xl border border-[rgba(201,160,92,0.12)] px-3 py-2 text-xs font-bold uppercase tracking-wider text-[#8A8279] hover:bg-[#1C1C26]"
             >
               <RefreshCcw className="h-4 w-4" /> Refresh
             </button>
@@ -295,13 +295,13 @@ export function TrialRequestsPanel() {
 
       <div className="grid gap-6 xl:grid-cols-[1.1fr_1fr]">
         <article className="rounded-3xl border border-[rgba(201,160,92,0.12)] bg-[#14141B] p-6 shadow-sm">
-          <h3 className="text-lg font-bold text-[#EAE2D6]">Request Queue</h3>
+          <h3 className="text-lg font-bold text-[#F5F0E8]">Request Queue</h3>
           {loading ? (
-            <div className="mt-6 flex items-center gap-2 text-sm text-[#6B655C]">
+            <div className="mt-6 flex items-center gap-2 text-sm text-[#8A8279]">
               <Loader2 className="h-4 w-4 animate-spin" /> Loading requests...
             </div>
           ) : requests.length === 0 ? (
-            <p className="mt-6 text-sm text-[#999186]">No requests found for the selected filter.</p>
+            <p className="mt-6 text-sm text-[#B8B0A4]">No requests found for the selected filter.</p>
           ) : (
             <ul className="mt-4 space-y-3">
               {requests.map((request) => {
@@ -314,14 +314,14 @@ export function TrialRequestsPanel() {
                   >
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <div>
-                        <p className="text-sm font-bold text-[#EAE2D6]">{request.pawnshop_name}</p>
-                        <p className="text-xs text-[#6B655C]">{request.owner_name} • {request.owner_email}</p>
+                        <p className="text-sm font-bold text-[#F5F0E8]">{request.pawnshop_name}</p>
+                        <p className="text-xs text-[#8A8279]">{request.owner_name} • {request.owner_email}</p>
                       </div>
                       <span className={`rounded-full border px-2 py-1 text-[10px] font-black uppercase tracking-wider ${toneByStatus(request.status)}`}>
                         {request.status}
                       </span>
                     </div>
-                    <p className="mt-2 text-xs text-[#6B655C]">
+                    <p className="mt-2 text-xs text-[#8A8279]">
                       Submitted: {new Date(request.created_at).toLocaleString()}
                     </p>
                   </li>
@@ -332,12 +332,12 @@ export function TrialRequestsPanel() {
         </article>
 
         <article className="rounded-3xl border border-[rgba(201,160,92,0.12)] bg-[#14141B] p-6 shadow-sm">
-          <h3 className="text-lg font-bold text-[#EAE2D6]">Selected Request</h3>
+          <h3 className="text-lg font-bold text-[#F5F0E8]">Selected Request</h3>
           {!selectedRequest ? (
-            <p className="mt-4 text-sm text-[#999186]">Select a request from the queue to manage it.</p>
+            <p className="mt-4 text-sm text-[#B8B0A4]">Select a request from the queue to manage it.</p>
           ) : (
             <>
-              <div className="mt-4 space-y-2 rounded-2xl border border-[rgba(201,160,92,0.12)] bg-[#1C1C26] p-4 text-sm text-[#6B655C]">
+              <div className="mt-4 space-y-2 rounded-2xl border border-[rgba(201,160,92,0.12)] bg-[#1C1C26] p-4 text-sm text-[#8A8279]">
                 <p><span className="font-bold">Pawnshop:</span> {selectedRequest.pawnshop_name}</p>
                 <p><span className="font-bold">Owner:</span> {selectedRequest.owner_name}</p>
                 <p><span className="font-bold">Email:</span> {selectedRequest.owner_email}</p>
@@ -347,8 +347,8 @@ export function TrialRequestsPanel() {
 
               <div className="mt-4 rounded-2xl border border-[rgba(201,160,92,0.12)] bg-[#1C1C26] p-4">
                 <div className="mb-3 flex items-center gap-2">
-                  <Upload className="h-4 w-4 text-[#6B655C]" />
-                  <p className="text-sm font-bold text-[#EAE2D6]">Regulatory Documents</p>
+                  <Upload className="h-4 w-4 text-[#8A8279]" />
+                  <p className="text-sm font-bold text-[#F5F0E8]">Regulatory Documents</p>
                   {regDocs.length > 0 && (
                     <span className="rounded-full bg-[#C9A05C]/10 px-2 py-0.5 text-[10px] font-black text-[#C9A05C]">
                       {regDocs.filter((d) => d.status === 'VERIFIED').length}/{regDocs.length} verified
@@ -357,11 +357,11 @@ export function TrialRequestsPanel() {
                 </div>
 
                 {loadingDocs ? (
-                  <div className="flex items-center gap-2 text-xs text-[#6B655C]">
+                  <div className="flex items-center gap-2 text-xs text-[#8A8279]">
                     <Loader2 className="h-3 w-3 animate-spin" /> Loading documents...
                   </div>
                 ) : regDocs.length === 0 ? (
-                  <p className="text-xs text-[#6B655C]">No documents uploaded yet.</p>
+                  <p className="text-xs text-[#8A8279]">No documents uploaded yet.</p>
                 ) : (
                   <div className="space-y-2">
                     {regDocs.map((doc) => {
@@ -375,8 +375,8 @@ export function TrialRequestsPanel() {
                       return (
                         <div key={doc.id} className="flex items-center justify-between gap-3 rounded-xl border border-[rgba(201,160,92,0.08)] bg-[#14141B] px-3 py-2">
                           <div className="flex-1 min-w-0">
-                            <p className="text-xs font-bold text-[#EAE2D6] truncate">{doc.document_type.replace(/_/g, ' ')}</p>
-                            <p className="text-[10px] text-[#6B655C] truncate">{doc.file_name}</p>
+                            <p className="text-xs font-bold text-[#F5F0E8] truncate">{doc.document_type.replace(/_/g, ' ')}</p>
+                            <p className="text-[10px] text-[#8A8279] truncate">{doc.file_name}</p>
                             {doc.rejection_reason && (
                               <p className="mt-0.5 text-[10px] text-rose-400">{doc.rejection_reason}</p>
                             )}
@@ -446,30 +446,30 @@ export function TrialRequestsPanel() {
                   )}
                 </>
               ) : (
-                <p className="mt-3 text-xs font-semibold uppercase tracking-wider text-[#6B655C]">
+                <p className="mt-3 text-xs font-semibold uppercase tracking-wider text-[#8A8279]">
                   This request is finalized and cannot be changed.
                 </p>
               )}
 
               <div className="mt-6 rounded-2xl border border-[rgba(201,160,92,0.12)] p-4">
                 <div className="mb-3 flex items-center gap-2">
-                  <MessageSquare className="h-4 w-4 text-[#6B655C]" />
-                  <p className="text-sm font-bold text-[#EAE2D6]">Onboarding Conversation</p>
+                  <MessageSquare className="h-4 w-4 text-[#8A8279]" />
+                  <p className="text-sm font-bold text-[#F5F0E8]">Onboarding Conversation</p>
                 </div>
 
                 <div className="max-h-48 space-y-2 overflow-y-auto rounded-xl bg-[#1C1C26] p-3">
                   {loadingMessages ? (
-                    <p className="text-xs text-[#6B655C]">Loading messages...</p>
+                    <p className="text-xs text-[#8A8279]">Loading messages...</p>
                   ) : messages.length === 0 ? (
-                    <p className="text-xs text-[#6B655C]">No messages yet.</p>
+                    <p className="text-xs text-[#8A8279]">No messages yet.</p>
                   ) : (
                     messages.map((message) => (
                       <div key={message.id} className="rounded-lg border border-[rgba(201,160,92,0.12)] bg-[#1C1C26] p-2 text-xs text-[#D8D0C4]">
-                        <p className="font-bold text-[#EAE2D6]">
+                        <p className="font-bold text-[#F5F0E8]">
                           {message.sender_name || message.sender_type}
                         </p>
                         <p className="mt-1 whitespace-pre-wrap">{message.message}</p>
-                        <p className="mt-1 text-[10px] text-[#6B655C]">{new Date(message.created_at).toLocaleString()}</p>
+                        <p className="mt-1 text-[10px] text-[#8A8279]">{new Date(message.created_at).toLocaleString()}</p>
                       </div>
                     ))
                   )}
@@ -507,13 +507,13 @@ export function TrialRequestsPanel() {
           >
             <div className="flex flex-none items-center justify-between border-b border-[rgba(201,160,92,0.12)] px-6 py-3">
               <div>
-                <p className="text-sm font-bold text-[#EAE2D6]">{previewDoc.document_type.replace(/_/g, ' ')}</p>
-                <p className="text-xs text-[#6B655C]">{previewDoc.file_name}</p>
+                <p className="text-sm font-bold text-[#F5F0E8]">{previewDoc.document_type.replace(/_/g, ' ')}</p>
+                <p className="text-xs text-[#8A8279]">{previewDoc.file_name}</p>
               </div>
               <button
                 type="button"
                 onClick={() => setPreviewDoc(null)}
-                className="rounded-lg border border-[rgba(201,160,92,0.12)] p-1.5 text-[#6B655C] hover:bg-[#1C1C26] hover:text-[#EAE2D6]"
+                className="rounded-lg border border-[rgba(201,160,92,0.12)] p-1.5 text-[#8A8279] hover:bg-[#1C1C26] hover:text-[#F5F0E8]"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -521,7 +521,7 @@ export function TrialRequestsPanel() {
             <div className="min-h-0 flex-1 overflow-y-auto p-4">
               <div className="flex min-h-full items-center justify-center">
               {previewDocSignFailed ? (
-                <p className="text-sm text-[#6B655C]">Document unavailable</p>
+                <p className="text-sm text-[#8A8279]">Document unavailable</p>
               ) : !previewDocSignedUrl ? (
                 <Loader2 className="h-8 w-8 animate-spin text-[#C9A05C]" />
               ) : /\.(jpg|jpeg|png|gif|webp|svg|bmp)(\?|$)/i.test(previewDoc.file_url) ? (
@@ -538,7 +538,7 @@ export function TrialRequestsPanel() {
                 />
               ) : (
                 <div className="text-center">
-                  <p className="text-sm text-[#6B655C]">Preview not available for this file type.</p>
+                  <p className="text-sm text-[#8A8279]">Preview not available for this file type.</p>
                   <a
                     href={previewDocSignedUrl}
                     target="_blank"
@@ -579,7 +579,7 @@ export function TrialRequestsPanel() {
                     {reviewingDocId === previewDoc.id ? '...' : 'Reject'}
                   </button>
                   {!previewDocViewed && (
-                    <span className="text-[10px] font-semibold text-[#6B655C]">
+                    <span className="text-[10px] font-semibold text-[#8A8279]">
                       Open and view the document to unlock Approve.
                     </span>
                   )}

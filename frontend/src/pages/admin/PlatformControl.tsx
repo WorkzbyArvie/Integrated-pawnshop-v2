@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Building2, Globe, Loader2,
   X, Trash2, AlertTriangle, Search, TrendingUp, CreditCard
@@ -107,23 +107,23 @@ export function PlatformControl({ userRole }: PlatformControlProps) {
 
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 text-left">
         <div>
-          <h1 className="text-4xl font-light text-[#EAE2D6] tracking-tight">
+          <h1 className="text-4xl font-light text-[#F5F0E8] tracking-tight">
             Platform <span className="font-bold text-[#C9A05C] italic">Control</span>
           </h1>
-          <p className="text-[#6B655C] mt-2 font-medium italic">Manage tenants, monitor performance, and control access.</p>
+          <p className="text-[#8A8279] mt-2 font-medium italic">Manage tenants, monitor performance, and control access.</p>
         </div>
         <div className="flex items-center gap-3 px-5 py-3 bg-[#14141B] rounded-2xl border border-[rgba(201,160,92,0.08)]">
           <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
-          <span className="text-[10px] font-black text-[#6B655C] uppercase tracking-widest">{pawnshops.length} Tenants</span>
+          <span className="text-[10px] font-black text-[#8A8279] uppercase tracking-widest">{pawnshops.length} Tenants</span>
         </div>
       </div>
 
       <div className="relative max-w-md">
-        <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-[#6B655C]" size={18} />
+        <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-[#8A8279]" size={18} />
         <input
           type="text" placeholder="Search tenants..." value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          className="w-full pl-14 pr-6 py-4 rounded-2xl border border-[rgba(201,160,92,0.08)] bg-[#14141B] shadow-sm outline-none font-medium text-[#EAE2D6]"
+          className="w-full pl-14 pr-6 py-4 rounded-2xl border border-[rgba(201,160,92,0.08)] bg-[#14141B] shadow-sm outline-none font-medium text-[#F5F0E8]"
         />
       </div>
 
@@ -142,12 +142,12 @@ export function PlatformControl({ userRole }: PlatformControlProps) {
               </div>
             </div>
 
-            <h3 className="font-bold text-2xl text-[#EAE2D6] mb-1 tracking-tight">{shop.name}</h3>
-            <p className="text-sm text-[#6B655C] font-medium mb-6 italic">{shop.contactEmail || 'No email'}</p>
+            <h3 className="font-bold text-2xl text-[#F5F0E8] mb-1 tracking-tight">{shop.name}</h3>
+            <p className="text-sm text-[#8A8279] font-medium mb-6 italic">{shop.contactEmail || 'No email'}</p>
 
             <div className="inline-flex items-center gap-2 px-4 py-2 bg-[#1C1C26] rounded-xl border border-[rgba(201,160,92,0.08)] mb-6">
               <CreditCard size={14} className="text-[#C9A05C]" />
-              <span className="text-[10px] font-black text-[#6B655C] uppercase tracking-widest">Plan</span>
+              <span className="text-[10px] font-black text-[#8A8279] uppercase tracking-widest">Plan</span>
               <span className="font-bold text-[#C9A05C] text-xs">{shop.subscriptionPlan}</span>
             </div>
 
@@ -169,7 +169,7 @@ export function PlatformControl({ userRole }: PlatformControlProps) {
       {filteredShops.length === 0 && (
         <div className="py-20 text-center bg-[#14141B] rounded-[3rem] border-2 border-dashed border-[rgba(201,160,92,0.12)]">
           <Building2 className="w-12 h-12 text-slate-300 mx-auto mb-4" />
-          <p className="text-[#6B655C] font-bold text-[10px] uppercase tracking-widest">
+          <p className="text-[#8A8279] font-bold text-[10px] uppercase tracking-widest">
             {pawnshops.length === 0 ? 'No tenants registered yet.' : 'No tenants match your search.'}
           </p>
         </div>
@@ -182,29 +182,29 @@ export function PlatformControl({ userRole }: PlatformControlProps) {
             <div className="flex justify-between items-start mb-10">
               <div>
                 <p className="text-[10px] font-black text-[#C9A05C] uppercase tracking-[0.2em] mb-2">Tenant Overview</p>
-                <h2 className="text-4xl font-black text-[#EAE2D6] tracking-tighter uppercase italic leading-none">{selectedShop.name}</h2>
+                <h2 className="text-4xl font-black text-[#F5F0E8] tracking-tighter uppercase italic leading-none">{selectedShop.name}</h2>
               </div>
               <button onClick={() => setSelectedShop(null)} className="p-4 bg-[#1C1C26] rounded-2xl hover:text-rose-500 transition-all"><X size={24} /></button>
             </div>
 
             <div className="flex items-center gap-3 p-6 bg-[#1C1C26] rounded-[24px] border border-[rgba(201,160,92,0.08)] mb-10">
               <CreditCard className="text-[#C9A05C]" size={24} />
-              <p className="text-[10px] font-black text-[#6B655C] uppercase tracking-widest">Plan</p>
+              <p className="text-[10px] font-black text-[#8A8279] uppercase tracking-widest">Plan</p>
               <p className="text-lg font-black text-[#C9A05C]">{selectedShop.subscriptionPlan}</p>
             </div>
 
             <div className="grid grid-cols-2 gap-4 mb-10 text-left">
               <div className="p-5 bg-[#1C1C26] rounded-2xl border border-[rgba(201,160,92,0.08)]">
-                <p className="text-[9px] font-black text-[#6B655C] uppercase tracking-widest mb-1">Email</p>
-                <p className="text-sm font-bold text-[#EAE2D6]">{selectedShop.contactEmail || 'N/A'}</p>
+                <p className="text-[9px] font-black text-[#8A8279] uppercase tracking-widest mb-1">Email</p>
+                <p className="text-sm font-bold text-[#F5F0E8]">{selectedShop.contactEmail || 'N/A'}</p>
               </div>
               <div className="p-5 bg-[#1C1C26] rounded-2xl border border-[rgba(201,160,92,0.08)]">
-                <p className="text-[9px] font-black text-[#6B655C] uppercase tracking-widest mb-1">Phone</p>
-                <p className="text-sm font-bold text-[#EAE2D6]">{selectedShop.contactPhone || 'N/A'}</p>
+                <p className="text-[9px] font-black text-[#8A8279] uppercase tracking-widest mb-1">Phone</p>
+                <p className="text-sm font-bold text-[#F5F0E8]">{selectedShop.contactPhone || 'N/A'}</p>
               </div>
               <div className="p-5 bg-[#1C1C26] rounded-2xl border border-[rgba(201,160,92,0.08)] col-span-2">
-                <p className="text-[9px] font-black text-[#6B655C] uppercase tracking-widest mb-1">Address</p>
-                <p className="text-sm font-bold text-[#EAE2D6]">{selectedShop.address || 'No address set'}</p>
+                <p className="text-[9px] font-black text-[#8A8279] uppercase tracking-widest mb-1">Address</p>
+                <p className="text-sm font-bold text-[#F5F0E8]">{selectedShop.address || 'No address set'}</p>
               </div>
             </div>
           </div>
@@ -216,10 +216,10 @@ export function PlatformControl({ userRole }: PlatformControlProps) {
           <div className="absolute inset-0 bg-[#030213]/60 backdrop-blur-sm animate-in fade-in" onClick={() => setShopToDelete(null)} />
           <div className="relative bg-[#14141B] w-full max-w-md rounded-[40px] p-10 shadow-2xl border border-[rgba(201,160,92,0.08)] text-left">
             <AlertTriangle className="text-rose-500 mb-6" size={32} />
-            <h2 className="text-3xl font-black text-[#EAE2D6] tracking-tighter uppercase italic mb-4 leading-none">Confirm Delete</h2>
-            <p className="text-[#6B655C] font-medium mb-8 leading-relaxed">Remove <span className="text-[#EAE2D6] font-bold underline">"{shopToDelete.name}"</span>? All branches, staff, and data under this tenant will be affected.</p>
+            <h2 className="text-3xl font-black text-[#F5F0E8] tracking-tighter uppercase italic mb-4 leading-none">Confirm Delete</h2>
+            <p className="text-[#8A8279] font-medium mb-8 leading-relaxed">Remove <span className="text-[#F5F0E8] font-bold underline">"{shopToDelete.name}"</span>? All branches, staff, and data under this tenant will be affected.</p>
             <div className="flex gap-4">
-              <button onClick={() => setShopToDelete(null)} className="flex-1 py-4 rounded-2xl bg-[#1C1C26] text-[#999186] font-bold text-xs uppercase">Cancel</button>
+              <button onClick={() => setShopToDelete(null)} className="flex-1 py-4 rounded-2xl bg-[#1C1C26] text-[#B8B0A4] font-bold text-xs uppercase">Cancel</button>
               <button onClick={handleDeleteConfirm} disabled={isDeleting} className="flex-1 py-4 rounded-2xl bg-rose-500 text-white font-black text-xs uppercase flex items-center justify-center gap-2">
                 {isDeleting ? <Loader2 className="animate-spin" size={16} /> : 'Delete'}
               </button>

@@ -1,4 +1,4 @@
-﻿/**
+/**
  * PayrollManagement -- Philippine-compliant payroll with tax & deductions.
  *
  * Features:
@@ -336,7 +336,7 @@ export function PayrollManagement({ branchId: _branchId, activeBranchId }: Payro
       icon: 'question',
       showCancelButton: true,
       confirmButtonColor: '#C9A05C',
-      cancelButtonColor: '#6B655C',
+      cancelButtonColor: '#8A8279',
       confirmButtonText: 'Yes, proceed',
       cancelButtonText: 'Cancel',
     });
@@ -363,7 +363,7 @@ export function PayrollManagement({ branchId: _branchId, activeBranchId }: Payro
       icon: 'warning',
       showCancelButton: true,
       confirmButtonColor: '#ef4444',
-      cancelButtonColor: '#6B655C',
+      cancelButtonColor: '#8A8279',
       confirmButtonText: 'Yes, proceed',
       cancelButtonText: 'Cancel',
     });
@@ -393,8 +393,8 @@ export function PayrollManagement({ branchId: _branchId, activeBranchId }: Payro
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-black text-[#EAE2D6] tracking-tight">Payroll Management</h1>
-          <p className="text-[#6B655C] mt-1">Automated payroll based on base salary per role/position</p>
+          <h1 className="text-3xl font-black text-[#F5F0E8] tracking-tight">Payroll Management</h1>
+          <p className="text-[#8A8279] mt-1">Automated payroll based on base salary per role/position</p>
         </div>
         <div className="flex items-center gap-3">
           <Button variant="outline" size="sm" onClick={() => setShowSettingsDialog(true)}>
@@ -436,8 +436,8 @@ export function PayrollManagement({ branchId: _branchId, activeBranchId }: Payro
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-rose-100 rounded-xl"><Calculator className="w-5 h-5 text-rose-600" /></div>
                 <div>
-                  <p className="text-xl font-black text-[#EAE2D6]">{formatCurrency(summaryView.totalTax)}</p>
-                  <p className="text-xs text-[#6B655C]">Withholding Tax</p>
+                  <p className="text-xl font-black text-[#F5F0E8]">{formatCurrency(summaryView.totalTax)}</p>
+                  <p className="text-xs text-[#8A8279]">Withholding Tax</p>
                 </div>
               </div>
             </CardContent>
@@ -447,8 +447,8 @@ export function PayrollManagement({ branchId: _branchId, activeBranchId }: Payro
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-sky-100 rounded-xl"><FileText className="w-5 h-5 text-sky-600" /></div>
                 <div>
-                  <p className="text-xl font-black text-[#EAE2D6]">{summaryView.payslipCount}</p>
-                  <p className="text-xs text-[#6B655C]">Total Payslips</p>
+                  <p className="text-xl font-black text-[#F5F0E8]">{summaryView.payslipCount}</p>
+                  <p className="text-xs text-[#8A8279]">Total Payslips</p>
                 </div>
               </div>
             </CardContent>
@@ -456,9 +456,9 @@ export function PayrollManagement({ branchId: _branchId, activeBranchId }: Payro
           <Card>
             <CardContent className="pt-6">
               <div className="text-xs space-y-1">
-                <div className="flex justify-between"><span className="text-[#6B655C]">SSS</span><span className="font-bold">{formatCurrency(summaryView.totalSSS)}</span></div>
-                <div className="flex justify-between"><span className="text-[#6B655C]">PhilHealth</span><span className="font-bold">{formatCurrency(summaryView.totalPhilHealth)}</span></div>
-                <div className="flex justify-between"><span className="text-[#6B655C]">Pag-IBIG</span><span className="font-bold">{formatCurrency(summaryView.totalPagIBIG)}</span></div>
+                <div className="flex justify-between"><span className="text-[#8A8279]">SSS</span><span className="font-bold">{formatCurrency(summaryView.totalSSS)}</span></div>
+                <div className="flex justify-between"><span className="text-[#8A8279]">PhilHealth</span><span className="font-bold">{formatCurrency(summaryView.totalPhilHealth)}</span></div>
+                <div className="flex justify-between"><span className="text-[#8A8279]">Pag-IBIG</span><span className="font-bold">{formatCurrency(summaryView.totalPagIBIG)}</span></div>
               </div>
             </CardContent>
           </Card>
@@ -473,7 +473,7 @@ export function PayrollManagement({ branchId: _branchId, activeBranchId }: Payro
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-1">
-              <label className="text-xs font-semibold text-[#999186] uppercase tracking-wide">Payroll Frequency</label>
+              <label className="text-xs font-semibold text-[#B8B0A4] uppercase tracking-wide">Payroll Frequency</label>
               <Select
                 value={String(payrollFrequencyDays)}
                 onValueChange={(value) =>
@@ -492,7 +492,7 @@ export function PayrollManagement({ branchId: _branchId, activeBranchId }: Payro
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="space-y-1">
-                <label className="text-xs font-semibold text-[#999186] uppercase tracking-wide">Role/Position</label>
+                <label className="text-xs font-semibold text-[#B8B0A4] uppercase tracking-wide">Role/Position</label>
                 <Select value={selectedPosition} onValueChange={setSelectedPosition}>
                   <SelectTrigger>
                     <SelectValue placeholder="Select role/position" />
@@ -508,7 +508,7 @@ export function PayrollManagement({ branchId: _branchId, activeBranchId }: Payro
               </div>
 
               <div className="space-y-1">
-                <label className="text-xs font-semibold text-[#999186] uppercase tracking-wide">Base Salary</label>
+                <label className="text-xs font-semibold text-[#B8B0A4] uppercase tracking-wide">Base Salary</label>
                 <Input
                   type="number"
                   min={0}
@@ -520,7 +520,7 @@ export function PayrollManagement({ branchId: _branchId, activeBranchId }: Payro
               </div>
 
               <div className="space-y-1">
-                <label className="text-xs font-semibold text-[#999186] uppercase tracking-wide">Allowance</label>
+                <label className="text-xs font-semibold text-[#B8B0A4] uppercase tracking-wide">Allowance</label>
                 <Input
                   type="number"
                   min={0}
@@ -547,7 +547,7 @@ export function PayrollManagement({ branchId: _branchId, activeBranchId }: Payro
 
       {/* Filter */}
       <div className="flex items-center gap-3">
-        <Filter className="w-4 h-4 text-[#6B655C]" />
+        <Filter className="w-4 h-4 text-[#8A8279]" />
         <Select
           value={statusFilter || ALL_PAYROLL_STATUSES}
           onValueChange={(v) =>
@@ -640,7 +640,7 @@ export function PayrollManagement({ branchId: _branchId, activeBranchId }: Payro
                 })}
                 {payslipList.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center text-[#6B655C] py-8">No payslips found</TableCell>
+                    <TableCell colSpan={8} className="text-center text-[#8A8279] py-8">No payslips found</TableCell>
                   </TableRow>
                 )}
               </TableBody>
@@ -664,7 +664,7 @@ export function PayrollManagement({ branchId: _branchId, activeBranchId }: Payro
                 <Badge className={statusColor(selectedPayslip.status)}>
                   {humanizeStatus(selectedPayslip.status)}
                 </Badge>
-                <span className="text-sm text-[#6B655C]">
+                <span className="text-sm text-[#8A8279]">
                   {formatDate(selectedPayslip.periodStart)} -- {formatDate(selectedPayslip.periodEnd)}
                 </span>
               </div>
@@ -705,7 +705,7 @@ export function PayrollManagement({ branchId: _branchId, activeBranchId }: Payro
               </div>
 
               {/* Metadata */}
-              <div className="text-xs text-[#6B655C] space-y-0.5">
+              <div className="text-xs text-[#8A8279] space-y-0.5">
                 <p>Days Worked: {selectedPayslip.daysWorked} | Total Hours: {selectedPayslip.totalWorkHours?.toFixed(1)}</p>
                 {selectedPayslip.approvedBy && <p>Approved by: {selectedPayslip.approvedBy} on {formatDate(selectedPayslip.approvedAt)}</p>}
                 {selectedPayslip.paidBy && <p>Paid by: {selectedPayslip.paidBy} on {formatDate(selectedPayslip.paidAt)}</p>}

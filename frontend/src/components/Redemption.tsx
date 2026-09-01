@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { 
   Search, 
   RotateCcw,  
@@ -132,7 +132,7 @@ export function Redemption({ branchId, activeBranchId }: RedemptionProps) {
       icon: 'question',
       showCancelButton: true,
       confirmButtonColor: '#C9A05C',
-      cancelButtonColor: '#6B655C',
+      cancelButtonColor: '#8A8279',
       confirmButtonText: 'Yes, proceed',
       cancelButtonText: 'Cancel',
     });
@@ -193,10 +193,10 @@ export function Redemption({ branchId, activeBranchId }: RedemptionProps) {
     <div className="p-6 space-y-6 text-left animate-in fade-in duration-500">
       <div className="flex justify-between items-end border-b border-[rgba(201,160,92,0.08)] pb-6">
         <div>
-          <h2 className="text-3xl font-black text-[#EAE2D6] uppercase italic tracking-tighter">
+          <h2 className="text-3xl font-black text-[#F5F0E8] uppercase italic tracking-tighter">
             Redemption <span className="text-[#C9A05C]">Center</span>
           </h2>
-          <p className="text-[#6B655C] text-[10px] font-black uppercase tracking-[0.2em] mt-1">
+          <p className="text-[#8A8279] text-[10px] font-black uppercase tracking-[0.2em] mt-1">
             Vault Authorization & Asset Release
           </p>
         </div>
@@ -204,8 +204,8 @@ export function Redemption({ branchId, activeBranchId }: RedemptionProps) {
           onClick={fetchVault} 
           className="group flex items-center gap-2 bg-[#1C1C26] px-4 py-2 rounded-xl border border-[rgba(201,160,92,0.12)] hover:bg-[#C9A05C]/10 transition-all"
         >
-          <RotateCcw className={`w-4 h-4 text-[#6B655C] group-hover:text-[#C9A05C] ${isFetching ? 'animate-spin' : ''}`} />
-          <span className="text-[10px] font-black uppercase text-[#6B655C] group-hover:text-[#C9A05C]">Sync Vault</span>
+          <RotateCcw className={`w-4 h-4 text-[#8A8279] group-hover:text-[#C9A05C] ${isFetching ? 'animate-spin' : ''}`} />
+          <span className="text-[10px] font-black uppercase text-[#8A8279] group-hover:text-[#C9A05C]">Sync Vault</span>
         </button>
       </div>
 
@@ -226,10 +226,10 @@ export function Redemption({ branchId, activeBranchId }: RedemptionProps) {
             <table className="w-full">
               <thead className="bg-[#1C1C26]/50">
                 <tr>
-                  <th className="px-8 py-5 text-[10px] font-black text-[#6B655C] uppercase text-left tracking-widest">Asset Details</th>
-                  <th className="px-8 py-5 text-[10px] font-black text-[#6B655C] uppercase text-left tracking-widest">Owner</th>
-                  <th className="px-8 py-5 text-[10px] font-black text-[#6B655C] uppercase text-left tracking-widest">Principal</th>
-                  <th className="px-8 py-5 text-[10px] font-black text-[#6B655C] uppercase text-right tracking-widest">Action</th>
+                  <th className="px-8 py-5 text-[10px] font-black text-[#8A8279] uppercase text-left tracking-widest">Asset Details</th>
+                  <th className="px-8 py-5 text-[10px] font-black text-[#8A8279] uppercase text-left tracking-widest">Owner</th>
+                  <th className="px-8 py-5 text-[10px] font-black text-[#8A8279] uppercase text-left tracking-widest">Principal</th>
+                  <th className="px-8 py-5 text-[10px] font-black text-[#8A8279] uppercase text-right tracking-widest">Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
@@ -239,10 +239,10 @@ export function Redemption({ branchId, activeBranchId }: RedemptionProps) {
                   filteredItems.map(item => (
                     <tr key={item.id} className="hover:bg-[#C9A05C]/10/30 transition-colors">
                       <td className="px-8 py-6">
-                        <p className="font-black text-[#EAE2D6]">{item.itemDetails}</p>
+                        <p className="font-black text-[#F5F0E8]">{item.itemDetails}</p>
                         <p className="text-[10px] text-[#C9A05C] font-bold uppercase">Ref: {item.ticketId}</p>
                       </td>
-                      <td className="px-8 py-6 text-sm font-bold text-[#999186]">
+                      <td className="px-8 py-6 text-sm font-bold text-[#B8B0A4]">
                         <span className="flex items-center gap-2">
                           {item.customerName}
                           <span className={`px-2 py-0.5 rounded-full text-[9px] font-black text-white ${tierColors[item.loyaltyTier] || 'bg-gray-600'}`}>
@@ -250,7 +250,7 @@ export function Redemption({ branchId, activeBranchId }: RedemptionProps) {
                           </span>
                         </span>
                       </td>
-                      <td className="px-8 py-6 font-black text-[#EAE2D6]">{formatCurrency(item.loanAmount)}</td>
+                      <td className="px-8 py-6 font-black text-[#F5F0E8]">{formatCurrency(item.loanAmount)}</td>
                       <td className="px-8 py-6 text-right">
                         <button 
                           onClick={() => setSelectedItem(item)} 
@@ -263,7 +263,7 @@ export function Redemption({ branchId, activeBranchId }: RedemptionProps) {
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={4} className="py-20 text-center text-[#6B655C] text-[10px] font-black uppercase tracking-widest">No Active Items Found</td>
+                    <td colSpan={4} className="py-20 text-center text-[#8A8279] text-[10px] font-black uppercase tracking-widest">No Active Items Found</td>
                   </tr>
                 )}
               </tbody>
@@ -280,7 +280,7 @@ export function Redemption({ branchId, activeBranchId }: RedemptionProps) {
               </div>
 
               <div className="mb-6 pb-4 border-b border-white/5">
-                <p className="text-[10px] font-black text-[#6B655C] uppercase mb-1">Customer</p>
+                <p className="text-[10px] font-black text-[#8A8279] uppercase mb-1">Customer</p>
                 <p className="font-bold text-white flex items-center gap-2">
                   {selectedItem.customerName}
                   <span className={`px-2 py-0.5 rounded-full text-[9px] font-black text-white ${tierColors[selectedItem.loyaltyTier] || 'bg-gray-600'}`}>
@@ -291,15 +291,15 @@ export function Redemption({ branchId, activeBranchId }: RedemptionProps) {
               
               <div className="space-y-4 mb-10">
                 <div className="flex justify-between items-center pb-4 border-b border-white/5">
-                  <span className="text-[10px] font-black text-[#6B655C] uppercase">Principal</span>
+                  <span className="text-[10px] font-black text-[#8A8279] uppercase">Principal</span>
                   <span className="font-bold text-lg">{formatCurrency(selectedItem.loanAmount)}</span>
                 </div>
                 <div className="flex justify-between items-center pb-4 border-b border-white/5">
-                  <span className="text-[10px] font-black text-[#6B655C] uppercase">Interest (3%)</span>
+                  <span className="text-[10px] font-black text-[#8A8279] uppercase">Interest (3%)</span>
                   <span className="font-bold text-blue-400">+ {formatCurrency(calculateTotal(selectedItem.loanAmount).interest)}</span>
                 </div>
                 <div className="flex justify-between items-center pb-4 border-b border-white/5">
-                  <span className="text-[10px] font-black text-[#6B655C] uppercase">Service Fee</span>
+                  <span className="text-[10px] font-black text-[#8A8279] uppercase">Service Fee</span>
                   <span className="font-bold text-blue-400">+ {formatCurrency(50)}</span>
                 </div>
                 <div className="pt-6 flex justify-between items-end">
@@ -321,7 +321,7 @@ export function Redemption({ branchId, activeBranchId }: RedemptionProps) {
               
               <button 
                 onClick={() => setSelectedItem(null)}
-                className="w-full mt-4 py-2 text-[#6B655C] font-black uppercase text-[10px] hover:text-white transition-colors"
+                className="w-full mt-4 py-2 text-[#8A8279] font-black uppercase text-[10px] hover:text-white transition-colors"
               >
                 Cancel
               </button>
@@ -329,7 +329,7 @@ export function Redemption({ branchId, activeBranchId }: RedemptionProps) {
           ) : (
             <div className="h-[400px] border-2 border-dashed border-[rgba(201,160,92,0.08)] rounded-[3rem] flex flex-col items-center justify-center p-12 text-center bg-[#1C1C26]/30">
               <Wallet className="w-8 h-8 text-slate-200 mb-4" />
-              <p className="text-[#6B655C] font-black uppercase text-[10px] tracking-[0.3em]">Select an item to redeem</p>
+              <p className="text-[#8A8279] font-black uppercase text-[10px] tracking-[0.3em]">Select an item to redeem</p>
             </div>
           )}
         </div>

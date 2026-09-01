@@ -1,4 +1,4 @@
-﻿import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import {
   FileText, Loader2, XCircle, X, FileDown, PenLine, CheckCircle2, ShieldCheck, Upload,
 } from 'lucide-react';
@@ -218,7 +218,7 @@ export function ContractViewer({
       icon: 'warning',
       showCancelButton: true,
       confirmButtonColor: '#3DA86C',
-      cancelButtonColor: '#6B655C',
+      cancelButtonColor: '#8A8279',
       confirmButtonText: 'Yes, disburse',
       cancelButtonText: 'Cancel',
     });
@@ -266,7 +266,7 @@ export function ContractViewer({
         <div className="sticky top-0 bg-[#14141B] border-b border-[rgba(201,160,92,0.08)] px-8 py-5 flex items-center justify-between rounded-t-[2.5rem] z-10">
           <div className="flex items-center gap-3">
             <FileText className="w-5 h-5 text-[#C9A05C]" />
-            <h2 className="text-lg font-black text-[#EAE2D6] uppercase tracking-tight">
+            <h2 className="text-lg font-black text-[#F5F0E8] uppercase tracking-tight">
               Contract
             </h2>
           </div>
@@ -274,7 +274,7 @@ export function ContractViewer({
             onClick={onClose}
             className="w-10 h-10 rounded-xl bg-[#1C1C26] flex items-center justify-center hover:bg-[#222228] transition-colors"
           >
-            <X className="w-5 h-5 text-[#999186]" />
+            <X className="w-5 h-5 text-[#B8B0A4]" />
           </button>
         </div>
 
@@ -282,7 +282,7 @@ export function ContractViewer({
           {loading && (
             <div className="flex flex-col items-center justify-center py-16">
               <Loader2 className="w-8 h-8 text-[#C9A05C] animate-spin mb-3" />
-              <p className="text-[10px] font-black uppercase tracking-widest text-[#6B655C]">Loading Contract...</p>
+              <p className="text-[10px] font-black uppercase tracking-widest text-[#8A8279]">Loading Contract...</p>
             </div>
           )}
 
@@ -304,16 +304,16 @@ export function ContractViewer({
 
               {contract.contractData && (
                 <div className="border border-[rgba(201,160,92,0.08)] rounded-2xl p-5 space-y-3">
-                  <p className="text-[10px] font-black uppercase tracking-wider text-[#6B655C] mb-3">Contract Details</p>
+                  <p className="text-[10px] font-black uppercase tracking-wider text-[#8A8279] mb-3">Contract Details</p>
                   <div className="grid grid-cols-2 gap-4 text-sm">
                     {Object.entries(contract.contractData).map(([key, val]) => {
                       if (key === 'renderedHtml' || key === 'loanId' || typeof val === 'object') return null;
                       return (
                         <div key={key}>
-                          <p className="text-[10px] font-black uppercase tracking-wider text-[#6B655C]">
+                          <p className="text-[10px] font-black uppercase tracking-wider text-[#8A8279]">
                             {humanizeStatus(key)}
                           </p>
-                          <p className="font-bold text-[#EAE2D6]">{String(val)}</p>
+                          <p className="font-bold text-[#F5F0E8]">{String(val)}</p>
                         </div>
                       );
                     })}
@@ -329,7 +329,7 @@ export function ContractViewer({
                     </p>
                   </div>
                   <div
-                    className="bg-[#14141B] text-[#EAE2D6] p-6 max-h-96 overflow-y-auto text-sm leading-relaxed"
+                    className="bg-[#14141B] text-[#F5F0E8] p-6 max-h-96 overflow-y-auto text-sm leading-relaxed"
                     dangerouslySetInnerHTML={{ __html: termsHtml }}
                   />
                 </div>
@@ -341,9 +341,9 @@ export function ContractViewer({
                     {contract.signedByCustomer ? (
                       <CheckCircle2 className="w-5 h-5 text-emerald-600" />
                     ) : (
-                      <PenLine className="w-5 h-5 text-[#6B655C]" />
+                      <PenLine className="w-5 h-5 text-[#8A8279]" />
                     )}
-                    <p className="text-sm font-black text-[#EAE2D6]">Customer Signature</p>
+                    <p className="text-sm font-black text-[#F5F0E8]">Customer Signature</p>
                   </div>
                   {contract.signedByCustomer ? (
                     <div className="space-y-1">
@@ -351,7 +351,7 @@ export function ContractViewer({
                         <img src={contract.customerSignature} alt="Customer signature" className="max-h-16 border border-[rgba(201,160,92,0.12)] rounded-lg" />
                       )}
                       {contract.customerSignedAt && (
-                        <p className="text-[10px] font-bold text-[#6B655C]">Signed {formatDateTime(contract.customerSignedAt)}</p>
+                        <p className="text-[10px] font-bold text-[#8A8279]">Signed {formatDateTime(contract.customerSignedAt)}</p>
                       )}
                     </div>
                   ) : (
@@ -359,7 +359,7 @@ export function ContractViewer({
                       {signatureUploaded && signatureFor === 'customer' ? (
                         <div className="space-y-1">
                           <img src={signature ?? undefined} alt="Uploaded customer signature" className="max-h-16 border border-[#C9A05C]/40 rounded-xl bg-white p-1" />
-                          <p className="text-[10px] font-bold text-[#6B655C]">Uploaded signature — ready to sign</p>
+                          <p className="text-[10px] font-bold text-[#8A8279]">Uploaded signature — ready to sign</p>
                         </div>
                       ) : (
                         <canvas
@@ -394,7 +394,7 @@ export function ContractViewer({
                         </button>
                         <button
                           onClick={() => { setActiveSigner('customer'); clearCanvas(); }}
-                          className="px-4 py-2 rounded-xl border border-[rgba(201,160,92,0.12)] text-xs font-bold text-[#999186] hover:bg-[#1C1C26]"
+                          className="px-4 py-2 rounded-xl border border-[rgba(201,160,92,0.12)] text-xs font-bold text-[#B8B0A4] hover:bg-[#1C1C26]"
                         >
                           Clear
                         </button>
@@ -415,9 +415,9 @@ export function ContractViewer({
                     {contract.signedByStaff ? (
                       <CheckCircle2 className="w-5 h-5 text-emerald-600" />
                     ) : (
-                      <ShieldCheck className="w-5 h-5 text-[#6B655C]" />
+                      <ShieldCheck className="w-5 h-5 text-[#8A8279]" />
                     )}
-                    <p className="text-sm font-black text-[#EAE2D6]">Staff Signature</p>
+                    <p className="text-sm font-black text-[#F5F0E8]">Staff Signature</p>
                   </div>
                   {contract.signedByStaff ? (
                     <div className="space-y-1">
@@ -425,7 +425,7 @@ export function ContractViewer({
                         <img src={contract.staffSignature} alt="Staff signature" className="max-h-16 border border-[rgba(201,160,92,0.12)] rounded-lg" />
                       )}
                       {contract.staffSignedAt && (
-                        <p className="text-[10px] font-bold text-[#6B655C]">Signed {formatDateTime(contract.staffSignedAt)}</p>
+                        <p className="text-[10px] font-bold text-[#8A8279]">Signed {formatDateTime(contract.staffSignedAt)}</p>
                       )}
                     </div>
                   ) : (
@@ -433,7 +433,7 @@ export function ContractViewer({
                       {signatureUploaded && signatureFor === 'staff' ? (
                         <div className="space-y-1">
                           <img src={signature ?? undefined} alt="Uploaded staff signature" className="max-h-16 border border-[#C9A05C]/40 rounded-xl bg-white p-1" />
-                          <p className="text-[10px] font-bold text-[#6B655C]">Uploaded signature — ready to sign</p>
+                          <p className="text-[10px] font-bold text-[#8A8279]">Uploaded signature — ready to sign</p>
                         </div>
                       ) : (
                         <canvas
@@ -468,7 +468,7 @@ export function ContractViewer({
                         </button>
                         <button
                           onClick={() => { setActiveSigner('staff'); clearCanvas(); }}
-                          className="px-4 py-2 rounded-xl border border-[rgba(201,160,92,0.12)] text-xs font-bold text-[#999186] hover:bg-[#1C1C26]"
+                          className="px-4 py-2 rounded-xl border border-[rgba(201,160,92,0.12)] text-xs font-bold text-[#B8B0A4] hover:bg-[#1C1C26]"
                         >
                           Clear
                         </button>
@@ -498,7 +498,7 @@ export function ContractViewer({
                 ) : (
                   <button
                     disabled
-                    className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-[#6B655C]/30 text-[#999186] text-sm font-bold cursor-not-allowed"
+                    className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-[#8A8279]/30 text-[#B8B0A4] text-sm font-bold cursor-not-allowed"
                   >
                     <FileDown className="w-4 h-4" />
                     PDF Not Available
@@ -518,7 +518,7 @@ export function ContractViewer({
               {contract.signedByCustomer && contract.signedByStaff && (
                 <div className="mt-4 px-4 py-3 rounded-2xl bg-[#3DA86C]/10 border border-[#3DA86C]/20 flex items-center gap-2">
                   <CheckCircle2 className="w-5 h-5 text-[#3DA86C]" />
-                  <p className="text-sm font-bold text-[#EAE2D6]">Signed by both parties — ready for disbursement</p>
+                  <p className="text-sm font-bold text-[#F5F0E8]">Signed by both parties — ready for disbursement</p>
                 </div>
               )}
             </div>

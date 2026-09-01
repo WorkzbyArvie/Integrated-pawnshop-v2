@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { 
   Package, 
   Search, 
@@ -368,7 +368,7 @@ export function InventoryVault({ branchId, activeBranchId }: InventoryVaultProps
       icon: 'question',
       showCancelButton: true,
       confirmButtonColor: '#C9A05C',
-      cancelButtonColor: '#6B655C',
+      cancelButtonColor: '#8A8279',
       confirmButtonText: 'Yes, proceed',
       cancelButtonText: 'Cancel',
     });
@@ -428,7 +428,7 @@ export function InventoryVault({ branchId, activeBranchId }: InventoryVaultProps
       case 'AUCTION':
         return <span className={`${baseClass} bg-purple-50 text-purple-600 border-purple-100`}>For Auction</span>;
       default:
-        return <span className={`${baseClass} bg-[#1C1C26] text-[#999186] border-[rgba(201,160,92,0.08)]`}>{status}</span>;
+        return <span className={`${baseClass} bg-[#1C1C26] text-[#B8B0A4] border-[rgba(201,160,92,0.08)]`}>{status}</span>;
     }
   };
 
@@ -439,7 +439,7 @@ export function InventoryVault({ branchId, activeBranchId }: InventoryVaultProps
   };
 
   const getDeadlineTone = (daysRemaining: number | null) => {
-    if (daysRemaining == null) return 'text-[#6B655C]';
+    if (daysRemaining == null) return 'text-[#8A8279]';
     if (daysRemaining < 0) return 'text-rose-600 font-black';
     if (daysRemaining <= 7) return 'text-amber-600 font-black';
     return 'text-emerald-600 font-bold';
@@ -594,17 +594,17 @@ export function InventoryVault({ branchId, activeBranchId }: InventoryVaultProps
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700 font-inter text-left">
       <div className="flex justify-between items-end">
         <div>
-          <h2 className="text-3xl font-black text-[#EAE2D6] tracking-tight uppercase italic leading-none">
+          <h2 className="text-3xl font-black text-[#F5F0E8] tracking-tight uppercase italic leading-none">
             Vault <span className="text-[#C9A05C]">Inventory</span>
           </h2>
-          <div className="text-[#6B655C] font-bold text-[10px] uppercase tracking-widest mt-2 flex items-center gap-2">
+          <div className="text-[#8A8279] font-bold text-[10px] uppercase tracking-widest mt-2 flex items-center gap-2">
             <span className="h-2 w-2 rounded-full bg-[#C9A05C]/100 animate-pulse" />
             Branch Secured: {activePawnshopId ? activePawnshopId.slice(0, 8) : '--------'}
           </div>
         </div>
         <button 
           onClick={fetchInventory}
-          className="flex items-center gap-2 bg-[#14141B] text-[#EAE2D6] px-5 py-3 rounded-2xl border border-[rgba(201,160,92,0.12)] shadow-sm hover:bg-[#1C1C26] transition-all active:scale-95"
+          className="flex items-center gap-2 bg-[#14141B] text-[#F5F0E8] px-5 py-3 rounded-2xl border border-[rgba(201,160,92,0.12)] shadow-sm hover:bg-[#1C1C26] transition-all active:scale-95"
         >
           {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <TrendingUp className="w-4 h-4 text-[#C9A05C]" />}
           <span className="text-[10px] font-black uppercase tracking-widest">Refresh Vault</span>
@@ -613,14 +613,14 @@ export function InventoryVault({ branchId, activeBranchId }: InventoryVaultProps
 
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
         {[
-          { label: 'Total Items', val: stats.total, color: 'text-[#999186]' },
+          { label: 'Total Items', val: stats.total, color: 'text-[#B8B0A4]' },
           { label: 'In Vault', val: stats.inVault, color: 'text-[#C9A05C]' },
           { label: 'Redeemed', val: stats.redeemed, color: 'text-emerald-600' },
           { label: 'In Auction', val: stats.forAuction, color: 'text-purple-600' },
-          { label: 'Vault Value', val: formatTotalValue(stats.vaultValue), color: 'text-[#EAE2D6]' },
+          { label: 'Vault Value', val: formatTotalValue(stats.vaultValue), color: 'text-[#F5F0E8]' },
         ].map((s, i) => (
           <div key={i} className="bg-[#14141B] p-5 rounded-[2rem] border border-[rgba(201,160,92,0.08)] shadow-sm">
-            <p className="text-[9px] font-black uppercase tracking-[0.2em] mb-1 text-[#6B655C]">{s.label}</p>
+            <p className="text-[9px] font-black uppercase tracking-[0.2em] mb-1 text-[#8A8279]">{s.label}</p>
             <p className={`text-xl font-black ${s.color}`}>{s.val}</p>
           </div>
         ))}
@@ -634,7 +634,7 @@ export function InventoryVault({ branchId, activeBranchId }: InventoryVaultProps
             placeholder="Search assets, customers, or ticket IDs..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-14 pr-6 py-4 rounded-2xl border-none bg-[#1C1C26] text-sm font-bold placeholder:text-[#6B655C] focus:ring-2 focus:ring-blue-500/20 transition-all"
+            className="w-full pl-14 pr-6 py-4 rounded-2xl border-none bg-[#1C1C26] text-sm font-bold placeholder:text-[#8A8279] focus:ring-2 focus:ring-blue-500/20 transition-all"
           />
         </div>
         
@@ -643,21 +643,21 @@ export function InventoryVault({ branchId, activeBranchId }: InventoryVaultProps
           <select
             value={filterStatus}
             onChange={(e) => setFilterStatus(e.target.value)}
-            className="appearance-none pl-12 pr-12 py-4 rounded-2xl bg-[#1C1C26] border-none text-[11px] font-black uppercase tracking-[0.15em] text-[#6B655C] cursor-pointer focus:ring-2 focus:ring-blue-500/20 transition-all w-full md:w-56"
+            className="appearance-none pl-12 pr-12 py-4 rounded-2xl bg-[#1C1C26] border-none text-[11px] font-black uppercase tracking-[0.15em] text-[#8A8279] cursor-pointer focus:ring-2 focus:ring-blue-500/20 transition-all w-full md:w-56"
           >
             <option value="all">Status: All Assets</option>
             <option value="ACTIVE">Status: In Vault</option>
             <option value="REDEEMED">Status: Redeemed</option>
             <option value="AUCTION">Status: Auction</option>
           </select>
-          <ChevronDown className="w-4 h-4 text-[#6B655C] absolute right-5 top-1/2 -translate-y-1/2 pointer-events-none" />
+          <ChevronDown className="w-4 h-4 text-[#8A8279] absolute right-5 top-1/2 -translate-y-1/2 pointer-events-none" />
         </div>
       </div>
 
       {isLoading ? (
         <div className="flex flex-col items-center justify-center py-32 bg-[#14141B] rounded-[3rem] border border-dashed border-[rgba(201,160,92,0.12)]">
           <Loader2 className="w-12 h-12 text-blue-500 animate-spin mb-4" />
-          <p className="text-[#6B655C] font-black uppercase tracking-widest text-[10px]">Accessing Vault Records...</p>
+          <p className="text-[#8A8279] font-black uppercase tracking-widest text-[10px]">Accessing Vault Records...</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8 pb-20">
@@ -717,40 +717,40 @@ export function InventoryVault({ branchId, activeBranchId }: InventoryVaultProps
               <div className="p-6">
                 <div className="flex justify-between items-start mb-4">
                   <div>
-                    <h4 className="font-black text-[#EAE2D6] text-lg leading-tight mb-1 truncate max-w-[180px]">{item.name}</h4>
+                    <h4 className="font-black text-[#F5F0E8] text-lg leading-tight mb-1 truncate max-w-[180px]">{item.name}</h4>
                     <span className="text-[9px] font-black text-blue-500 bg-[#C9A05C]/10 px-2 py-0.5 rounded uppercase tracking-tighter">REF: {item.ticketNumber}</span>
                   </div>
                   <div className="flex flex-col items-end">
                      <p className="text-[8px] font-black text-slate-300 uppercase">Location</p>
-                     <p className="text-[10px] font-bold text-[#6B655C]">{item.location}</p>
+                     <p className="text-[10px] font-bold text-[#8A8279]">{item.location}</p>
                   </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-3 mb-6">
                   <div className="bg-[#1C1C26] p-3 rounded-2xl border border-[rgba(201,160,92,0.08)]">
                     <div className="flex items-center gap-1.5 mb-1">
-                      <Weight className="w-3 h-3 text-[#6B655C]" />
-                      <span className="text-[9px] font-black text-[#6B655C] uppercase tracking-widest">Weight</span>
+                      <Weight className="w-3 h-3 text-[#8A8279]" />
+                      <span className="text-[9px] font-black text-[#8A8279] uppercase tracking-widest">Weight</span>
                     </div>
-                    <p className="text-sm font-bold text-[#EAE2D6]">{item.weight}g</p>
+                    <p className="text-sm font-bold text-[#F5F0E8]">{item.weight}g</p>
                   </div>
                   <div className="bg-[#1C1C26] p-3 rounded-2xl border border-[rgba(201,160,92,0.08)]">
                     <div className="flex items-center gap-1.5 mb-1">
-                      <Calendar className="w-3 h-3 text-[#6B655C]" />
-                      <span className="text-[9px] font-black text-[#6B655C] uppercase tracking-widest">Pawned</span>
+                      <Calendar className="w-3 h-3 text-[#8A8279]" />
+                      <span className="text-[9px] font-black text-[#8A8279] uppercase tracking-widest">Pawned</span>
                     </div>
-                    <p className="text-sm font-bold text-[#EAE2D6]">{new Date(item.pawnDate).toLocaleDateString()}</p>
+                    <p className="text-sm font-bold text-[#F5F0E8]">{new Date(item.pawnDate).toLocaleDateString()}</p>
                   </div>
                 </div>
 
                 <div className="flex items-center justify-between pt-5 border-t border-slate-50">
                   <div className="flex flex-col">
-                    <span className="text-[9px] font-black text-[#6B655C] uppercase tracking-widest mb-0.5">Customer</span>
-                    <span className="text-xs font-bold text-[#EAE2D6] truncate max-w-[110px]">{item.customerName}</span>
+                    <span className="text-[9px] font-black text-[#8A8279] uppercase tracking-widest mb-0.5">Customer</span>
+                    <span className="text-xs font-bold text-[#F5F0E8] truncate max-w-[110px]">{item.customerName}</span>
                   </div>
                   <div className="text-right">
                     <span className="text-[9px] font-black text-blue-500 uppercase tracking-widest block mb-0.5">Principal</span>
-                    <span className="text-lg font-black text-[#EAE2D6] leading-none">{formatCurrency(Number(item.estimatedValue))}</span>
+                    <span className="text-lg font-black text-[#F5F0E8] leading-none">{formatCurrency(Number(item.estimatedValue))}</span>
                   </div>
                 </div>
 
@@ -759,7 +759,7 @@ export function InventoryVault({ branchId, activeBranchId }: InventoryVaultProps
                     <button
                       onClick={() => handleQuickPhotoChange(item)}
                       disabled={updatingId === item.id}
-                      className="w-full text-[10px] font-black uppercase tracking-widest rounded-2xl px-3 py-3 border border-[rgba(201,160,92,0.12)] transition-all flex items-center justify-center gap-2 bg-[#14141B] text-[#999186] hover:bg-[#1C1C26] hover:text-[#EAE2D6] disabled:opacity-50"
+                      className="w-full text-[10px] font-black uppercase tracking-widest rounded-2xl px-3 py-3 border border-[rgba(201,160,92,0.12)] transition-all flex items-center justify-center gap-2 bg-[#14141B] text-[#B8B0A4] hover:bg-[#1C1C26] hover:text-[#F5F0E8] disabled:opacity-50"
                     >
                       {updatingId === item.id ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Change Photo'}
                     </button>
@@ -768,7 +768,7 @@ export function InventoryVault({ branchId, activeBranchId }: InventoryVaultProps
                         setSelectedItem(item);
                         setModalPhotoIndex(0);
                       }}
-                      className="w-full text-[10px] font-black uppercase tracking-widest rounded-2xl px-4 py-3 border border-[rgba(201,160,92,0.12)] transition-all flex items-center justify-center gap-2 bg-[#14141B] text-[#999186] hover:bg-[#1C1C26] hover:text-[#EAE2D6]"
+                      className="w-full text-[10px] font-black uppercase tracking-widest rounded-2xl px-4 py-3 border border-[rgba(201,160,92,0.12)] transition-all flex items-center justify-center gap-2 bg-[#14141B] text-[#B8B0A4] hover:bg-[#1C1C26] hover:text-[#F5F0E8]"
                     >
                       <Eye className="w-4 h-4" />
                       See Details
@@ -776,7 +776,7 @@ export function InventoryVault({ branchId, activeBranchId }: InventoryVaultProps
                     {item.contractId ? (
                       <button
                         onClick={() => handleShowContract(item)}
-                        className="w-full text-[10px] font-black uppercase tracking-widest rounded-2xl px-4 py-3 border border-[rgba(201,160,92,0.12)] transition-all flex items-center justify-center gap-2 bg-[#14141B] text-[#C9A05C] hover:bg-[#1C1C26] hover:text-[#EAE2D6]"
+                        className="w-full text-[10px] font-black uppercase tracking-widest rounded-2xl px-4 py-3 border border-[rgba(201,160,92,0.12)] transition-all flex items-center justify-center gap-2 bg-[#14141B] text-[#C9A05C] hover:bg-[#1C1C26] hover:text-[#F5F0E8]"
                       >
                         Contract
                       </button>
@@ -784,7 +784,7 @@ export function InventoryVault({ branchId, activeBranchId }: InventoryVaultProps
                     {item.status === 'REDEEMED' ? (
                       <button
                         onClick={() => { setReceiptTicketId(item.id); setShowReceipt(true); }}
-                        className="w-full text-[10px] font-black uppercase tracking-widest rounded-2xl px-4 py-3 border border-[rgba(201,160,92,0.12)] transition-all flex items-center justify-center gap-2 bg-[#14141B] text-[#C9A05C] hover:bg-[#1C1C26] hover:text-[#EAE2D6]"
+                        className="w-full text-[10px] font-black uppercase tracking-widest rounded-2xl px-4 py-3 border border-[rgba(201,160,92,0.12)] transition-all flex items-center justify-center gap-2 bg-[#14141B] text-[#C9A05C] hover:bg-[#1C1C26] hover:text-[#F5F0E8]"
                       >
                         <Receipt className="w-4 h-4" />
                         Receipt
@@ -815,8 +815,8 @@ export function InventoryVault({ branchId, activeBranchId }: InventoryVaultProps
           <div className="bg-[#14141B] w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4 border border-[rgba(201,160,92,0.08)] shadow-sm">
             <Package className="w-8 h-8 text-slate-200" />
           </div>
-          <h3 className="text-[#EAE2D6] font-black text-xl italic tracking-tight">No Assets Found</h3>
-          <p className="text-[#6B655C] text-sm font-medium mt-1">Check your connection or adjust filters.</p>
+          <h3 className="text-[#F5F0E8] font-black text-xl italic tracking-tight">No Assets Found</h3>
+          <p className="text-[#8A8279] text-sm font-medium mt-1">Check your connection or adjust filters.</p>
         </div>
       )}
 
@@ -825,13 +825,13 @@ export function InventoryVault({ branchId, activeBranchId }: InventoryVaultProps
           <div className="w-full max-w-2xl bg-[#14141B] rounded-[2rem] border border-[rgba(201,160,92,0.08)] shadow-2xl p-6 md:p-8 animate-in fade-in zoom-in-95 duration-200">
             <div className="flex items-start justify-between gap-4 mb-6">
               <div>
-                <p className="text-[10px] font-black text-[#6B655C] uppercase tracking-widest">Vault Item Details</p>
-                <h3 className="text-2xl font-black text-[#EAE2D6] leading-tight">{selectedItem.name}</h3>
+                <p className="text-[10px] font-black text-[#8A8279] uppercase tracking-widest">Vault Item Details</p>
+                <h3 className="text-2xl font-black text-[#F5F0E8] leading-tight">{selectedItem.name}</h3>
                 <p className="text-xs font-bold text-[#C9A05C] mt-1">{selectedItem.ticketNumber}</p>
               </div>
               <button
                 onClick={() => setSelectedItem(null)}
-                className="h-10 w-10 rounded-xl border border-[rgba(201,160,92,0.12)] text-[#6B655C] hover:bg-[#1C1C26] flex items-center justify-center"
+                className="h-10 w-10 rounded-xl border border-[rgba(201,160,92,0.12)] text-[#8A8279] hover:bg-[#1C1C26] flex items-center justify-center"
                 aria-label="Close details"
               >
                 <X className="w-4 h-4" />
@@ -840,7 +840,7 @@ export function InventoryVault({ branchId, activeBranchId }: InventoryVaultProps
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
               <div className="rounded-2xl bg-[#1C1C26] border border-[rgba(201,160,92,0.08)] p-4 md:col-span-2">
-                <p className="text-[10px] font-black text-[#6B655C] uppercase tracking-widest mb-3">Item Photo</p>
+                <p className="text-[10px] font-black text-[#8A8279] uppercase tracking-widest mb-3">Item Photo</p>
                 <div className="grid grid-cols-1 md:grid-cols-[180px_1fr] gap-4 items-start">
                   <div className="h-40 w-full rounded-2xl border border-[rgba(201,160,92,0.12)] bg-[#14141B] overflow-hidden flex items-center justify-center">
                     {selectedPhotoUrl ? (
@@ -861,7 +861,7 @@ export function InventoryVault({ branchId, activeBranchId }: InventoryVaultProps
                             prev === 0 ? selectedItem.photoUrls.length - 1 : prev - 1,
                           )
                         }
-                        className="h-8 w-8 rounded-full border border-[rgba(201,160,92,0.12)] text-[#6B655C] flex items-center justify-center"
+                        className="h-8 w-8 rounded-full border border-[rgba(201,160,92,0.12)] text-[#8A8279] flex items-center justify-center"
                         aria-label="Previous photo"
                       >
                         <ChevronLeft className="w-4 h-4" />
@@ -872,12 +872,12 @@ export function InventoryVault({ branchId, activeBranchId }: InventoryVaultProps
                             prev >= selectedItem.photoUrls.length - 1 ? 0 : prev + 1,
                           )
                         }
-                        className="h-8 w-8 rounded-full border border-[rgba(201,160,92,0.12)] text-[#6B655C] flex items-center justify-center"
+                        className="h-8 w-8 rounded-full border border-[rgba(201,160,92,0.12)] text-[#8A8279] flex items-center justify-center"
                         aria-label="Next photo"
                       >
                         <ChevronRight className="w-4 h-4" />
                       </button>
-                      <p className="text-[10px] font-black text-[#6B655C] uppercase tracking-widest">
+                      <p className="text-[10px] font-black text-[#8A8279] uppercase tracking-widest">
                         Photo {Math.min(modalPhotoIndex + 1, selectedItem.photoUrls.length)} / {selectedItem.photoUrls.length}
                       </p>
                     </div>
@@ -888,7 +888,7 @@ export function InventoryVault({ branchId, activeBranchId }: InventoryVaultProps
                       accept="image/*"
                       multiple
                       onChange={(e) => setSelectedPhotoFiles(Array.from(e.target.files || []))}
-                      className="w-full px-4 py-3 rounded-xl border border-[rgba(201,160,92,0.12)] bg-[#14141B] text-xs font-bold text-[#6B655C]"
+                      className="w-full px-4 py-3 rounded-xl border border-[rgba(201,160,92,0.12)] bg-[#14141B] text-xs font-bold text-[#8A8279]"
                     />
                     <button
                       onClick={handleSavePhoto}
@@ -897,7 +897,7 @@ export function InventoryVault({ branchId, activeBranchId }: InventoryVaultProps
                     >
                       {isSavingPhoto ? <Loader2 className="w-4 h-4 animate-spin" /> : `Save ${selectedPhotoFiles.length > 1 ? 'Photos' : 'Photo'}`}
                     </button>
-                    <p className="text-[10px] font-bold text-[#6B655C] uppercase tracking-wide">
+                    <p className="text-[10px] font-bold text-[#8A8279] uppercase tracking-wide">
                       Recommended: clear, well-lit image for auction visibility.
                     </p>
                   </div>
@@ -905,20 +905,20 @@ export function InventoryVault({ branchId, activeBranchId }: InventoryVaultProps
               </div>
 
               <div className="rounded-2xl bg-[#1C1C26] border border-[rgba(201,160,92,0.08)] p-4">
-                <p className="text-[10px] font-black text-[#6B655C] uppercase tracking-widest mb-1">Customer</p>
-                <p className="font-bold text-[#EAE2D6]">{selectedItem.customerName}</p>
+                <p className="text-[10px] font-black text-[#8A8279] uppercase tracking-widest mb-1">Customer</p>
+                <p className="font-bold text-[#F5F0E8]">{selectedItem.customerName}</p>
               </div>
               <div className="rounded-2xl bg-[#1C1C26] border border-[rgba(201,160,92,0.08)] p-4">
-                <p className="text-[10px] font-black text-[#6B655C] uppercase tracking-widest mb-1">Status</p>
+                <p className="text-[10px] font-black text-[#8A8279] uppercase tracking-widest mb-1">Status</p>
                 {getStatusBadge(selectedItem.status)}
               </div>
               <div className="rounded-2xl bg-[#1C1C26] border border-[rgba(201,160,92,0.08)] p-4">
-                <p className="text-[10px] font-black text-[#6B655C] uppercase tracking-widest mb-1">Pawn Date</p>
-                <p className="font-bold text-[#EAE2D6]">{new Date(selectedItem.pawnDate).toLocaleString()}</p>
+                <p className="text-[10px] font-black text-[#8A8279] uppercase tracking-widest mb-1">Pawn Date</p>
+                <p className="font-bold text-[#F5F0E8]">{new Date(selectedItem.pawnDate).toLocaleString()}</p>
               </div>
               <div className="rounded-2xl bg-[#1C1C26] border border-[rgba(201,160,92,0.08)] p-4">
-                <p className="text-[10px] font-black text-[#6B655C] uppercase tracking-widest mb-1">Payment Deadline</p>
-                <p className="font-bold text-[#EAE2D6]">{selectedItem.expiryDate ? new Date(selectedItem.expiryDate).toLocaleString() : 'Not set'}</p>
+                <p className="text-[10px] font-black text-[#8A8279] uppercase tracking-widest mb-1">Payment Deadline</p>
+                <p className="font-bold text-[#F5F0E8]">{selectedItem.expiryDate ? new Date(selectedItem.expiryDate).toLocaleString() : 'Not set'}</p>
                 <p className={`text-xs mt-1 ${getDeadlineTone(getDaysRemaining(selectedItem.expiryDate))}`}>
                   {selectedItem.expiryDate
                     ? (() => {
@@ -931,20 +931,20 @@ export function InventoryVault({ branchId, activeBranchId }: InventoryVaultProps
                 </p>
               </div>
               <div className="rounded-2xl bg-[#1C1C26] border border-[rgba(201,160,92,0.08)] p-4">
-                <p className="text-[10px] font-black text-[#6B655C] uppercase tracking-widest mb-1">Forfeiture Date</p>
-                <p className="font-bold text-[#EAE2D6]">{selectedItem.forfeitureDate ? new Date(selectedItem.forfeitureDate).toLocaleString() : 'Not set'}</p>
+                <p className="text-[10px] font-black text-[#8A8279] uppercase tracking-widest mb-1">Forfeiture Date</p>
+                <p className="font-bold text-[#F5F0E8]">{selectedItem.forfeitureDate ? new Date(selectedItem.forfeitureDate).toLocaleString() : 'Not set'}</p>
               </div>
               <div className="rounded-2xl bg-[#1C1C26] border border-[rgba(201,160,92,0.08)] p-4">
-                <p className="text-[10px] font-black text-[#6B655C] uppercase tracking-widest mb-1">Location</p>
-                <p className="font-bold text-[#EAE2D6]">{selectedItem.location}</p>
+                <p className="text-[10px] font-black text-[#8A8279] uppercase tracking-widest mb-1">Location</p>
+                <p className="font-bold text-[#F5F0E8]">{selectedItem.location}</p>
               </div>
               <div className="rounded-2xl bg-[#1C1C26] border border-[rgba(201,160,92,0.08)] p-4">
-                <p className="text-[10px] font-black text-[#6B655C] uppercase tracking-widest mb-1">Principal</p>
-                <p className="font-bold text-[#EAE2D6]">{formatTotalValue(selectedItem.estimatedValue)}</p>
+                <p className="text-[10px] font-black text-[#8A8279] uppercase tracking-widest mb-1">Principal</p>
+                <p className="font-bold text-[#F5F0E8]">{formatTotalValue(selectedItem.estimatedValue)}</p>
               </div>
               <div className="rounded-2xl bg-[#1C1C26] border border-[rgba(201,160,92,0.08)] p-4">
-                <p className="text-[10px] font-black text-[#6B655C] uppercase tracking-widest mb-1">Interest Rate</p>
-                <p className="font-bold text-[#EAE2D6]">{selectedItem.interestRate}%</p>
+                <p className="text-[10px] font-black text-[#8A8279] uppercase tracking-widest mb-1">Interest Rate</p>
+                <p className="font-bold text-[#F5F0E8]">{selectedItem.interestRate}%</p>
                 {selectedItem.isHighRisk && (
                   <p className="text-[10px] mt-1 font-black uppercase tracking-widest text-rose-600">High Risk</p>
                 )}

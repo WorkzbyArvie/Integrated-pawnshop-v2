@@ -304,7 +304,7 @@ export function ApprovalQueue({ branchId, activeBranchId, userRole }: ApprovalQu
         <TabsList className="bg-[#14141B] border border-[rgba(201,160,92,0.1)] rounded-2xl p-1 gap-1">
           <TabsTrigger
             value="APPRAISAL"
-            className="text-[10px] font-black uppercase tracking-widest px-4 py-2 data-[state=active]:bg-[#C9A05C] data-[state=active]:text-[#0A0A0F] data-[state=inactive]:text-[#6B655C] data-[state=active]:shadow-none"
+            className="text-[10px] font-black uppercase tracking-widest px-4 py-2 data-[state=active]:bg-[#C9A05C] data-[state=active]:text-[#0A0A0F] data-[state=inactive]:text-[#8A8279] data-[state=active]:shadow-none"
           >
             Appraisal
             <Badge className="ml-2 bg-[#C9A05C]/10 text-[#C9A05C] border border-[rgba(201,160,92,0.2)]">
@@ -313,7 +313,7 @@ export function ApprovalQueue({ branchId, activeBranchId, userRole }: ApprovalQu
           </TabsTrigger>
           <TabsTrigger
             value="REDEMPTION"
-            className="text-[10px] font-black uppercase tracking-widest px-4 py-2 data-[state=active]:bg-[#C9A05C] data-[state=active]:text-[#0A0A0F] data-[state=inactive]:text-[#6B655C] data-[state=active]:shadow-none"
+            className="text-[10px] font-black uppercase tracking-widest px-4 py-2 data-[state=active]:bg-[#C9A05C] data-[state=active]:text-[#0A0A0F] data-[state=inactive]:text-[#8A8279] data-[state=active]:shadow-none"
           >
             Redemption
             <Badge className="ml-2 bg-[#C9A05C]/10 text-[#C9A05C] border border-[rgba(201,160,92,0.2)]">
@@ -322,7 +322,7 @@ export function ApprovalQueue({ branchId, activeBranchId, userRole }: ApprovalQu
           </TabsTrigger>
           <TabsTrigger
             value="LISTING_EDIT"
-            className="text-[10px] font-black uppercase tracking-widest px-4 py-2 data-[state=active]:bg-[#C9A05C] data-[state=active]:text-[#0A0A0F] data-[state=inactive]:text-[#6B655C] data-[state=active]:shadow-none"
+            className="text-[10px] font-black uppercase tracking-widest px-4 py-2 data-[state=active]:bg-[#C9A05C] data-[state=active]:text-[#0A0A0F] data-[state=inactive]:text-[#8A8279] data-[state=active]:shadow-none"
           >
             Auction Edits
             <Badge className="ml-2 bg-[#C9A05C]/10 text-[#C9A05C] border border-[rgba(201,160,92,0.2)]">
@@ -331,7 +331,7 @@ export function ApprovalQueue({ branchId, activeBranchId, userRole }: ApprovalQu
           </TabsTrigger>
           <TabsTrigger
             value="DECIDED"
-            className="text-[10px] font-black uppercase tracking-widest px-4 py-2 data-[state=active]:bg-[#C9A05C] data-[state=active]:text-[#0A0A0F] data-[state=inactive]:text-[#6B655C] data-[state=active]:shadow-none"
+            className="text-[10px] font-black uppercase tracking-widest px-4 py-2 data-[state=active]:bg-[#C9A05C] data-[state=active]:text-[#0A0A0F] data-[state=inactive]:text-[#8A8279] data-[state=active]:shadow-none"
           >
             Decision History
           </TabsTrigger>
@@ -340,12 +340,12 @@ export function ApprovalQueue({ branchId, activeBranchId, userRole }: ApprovalQu
 
       <div className="flex flex-col gap-4">
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#6B655C]" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#8A8279]" />
           <Input
             value={searchQuery}
             onChange={(event) => setSearchQuery(event.target.value)}
             placeholder="Search by customer name or ticket number…"
-            className="pl-10 bg-[#14141B] border-[rgba(201,160,92,0.12)] text-[#EAE2D6] focus:ring-2 focus:ring-[#C9A05C]/40"
+            className="pl-10 bg-[#14141B] border-[rgba(201,160,92,0.12)] text-[#F5F0E8] focus:ring-2 focus:ring-[#C9A05C]/40"
           />
         </div>
         {activeTab === 'REDEMPTION' && (
@@ -364,7 +364,7 @@ export function ApprovalQueue({ branchId, activeBranchId, userRole }: ApprovalQu
       ) : error ? (
         <div className="rounded-2xl border border-[#D44545]/30 bg-[#1C1C26] p-6 text-center">
           <AlertTriangle className="w-6 h-6 mx-auto text-[#D44545] mb-2" />
-          <p className="text-sm font-bold text-[#EAE2D6]">Could not load the approval queue</p>
+          <p className="text-sm font-bold text-[#F5F0E8]">Could not load the approval queue</p>
           <p className="text-xs mt-1 mb-4" style={{ color: 'var(--text-muted)' }}>
             {error}
           </p>
@@ -376,14 +376,14 @@ export function ApprovalQueue({ branchId, activeBranchId, userRole }: ApprovalQu
         <div className="rounded-2xl border border-[rgba(201,160,92,0.08)] bg-[#14141B] p-12 text-center">
           {activeTab === 'DECIDED' ? (
             <>
-              <p className="text-lg font-black text-[#EAE2D6]">No decisions yet</p>
+              <p className="text-lg font-black text-[#F5F0E8]">No decisions yet</p>
               <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
                 Approved and rejected requests will appear here.
               </p>
             </>
           ) : (
             <>
-              <p className="text-lg font-black text-[#EAE2D6]">All caught up!</p>
+              <p className="text-lg font-black text-[#F5F0E8]">All caught up!</p>
               <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
                 {activeTab === 'APPRAISAL'
                   ? 'No pending appraisals'
@@ -450,9 +450,9 @@ export function ApprovalQueue({ branchId, activeBranchId, userRole }: ApprovalQu
       )}
 
       <Dialog open={Boolean(reviewItem)} onOpenChange={(open) => { if (!open) setReviewItem(null); }}>
-        <DialogContent className="max-w-lg bg-[#14141B] border border-[rgba(201,160,92,0.15)] text-[#EAE2D6]">
+        <DialogContent className="max-w-lg bg-[#14141B] border border-[rgba(201,160,92,0.15)] text-[#F5F0E8]">
           <DialogHeader>
-            <DialogTitle className="text-lg font-black uppercase tracking-tight text-[#EAE2D6] flex items-center gap-2">
+            <DialogTitle className="text-lg font-black uppercase tracking-tight text-[#F5F0E8] flex items-center gap-2">
               <FileText className="w-4 h-4 text-[#C9A05C]" />
               Review Request
             </DialogTitle>
@@ -480,7 +480,7 @@ export function ApprovalQueue({ branchId, activeBranchId, userRole }: ApprovalQu
                   <p className="text-[10px] font-black uppercase tracking-widest mb-1" style={{ color: 'var(--text-muted)' }}>
                     Customer
                   </p>
-                  <p className="font-bold text-[#EAE2D6]">{customerName(reviewItem)}</p>
+                  <p className="font-bold text-[#F5F0E8]">{customerName(reviewItem)}</p>
                   {reviewItem.customer?.contactNumber && (
                     <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
                       {reviewItem.customer.contactNumber}
@@ -491,7 +491,7 @@ export function ApprovalQueue({ branchId, activeBranchId, userRole }: ApprovalQu
                   <p className="text-[10px] font-black uppercase tracking-widest mb-1" style={{ color: 'var(--text-muted)' }}>
                     Item
                   </p>
-                  <p className="font-bold text-[#EAE2D6]">{itemSummary(reviewItem)}</p>
+                  <p className="font-bold text-[#F5F0E8]">{itemSummary(reviewItem)}</p>
                 </div>
               </div>
               {(reviewItem.photoUrls?.length ?? 0) > 0 && (
@@ -568,7 +568,7 @@ export function ApprovalQueue({ branchId, activeBranchId, userRole }: ApprovalQu
                     <span className="text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>
                       Recommended loan
                     </span>
-                    <span className="text-sm font-black text-[#EAE2D6]">
+                    <span className="text-sm font-black text-[#F5F0E8]">
                       {formatCurrency(reviewItem.recommendedLoanAmount ?? itemAmount(reviewItem))}
                     </span>
                   </div>
@@ -577,7 +577,7 @@ export function ApprovalQueue({ branchId, activeBranchId, userRole }: ApprovalQu
                       <span className="text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>
                         Risk score
                       </span>
-                      <span className="text-sm font-black text-[#EAE2D6]">{reviewItem.riskScore}</span>
+                      <span className="text-sm font-black text-[#F5F0E8]">{reviewItem.riskScore}</span>
                     </div>
                   )}
                   {reviewItem.isHighRisk && (
@@ -629,7 +629,7 @@ export function ApprovalQueue({ branchId, activeBranchId, userRole }: ApprovalQu
                     <span className="text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>
                       Requires owner approval
                     </span>
-                    <span className="text-sm font-black text-[#EAE2D6]">Yes</span>
+                    <span className="text-sm font-black text-[#F5F0E8]">Yes</span>
                   </div>
                 </div>
               )}
@@ -715,7 +715,7 @@ function ApprovalRow({
               {ticketNumber(record)}
             </span>
           </div>
-          <p className="text-sm font-black text-[#EAE2D6] truncate">{customerName(record)}</p>
+          <p className="text-sm font-black text-[#F5F0E8] truncate">{customerName(record)}</p>
           <p className="text-xs font-medium mt-1 truncate" style={{ color: 'var(--text-muted)' }}>
             {itemSummary(record)}
           </p>
@@ -802,7 +802,7 @@ function ApprovalRow({
           onChange={(event) => setComment(event.target.value)}
           placeholder="Rejection comment (required)"
           rows={2}
-          className="bg-[#1C1C26] border-[rgba(217,69,69,0.2)] text-[#EAE2D6] placeholder:text-[#6B655C] focus:ring-2 focus:ring-[#D44545]/40 lg:max-w-xs"
+          className="bg-[#1C1C26] border-[rgba(217,69,69,0.2)] text-[#F5F0E8] placeholder:text-[#8A8279] focus:ring-2 focus:ring-[#D44545]/40 lg:max-w-xs"
         />
       </div>
 
@@ -822,7 +822,7 @@ function ListingChangeRow({ label, previous, next }: { label: string; previous?:
         {label}
       </span>
       <div className="flex-1 min-w-0">
-        <p className="font-medium text-[#EAE2D6] whitespace-pre-wrap break-words">{next?.trim() || '—'}</p>
+        <p className="font-medium text-[#F5F0E8] whitespace-pre-wrap break-words">{next?.trim() || '—'}</p>
         {(previous ?? '') !== (next ?? '') && previous?.trim() ? (
           <p className="mt-0.5 line-through font-semibold text-[#D44545]/70 whitespace-pre-wrap break-words">
             {previous.trim()}

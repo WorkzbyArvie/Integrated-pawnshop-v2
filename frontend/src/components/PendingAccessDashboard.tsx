@@ -1,4 +1,4 @@
-﻿import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { Clock3, MessageSquare, RefreshCcw, Send, Upload, FileCheck, AlertCircle } from 'lucide-react';
 import api from '../lib/apiClient';
 import { overallLabel, overallTone, rejectedDocumentCount } from '../lib/onboardingStatus';
@@ -53,7 +53,7 @@ type RegDocument = {
 const statusTone = (status: string) => {
   const normalized = status.toUpperCase();
   if (normalized === 'APPROVED') return 'text-emerald-700 bg-emerald-50 border-emerald-200';
-  if (normalized === 'CANCELLED') return 'text-[#6B655C] bg-[#1C1C26] border-slate-300';
+  if (normalized === 'CANCELLED') return 'text-[#8A8279] bg-[#1C1C26] border-slate-300';
   if (normalized === 'REJECTED') return 'text-rose-700 bg-rose-50 border-rose-200';
   if (normalized === 'CONTACTED') return 'text-amber-700 bg-amber-50 border-amber-200';
   return 'text-[#C9A05C] bg-[#C9A05C]/10 border-[rgba(201,160,92,0.2)]';
@@ -391,16 +391,16 @@ export function PendingAccessDashboard({ ownerEmail, registrationStatus }: Pendi
       <div className="rounded-3xl border border-[rgba(201,160,92,0.12)] bg-[#14141B] p-6 shadow-sm">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <p className="text-xs font-black uppercase tracking-[0.2em] text-[#6B655C]">Pending Access Mode</p>
-            <h2 className="mt-2 text-2xl font-black text-[#EAE2D6]">Your account is active with limited access</h2>
-            <p className="mt-2 max-w-3xl text-sm text-[#999186]">
+            <p className="text-xs font-black uppercase tracking-[0.2em] text-[#8A8279]">Pending Access Mode</p>
+            <h2 className="mt-2 text-2xl font-black text-[#F5F0E8]">Your account is active with limited access</h2>
+            <p className="mt-2 max-w-3xl text-sm text-[#B8B0A4]">
               You can follow your onboarding status and chat with support while your trial request is being reviewed.
             </p>
             {ownerEmail ? (
-              <p className="mt-2 text-xs text-[#6B655C]">Owner: {ownerEmail}</p>
+              <p className="mt-2 text-xs text-[#8A8279]">Owner: {ownerEmail}</p>
             ) : null}
             {registrationStatus ? (
-              <p className="mt-1 text-xs text-[#6B655C]">Current status: {registrationStatus}</p>
+              <p className="mt-1 text-xs text-[#8A8279]">Current status: {registrationStatus}</p>
             ) : null}
           </div>
           <button
@@ -409,7 +409,7 @@ export function PendingAccessDashboard({ ownerEmail, registrationStatus }: Pendi
               loadRequests();
               loadStatusSummary();
             }}
-            className="inline-flex items-center gap-2 rounded-xl border border-[rgba(201,160,92,0.12)] px-3 py-2 text-xs font-bold uppercase tracking-wider text-[#6B655C] hover:bg-[#1C1C26]"
+            className="inline-flex items-center gap-2 rounded-xl border border-[rgba(201,160,92,0.12)] px-3 py-2 text-xs font-bold uppercase tracking-wider text-[#8A8279] hover:bg-[#1C1C26]"
           >
             <RefreshCcw className="h-4 w-4" /> Refresh
           </button>
@@ -418,8 +418,8 @@ export function PendingAccessDashboard({ ownerEmail, registrationStatus }: Pendi
 
       <div className="grid gap-6 xl:grid-cols-[1.2fr_1fr]">
         <article className="rounded-3xl border border-[rgba(201,160,92,0.12)] bg-[#14141B] p-6 shadow-sm">
-          <h3 className="text-lg font-bold text-[#EAE2D6]">Start Your Free Trial Setup</h3>
-          <p className="mt-1 text-sm text-[#999186]">
+          <h3 className="text-lg font-bold text-[#F5F0E8]">Start Your Free Trial Setup</h3>
+          <p className="mt-1 text-sm text-[#B8B0A4]">
             Enter your business details, upload your regulatory documents, then submit your trial request
             for review.
           </p>
@@ -433,7 +433,7 @@ export function PendingAccessDashboard({ ownerEmail, registrationStatus }: Pendi
             <form onSubmit={handleSubmitRequest} className="mt-4 space-y-4">
               <div className="grid gap-4 md:grid-cols-2">
                 <div>
-                  <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-[#999186]">
+                  <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-[#B8B0A4]">
                     Pawnshop Name <span className="text-rose-400">*</span>
                   </label>
                   <input
@@ -445,7 +445,7 @@ export function PendingAccessDashboard({ ownerEmail, registrationStatus }: Pendi
                   />
                 </div>
                 <div>
-                  <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-[#999186]">
+                  <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-[#B8B0A4]">
                     Email Address <span className="text-rose-400">*</span>
                   </label>
                   <input
@@ -457,11 +457,11 @@ export function PendingAccessDashboard({ ownerEmail, registrationStatus }: Pendi
                     readOnly={Boolean(ownerEmail)}
                   />
                   {ownerEmail && (
-                    <p className="mt-1 text-[11px] text-[#6B655C]">Pre-filled from your account</p>
+                    <p className="mt-1 text-[11px] text-[#8A8279]">Pre-filled from your account</p>
                   )}
                 </div>
                 <div>
-                  <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-[#999186]">
+                  <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-[#B8B0A4]">
                     Contact Number
                   </label>
                   <input
@@ -470,12 +470,12 @@ export function PendingAccessDashboard({ ownerEmail, registrationStatus }: Pendi
                     placeholder="e.g. 09171234567"
                     className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
                   />
-                  <p className="mt-1 text-[11px] text-[#6B655C]">Phone or mobile number for SMS updates</p>
+                  <p className="mt-1 text-[11px] text-[#8A8279]">Phone or mobile number for SMS updates</p>
                 </div>
               </div>
 
               <div>
-                <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-[#999186]">
+                <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-[#B8B0A4]">
                   Additional Notes
                 </label>
                 <textarea
@@ -501,7 +501,7 @@ export function PendingAccessDashboard({ ownerEmail, registrationStatus }: Pendi
                   </div>
                 )
               ) : (
-                <div className="rounded-xl border border-[rgba(201,160,92,0.12)] bg-[#1C1C26] px-3 py-2 text-sm text-[#6B655C]">
+                <div className="rounded-xl border border-[rgba(201,160,92,0.12)] bg-[#1C1C26] px-3 py-2 text-sm text-[#8A8279]">
                   Next: upload your {REQUIRED_DOC_TYPES.length} regulatory documents below. The Submit
                   button will appear here once all documents are uploaded.
                 </div>
@@ -540,8 +540,8 @@ export function PendingAccessDashboard({ ownerEmail, registrationStatus }: Pendi
         <div className="space-y-6">
           <article className="rounded-3xl border border-[rgba(201,160,92,0.12)] bg-[#14141B] p-6 shadow-sm">
           <div className="flex items-center gap-2">
-            <Clock3 className="h-5 w-5 text-[#6B655C]" />
-            <h3 className="text-lg font-bold text-[#EAE2D6]">Application Status</h3>
+            <Clock3 className="h-5 w-5 text-[#8A8279]" />
+            <h3 className="text-lg font-bold text-[#F5F0E8]">Application Status</h3>
           </div>
 
           {statusSummary ? (
@@ -560,7 +560,7 @@ export function PendingAccessDashboard({ ownerEmail, registrationStatus }: Pendi
           ) : null}
 
           {loading ? (
-            <p className="mt-4 text-sm text-[#6B655C]">Loading your onboarding request...</p>
+            <p className="mt-4 text-sm text-[#8A8279]">Loading your onboarding request...</p>
           ) : !latestRequest ? (
             <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
               No registration request yet. Fill in your business details and upload your regulatory
@@ -572,20 +572,20 @@ export function PendingAccessDashboard({ ownerEmail, registrationStatus }: Pendi
                 {latestRequest.status}
               </div>
               {hasDraft ? (
-                <p className="text-sm text-[#6B655C]">
+                <p className="text-sm text-[#8A8279]">
                   Your request is saved as a draft. Upload all {REQUIRED_DOC_TYPES.length} regulatory
-                  documents, then click <span className="font-semibold text-[#EAE2D6]">Submit Trial Request</span>.
+                  documents, then click <span className="font-semibold text-[#F5F0E8]">Submit Trial Request</span>.
                 </p>
               ) : latestStatus === 'REJECTED' ? (
                 <p className="text-sm text-rose-600">
                   Your previous request was not approved. You can start over with a new request below.
                 </p>
               ) : null}
-              <p className="text-sm text-[#6B655C]">Business: <span className="font-semibold">{latestRequest.pawnshop_name}</span></p>
-              <p className="text-sm text-[#6B655C]">{hasDraft ? 'Created' : 'Submitted'}: {new Date(latestRequest.created_at).toLocaleString()}</p>
-              <p className="text-sm text-[#6B655C]">Last update: {new Date(latestRequest.updated_at).toLocaleString()}</p>
+              <p className="text-sm text-[#8A8279]">Business: <span className="font-semibold">{latestRequest.pawnshop_name}</span></p>
+              <p className="text-sm text-[#8A8279]">{hasDraft ? 'Created' : 'Submitted'}: {new Date(latestRequest.created_at).toLocaleString()}</p>
+              <p className="text-sm text-[#8A8279]">Last update: {new Date(latestRequest.updated_at).toLocaleString()}</p>
               {latestRequest.notes ? (
-                <div className="rounded-xl border border-[rgba(201,160,92,0.12)] bg-[#1C1C26] p-3 text-sm text-[#6B655C] whitespace-pre-wrap">
+                <div className="rounded-xl border border-[rgba(201,160,92,0.12)] bg-[#1C1C26] p-3 text-sm text-[#8A8279] whitespace-pre-wrap">
                   {latestRequest.notes}
                 </div>
               ) : null}
@@ -595,10 +595,10 @@ export function PendingAccessDashboard({ ownerEmail, registrationStatus }: Pendi
 
           <article className="rounded-3xl border border-[rgba(201,160,92,0.12)] bg-[#14141B] p-6 shadow-sm">
               <div className="flex items-center gap-2">
-                <Upload className="h-5 w-5 text-[#6B655C]" />
-                <h3 className="text-lg font-bold text-[#EAE2D6]">Regulatory Documents</h3>
+                <Upload className="h-5 w-5 text-[#8A8279]" />
+                <h3 className="text-lg font-bold text-[#F5F0E8]">Regulatory Documents</h3>
               </div>
-              <p className="mt-1 text-xs text-[#6B655C]">
+              <p className="mt-1 text-xs text-[#8A8279]">
                 Upload your business documents to speed up approval. All 7 documents are required before activation.
               </p>
 
@@ -612,19 +612,19 @@ export function PendingAccessDashboard({ ownerEmail, registrationStatus }: Pendi
                       ? 'text-rose-600 bg-rose-50 border-rose-200'
                       : existing
                         ? 'text-amber-600 bg-amber-50 border-amber-200'
-                        : 'text-[#6B655C] bg-[#1C1C26] border-[rgba(201,160,92,0.12)]';
+                        : 'text-[#8A8279] bg-[#1C1C26] border-[rgba(201,160,92,0.12)]';
 
                   return (
                     <div key={doc.type} className="flex items-center justify-between gap-3 rounded-xl border border-[rgba(201,160,92,0.12)] bg-[#1C1C26] px-4 py-3">
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-bold text-[#EAE2D6] truncate">{doc.label}</p>
-                        <p className="text-[11px] text-[#6B655C]">{doc.desc}</p>
+                        <p className="text-sm font-bold text-[#F5F0E8] truncate">{doc.label}</p>
+                        <p className="text-[11px] text-[#8A8279]">{doc.desc}</p>
                         {existing && (
                           <div className="mt-1 flex items-center gap-2">
                             <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full border ${statusColor}`}>
                               {existing.status === 'VERIFIED' ? 'Verified' : existing.status === 'REJECTED' ? 'Rejected' : 'Under Review'}
                             </span>
-                            <span className="text-[10px] text-[#6B655C] truncate">{existing.file_name}</span>
+                            <span className="text-[10px] text-[#8A8279] truncate">{existing.file_name}</span>
                           </div>
                         )}
                         {existing?.rejection_reason && (
@@ -633,7 +633,7 @@ export function PendingAccessDashboard({ ownerEmail, registrationStatus }: Pendi
                       </div>
                       <div>
                         {!existing || existing.status === 'REJECTED' ? (
-                          <label className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest cursor-pointer transition-all ${isUploading ? 'bg-[#1C1C26] text-[#6B655C] cursor-wait' : 'bg-[#C9A05C]/10 text-[#C9A05C] hover:bg-[#C9A05C] hover:text-white'}`}>
+                          <label className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest cursor-pointer transition-all ${isUploading ? 'bg-[#1C1C26] text-[#8A8279] cursor-wait' : 'bg-[#C9A05C]/10 text-[#C9A05C] hover:bg-[#C9A05C] hover:text-white'}`}>
                             {isUploading ? (
                               <>
                                 <span className="animate-spin h-3 w-3 border-2 border-[#C9A05C] border-t-transparent rounded-full" />
@@ -671,7 +671,7 @@ export function PendingAccessDashboard({ ownerEmail, registrationStatus }: Pendi
                 })}
               </div>
 
-              <div className="mt-4 flex items-center gap-2 text-[10px] text-[#6B655C]">
+              <div className="mt-4 flex items-center gap-2 text-[10px] text-[#8A8279]">
                 <span className="font-bold">{regDocs.filter((d) => d.status === 'VERIFIED').length}/{REQUIRED_DOC_TYPES.length} documents verified</span>
                 <div className="flex-1 h-1 bg-[#1C1C26] rounded-full overflow-hidden">
                   <div
@@ -684,15 +684,15 @@ export function PendingAccessDashboard({ ownerEmail, registrationStatus }: Pendi
 
           <article className="rounded-3xl border border-[rgba(201,160,92,0.12)] bg-[#14141B] p-6 shadow-sm">
           <div className="flex items-center gap-2">
-            <MessageSquare className="h-5 w-5 text-[#6B655C]" />
-            <h3 className="text-lg font-bold text-[#EAE2D6]">Onboarding Chat</h3>
+            <MessageSquare className="h-5 w-5 text-[#8A8279]" />
+            <h3 className="text-lg font-bold text-[#F5F0E8]">Onboarding Chat</h3>
           </div>
 
           <div className="mt-4 h-64 space-y-2 overflow-y-auto rounded-xl border border-[rgba(201,160,92,0.12)] bg-[#1C1C26] p-3">
             {loadingMessages ? (
-              <p className="text-sm text-[#6B655C]">Loading messages...</p>
+              <p className="text-sm text-[#8A8279]">Loading messages...</p>
             ) : messages.length === 0 ? (
-              <p className="text-sm text-[#6B655C]">No messages yet. Ask us anything about setup and activation.</p>
+              <p className="text-sm text-[#8A8279]">No messages yet. Ask us anything about setup and activation.</p>
             ) : (
               messages.map((message) => {
                 const isOwner = message.sender_type === 'OWNER';
@@ -740,11 +740,11 @@ export function PendingAccessDashboard({ ownerEmail, registrationStatus }: Pendi
       {showCancelConfirm ? (
         <div className="fixed inset-0 z-[120] flex items-center justify-center bg-[#0f172acc] p-4">
           <div className="w-full max-w-md rounded-2xl border border-[rgba(201,160,92,0.12)] bg-[#14141B] p-5 shadow-2xl">
-            <h4 className="text-lg font-black text-[#EAE2D6]">Confirm cancellation</h4>
-            <p className="mt-2 text-sm text-[#999186]">
+            <h4 className="text-lg font-black text-[#F5F0E8]">Confirm cancellation</h4>
+            <p className="mt-2 text-sm text-[#B8B0A4]">
               This will cancel your current trial request and stop admin review for now. You can submit a new request later.
             </p>
-            <div className="mt-4 rounded-lg border border-[rgba(201,160,92,0.12)] bg-[#1C1C26] px-3 py-2 text-sm text-[#6B655C]">
+            <div className="mt-4 rounded-lg border border-[rgba(201,160,92,0.12)] bg-[#1C1C26] px-3 py-2 text-sm text-[#8A8279]">
               Reason: {cancelReason.trim()}
             </div>
             <div className="mt-4 flex items-center justify-end gap-2">
@@ -752,7 +752,7 @@ export function PendingAccessDashboard({ ownerEmail, registrationStatus }: Pendi
                 type="button"
                 onClick={() => setShowCancelConfirm(false)}
                 disabled={cancellingRequest}
-                className="rounded-lg border border-[rgba(201,160,92,0.12)] px-3 py-2 text-xs font-bold uppercase tracking-wider text-[#6B655C]"
+                className="rounded-lg border border-[rgba(201,160,92,0.12)] px-3 py-2 text-xs font-bold uppercase tracking-wider text-[#8A8279]"
               >
                 Keep Request
               </button>

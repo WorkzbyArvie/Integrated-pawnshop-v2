@@ -1,4 +1,4 @@
-﻿/**
+/**
  * ComplianceDashboard -- Auction winner compliance workflow.
  *
  * State Machine: PENDING_COMPLIANCE â†’ COMPLIED â†’ READY_FOR_RELEASE â†’ RELEASED
@@ -130,7 +130,7 @@ export function ComplianceDashboard({ branchId: _branchId, activeBranchId }: Com
       icon: 'question',
       showCancelButton: true,
       confirmButtonColor: '#C9A05C',
-      cancelButtonColor: '#6B655C',
+      cancelButtonColor: '#8A8279',
       confirmButtonText: 'Yes, proceed',
       cancelButtonText: 'Cancel',
     });
@@ -159,7 +159,7 @@ export function ComplianceDashboard({ branchId: _branchId, activeBranchId }: Com
       icon: 'warning',
       showCancelButton: true,
       confirmButtonColor: '#ef4444',
-      cancelButtonColor: '#6B655C',
+      cancelButtonColor: '#8A8279',
       confirmButtonText: 'Yes, proceed',
       cancelButtonText: 'Cancel',
     });
@@ -277,8 +277,8 @@ export function ComplianceDashboard({ branchId: _branchId, activeBranchId }: Com
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-black text-[#EAE2D6] tracking-tight">Compliance Dashboard</h1>
-          <p className="text-[#6B655C] mt-1">Auction winner compliance workflow & item release</p>
+          <h1 className="text-3xl font-black text-[#F5F0E8] tracking-tight">Compliance Dashboard</h1>
+          <p className="text-[#8A8279] mt-1">Auction winner compliance workflow & item release</p>
         </div>
         <Button variant="outline" size="sm" onClick={refetchAll}>
           <RefreshCw className="w-4 h-4 mr-2" /> Refresh
@@ -291,10 +291,10 @@ export function ComplianceDashboard({ branchId: _branchId, activeBranchId }: Com
           <Card>
             <CardContent className="pt-6">
               <div className="flex items-center gap-3">
-                <div className="p-2 bg-[#1C1C26] rounded-xl"><BarChart3 className="w-5 h-5 text-[#999186]" /></div>
+                <div className="p-2 bg-[#1C1C26] rounded-xl"><BarChart3 className="w-5 h-5 text-[#B8B0A4]" /></div>
                 <div>
-                  <p className="text-2xl font-black text-[#EAE2D6]">{stats.total}</p>
-                  <p className="text-xs text-[#6B655C]">Total</p>
+                  <p className="text-2xl font-black text-[#F5F0E8]">{stats.total}</p>
+                  <p className="text-xs text-[#8A8279]">Total</p>
                 </div>
               </div>
             </CardContent>
@@ -304,8 +304,8 @@ export function ComplianceDashboard({ branchId: _branchId, activeBranchId }: Com
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-amber-100 rounded-xl"><Clock className="w-5 h-5 text-amber-600" /></div>
                 <div>
-                  <p className="text-2xl font-black text-[#EAE2D6]">{stats.pending}</p>
-                  <p className="text-xs text-[#6B655C]">Pending</p>
+                  <p className="text-2xl font-black text-[#F5F0E8]">{stats.pending}</p>
+                  <p className="text-xs text-[#8A8279]">Pending</p>
                 </div>
               </div>
             </CardContent>
@@ -315,8 +315,8 @@ export function ComplianceDashboard({ branchId: _branchId, activeBranchId }: Com
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-sky-100 rounded-xl"><CheckCircle2 className="w-5 h-5 text-sky-600" /></div>
                 <div>
-                  <p className="text-2xl font-black text-[#EAE2D6]">{stats.complied}</p>
-                  <p className="text-xs text-[#6B655C]">Complied</p>
+                  <p className="text-2xl font-black text-[#F5F0E8]">{stats.complied}</p>
+                  <p className="text-xs text-[#8A8279]">Complied</p>
                 </div>
               </div>
             </CardContent>
@@ -326,8 +326,8 @@ export function ComplianceDashboard({ branchId: _branchId, activeBranchId }: Com
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-[#C9A05C]/15 rounded-xl"><Package className="w-5 h-5 text-[#C9A05C]" /></div>
                 <div>
-                  <p className="text-2xl font-black text-[#EAE2D6]">{stats.readyForRelease}</p>
-                  <p className="text-xs text-[#6B655C]">Ready</p>
+                  <p className="text-2xl font-black text-[#F5F0E8]">{stats.readyForRelease}</p>
+                  <p className="text-xs text-[#8A8279]">Ready</p>
                 </div>
               </div>
             </CardContent>
@@ -337,8 +337,8 @@ export function ComplianceDashboard({ branchId: _branchId, activeBranchId }: Com
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-emerald-100 rounded-xl"><ShieldCheck className="w-5 h-5 text-emerald-600" /></div>
                 <div>
-                  <p className="text-2xl font-black text-[#EAE2D6]">{stats.released}</p>
-                  <p className="text-xs text-[#6B655C]">Released</p>
+                  <p className="text-2xl font-black text-[#F5F0E8]">{stats.released}</p>
+                  <p className="text-xs text-[#8A8279]">Released</p>
                 </div>
               </div>
             </CardContent>
@@ -348,8 +348,8 @@ export function ComplianceDashboard({ branchId: _branchId, activeBranchId }: Com
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-violet-100 rounded-xl"><Timer className="w-5 h-5 text-violet-600" /></div>
                 <div>
-                  <p className="text-2xl font-black text-[#EAE2D6]">{stats.averageComplianceHours?.toFixed(1) ?? 0}h</p>
-                  <p className="text-xs text-[#6B655C]">Avg Time</p>
+                  <p className="text-2xl font-black text-[#F5F0E8]">{stats.averageComplianceHours?.toFixed(1) ?? 0}h</p>
+                  <p className="text-xs text-[#8A8279]">Avg Time</p>
                 </div>
               </div>
             </CardContent>
@@ -359,7 +359,7 @@ export function ComplianceDashboard({ branchId: _branchId, activeBranchId }: Com
 
       {/* Filter */}
       <div className="flex items-center gap-3">
-        <Filter className="w-4 h-4 text-[#6B655C]" />
+        <Filter className="w-4 h-4 text-[#8A8279]" />
         <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as ComplianceStatus | '')}>
           <SelectTrigger className="w-56"><SelectValue placeholder="All Statuses" /></SelectTrigger>
           <SelectContent>
@@ -408,8 +408,8 @@ export function ComplianceDashboard({ branchId: _branchId, activeBranchId }: Com
                     <TableCell className="font-mono text-xs">{c.id?.slice(0, 8)}...</TableCell>
                     <TableCell>
                       <div className="leading-tight">
-                        <p className="font-semibold text-[#EAE2D6]">{getWinnerName(c)}</p>
-                        <p className="font-mono text-[10px] text-[#6B655C]">{c.winnerId?.slice(0, 8)}...</p>
+                        <p className="font-semibold text-[#F5F0E8]">{getWinnerName(c)}</p>
+                        <p className="font-mono text-[10px] text-[#8A8279]">{c.winnerId?.slice(0, 8)}...</p>
                       </div>
                     </TableCell>
                     <TableCell className="text-xs font-medium">{getWinnerPhone(c)}</TableCell>
@@ -468,7 +468,7 @@ export function ComplianceDashboard({ branchId: _branchId, activeBranchId }: Com
                 ))}
                 {complianceList.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={10} className="text-center text-[#6B655C] py-8">No compliance records found</TableCell>
+                    <TableCell colSpan={10} className="text-center text-[#8A8279] py-8">No compliance records found</TableCell>
                   </TableRow>
                 )}
               </TableBody>
@@ -487,7 +487,7 @@ export function ComplianceDashboard({ branchId: _branchId, activeBranchId }: Com
           <div className="py-4 space-y-3">
             {selectedCompliance?.paymentProofUrl && (
               <div>
-                <p className="text-sm font-medium text-[#6B655C] mb-1">Payment Proof</p>
+                <p className="text-sm font-medium text-[#8A8279] mb-1">Payment Proof</p>
                 <a href={selectedCompliance.paymentProofUrl} target="_blank" rel="noreferrer" className="text-[#C9A05C] text-sm underline">
                   View Document
                 </a>
@@ -517,7 +517,7 @@ export function ComplianceDashboard({ branchId: _branchId, activeBranchId }: Com
           </DialogHeader>
           <div className="py-4 space-y-4">
             <div>
-              <label className="text-sm font-medium text-[#6B655C]">Released By *</label>
+              <label className="text-sm font-medium text-[#8A8279]">Released By *</label>
               <Input
                 placeholder="Staff name or ID"
                 value={releaseForm.releasedBy}
@@ -525,7 +525,7 @@ export function ComplianceDashboard({ branchId: _branchId, activeBranchId }: Com
               />
             </div>
             <div>
-              <label className="text-sm font-medium text-[#6B655C]">Release Notes</label>
+              <label className="text-sm font-medium text-[#8A8279]">Release Notes</label>
               <Input
                 placeholder="Optional notes..."
                 value={releaseForm.releaseNotes}
@@ -548,7 +548,7 @@ export function ComplianceDashboard({ branchId: _branchId, activeBranchId }: Com
             <DialogTitle>Extend Deadline</DialogTitle>
           </DialogHeader>
           <div className="py-4">
-            <label className="text-sm font-medium text-[#6B655C]">Additional Hours</label>
+            <label className="text-sm font-medium text-[#8A8279]">Additional Hours</label>
             <Input
               type="number"
               min={1}
@@ -557,7 +557,7 @@ export function ComplianceDashboard({ branchId: _branchId, activeBranchId }: Com
               onChange={(e) => setExtendHours(e.target.value)}
             />
             {selectedCompliance && (
-              <p className="text-xs text-[#6B655C] mt-2">
+              <p className="text-xs text-[#8A8279] mt-2">
                 Current deadline: {formatDateTime(selectedCompliance.complianceDeadline)}
               </p>
             )}
@@ -580,51 +580,51 @@ export function ComplianceDashboard({ branchId: _branchId, activeBranchId }: Com
             <div className="space-y-4 py-4">
               <div className="grid grid-cols-2 gap-4 text-sm">
                 <div>
-                  <p className="text-[#6B655C]">Status</p>
+                  <p className="text-[#8A8279]">Status</p>
                   <Badge className={statusColor(selectedCompliance.status)}>{humanizeStatus(selectedCompliance.status)}</Badge>
                 </div>
                 <div>
-                  <p className="text-[#6B655C]">Winning Bid</p>
+                  <p className="text-[#8A8279]">Winning Bid</p>
                   <p className="font-bold">{formatCurrency(selectedCompliance.winningBidAmount)}</p>
                 </div>
                 <div>
-                  <p className="text-[#6B655C]">Winner</p>
-                  <p className="font-semibold text-[#EAE2D6]">{getWinnerName(selectedCompliance)}</p>
-                  <p className="font-mono text-[10px] text-[#6B655C]">{selectedCompliance.winnerId}</p>
+                  <p className="text-[#8A8279]">Winner</p>
+                  <p className="font-semibold text-[#F5F0E8]">{getWinnerName(selectedCompliance)}</p>
+                  <p className="font-mono text-[10px] text-[#8A8279]">{selectedCompliance.winnerId}</p>
                 </div>
                 <div>
-                  <p className="text-[#6B655C]">Winner Contact #</p>
+                  <p className="text-[#8A8279]">Winner Contact #</p>
                   <p className="font-semibold">{getWinnerPhone(selectedCompliance)}</p>
                 </div>
                 <div>
-                  <p className="text-[#6B655C]">Fallback Round</p>
+                  <p className="text-[#8A8279]">Fallback Round</p>
                   <p className="font-bold">#{getFallbackRound(selectedCompliance)}</p>
                 </div>
                 <div>
-                  <p className="text-[#6B655C]">Deadline</p>
+                  <p className="text-[#8A8279]">Deadline</p>
                   <p>{formatDateTime(selectedCompliance.complianceDeadline)}</p>
                 </div>
                 {selectedCompliance.verifiedBy && (
                   <div>
-                    <p className="text-[#6B655C]">Verified By</p>
+                    <p className="text-[#8A8279]">Verified By</p>
                     <p>{selectedCompliance.verifiedBy}</p>
                   </div>
                 )}
                 {selectedCompliance.releasedBy && (
                   <div>
-                    <p className="text-[#6B655C]">Released By</p>
+                    <p className="text-[#8A8279]">Released By</p>
                     <p>{selectedCompliance.releasedBy}</p>
                   </div>
                 )}
               </div>
               {selectedCompliance.accessLog && selectedCompliance.accessLog.length > 0 && (
                 <div>
-                  <h4 className="font-bold text-sm text-[#6B655C] mb-2 flex items-center gap-1">
+                  <h4 className="font-bold text-sm text-[#8A8279] mb-2 flex items-center gap-1">
                     <Eye className="w-4 h-4" /> Access Log
                   </h4>
                   <div className="max-h-40 overflow-y-auto space-y-1">
                     {selectedCompliance.accessLog.map((log, i) => (
-                      <div key={i} className="text-xs text-[#6B655C] flex justify-between bg-[#1C1C26] rounded px-2 py-1">
+                      <div key={i} className="text-xs text-[#8A8279] flex justify-between bg-[#1C1C26] rounded px-2 py-1">
                         <span>{log.action || log.accessType || 'ACTIVITY'}</span>
                         <span>{formatDateTime(log.accessedAt || log.timestamp || selectedCompliance.updatedAt)}</span>
                       </div>
@@ -635,10 +635,10 @@ export function ComplianceDashboard({ branchId: _branchId, activeBranchId }: Com
 
               {getTransferHistory(selectedCompliance).length > 0 && (
                 <div>
-                  <h4 className="font-bold text-sm text-[#6B655C] mb-2">Winner Transfer History</h4>
+                  <h4 className="font-bold text-sm text-[#8A8279] mb-2">Winner Transfer History</h4>
                   <div className="space-y-1 max-h-40 overflow-y-auto">
                     {getTransferHistory(selectedCompliance).map((item, idx) => (
-                      <div key={`${item.from}-${item.to}-${idx}`} className="text-xs text-[#999186] bg-amber-50 border border-amber-100 rounded px-2 py-1 flex justify-between gap-2">
+                      <div key={`${item.from}-${item.to}-${idx}`} className="text-xs text-[#B8B0A4] bg-amber-50 border border-amber-100 rounded px-2 py-1 flex justify-between gap-2">
                         <span className="truncate">
                           {item.from?.slice(0, 8)}... {'->'} {item.to?.slice(0, 8)}... ({item.by})
                         </span>

@@ -87,8 +87,8 @@ export default function Home() {
       if (emailCheckTimer.current) clearTimeout(emailCheckTimer.current);
     };
   }, [authEmail, checkEmailAvailability]);
-  const notifyError = (msg: string) => Swal.fire({ icon: 'error', title: 'Error', text: msg, confirmButtonColor: '#C9A05C', background: '#1C1C26', color: '#EAE2D6' });
-  const notifySuccess = (msg: string) => Swal.fire({ icon: 'success', title: 'Success', text: msg, confirmButtonColor: '#C9A05C', background: '#1C1C26', color: '#EAE2D6' });
+  const notifyError = (msg: string) => Swal.fire({ icon: 'error', title: 'Error', text: msg, confirmButtonColor: '#C9A05C', background: '#1C1C26', color: '#F5F0E8' });
+  const notifySuccess = (msg: string) => Swal.fire({ icon: 'success', title: 'Success', text: msg, confirmButtonColor: '#C9A05C', background: '#1C1C26', color: '#F5F0E8' });
   const [now, setNow] = useState(Date.now());
   const [featuredImageIndex, setFeaturedImageIndex] = useState(0);
 
@@ -458,11 +458,11 @@ export default function Home() {
                     icon: 'question',
                     showCancelButton: true,
                     confirmButtonColor: '#C9A05C',
-                    cancelButtonColor: '#6B655C',
+                    cancelButtonColor: '#8A8279',
                     confirmButtonText: 'Yes, Create Account',
                     cancelButtonText: 'Cancel',
                     background: '#1C1C26',
-                    color: '#EAE2D6',
+                    color: '#F5F0E8',
                   });
                   if (!isConfirmed) return;
                 }

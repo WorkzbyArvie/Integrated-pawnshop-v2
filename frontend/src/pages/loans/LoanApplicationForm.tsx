@@ -1,4 +1,4 @@
-﻿import React, { useState } from 'react';
+import React, { useState } from 'react';
 import { X, FileText, DollarSign, Calendar, Loader2 } from 'lucide-react';
 import { getBackendUrl } from '../../lib/backendUrl';
 
@@ -131,7 +131,7 @@ export function LoanApplicationForm({
           {step === 1 && (
             <div className="space-y-6">
               <div>
-                <label className="block text-sm font-bold text-[#999186] mb-2">
+                <label className="block text-sm font-bold text-[#B8B0A4] mb-2">
                   <DollarSign className="w-4 h-4 inline mr-1" />
                   Loan Amount (₱)
                 </label>
@@ -148,7 +148,7 @@ export function LoanApplicationForm({
               </div>
 
               <div>
-                <label className="block text-sm font-bold text-[#999186] mb-2">
+                <label className="block text-sm font-bold text-[#B8B0A4] mb-2">
                   <FileText className="w-4 h-4 inline mr-1" />
                   Loan Type
                 </label>
@@ -166,7 +166,7 @@ export function LoanApplicationForm({
               </div>
 
               <div>
-                <label className="block text-sm font-bold text-[#999186] mb-2">
+                <label className="block text-sm font-bold text-[#B8B0A4] mb-2">
                   <Calendar className="w-4 h-4 inline mr-1" />
                   Loan Term (Months)
                 </label>
@@ -179,7 +179,7 @@ export function LoanApplicationForm({
                       className={`py-3 rounded-xl font-bold text-sm transition ${
                         formData.termMonths === term
                           ? 'bg-[#C9A05C] text-white'
-                          : 'bg-gray-100 text-[#999186] hover:bg-gray-200'
+                          : 'bg-gray-100 text-[#B8B0A4] hover:bg-gray-200'
                       }`}
                     >
                       {term}
@@ -209,7 +209,7 @@ export function LoanApplicationForm({
           {step === 2 && (
             <div className="space-y-6">
               <div>
-                <label className="block text-sm font-bold text-[#999186] mb-2">
+                <label className="block text-sm font-bold text-[#B8B0A4] mb-2">
                   Purpose of Loan
                 </label>
                 <textarea
@@ -221,7 +221,7 @@ export function LoanApplicationForm({
                   required
                   className="w-full px-4 py-3 border-2 border-[rgba(201,160,92,0.1)] rounded-xl focus:border-[#C9A05C] focus:ring-2 focus:ring-[rgba(201,160,92,0.2)] outline-none transition resize-none"
                 />
-                <p className="text-xs text-[#6B655C] mt-2">
+                <p className="text-xs text-[#8A8279] mt-2">
                   {formData.purpose.length}/10 characters minimum
                 </p>
               </div>
@@ -239,30 +239,30 @@ export function LoanApplicationForm({
           {step === 3 && (
             <div className="space-y-6">
               <div className="p-6 bg-gray-50 rounded-2xl space-y-4">
-                <h3 className="font-black text-lg text-[#EAE2D6]">Application Summary</h3>
+                <h3 className="font-black text-lg text-[#F5F0E8]">Application Summary</h3>
 
                 <div className="space-y-3">
                   <div className="flex justify-between">
-                    <span className="text-[#999186]">Loan Amount:</span>
-                    <span className="font-bold text-[#EAE2D6]">₱{parseFloat(formData.loanAmount).toLocaleString()}</span>
+                    <span className="text-[#B8B0A4]">Loan Amount:</span>
+                    <span className="font-bold text-[#F5F0E8]">₱{parseFloat(formData.loanAmount).toLocaleString()}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-[#999186]">Loan Type:</span>
-                    <span className="font-bold text-[#EAE2D6]">{formData.loanType}</span>
+                    <span className="text-[#B8B0A4]">Loan Type:</span>
+                    <span className="font-bold text-[#F5F0E8]">{formData.loanType}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-[#999186]">Term:</span>
-                    <span className="font-bold text-[#EAE2D6]">{formData.termMonths} months</span>
+                    <span className="text-[#B8B0A4]">Term:</span>
+                    <span className="font-bold text-[#F5F0E8]">{formData.termMonths} months</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-[#999186]">Monthly Payment:</span>
+                    <span className="text-[#B8B0A4]">Monthly Payment:</span>
                     <span className="font-bold text-[#C9A05C]">₱{calculateMonthlyPayment()}</span>
                   </div>
                 </div>
 
                 <div className="pt-4 border-t border-[rgba(201,160,92,0.1)]">
-                  <p className="text-sm text-[#999186] mb-2">Purpose:</p>
-                  <p className="text-[#EAE2D6]">{formData.purpose}</p>
+                  <p className="text-sm text-[#B8B0A4] mb-2">Purpose:</p>
+                  <p className="text-[#F5F0E8]">{formData.purpose}</p>
                 </div>
               </div>
 
@@ -281,7 +281,7 @@ export function LoanApplicationForm({
               <button
                 type="button"
                 onClick={() => setStep(step - 1)}
-                className="px-6 py-3 bg-gray-100 text-[#999186] font-bold rounded-xl hover:bg-gray-200 transition"
+                className="px-6 py-3 bg-gray-100 text-[#B8B0A4] font-bold rounded-xl hover:bg-gray-200 transition"
               >
                 Back
               </button>

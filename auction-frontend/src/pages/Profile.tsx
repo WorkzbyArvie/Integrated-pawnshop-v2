@@ -44,11 +44,11 @@ export default function Profile() {
       icon: 'question',
       showCancelButton: true,
       confirmButtonColor: '#C9A05C',
-      cancelButtonColor: '#6B655C',
+      cancelButtonColor: '#8A8279',
       confirmButtonText: 'Sign Out',
       cancelButtonText: 'Cancel',
       background: '#1C1C26',
-      color: '#EAE2D6',
+      color: '#F5F0E8',
     });
     if (!isConfirmed) return;
     await signOut();

@@ -1,4 +1,4 @@
-﻿import { useRef, useState, useEffect, useCallback } from 'react';
+import { useRef, useState, useEffect, useCallback } from 'react';
 import { 
   Calculator, 
   Scale, 
@@ -319,7 +319,7 @@ export function SalesPos({ branchId, activeBranchId }: SalesPosProps) {
           <h1 className="text-2xl font-black text-[#030213] uppercase italic tracking-tighter">
             Loan <span className="text-[#C9A05C]">Management</span>
           </h1>
-          <p className="text-[#6B655C] text-xs font-bold flex items-center gap-2 uppercase tracking-wide">
+          <p className="text-[#8A8279] text-xs font-bold flex items-center gap-2 uppercase tracking-wide">
             <Building2 size={14} className="text-[#C9A05C]" /> {displayBranchName}
           </p>
         </div>
@@ -333,21 +333,21 @@ export function SalesPos({ branchId, activeBranchId }: SalesPosProps) {
                 <Calculator className="w-7 h-7" />
               </div>
               <div>
-                <h3 className="font-black text-[#EAE2D6] uppercase tracking-tight">New Appraisal Form</h3>
-                <p className="text-[10px] text-[#6B655C] font-black uppercase tracking-widest">Enter item and customer details</p>
+                <h3 className="font-black text-[#F5F0E8] uppercase tracking-tight">New Appraisal Form</h3>
+                <p className="text-[10px] text-[#8A8279] font-black uppercase tracking-widest">Enter item and customer details</p>
               </div>
             </div>
 
             <form onSubmit={(e) => { e.preventDefault(); calculateRisk(); }} className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-3">
-                  <label className="text-[10px] font-black text-[#6B655C] uppercase tracking-widest">Customer Name</label>
+                  <label className="text-[10px] font-black text-[#8A8279] uppercase tracking-widest">Customer Name</label>
                   <div className="relative">
                     <input
                       type="text"
                       value={formData.customerName}
                       onChange={(e) => setFormData({ ...formData, customerName: e.target.value })}
-                      className="w-full px-6 py-4 rounded-2xl border border-[rgba(201,160,92,0.08)] bg-[#1C1C26]/50 focus:ring-2 focus:ring-[#C9A05C] outline-none transition-all font-bold text-[#EAE2D6] pl-14"
+                      className="w-full px-6 py-4 rounded-2xl border border-[rgba(201,160,92,0.08)] bg-[#1C1C26]/50 focus:ring-2 focus:ring-[#C9A05C] outline-none transition-all font-bold text-[#F5F0E8] pl-14"
                       placeholder="Enter customer name"
                       required
                     />
@@ -356,11 +356,11 @@ export function SalesPos({ branchId, activeBranchId }: SalesPosProps) {
                 </div>
 
                 <div className="space-y-3">
-                  <label className="text-[10px] font-black text-[#6B655C] uppercase tracking-widest">Item Category</label>
+                  <label className="text-[10px] font-black text-[#8A8279] uppercase tracking-widest">Item Category</label>
                   <select
                     value={formData.itemCategory}
                     onChange={(e) => setFormData({ ...formData, itemCategory: e.target.value })}
-                    className="w-full px-6 py-4 rounded-2xl border border-[rgba(201,160,92,0.08)] bg-[#1C1C26]/50 focus:ring-2 focus:ring-[#C9A05C] outline-none transition-all font-bold text-[#EAE2D6] appearance-none"
+                    className="w-full px-6 py-4 rounded-2xl border border-[rgba(201,160,92,0.08)] bg-[#1C1C26]/50 focus:ring-2 focus:ring-[#C9A05C] outline-none transition-all font-bold text-[#F5F0E8] appearance-none"
                     required
                   >
                     <option value="">Select category</option>
@@ -383,24 +383,24 @@ export function SalesPos({ branchId, activeBranchId }: SalesPosProps) {
                     }
                     className="h-4 w-4 rounded border-slate-300 text-[#C9A05C] focus:ring-[#C9A05C]"
                   />
-                  <span className="text-[11px] font-bold text-[#6B655C] uppercase tracking-widest">
+                  <span className="text-[11px] font-bold text-[#8A8279] uppercase tracking-widest">
                     Customer has mobile account
                   </span>
                 </label>
 
                 {formData.hasMobileAccount && (
                   <div className="space-y-2">
-                    <label className="text-[10px] font-black text-[#6B655C] uppercase tracking-widest">
+                    <label className="text-[10px] font-black text-[#8A8279] uppercase tracking-widest">
                       Account Email (optional)
                     </label>
                     <input
                       type="email"
                       value={formData.accountEmail}
                       onChange={(e) => setFormData({ ...formData, accountEmail: e.target.value })}
-                      className="w-full px-4 py-3 rounded-xl border border-[rgba(201,160,92,0.12)] bg-[#14141B] focus:ring-2 focus:ring-[#C9A05C] outline-none font-bold text-[#EAE2D6]"
+                      className="w-full px-4 py-3 rounded-xl border border-[rgba(201,160,92,0.12)] bg-[#14141B] focus:ring-2 focus:ring-[#C9A05C] outline-none font-bold text-[#F5F0E8]"
                       placeholder="bidder@email.com"
                     />
-                    <p className="text-[10px] text-[#6B655C] font-bold uppercase tracking-wide">
+                    <p className="text-[10px] text-[#8A8279] font-bold uppercase tracking-wide">
                       If found, ticket links to account. If not, saved as walk-in.
                     </p>
                   </div>
@@ -408,11 +408,11 @@ export function SalesPos({ branchId, activeBranchId }: SalesPosProps) {
               </div>
 
               <div className="space-y-3">
-                <label className="text-[10px] font-black text-[#6B655C] uppercase tracking-widest">Item Description</label>
+                <label className="text-[10px] font-black text-[#8A8279] uppercase tracking-widest">Item Description</label>
                 <textarea
                   value={formData.itemDescription}
                   onChange={(e) => setFormData({ ...formData, itemDescription: e.target.value })}
-                  className="w-full px-6 py-4 rounded-2xl border border-[rgba(201,160,92,0.08)] bg-[#1C1C26]/50 focus:ring-2 focus:ring-[#C9A05C] outline-none transition-all font-bold text-[#EAE2D6]"
+                  className="w-full px-6 py-4 rounded-2xl border border-[rgba(201,160,92,0.08)] bg-[#1C1C26]/50 focus:ring-2 focus:ring-[#C9A05C] outline-none transition-all font-bold text-[#F5F0E8]"
                   placeholder="Describe the item (e.g., 18K gold necklace with diamond pendant, brand, condition, etc.)"
                   rows={3}
                   required
@@ -420,17 +420,17 @@ export function SalesPos({ branchId, activeBranchId }: SalesPosProps) {
               </div>
 
               <div className="space-y-3">
-                <label className="text-[10px] font-black text-[#6B655C] uppercase tracking-widest">Item Photos (required for auction listing)</label>
+                <label className="text-[10px] font-black text-[#8A8279] uppercase tracking-widest">Item Photos (required for auction listing)</label>
                 <input
                   ref={fileInputRef}
                   type="file"
                   accept="image/*"
                   multiple
                   onChange={(e) => setItemPhotoFiles(Array.from(e.target.files || []))}
-                  className="w-full px-4 py-3 rounded-2xl border border-[rgba(201,160,92,0.08)] bg-[#1C1C26]/50 text-xs font-bold text-[#6B655C]"
+                  className="w-full px-4 py-3 rounded-2xl border border-[rgba(201,160,92,0.08)] bg-[#1C1C26]/50 text-xs font-bold text-[#8A8279]"
                   required
                 />
-                <p className="text-[10px] text-[#6B655C] font-bold uppercase tracking-wide">
+                <p className="text-[10px] text-[#8A8279] font-bold uppercase tracking-wide">
                   Upload one or more clear photos. These are required and will be used in Auction House item galleries.
                 </p>
                 {itemPhotoFiles.length > 0 ? (
@@ -442,13 +442,13 @@ export function SalesPos({ branchId, activeBranchId }: SalesPosProps) {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-3">
-                  <label className="text-[10px] font-black text-[#6B655C] uppercase tracking-widest">Contact Number</label>
+                  <label className="text-[10px] font-black text-[#8A8279] uppercase tracking-widest">Contact Number</label>
                   <div className="relative">
                     <input
                       type="text"
                       value={formData.customerContact}
                       onChange={(e) => setFormData({ ...formData, customerContact: e.target.value })}
-                      className="w-full px-6 py-4 rounded-2xl border border-[rgba(201,160,92,0.08)] bg-[#1C1C26]/50 focus:ring-2 focus:ring-[#C9A05C] outline-none transition-all font-bold text-[#EAE2D6] pl-14"
+                      className="w-full px-6 py-4 rounded-2xl border border-[rgba(201,160,92,0.08)] bg-[#1C1C26]/50 focus:ring-2 focus:ring-[#C9A05C] outline-none transition-all font-bold text-[#F5F0E8] pl-14"
                       placeholder="09XXXXXXXXX"
                       required
                     />
@@ -457,13 +457,13 @@ export function SalesPos({ branchId, activeBranchId }: SalesPosProps) {
                 </div>
 
                 <div className="space-y-3">
-                  <label className="text-[10px] font-black text-[#6B655C] uppercase tracking-widest">Customer Address</label>
+                  <label className="text-[10px] font-black text-[#8A8279] uppercase tracking-widest">Customer Address</label>
                   <div className="relative">
                     <input
                       type="text"
                       value={formData.customerAddress}
                       onChange={(e) => setFormData({ ...formData, customerAddress: e.target.value })}
-                      className="w-full px-6 py-4 rounded-2xl border border-[rgba(201,160,92,0.08)] bg-[#1C1C26]/50 focus:ring-2 focus:ring-[#C9A05C] outline-none transition-all font-bold text-[#EAE2D6] pl-14"
+                      className="w-full px-6 py-4 rounded-2xl border border-[rgba(201,160,92,0.08)] bg-[#1C1C26]/50 focus:ring-2 focus:ring-[#C9A05C] outline-none transition-all font-bold text-[#F5F0E8] pl-14"
                       placeholder="Enter full address"
                       required
                     />
@@ -474,8 +474,8 @@ export function SalesPos({ branchId, activeBranchId }: SalesPosProps) {
 
               {customerDuplicate.checking && (
                 <div className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-[#1C1C26]/50 border border-[rgba(201,160,92,0.08)]">
-                  <Loader2 className="w-3.5 h-3.5 text-[#6B655C] animate-spin" />
-                  <p className="text-[10px] text-[#6B655C] font-bold uppercase tracking-wide">Checking for existing customer...</p>
+                  <Loader2 className="w-3.5 h-3.5 text-[#8A8279] animate-spin" />
+                  <p className="text-[10px] text-[#8A8279] font-bold uppercase tracking-wide">Checking for existing customer...</p>
                 </div>
               )}
               {!customerDuplicate.checking && customerDuplicate.exists && (
@@ -483,20 +483,20 @@ export function SalesPos({ branchId, activeBranchId }: SalesPosProps) {
                   <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
                   <div>
                     <p className="text-[11px] font-bold text-amber-400 uppercase tracking-wide">Existing Customer Found</p>
-                    <p className="text-[10px] text-[#6B655C] mt-0.5">{customerDuplicate.message}. The existing record will be updated with new information.</p>
+                    <p className="text-[10px] text-[#8A8279] mt-0.5">{customerDuplicate.message}. The existing record will be updated with new information.</p>
                   </div>
                 </div>
               )}
 
               <div className="space-y-3">
-                <label className="text-[10px] font-black text-[#6B655C] uppercase tracking-widest">Weight (grams)</label>
+                <label className="text-[10px] font-black text-[#8A8279] uppercase tracking-widest">Weight (grams)</label>
                 <div className="relative">
                   <input
                     type="number"
                     step="0.01"
                     value={formData.weight}
                     onChange={(e) => setFormData({ ...formData, weight: e.target.value })}
-                    className="w-full px-6 py-4 rounded-2xl border border-[rgba(201,160,92,0.08)] bg-[#1C1C26]/50 focus:ring-2 focus:ring-[#C9A05C] outline-none transition-all font-bold text-[#EAE2D6] pl-14"
+                    className="w-full px-6 py-4 rounded-2xl border border-[rgba(201,160,92,0.08)] bg-[#1C1C26]/50 focus:ring-2 focus:ring-[#C9A05C] outline-none transition-all font-bold text-[#F5F0E8] pl-14"
                     placeholder="e.g. 5.25"
                     required
                   />
@@ -506,17 +506,17 @@ export function SalesPos({ branchId, activeBranchId }: SalesPosProps) {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-3">
-                  <label className="text-[10px] font-black text-[#6B655C] uppercase tracking-widest">Appraisal Deadline</label>
+                  <label className="text-[10px] font-black text-[#8A8279] uppercase tracking-widest">Appraisal Deadline</label>
                   <input
                     type="date"
                     value={formData.appraisalDeadline}
                     onChange={(e) => setFormData({ ...formData, appraisalDeadline: e.target.value })}
-                    className="w-full px-6 py-4 rounded-2xl border border-[rgba(201,160,92,0.08)] bg-[#1C1C26]/50 focus:ring-2 focus:ring-[#C9A05C] outline-none transition-all font-bold text-[#EAE2D6]"
+                    className="w-full px-6 py-4 rounded-2xl border border-[rgba(201,160,92,0.08)] bg-[#1C1C26]/50 focus:ring-2 focus:ring-[#C9A05C] outline-none transition-all font-bold text-[#F5F0E8]"
                     required
                   />
                 </div>
                 <div className="space-y-3">
-                  <label className="text-[10px] font-black text-[#6B655C] uppercase tracking-widest">Auction Flag</label>
+                  <label className="text-[10px] font-black text-[#8A8279] uppercase tracking-widest">Auction Flag</label>
                   <div className="flex items-center gap-3 px-6 py-4 rounded-2xl border border-[rgba(201,160,92,0.08)] bg-[#1C1C26]/50">
                     <input
                       type="checkbox"
@@ -524,7 +524,7 @@ export function SalesPos({ branchId, activeBranchId }: SalesPosProps) {
                       onChange={(e) => setFormData({ ...formData, markForAuction: e.target.checked })}
                       className="h-4 w-4 rounded border-slate-300 text-[#C9A05C] focus:ring-[#C9A05C]"
                     />
-                    <span className="text-[11px] font-bold text-[#999186] uppercase tracking-widest">Mark for auction</span>
+                    <span className="text-[11px] font-bold text-[#B8B0A4] uppercase tracking-widest">Mark for auction</span>
                   </div>
                 </div>
               </div>
@@ -538,16 +538,16 @@ export function SalesPos({ branchId, activeBranchId }: SalesPosProps) {
 
         <div className="lg:col-span-1">
           <div className="bg-[#14141B] rounded-[2.5rem] p-8 shadow-sm border-none sticky top-8">
-            <h3 className="text-[10px] font-black text-[#6B655C] uppercase tracking-widest mb-8">Decision Support</h3>
+            <h3 className="text-[10px] font-black text-[#8A8279] uppercase tracking-widest mb-8">Decision Support</h3>
 
             {riskScore === null ? (
               <div className="text-center py-20">
-                <p className="text-[10px] text-[#6B655C] font-black uppercase tracking-widest">Awaiting calculations...</p>
+                <p className="text-[10px] text-[#8A8279] font-black uppercase tracking-widest">Awaiting calculations...</p>
               </div>
             ) : (
               <div className="space-y-8 animate-in slide-in-from-bottom-4 duration-300">
                 <div>
-                  <p className="text-[10px] font-black text-[#6B655C] mb-4 uppercase tracking-widest">Risk Score</p>
+                  <p className="text-[10px] font-black text-[#8A8279] mb-4 uppercase tracking-widest">Risk Score</p>
                   <div className={`rounded-3xl p-6 ${getRiskStyle(riskScore).bg}`}>
                     <div className="flex items-center gap-5">
                       <p className={`text-4xl font-black tracking-tighter ${getRiskStyle(riskScore).color}`}>{riskScore}%</p>
@@ -557,7 +557,7 @@ export function SalesPos({ branchId, activeBranchId }: SalesPosProps) {
                 </div>
 
                 <div>
-                  <p className="text-[10px] font-black text-[#6B655C] mb-4 uppercase tracking-widest">Loan Recommendation</p>
+                  <p className="text-[10px] font-black text-[#8A8279] mb-4 uppercase tracking-widest">Loan Recommendation</p>
                   <div className="rounded-3xl p-6 bg-[#C9A05C]/10/50 border border-[rgba(201,160,92,0.15)]/50">
                     <p className="text-4xl font-black text-indigo-900 tracking-tighter">{formatCurrency(recommendedAmount)}</p>
                   </div>
@@ -575,7 +575,7 @@ export function SalesPos({ branchId, activeBranchId }: SalesPosProps) {
                       'Submit for Approval'
                     )}
                   </button>
-                  <p className="text-[9px] text-[#6B655C] text-center uppercase tracking-widest">Requires Manager/Owner Approval</p>
+                  <p className="text-[9px] text-[#8A8279] text-center uppercase tracking-widest">Requires Manager/Owner Approval</p>
                 </div>
               </div>
             )}
@@ -594,43 +594,43 @@ export function SalesPos({ branchId, activeBranchId }: SalesPosProps) {
                 <AlertCircle className="w-6 h-6" style={{ color: 'var(--gold)' }} />
               </div>
               <div>
-                <h3 className="font-black text-[#EAE2D6] text-lg">Double Check</h3>
-                <p className="text-[10px] text-[#6B655C] font-black uppercase tracking-widest">Review all details before submitting</p>
+                <h3 className="font-black text-[#F5F0E8] text-lg">Double Check</h3>
+                <p className="text-[10px] text-[#8A8279] font-black uppercase tracking-widest">Review all details before submitting</p>
               </div>
             </div>
 
             <div className="space-y-3 mb-8">
               <div className="flex justify-between px-4 py-3 rounded-2xl" style={{ background: 'rgba(255,255,255,0.035)' }}>
-                <span className="text-[11px] text-[#6B655C]">Ticket</span>
-                <span className="text-[11px] font-semibold text-[#EAE2D6]">{confirmData.ticketNumber}</span>
+                <span className="text-[11px] text-[#8A8279]">Ticket</span>
+                <span className="text-[11px] font-semibold text-[#F5F0E8]">{confirmData.ticketNumber}</span>
               </div>
               <div className="flex justify-between px-4 py-3 rounded-2xl" style={{ background: 'rgba(255,255,255,0.035)' }}>
-                <span className="text-[11px] text-[#6B655C]">Customer</span>
-                <span className="text-[11px] font-semibold text-[#EAE2D6]">{confirmData.customerName}</span>
+                <span className="text-[11px] text-[#8A8279]">Customer</span>
+                <span className="text-[11px] font-semibold text-[#F5F0E8]">{confirmData.customerName}</span>
               </div>
               <div className="flex justify-between px-4 py-3 rounded-2xl" style={{ background: 'rgba(255,255,255,0.035)' }}>
-                <span className="text-[11px] text-[#6B655C]">Contact</span>
-                <span className="text-[11px] font-semibold text-[#EAE2D6]">{confirmData.customerContact}</span>
+                <span className="text-[11px] text-[#8A8279]">Contact</span>
+                <span className="text-[11px] font-semibold text-[#F5F0E8]">{confirmData.customerContact}</span>
               </div>
               <div className="flex justify-between px-4 py-3 rounded-2xl" style={{ background: 'rgba(255,255,255,0.035)' }}>
-                <span className="text-[11px] text-[#6B655C]">Address</span>
-                <span className="text-[11px] font-semibold text-[#EAE2D6] truncate max-w-[200px]">{confirmData.customerAddress}</span>
+                <span className="text-[11px] text-[#8A8279]">Address</span>
+                <span className="text-[11px] font-semibold text-[#F5F0E8] truncate max-w-[200px]">{confirmData.customerAddress}</span>
               </div>
               <div className="flex justify-between px-4 py-3 rounded-2xl" style={{ background: 'rgba(255,255,255,0.035)' }}>
-                <span className="text-[11px] text-[#6B655C]">Category</span>
-                <span className="text-[11px] font-semibold text-[#EAE2D6]">{confirmData.category}</span>
+                <span className="text-[11px] text-[#8A8279]">Category</span>
+                <span className="text-[11px] font-semibold text-[#F5F0E8]">{confirmData.category}</span>
               </div>
               <div className="flex justify-between px-4 py-3 rounded-2xl" style={{ background: 'rgba(255,255,255,0.035)' }}>
-                <span className="text-[11px] text-[#6B655C]">Weight</span>
-                <span className="text-[11px] font-semibold text-[#EAE2D6]">{confirmData.weight}g</span>
+                <span className="text-[11px] text-[#8A8279]">Weight</span>
+                <span className="text-[11px] font-semibold text-[#F5F0E8]">{confirmData.weight}g</span>
               </div>
               <div className="flex justify-between px-4 py-3 rounded-2xl" style={{ background: 'rgba(255,255,255,0.035)' }}>
-                <span className="text-[11px] text-[#6B655C]">Loan Amount</span>
+                <span className="text-[11px] text-[#8A8279]">Loan Amount</span>
                 <span className="text-[11px] font-semibold text-[#C9A05C]">{formatCurrency(confirmData.loanAmount)}</span>
               </div>
               {confirmData.riskScore != null && (
                 <div className="flex justify-between px-4 py-3 rounded-2xl" style={{ background: 'rgba(255,255,255,0.035)' }}>
-                  <span className="text-[11px] text-[#6B655C]">Risk Score</span>
+                  <span className="text-[11px] text-[#8A8279]">Risk Score</span>
                   <span className={`text-[11px] font-semibold ${getRiskStyle(confirmData.riskScore).color}`}>
                     {confirmData.riskScore}% — {getRiskStyle(confirmData.riskScore).label}
                   </span>

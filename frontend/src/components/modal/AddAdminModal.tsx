@@ -1,4 +1,4 @@
-﻿import { useState } from 'react';
+import { useState } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -173,11 +173,11 @@ export function AddAdminModal({ branchId, branchName }: AddAdminModalProps) {
           <div className="w-12 h-12 bg-[#C9A05C]/10 text-[#C9A05C] rounded-2xl flex items-center justify-center mb-4">
             <ShieldCheck size={28} />
           </div>
-          <DialogTitle className="text-2xl font-black uppercase italic tracking-tight text-[#EAE2D6]">
+          <DialogTitle className="text-2xl font-black uppercase italic tracking-tight text-[#F5F0E8]">
             Internal <span className="text-[#C9A05C]">Provisioning</span>
           </DialogTitle>
-          <p className="text-[#6B655C] text-sm font-medium">
-            Creating administrative access for <span className="text-[#EAE2D6] font-bold underline">{branchName}</span>.
+          <p className="text-[#8A8279] text-sm font-medium">
+            Creating administrative access for <span className="text-[#F5F0E8] font-bold underline">{branchName}</span>.
           </p>
         </DialogHeader>
 
@@ -190,7 +190,7 @@ export function AddAdminModal({ branchId, branchName }: AddAdminModalProps) {
           )}
 
           <div className="space-y-2">
-            <label className="text-[10px] font-black uppercase tracking-widest text-[#6B655C] flex items-center gap-2">
+            <label className="text-[10px] font-black uppercase tracking-widest text-[#8A8279] flex items-center gap-2">
               <Mail size={12} className="text-[#C9A05C]" /> Email Address
             </label>
             <Input 
@@ -207,7 +207,7 @@ export function AddAdminModal({ branchId, branchName }: AddAdminModalProps) {
           </div>
 
           <div className="space-y-2">
-            <label className="text-[10px] font-black uppercase tracking-widest text-[#6B655C] flex items-center gap-2">
+            <label className="text-[10px] font-black uppercase tracking-widest text-[#8A8279] flex items-center gap-2">
               <Lock size={12} className="text-[#C9A05C]" /> Password (Min. 8 characters)
             </label>
             <Input 
@@ -224,7 +224,7 @@ export function AddAdminModal({ branchId, branchName }: AddAdminModalProps) {
           </div>
 
           <div className="space-y-2">
-            <label className="text-[10px] font-black uppercase tracking-widest text-[#6B655C] flex items-center gap-2">
+            <label className="text-[10px] font-black uppercase tracking-widest text-[#8A8279] flex items-center gap-2">
               Authentication Code
             </label>
             <div className="flex gap-2">
@@ -243,7 +243,7 @@ export function AddAdminModal({ branchId, branchName }: AddAdminModalProps) {
                 type="button"
                 onClick={handleRequestAuthCode}
                 disabled={loading}
-                className="bg-[#222228] hover:bg-slate-300 text-[#EAE2D6] font-black uppercase tracking-widest px-4 rounded-xl"
+                className="bg-[#222228] hover:bg-slate-300 text-[#F5F0E8] font-black uppercase tracking-widest px-4 rounded-xl"
               >
                 Get Code
               </Button>

@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { MapContainer, TileLayer, Marker, useMapEvents, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -158,7 +158,7 @@ export function LocationPicker({
         <div className="relative" ref={searchRef}>
           <div className="flex gap-2">
             <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#6B655C]" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#8A8279]" />
               <input
                 type="text"
                 value={searchQuery}
@@ -176,7 +176,7 @@ export function LocationPicker({
                   }}
                   className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 hover:bg-[#222228] rounded"
                 >
-                  <X className="w-3.5 h-3.5 text-[#6B655C]" />
+                  <X className="w-3.5 h-3.5 text-[#8A8279]" />
                 </button>
               )}
             </div>
@@ -192,7 +192,7 @@ export function LocationPicker({
               title="Use my current location"
               className="px-3 py-2.5 bg-[#1C1C26] border border-[rgba(201,160,92,0.12)] rounded-xl hover:bg-[#222228] transition-colors"
             >
-              <Locate className="w-4 h-4 text-[#999186]" />
+              <Locate className="w-4 h-4 text-[#B8B0A4]" />
             </button>
           </div>
 
@@ -207,7 +207,7 @@ export function LocationPicker({
                 >
                   <div className="flex items-start gap-2">
                     <MapPin className="w-4 h-4 text-blue-500 mt-0.5 shrink-0" />
-                    <span className="text-sm text-[#6B655C] line-clamp-2">{result.display_name}</span>
+                    <span className="text-sm text-[#8A8279] line-clamp-2">{result.display_name}</span>
                   </div>
                 </button>
               ))}
@@ -240,7 +240,7 @@ export function LocationPicker({
 
       {/* Coordinate Display */}
       {latitude && longitude && (
-        <div className="flex items-center gap-2 text-xs text-[#6B655C] font-mono bg-[#1C1C26] px-3 py-2 rounded-lg">
+        <div className="flex items-center gap-2 text-xs text-[#8A8279] font-mono bg-[#1C1C26] px-3 py-2 rounded-lg">
           <MapPin className="w-3.5 h-3.5 text-blue-500" />
           <span>
             {latitude.toFixed(6)}, {longitude.toFixed(6)}
@@ -249,7 +249,7 @@ export function LocationPicker({
       )}
 
       {!readOnly && (
-        <p className="text-xs text-[#6B655C]">
+        <p className="text-xs text-[#8A8279]">
           Click on the map, search an address, or use your current location to set the pin.
         </p>
       )}

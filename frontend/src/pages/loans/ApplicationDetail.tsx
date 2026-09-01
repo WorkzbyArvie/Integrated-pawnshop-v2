@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import {
   ArrowLeft,
   FileText,
@@ -113,7 +113,7 @@ export function ApplicationDetail({ applicationId, onBack }: ApplicationDetailPr
       ELIGIBLE: 'text-green-600 bg-green-50',
       NOT_ELIGIBLE: 'text-red-600 bg-red-50',
     };
-    return colors[status] || 'text-[#999186] bg-gray-50';
+    return colors[status] || 'text-[#B8B0A4] bg-gray-50';
   };
 
   if (loading || !application) {
@@ -130,7 +130,7 @@ export function ApplicationDetail({ applicationId, onBack }: ApplicationDetailPr
       <div className="mb-8">
         <button
           onClick={onBack}
-          className="flex items-center gap-2 text-[#999186] hover:text-[#EAE2D6] mb-4 font-medium"
+          className="flex items-center gap-2 text-[#B8B0A4] hover:text-[#F5F0E8] mb-4 font-medium"
         >
           <ArrowLeft className="w-5 h-5" />
           Back to Applications
@@ -138,10 +138,10 @@ export function ApplicationDetail({ applicationId, onBack }: ApplicationDetailPr
 
         <div className="flex items-start justify-between">
           <div>
-            <h1 className="text-3xl font-black text-[#EAE2D6] mb-2">
+            <h1 className="text-3xl font-black text-[#F5F0E8] mb-2">
               Application #{application.id.slice(0, 8)}
             </h1>
-            <p className="text-[#999186]">{application.customer.fullName}</p>
+            <p className="text-[#B8B0A4]">{application.customer.fullName}</p>
           </div>
           <span
             className={`px-4 py-2 rounded-xl text-sm font-bold ${getStatusColor(
@@ -171,7 +171,7 @@ export function ApplicationDetail({ applicationId, onBack }: ApplicationDetailPr
                 className={`pb-4 px-1 border-b-2 font-bold flex items-center gap-2 transition ${
                   isActive
                     ? 'border-[#C9A05C] text-[#C9A05C]'
-                    : 'border-transparent text-[#6B655C] hover:text-[#999186]'
+                    : 'border-transparent text-[#8A8279] hover:text-[#B8B0A4]'
                 }`}
               >
                 <Icon className="w-5 h-5" />
@@ -185,59 +185,59 @@ export function ApplicationDetail({ applicationId, onBack }: ApplicationDetailPr
       {/* Tab Content */}
       {activeTab === 'details' && (
         <div className="bg-[#14141B] rounded-2xl shadow-sm border border-[rgba(201,160,92,0.1)] p-8">
-          <h2 className="text-xl font-bold text-[#EAE2D6] mb-6">Application Details</h2>
+          <h2 className="text-xl font-bold text-[#F5F0E8] mb-6">Application Details</h2>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Customer Info */}
             <div className="space-y-4">
-              <h3 className="text-sm font-bold text-[#6B655C] uppercase mb-3">Customer Information</h3>
+              <h3 className="text-sm font-bold text-[#8A8279] uppercase mb-3">Customer Information</h3>
               <div>
-                <p className="text-sm text-[#6B655C]">Full Name</p>
-                <p className="font-bold text-[#EAE2D6]">{application.customer.fullName}</p>
+                <p className="text-sm text-[#8A8279]">Full Name</p>
+                <p className="font-bold text-[#F5F0E8]">{application.customer.fullName}</p>
               </div>
               <div>
-                <p className="text-sm text-[#6B655C]">Contact Number</p>
-                <p className="font-bold text-[#EAE2D6]">{application.customer.contactNumber}</p>
+                <p className="text-sm text-[#8A8279]">Contact Number</p>
+                <p className="font-bold text-[#F5F0E8]">{application.customer.contactNumber}</p>
               </div>
               {application.customer.email && (
                 <div>
-                  <p className="text-sm text-[#6B655C]">Email</p>
-                  <p className="font-bold text-[#EAE2D6]">{application.customer.email}</p>
+                  <p className="text-sm text-[#8A8279]">Email</p>
+                  <p className="font-bold text-[#F5F0E8]">{application.customer.email}</p>
                 </div>
               )}
             </div>
 
             {/* Loan Info */}
             <div className="space-y-4">
-              <h3 className="text-sm font-bold text-[#6B655C] uppercase mb-3">Loan Information</h3>
+              <h3 className="text-sm font-bold text-[#8A8279] uppercase mb-3">Loan Information</h3>
               <div>
-                <p className="text-sm text-[#6B655C]">Loan Amount</p>
-                <p className="font-bold text-[#EAE2D6] text-lg">{formatCurrency(application.loanAmount)}</p>
+                <p className="text-sm text-[#8A8279]">Loan Amount</p>
+                <p className="font-bold text-[#F5F0E8] text-lg">{formatCurrency(application.loanAmount)}</p>
               </div>
               <div>
-                <p className="text-sm text-[#6B655C]">Loan Type</p>
-                <p className="font-bold text-[#EAE2D6]">{application.loanType}</p>
+                <p className="text-sm text-[#8A8279]">Loan Type</p>
+                <p className="font-bold text-[#F5F0E8]">{application.loanType}</p>
               </div>
               <div>
-                <p className="text-sm text-[#6B655C]">Term</p>
-                <p className="font-bold text-[#EAE2D6]">{application.termMonths} months</p>
+                <p className="text-sm text-[#8A8279]">Term</p>
+                <p className="font-bold text-[#F5F0E8]">{application.termMonths} months</p>
               </div>
               <div>
-                <p className="text-sm text-[#6B655C]">Interest Rate</p>
-                <p className="font-bold text-[#EAE2D6]">{application.interestRate}% per month</p>
+                <p className="text-sm text-[#8A8279]">Interest Rate</p>
+                <p className="font-bold text-[#F5F0E8]">{application.interestRate}% per month</p>
               </div>
             </div>
 
             {/* Purpose */}
             <div className="md:col-span-2">
-              <h3 className="text-sm font-bold text-[#6B655C] uppercase mb-3">Purpose</h3>
-              <p className="text-[#EAE2D6]">{application.purpose}</p>
+              <h3 className="text-sm font-bold text-[#8A8279] uppercase mb-3">Purpose</h3>
+              <p className="text-[#F5F0E8]">{application.purpose}</p>
             </div>
 
             {/* Submission Date */}
             <div className="md:col-span-2">
-              <p className="text-sm text-[#6B655C]">Submitted At</p>
-              <p className="font-bold text-[#EAE2D6]">{formatDate(application.submittedAt)}</p>
+              <p className="text-sm text-[#8A8279]">Submitted At</p>
+              <p className="font-bold text-[#F5F0E8]">{formatDate(application.submittedAt)}</p>
             </div>
           </div>
         </div>
@@ -246,7 +246,7 @@ export function ApplicationDetail({ applicationId, onBack }: ApplicationDetailPr
       {activeTab === 'documents' && (
         <div className="bg-[#14141B] rounded-2xl shadow-sm border border-[rgba(201,160,92,0.1)] p-8">
           <div className="flex items-center justify-between mb-6">
-            <h2 className="text-xl font-bold text-[#EAE2D6]">Documents</h2>
+            <h2 className="text-xl font-bold text-[#F5F0E8]">Documents</h2>
             <button className="px-4 py-2 bg-[#C9A05C] text-white font-bold rounded-xl hover:bg-[#E5C88C] transition flex items-center gap-2">
               <Upload className="w-4 h-4" />
               Upload Document
@@ -256,7 +256,7 @@ export function ApplicationDetail({ applicationId, onBack }: ApplicationDetailPr
           {application.documents.length === 0 ? (
             <div className="text-center py-12">
               <FileText className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-              <p className="text-[#999186]">No documents uploaded yet</p>
+              <p className="text-[#B8B0A4]">No documents uploaded yet</p>
             </div>
           ) : (
             <div className="space-y-3">
@@ -266,10 +266,10 @@ export function ApplicationDetail({ applicationId, onBack }: ApplicationDetailPr
                   className="flex items-center justify-between p-4 bg-gray-50 rounded-xl hover:bg-gray-100 transition"
                 >
                   <div className="flex items-center gap-3">
-                    <FileText className="w-5 h-5 text-[#999186]" />
+                    <FileText className="w-5 h-5 text-[#B8B0A4]" />
                     <div>
-                      <p className="font-bold text-[#EAE2D6]">{doc.fileName}</p>
-                      <p className="text-sm text-[#6B655C]">
+                      <p className="font-bold text-[#F5F0E8]">{doc.fileName}</p>
+                      <p className="text-sm text-[#8A8279]">
                         {doc.documentType} • Uploaded {formatDate(doc.uploadedAt)}
                       </p>
                     </div>
@@ -291,12 +291,12 @@ export function ApplicationDetail({ applicationId, onBack }: ApplicationDetailPr
 
       {activeTab === 'approvals' && (
         <div className="bg-[#14141B] rounded-2xl shadow-sm border border-[rgba(201,160,92,0.1)] p-8">
-          <h2 className="text-xl font-bold text-[#EAE2D6] mb-6">Approval Workflow</h2>
+          <h2 className="text-xl font-bold text-[#F5F0E8] mb-6">Approval Workflow</h2>
 
           {application.approvals.length === 0 ? (
             <div className="text-center py-12">
               <Clock className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-              <p className="text-[#999186]">No approvals yet</p>
+              <p className="text-[#B8B0A4]">No approvals yet</p>
             </div>
           ) : (
             <div className="space-y-4">
@@ -325,7 +325,7 @@ export function ApplicationDetail({ applicationId, onBack }: ApplicationDetailPr
 
                   <div className="flex-1">
                     <div className="flex items-center justify-between mb-2">
-                      <h3 className="font-bold text-[#EAE2D6]">{approval.approvalLevel.replace(/_/g, ' ')}</h3>
+                      <h3 className="font-bold text-[#F5F0E8]">{approval.approvalLevel.replace(/_/g, ' ')}</h3>
                       <span
                         className={`px-3 py-1 rounded-full text-xs font-bold ${getStatusColor(
                           approval.status,
@@ -336,19 +336,19 @@ export function ApplicationDetail({ applicationId, onBack }: ApplicationDetailPr
                     </div>
 
                     {approval.approverName && (
-                      <p className="text-sm text-[#999186] mb-1">
+                      <p className="text-sm text-[#B8B0A4] mb-1">
                         By {approval.approverName}
                       </p>
                     )}
 
                     {approval.approvedDate && (
-                      <p className="text-sm text-[#6B655C] mb-2">
+                      <p className="text-sm text-[#8A8279] mb-2">
                         {formatDate(approval.approvedDate)}
                       </p>
                     )}
 
                     {approval.comments && (
-                      <p className="text-sm text-[#999186] bg-[#14141B] p-3 rounded-lg">
+                      <p className="text-sm text-[#B8B0A4] bg-[#14141B] p-3 rounded-lg">
                         {approval.comments}
                       </p>
                     )}
@@ -362,12 +362,12 @@ export function ApplicationDetail({ applicationId, onBack }: ApplicationDetailPr
 
       {activeTab === 'eligibility' && (
         <div className="bg-[#14141B] rounded-2xl shadow-sm border border-[rgba(201,160,92,0.1)] p-8">
-          <h2 className="text-xl font-bold text-[#EAE2D6] mb-6">Eligibility Check</h2>
+          <h2 className="text-xl font-bold text-[#F5F0E8] mb-6">Eligibility Check</h2>
 
           {!application.eligibilityCheck ? (
             <div className="text-center py-12">
               <AlertCircle className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-              <p className="text-[#999186] mb-4">Eligibility check not performed yet</p>
+              <p className="text-[#B8B0A4] mb-4">Eligibility check not performed yet</p>
               <button className="px-6 py-3 bg-[#C9A05C] text-white font-bold rounded-xl hover:bg-[#E5C88C] transition">
                 Run Eligibility Check
               </button>
@@ -376,7 +376,7 @@ export function ApplicationDetail({ applicationId, onBack }: ApplicationDetailPr
             <div className="space-y-6">
               <div className="flex items-center justify-between p-6 bg-gray-50 rounded-xl">
                 <div>
-                  <p className="text-sm text-[#6B655C] mb-1">Eligibility Status</p>
+                  <p className="text-sm text-[#8A8279] mb-1">Eligibility Status</p>
                   <p
                     className={`text-2xl font-black ${
                       application.eligibilityCheck.status === 'ELIGIBLE'
@@ -397,16 +397,16 @@ export function ApplicationDetail({ applicationId, onBack }: ApplicationDetailPr
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {application.eligibilityCheck.creditScore !== null && (
                   <div className="p-6 bg-gray-50 rounded-xl">
-                    <p className="text-sm text-[#6B655C] mb-2">Credit Score</p>
-                    <p className="text-3xl font-black text-[#EAE2D6]">
+                    <p className="text-sm text-[#8A8279] mb-2">Credit Score</p>
+                    <p className="text-3xl font-black text-[#F5F0E8]">
                       {application.eligibilityCheck.creditScore}
                     </p>
                   </div>
                 )}
 
                 <div className="p-6 bg-gray-50 rounded-xl">
-                  <p className="text-sm text-[#6B655C] mb-2">Debt-to-Income Ratio</p>
-                  <p className="text-3xl font-black text-[#EAE2D6]">
+                  <p className="text-sm text-[#8A8279] mb-2">Debt-to-Income Ratio</p>
+                  <p className="text-3xl font-black text-[#F5F0E8]">
                     {application.eligibilityCheck.debtToIncomeRatio.toFixed(1)}%
                   </p>
                 </div>
@@ -419,7 +419,7 @@ export function ApplicationDetail({ applicationId, onBack }: ApplicationDetailPr
                 </div>
               )}
 
-              <div className="text-sm text-[#6B655C]">
+              <div className="text-sm text-[#8A8279]">
                 Checked at {formatDate(application.eligibilityCheck.checkedAt)}
               </div>
             </div>

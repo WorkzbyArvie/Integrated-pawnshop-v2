@@ -1,4 +1,4 @@
-﻿/**
+/**
  * SubscriptionManager -- SaaS subscription & billing management.
  *
  * Features:
@@ -56,7 +56,7 @@ import type { Subscription, SubscriptionPlan, SubscriptionLimits, SubscriptionTi
 import { useToast } from '../App';
 
 const TIER_ICONS: Record<string, React.ReactNode> = {
-  FREE: <Shield className="w-6 h-6 text-[#6B655C]" />,
+  FREE: <Shield className="w-6 h-6 text-[#8A8279]" />,
   TRIAL: <Sparkles className="w-6 h-6 text-[#C9A05C]" />,
   BASIC: <Star className="w-6 h-6 text-sky-500" />,
   PROFESSIONAL: <Zap className="w-6 h-6 text-[#C9A05C]" />,
@@ -303,12 +303,12 @@ export function SubscriptionManager({ branchId: _branchId, onSubscriptionChange 
     const confirm = await Swal.fire({
       icon: 'warning',
       title: 'Cancel Subscription?',
-      html: `Your <b>${currentPlanLabel}</b> subscription will be cancelled immediately and you will lose access to paid features.${isTrialSubscription ? ' You will not be charged.' : ''}<br/><br/><span class="text-sm text-[#6B655C]">Reason: ${finalReason}</span>`,
+      html: `Your <b>${currentPlanLabel}</b> subscription will be cancelled immediately and you will lose access to paid features.${isTrialSubscription ? ' You will not be charged.' : ''}<br/><br/><span class="text-sm text-[#8A8279]">Reason: ${finalReason}</span>`,
       showCancelButton: true,
       confirmButtonText: 'Yes, cancel it',
       cancelButtonText: 'Keep my plan',
       confirmButtonColor: '#dc2626',
-      cancelButtonColor: '#6B655C',
+      cancelButtonColor: '#8A8279',
     });
 
     if (!confirm.isConfirmed) return;
@@ -345,9 +345,9 @@ export function SubscriptionManager({ branchId: _branchId, onSubscriptionChange 
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-black text-[#EAE2D6] tracking-tight">Subscription & Billing</h1>
-          <p className="text-[#6B655C] mt-1">Manage your pawnshop's SaaS subscription plan</p>
-          <p className="text-xs text-[#6B655C] mt-2">
+          <h1 className="text-3xl font-black text-[#F5F0E8] tracking-tight">Subscription & Billing</h1>
+          <p className="text-[#8A8279] mt-1">Manage your pawnshop's SaaS subscription plan</p>
+          <p className="text-xs text-[#8A8279] mt-2">
             Owner billing is consolidated per pawnshop. One payment covers the main branch and all connected active branches.
           </p>
         </div>
@@ -366,14 +366,14 @@ export function SubscriptionManager({ branchId: _branchId, onSubscriptionChange 
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <h2 className="text-2xl font-black text-[#EAE2D6]">{currentPlanLabel} Plan</h2>
+                  <h2 className="text-2xl font-black text-[#F5F0E8]">{currentPlanLabel} Plan</h2>
                   {currentSub?.status && (
                     <Badge className={statusColor(currentSub.status)}>{humanizeStatus(currentSub.status)}</Badge>
                   )}
                 </div>
                 {currentSub?.currentPeriodEnd && !isTrialSubscription && (
                   <div className="flex items-center gap-3 mt-1 flex-wrap">
-                    <p className="text-sm text-[#6B655C]">
+                    <p className="text-sm text-[#8A8279]">
                       {currentSub.billingInterval} · Renews {formatDate(currentSub.currentPeriodEnd)}
                     </p>
                     {!isFreeTier && !isSubscriptionClosed && (
@@ -383,7 +383,7 @@ export function SubscriptionManager({ branchId: _branchId, onSubscriptionChange 
                           onCheckedChange={(v) => void handleToggleAutoRenew(v)}
                           disabled={autoRenewUpdating}
                         />
-                        <span className="text-xs text-[#6B655C]">
+                        <span className="text-xs text-[#8A8279]">
                           {autoRenewUpdating ? 'Saving…' : 'Auto-renew'}
                         </span>
                       </label>
@@ -402,7 +402,7 @@ export function SubscriptionManager({ branchId: _branchId, onSubscriptionChange 
                   </p>
                 )}
                 {isFreeTier && (
-                  <p className="text-sm text-[#6B655C] mt-1">No trial or paid subscription is active yet.</p>
+                  <p className="text-sm text-[#8A8279] mt-1">No trial or paid subscription is active yet.</p>
                 )}
                 {isAwaitingPaymentAuthorization && (
                   <p className="text-xs text-amber-700 font-semibold mt-2">
@@ -414,13 +414,13 @@ export function SubscriptionManager({ branchId: _branchId, onSubscriptionChange 
             <div className="flex items-center gap-3">
               {isTrialSubscription ? (
                 <div className="text-right">
-                  <p className="text-3xl font-black text-[#EAE2D6]">Free</p>
-                  <p className="text-xs text-[#6B655C]">15-day trial</p>
+                  <p className="text-3xl font-black text-[#F5F0E8]">Free</p>
+                  <p className="text-xs text-[#8A8279]">15-day trial</p>
                 </div>
               ) : currentSub?.currentPrice != null && (
                 <div className="text-right">
-                  <p className="text-3xl font-black text-[#EAE2D6]">{formatCurrency(currentSub.currentPrice)}</p>
-                  <p className="text-xs text-[#6B655C]">/{(currentSub.billingInterval || 'MONTHLY').toLowerCase()}</p>
+                  <p className="text-3xl font-black text-[#F5F0E8]">{formatCurrency(currentSub.currentPrice)}</p>
+                  <p className="text-xs text-[#8A8279]">/{(currentSub.billingInterval || 'MONTHLY').toLowerCase()}</p>
                 </div>
               )}
             </div>
@@ -470,7 +470,7 @@ export function SubscriptionManager({ branchId: _branchId, onSubscriptionChange 
             )}
           </div>
           {!isFreeTier && currentSub?.canCompletePayment === false && currentSub?.completePaymentReason && (
-            <p className="text-xs text-[#6B655C] mt-2">{currentSub.completePaymentReason}</p>
+            <p className="text-xs text-[#8A8279] mt-2">{currentSub.completePaymentReason}</p>
           )}
           {isAwaitingPaymentAuthorization && currentSub?.canCompletePayment && (
             <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2">
@@ -550,10 +550,10 @@ export function SubscriptionManager({ branchId: _branchId, onSubscriptionChange 
                 const isExceeded = !isUnlimited && max != null && used > (max as number);
                 return (
                   <div key={key} className="p-4 bg-[#1C1C26] rounded-xl">
-                    <p className="text-xs text-[#6B655C] capitalize">{key.replace(/_/g, ' ')}</p>
+                    <p className="text-xs text-[#8A8279] capitalize">{key.replace(/_/g, ' ')}</p>
                     <div className="flex items-baseline gap-1 mt-1">
-                      <span className={`text-lg font-black ${isExceeded ? 'text-rose-600' : 'text-[#EAE2D6]'}`}>{used}</span>
-                      <span className="text-sm text-[#6B655C]">/ {isUnlimited ? 'Unlimited' : max}</span>
+                      <span className={`text-lg font-black ${isExceeded ? 'text-rose-600' : 'text-[#F5F0E8]'}`}>{used}</span>
+                      <span className="text-sm text-[#8A8279]">/ {isUnlimited ? 'Unlimited' : max}</span>
                     </div>
                     {!isUnlimited && (
                       <div className="mt-2 h-1.5 bg-[#222228] rounded-full overflow-hidden">
@@ -581,7 +581,7 @@ export function SubscriptionManager({ branchId: _branchId, onSubscriptionChange 
 
       {/* Plans Comparison */}
       <div>
-        <h2 className="text-xl font-bold text-[#EAE2D6] mb-4">Available Plans</h2>
+        <h2 className="text-xl font-bold text-[#F5F0E8] mb-4">Available Plans</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           {plansForDisplay.map((plan) => {
             const isCurrentPlan = plan.tier === currentTier && !isTrialSubscription;
@@ -602,21 +602,21 @@ export function SubscriptionManager({ branchId: _branchId, onSubscriptionChange 
                     <h3 className="font-black text-lg">{plan.name || plan.tier}</h3>
                   </div>
                   {plan.tier === 'TRIAL' ? (
-                    <p className="text-3xl font-black text-[#EAE2D6]">
+                    <p className="text-3xl font-black text-[#F5F0E8]">
                       Free
-                      <span className="text-sm text-[#6B655C] font-normal ml-2">15-day trial</span>
+                      <span className="text-sm text-[#8A8279] font-normal ml-2">15-day trial</span>
                     </p>
                   ) : plan.tier !== 'FREE' && (
-                    <p className="text-3xl font-black text-[#EAE2D6]">
+                    <p className="text-3xl font-black text-[#F5F0E8]">
                       {formatCurrency(plan.monthlyPrice)}
-                      <span className="text-sm text-[#6B655C] font-normal">/mo</span>
+                      <span className="text-sm text-[#8A8279] font-normal">/mo</span>
                     </p>
                   )}
                   {plan.description && (
-                    <p className="text-sm text-[#6B655C] mt-2">{plan.description}</p>
+                    <p className="text-sm text-[#8A8279] mt-2">{plan.description}</p>
                   )}
                   {plan.tagline && (
-                    <p className="text-xs text-[#999186] mt-1 italic">{plan.tagline}</p>
+                    <p className="text-xs text-[#B8B0A4] mt-1 italic">{plan.tagline}</p>
                   )}
                   {isTrialPlan && (
                     <p className="text-xs text-amber-700 font-semibold mt-2">
@@ -644,7 +644,7 @@ export function SubscriptionManager({ branchId: _branchId, onSubscriptionChange 
                           ) : (
                             <XCircle className="w-4 h-4 text-slate-300 flex-shrink-0" />
                           )}
-                          <span className={enabled ? 'text-[#6B655C]' : 'text-slate-400'}>
+                          <span className={enabled ? 'text-[#8A8279]' : 'text-slate-400'}>
                             {featureLabels[feature] || feature.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())}
                           </span>
                         </div>
@@ -666,7 +666,7 @@ export function SubscriptionManager({ branchId: _branchId, onSubscriptionChange 
                         if (plan.tier === 'FREE') return null;
                         if (plan.tier !== 'TRIAL' && key === 'daily_transaction_limit') return null;
                         return (
-                          <div key={key} className="flex justify-between text-xs text-[#6B655C]">
+                          <div key={key} className="flex justify-between text-xs text-[#8A8279]">
                             <span>{label}</span>
                             <span className="font-mono">{val === null ? 'Unlimited' : val}</span>
                           </div>
@@ -716,7 +716,7 @@ export function SubscriptionManager({ branchId: _branchId, onSubscriptionChange 
                 <div key={payment.id} className="flex items-center justify-between py-2 border-b border-[rgba(201,160,92,0.08)] last:border-0">
                   <div>
                     <p className="font-mono text-sm">{formatCurrency(payment.amount)}</p>
-                    <p className="text-xs text-[#6B655C]">{formatDate(payment.paidAt || payment.createdAt)}</p>
+                    <p className="text-xs text-[#8A8279]">{formatDate(payment.paidAt || payment.createdAt)}</p>
                   </div>
                   <Badge className={statusColor(payment.status)}>{humanizeStatus(payment.status)}</Badge>
                 </div>
@@ -737,7 +737,7 @@ export function SubscriptionManager({ branchId: _branchId, onSubscriptionChange 
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div>
-              <label className="text-sm font-medium text-[#6B655C]">Plan</label>
+              <label className="text-sm font-medium text-[#8A8279]">Plan</label>
               <Select value={createForm.tier} onValueChange={(v) => setCreateForm({ ...createForm, tier: v as SubscriptionTier })}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -748,7 +748,7 @@ export function SubscriptionManager({ branchId: _branchId, onSubscriptionChange 
               </Select>
             </div>
             <div>
-              <label className="text-sm font-medium text-[#6B655C]">Billing Interval</label>
+              <label className="text-sm font-medium text-[#8A8279]">Billing Interval</label>
               <Select value={createForm.billingInterval} onValueChange={(v) => setCreateForm({ ...createForm, billingInterval: v as BillingInterval })}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -759,7 +759,7 @@ export function SubscriptionManager({ branchId: _branchId, onSubscriptionChange 
               </Select>
             </div>
             <div>
-              <label className="text-sm font-medium text-[#6B655C]">Billing Email</label>
+              <label className="text-sm font-medium text-[#8A8279]">Billing Email</label>
               <Input
                 type="email"
                 placeholder="billing@company.com"
@@ -802,7 +802,7 @@ export function SubscriptionManager({ branchId: _branchId, onSubscriptionChange 
             <DialogTitle>Change Plan</DialogTitle>
           </DialogHeader>
           <div className="py-4">
-            <label className="text-sm font-medium text-[#6B655C]">New Tier</label>
+            <label className="text-sm font-medium text-[#8A8279]">New Tier</label>
             <Select value={changeTier} onValueChange={(v) => setChangeTier(v as SubscriptionTier)}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
@@ -838,7 +838,7 @@ export function SubscriptionManager({ branchId: _branchId, onSubscriptionChange 
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-2 py-2">
-            <label className="text-sm font-medium text-[#6B655C]">Cancellation Reason</label>
+            <label className="text-sm font-medium text-[#8A8279]">Cancellation Reason</label>
             <Select value={cancelReason || undefined} onValueChange={(value) => {
               setCancelReason(value);
               if (value !== 'Others') {

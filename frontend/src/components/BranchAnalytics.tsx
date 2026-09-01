@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import {
   ArrowLeft, TrendingUp, Users2, Package, Shield, Activity,
   BarChart3, PieChart as PieChartIcon, Loader2, AlertCircle,
@@ -189,7 +189,7 @@ export function BranchAnalytics({ branchId, branchName, onBack }: BranchAnalytic
     return (
       <div className="min-h-[600px] flex flex-col items-center justify-center gap-4">
         <Loader2 className="w-10 h-10 text-[#C9A05C] animate-spin" />
-        <p className="text-[#6B655C] text-sm font-medium">Loading branch analytics...</p>
+        <p className="text-[#8A8279] text-sm font-medium">Loading branch analytics...</p>
       </div>
     );
   }
@@ -217,16 +217,16 @@ export function BranchAnalytics({ branchId, branchName, onBack }: BranchAnalytic
             onClick={onBack}
             className="p-3 bg-[#14141B] border-2 border-[rgba(201,160,92,0.12)] rounded-2xl hover:bg-[#1C1C26] hover:border-[rgba(201,160,92,0.3)] transition-all group"
           >
-            <ArrowLeft className="w-5 h-5 text-[#6B655C] group-hover:text-[#C9A05C] transition-colors" />
+            <ArrowLeft className="w-5 h-5 text-[#8A8279] group-hover:text-[#C9A05C] transition-colors" />
           </button>
           <div>
-            <h1 className="text-3xl font-black text-[#EAE2D6] tracking-tight">{branchName}</h1>
-            <p className="text-[#6B655C] text-xs font-bold uppercase tracking-widest mt-1">Pawnshop Details Dashboard</p>
+            <h1 className="text-3xl font-black text-[#F5F0E8] tracking-tight">{branchName}</h1>
+            <p className="text-[#8A8279] text-xs font-bold uppercase tracking-widest mt-1">Pawnshop Details Dashboard</p>
           </div>
         </div>
         <button
           onClick={fetchAll}
-          className="flex items-center gap-2 px-5 py-3 bg-[#14141B] border-2 border-[rgba(201,160,92,0.12)] rounded-2xl text-xs font-bold text-[#6B655C] uppercase tracking-wider hover:border-[rgba(201,160,92,0.3)] hover:text-[#C9A05C] transition-all"
+          className="flex items-center gap-2 px-5 py-3 bg-[#14141B] border-2 border-[rgba(201,160,92,0.12)] rounded-2xl text-xs font-bold text-[#8A8279] uppercase tracking-wider hover:border-[rgba(201,160,92,0.3)] hover:text-[#C9A05C] transition-all"
         >
           <RefreshCw className="w-4 h-4" />
           Refresh
@@ -333,13 +333,13 @@ export function BranchAnalytics({ branchId, branchName, onBack }: BranchAnalytic
                         className="w-3 h-3 rounded-full"
                         style={{ backgroundColor: STATUS_COLORS[entry.status] || COLORS[i % COLORS.length] }}
                       />
-                      <span className="text-xs font-bold text-[#999186]">{STATUS_LABELS[entry.status] || entry.status}</span>
+                      <span className="text-xs font-bold text-[#B8B0A4]">{STATUS_LABELS[entry.status] || entry.status}</span>
                     </div>
-                    <span className="text-xs font-black text-[#EAE2D6]">{entry.count}</span>
+                    <span className="text-xs font-black text-[#F5F0E8]">{entry.count}</span>
                   </div>
                 ))}
                 <div className="pt-2 border-t border-[rgba(201,160,92,0.08)] flex items-center justify-between">
-                  <span className="text-xs font-bold text-[#6B655C]">Total</span>
+                  <span className="text-xs font-bold text-[#8A8279]">Total</span>
                   <span className="text-xs font-black text-[#C9A05C]">{totalTickets}</span>
                 </div>
               </div>
@@ -425,10 +425,10 @@ export function BranchAnalytics({ branchId, branchName, onBack }: BranchAnalytic
             <table className="w-full text-left">
               <thead>
                 <tr className="border-b border-[rgba(201,160,92,0.08)]">
-                  <th className="pb-3 text-[10px] font-black text-[#6B655C] uppercase tracking-widest">Ticket #</th>
-                  <th className="pb-3 text-[10px] font-black text-[#6B655C] uppercase tracking-widest">Category</th>
-                  <th className="pb-3 text-[10px] font-black text-[#6B655C] uppercase tracking-widest">Status</th>
-                  <th className="pb-3 text-[10px] font-black text-[#6B655C] uppercase tracking-widest">Date</th>
+                  <th className="pb-3 text-[10px] font-black text-[#8A8279] uppercase tracking-widest">Ticket #</th>
+                  <th className="pb-3 text-[10px] font-black text-[#8A8279] uppercase tracking-widest">Category</th>
+                  <th className="pb-3 text-[10px] font-black text-[#8A8279] uppercase tracking-widest">Status</th>
+                  <th className="pb-3 text-[10px] font-black text-[#8A8279] uppercase tracking-widest">Date</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
@@ -436,12 +436,12 @@ export function BranchAnalytics({ branchId, branchName, onBack }: BranchAnalytic
                   <tr key={t.id} className="hover:bg-[#1C1C26] transition-colors">
                     <td className="py-3 text-sm font-bold text-[#C9A05C]">{t.ticketNumber}</td>
                     <td className="py-3">
-                      <span className="px-2.5 py-1 bg-[#1C1C26] text-[#999186] rounded-lg text-xs font-bold">{t.category}</span>
+                      <span className="px-2.5 py-1 bg-[#1C1C26] text-[#B8B0A4] rounded-lg text-xs font-bold">{t.category}</span>
                     </td>
                     <td className="py-3">
                       <StatusBadge status={t.status} />
                     </td>
-                    <td className="py-3 text-xs text-[#6B655C] font-medium">{t.pawnDate}</td>
+                    <td className="py-3 text-xs text-[#8A8279] font-medium">{t.pawnDate}</td>
                   </tr>
                 ))}
               </tbody>
@@ -475,10 +475,10 @@ function KpiCard({ icon, label, value, sub, color }: { icon: React.ReactNode; la
         <div className={`p-2.5 ${c.bg} rounded-xl`}>
           <span className={c.icon}>{icon}</span>
         </div>
-        <p className="text-[10px] font-black text-[#6B655C] uppercase tracking-widest">{label}</p>
+        <p className="text-[10px] font-black text-[#8A8279] uppercase tracking-widest">{label}</p>
       </div>
-      <p className="text-2xl font-black text-[#EAE2D6] tracking-tight">{value}</p>
-      <p className="text-xs text-[#6B655C] font-medium mt-1">{sub}</p>
+      <p className="text-2xl font-black text-[#F5F0E8] tracking-tight">{value}</p>
+      <p className="text-xs text-[#8A8279] font-medium mt-1">{sub}</p>
     </div>
   );
 }
@@ -491,7 +491,7 @@ function StatusBadge({ status }: { status: string }) {
     FORFEITED: { bg: 'bg-rose-50', text: 'text-rose-700', icon: <XCircle className="w-3 h-3" /> },
     SOLD:      { bg: 'bg-violet-50', text: 'text-violet-700', icon: <ArrowUpRight className="w-3 h-3" /> },
   };
-  const c = config[status] || { bg: 'bg-[#1C1C26]', text: 'text-[#999186]', icon: null };
+  const c = config[status] || { bg: 'bg-[#1C1C26]', text: 'text-[#B8B0A4]', icon: null };
   return (
     <span className={`inline-flex items-center gap-1 px-2.5 py-1 ${c.bg} ${c.text} rounded-lg text-[10px] font-black uppercase tracking-wider`}>
       {c.icon}
@@ -504,7 +504,7 @@ function EmptyState({ msg }: { msg: string }) {
   return (
     <div className="flex flex-col items-center justify-center py-12 text-center">
       <Package className="w-8 h-8 text-slate-200 mb-3" />
-      <p className="text-[#6B655C] text-xs font-bold">{msg}</p>
+      <p className="text-[#8A8279] text-xs font-bold">{msg}</p>
     </div>
   );
 }

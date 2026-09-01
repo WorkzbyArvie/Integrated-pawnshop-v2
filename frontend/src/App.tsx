@@ -1412,7 +1412,7 @@ function App() {
           <div className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-[#C9A05C] animate-pulse" />
         </div>
         <div className="flex flex-col items-center gap-2">
-          <p className="text-[#EAE2D6] text-sm font-medium" style={{ fontFamily: "'DM Sans', sans-serif" }}>Loading your vault</p>
+          <p className="text-[#F5F0E8] text-sm font-medium" style={{ fontFamily: "'DM Sans', sans-serif" }}>Loading your vault</p>
           <div className="flex gap-1.5">
             <div className="w-2 h-2 rounded-full bg-[#C9A05C] animate-bounce" style={{ animationDelay: '0ms' }} />
             <div className="w-2 h-2 rounded-full bg-[#C9A05C]/70 animate-bounce" style={{ animationDelay: '150ms' }} />
@@ -1449,7 +1449,7 @@ function App() {
 
         {!lockImpersonationPanels && (
         <aside
-          className="w-72 text-[#EAE2D6] p-6 hidden lg:flex flex-col border-r border-[rgba(201,160,92,0.08)] h-full shrink-0"
+          className="w-72 text-[#F5F0E8] p-6 hidden lg:flex flex-col border-r border-[rgba(201,160,92,0.08)] h-full shrink-0"
           style={{ backgroundColor: sidebarBranding.secondaryColor || '#0A0A0F' }}
         >
           <div className="mb-8 flex items-center justify-between">
@@ -1492,20 +1492,20 @@ function App() {
               value={sidebarFilter}
               onChange={(e) => setSidebarFilter(e.target.value)}
               placeholder="Search navigation..."
-              className="w-full rounded-xl bg-[#1C1C26] border border-[rgba(201,160,92,0.1)] px-4 py-2.5 text-sm font-medium text-[#EAE2D6] placeholder:text-[#6B655C] focus:outline-none focus:ring-2 focus:ring-[#C9A05C]/40 focus:border-[#C9A05C]/30 transition-all"
+              className="w-full rounded-xl bg-[#1C1C26] border border-[rgba(201,160,92,0.1)] px-4 py-2.5 text-sm font-medium text-[#F5F0E8] placeholder:text-[#8A8279] focus:outline-none focus:ring-2 focus:ring-[#C9A05C]/40 focus:border-[#C9A05C]/30 transition-all"
             />
           </div>
 
           <nav className="flex-1 space-y-5 overflow-y-auto pr-1 custom-scrollbar">
             {sidebarSections.length === 0 && (
-              <p className="px-3 py-3 text-xs font-semibold uppercase tracking-wider text-[#6B655C]">
+              <p className="px-3 py-3 text-xs font-semibold uppercase tracking-wider text-[#8A8279]">
                 No matching actions
               </p>
             )}
 
             {sidebarSections.map((section) => (
               <div key={section.category} className="space-y-1">
-                <p className="px-3 text-[9px] font-semibold uppercase tracking-[0.18em] text-[#6B655C]">
+                <p className="px-3 text-[9px] font-semibold uppercase tracking-[0.18em] text-[#8A8279]">
                   {section.category}
                 </p>
                 {section.items.map((item) => {
@@ -1518,7 +1518,7 @@ function App() {
                       className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-sm font-medium transition-all duration-200 ${
                         isActive
                           ? 'bg-[#C9A05C]/10 text-[#E5C88C] border border-[rgba(201,160,92,0.15)]'
-                          : 'text-[#6B655C] hover:text-[#EAE2D6] hover:bg-white/[0.04]'
+                          : 'text-[#8A8279] hover:text-[#F5F0E8] hover:bg-white/[0.04]'
                       }`}
                     >
                       <div className="flex items-center gap-3">
@@ -1534,10 +1534,10 @@ function App() {
           </nav>
 
           <div className="mt-auto pt-5 border-t border-[rgba(201,160,92,0.08)] space-y-3">
-            <button onClick={handleSignOut} className="w-full flex items-center gap-3 px-3.5 py-3 rounded-xl text-sm font-medium text-[#6B655C] hover:bg-[#D44545]/10 hover:text-[#D44545] transition-all">
+            <button onClick={handleSignOut} className="w-full flex items-center gap-3 px-3.5 py-3 rounded-xl text-sm font-medium text-[#8A8279] hover:bg-[#D44545]/10 hover:text-[#D44545] transition-all">
               <LogOut className="w-[18px] h-[18px]" /> Sign Out
             </button>
-            <p className="text-[10px] text-[#4A4540] font-medium pl-3.5">{branchName}</p>
+            <p className="text-[10px] text-[#6B655C] font-medium pl-3.5">{branchName}</p>
           </div>
         </aside>
         )}
@@ -1547,7 +1547,7 @@ function App() {
             <div className="sticky top-0 z-[50] w-full bg-[rgba(10,10,15,0.85)] backdrop-blur-xl px-8 py-4 flex justify-between items-center border-b border-[rgba(212,69,69,0.2)]">
                 <div className="flex items-center gap-3">
                   <div className="w-2 h-2 rounded-full bg-[#D44545] animate-pulse" />
-                  <p className="text-[10px] font-semibold text-[#EAE2D6] uppercase tracking-widest" style={{ fontFamily: "'DM Sans', sans-serif" }}>
+                  <p className="text-[10px] font-semibold text-[#F5F0E8] uppercase tracking-widest" style={{ fontFamily: "'DM Sans', sans-serif" }}>
                     Impersonating: <span className="text-[#D44545]">{branchName}</span>
                   </p>
                 </div>
@@ -1582,16 +1582,16 @@ function App() {
                     clockStatus === 'not_clocked' ? 'bg-[#D4A84B]/15' : clockStatus === 'clocked_in' ? 'bg-[#3DA86C]/15' : 'bg-[#1C1C26]'
                   }`}>
                     <Clock className={`w-4 h-4 ${
-                      clockStatus === 'not_clocked' ? 'text-[#D4A84B]' : clockStatus === 'clocked_in' ? 'text-[#3DA86C]' : 'text-[#6B655C]'
+                      clockStatus === 'not_clocked' ? 'text-[#D4A84B]' : clockStatus === 'clocked_in' ? 'text-[#3DA86C]' : 'text-[#8A8279]'
                     }`} />
                   </div>
                   <div>
-                    <p className="font-medium text-sm text-[#EAE2D6]">
+                    <p className="font-medium text-sm text-[#F5F0E8]">
                       {clockStatus === 'not_clocked' && "Not clocked in yet"}
                       {clockStatus === 'clocked_in' && `Active since ${clockInTime ? new Date(clockInTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—'}`}
                       {clockStatus === 'clocked_out' && 'Clocked out for today'}
                     </p>
-                    <p className="text-xs text-[#6B655C]">
+                    <p className="text-xs text-[#8A8279]">
                       {clockStatus === 'not_clocked' && 'Click to start your shift'}
                       {clockStatus === 'clocked_in' && 'Clock out when done'}
                       {clockStatus === 'clocked_out' && 'See you tomorrow'}
@@ -1638,19 +1638,19 @@ function App() {
                     <ShieldCheck className="w-6 h-6 text-[#D44545]" />
                   </div>
                   <div>
-                    <h2 className="text-xl text-[#EAE2D6] tracking-tight" style={{ fontFamily: "'Syne', sans-serif" }}>Subscription Required</h2>
-                    <p className="text-sm text-[#999186] mt-2 max-w-2xl leading-relaxed">
+                    <h2 className="text-xl text-[#F5F0E8] tracking-tight" style={{ fontFamily: "'Syne', sans-serif" }}>Subscription Required</h2>
+                    <p className="text-sm text-[#B8B0A4] mt-2 max-w-2xl leading-relaxed">
                       Your subscription has expired or has been cancelled. All operational modules are locked for every branch until a new subscription is activated.
                     </p>
                     <div className="mt-4 p-4 rounded-lg bg-[#1C1C26] border border-[rgba(201,160,92,0.15)]">
                       <p className="text-sm text-[#C9A05C] font-semibold">To regain access:</p>
-                      <ol className="text-xs text-[#999186] mt-2 space-y-1 list-decimal list-inside">
+                      <ol className="text-xs text-[#B8B0A4] mt-2 space-y-1 list-decimal list-inside">
                         <li>Go to <span className="text-[#C9A05C] font-medium">Subscription & Billing</span> in the sidebar</li>
                         <li>Choose a plan and complete payment</li>
                         <li>Access will be restored immediately after payment confirmation</li>
                       </ol>
                     </div>
-                    <p className="text-xs text-[#6B655C] mt-4 uppercase tracking-wider font-semibold">
+                    <p className="text-xs text-[#8A8279] mt-4 uppercase tracking-wider font-semibold">
                       Only the pawnshop owner can reactivate access.
                     </p>
                   </div>

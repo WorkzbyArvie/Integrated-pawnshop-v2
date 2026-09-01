@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Calendar, ChevronLeft, ChevronRight, Clock, Gavel, ImageOff, Info, Loader2, Maximize, Package, Search, Tag, TrendingUp, X } from 'lucide-react';
 import Swal from 'sweetalert2';
 import { supabase } from '../lib/supabaseClient';
@@ -333,7 +333,7 @@ export function AuctionQueue({ branchId, activeBranchId }: AuctionQueueProps) {
       icon: 'warning',
       showCancelButton: true,
       confirmButtonColor: '#ef4444',
-      cancelButtonColor: '#6B655C',
+      cancelButtonColor: '#8A8279',
       confirmButtonText: 'Yes, proceed',
       cancelButtonText: 'Cancel',
     });
@@ -363,7 +363,7 @@ export function AuctionQueue({ branchId, activeBranchId }: AuctionQueueProps) {
       icon: 'warning',
       showCancelButton: true,
       confirmButtonColor: '#ef4444',
-      cancelButtonColor: '#6B655C',
+      cancelButtonColor: '#8A8279',
       confirmButtonText: 'Yes, proceed',
       cancelButtonText: 'Cancel',
     });
@@ -395,7 +395,7 @@ export function AuctionQueue({ branchId, activeBranchId }: AuctionQueueProps) {
       icon: 'warning',
       showCancelButton: true,
       confirmButtonColor: '#ef4444',
-      cancelButtonColor: '#6B655C',
+      cancelButtonColor: '#8A8279',
       confirmButtonText: 'Yes, proceed',
       cancelButtonText: 'Cancel',
     });
@@ -435,10 +435,10 @@ export function AuctionQueue({ branchId, activeBranchId }: AuctionQueueProps) {
               <Gavel className="w-6 h-6 text-white" />
             </div>
             <div>
-              <h1 className="text-3xl font-black text-[#EAE2D6] tracking-tight" style={{ fontFamily: "'Syne', sans-serif" }}>
+              <h1 className="text-3xl font-black text-[#F5F0E8] tracking-tight" style={{ fontFamily: "'Syne', sans-serif" }}>
                 Auction Queue
               </h1>
-              <p className="text-[#6B655C] font-medium mt-1 text-sm">
+              <p className="text-[#8A8279] font-medium mt-1 text-sm">
                 Items flagged for auction before publishing to the marketplace.
               </p>
             </div>
@@ -446,11 +446,11 @@ export function AuctionQueue({ branchId, activeBranchId }: AuctionQueueProps) {
         </div>
 
         <div className="relative group">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-[#6B655C] group-focus-within:text-[#C9A05C] transition-colors" />
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-[#8A8279] group-focus-within:text-[#C9A05C] transition-colors" />
           <input
             type="text"
             placeholder="Search by ticket or item..."
-            className="pl-12 pr-6 py-3.5 bg-[#1C1C26] border border-[rgba(201,160,92,0.12)] rounded-2xl w-full md:w-80 text-[#EAE2D6] placeholder-[#6B655C] focus:ring-4 focus:ring-[#C9A05C]/10 focus:border-[#C9A05C] outline-none transition-all shadow-lg shadow-black/20"
+            className="pl-12 pr-6 py-3.5 bg-[#1C1C26] border border-[rgba(201,160,92,0.12)] rounded-2xl w-full md:w-80 text-[#F5F0E8] placeholder-[#8A8279] focus:ring-4 focus:ring-[#C9A05C]/10 focus:border-[#C9A05C] outline-none transition-all shadow-lg shadow-black/20"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
@@ -462,22 +462,22 @@ export function AuctionQueue({ branchId, activeBranchId }: AuctionQueueProps) {
           <div className="absolute top-0 right-0 w-32 h-32 bg-[#C9A05C]/5 rounded-full blur-2xl" />
           <div className="flex items-center gap-3 mb-4">
             <div className="p-2.5 bg-[#C9A05C]/10 text-[#C9A05C] rounded-xl"><Gavel className="w-4 h-4" /></div>
-            <p className="text-[#6B655C] text-[10px] font-black uppercase tracking-widest">Queued Items</p>
+            <p className="text-[#8A8279] text-[10px] font-black uppercase tracking-widest">Queued Items</p>
           </div>
-          <p className="text-4xl font-black text-[#EAE2D6]">{items.length}</p>
-          <p className="text-[10px] text-[#6B655C] mt-2 uppercase tracking-wider">Ready for publication</p>
+          <p className="text-4xl font-black text-[#F5F0E8]">{items.length}</p>
+          <p className="text-[10px] text-[#8A8279] mt-2 uppercase tracking-wider">Ready for publication</p>
         </div>
 
         <div className="relative overflow-hidden bg-[#14141B] border border-[rgba(201,160,92,0.1)] p-6 rounded-[2rem]">
           <div className="absolute top-0 right-0 w-32 h-32 bg-[#4ade80]/5 rounded-full blur-2xl" />
           <div className="flex items-center gap-3 mb-4">
             <div className="p-2.5 bg-[#4ade80]/10 text-[#4ade80] rounded-xl"><TrendingUp className="w-4 h-4" /></div>
-            <p className="text-[#6B655C] text-[10px] font-black uppercase tracking-widest">Target Recovery</p>
+            <p className="text-[#8A8279] text-[10px] font-black uppercase tracking-widest">Target Recovery</p>
           </div>
-          <p className="text-4xl font-black text-[#EAE2D6]">
+          <p className="text-4xl font-black text-[#F5F0E8]">
             {formatCurrency(items.reduce((acc, curr) => acc + curr.auctionPrice, 0))}
           </p>
-          <p className="text-[10px] text-[#6B655C] mt-2 uppercase tracking-wider">Cumulative reserve value</p>
+          <p className="text-[10px] text-[#8A8279] mt-2 uppercase tracking-wider">Cumulative reserve value</p>
         </div>
 
         <div className="relative overflow-hidden p-6 rounded-[2rem] bg-gradient-to-br from-[#C9A05C] to-[#8a6d37] shadow-lg shadow-[#C9A05C]/20">
@@ -495,12 +495,12 @@ export function AuctionQueue({ branchId, activeBranchId }: AuctionQueueProps) {
       {isLoading ? (
         <div className="py-20 text-center">
           <Loader2 className="w-10 h-10 text-[#C9A05C] animate-spin mx-auto" />
-          <p className="text-[#6B655C] text-[10px] font-black uppercase mt-4 tracking-widest">Loading auction queue...</p>
+          <p className="text-[#8A8279] text-[10px] font-black uppercase mt-4 tracking-widest">Loading auction queue...</p>
         </div>
       ) : filteredItems.length === 0 ? (
         <div className="border-2 border-dashed border-[rgba(201,160,92,0.1)] rounded-[2rem] flex flex-col items-center justify-center py-24 px-8 text-center">
-          <Info className="w-8 h-8 text-[#6B655C] mb-4" />
-          <p className="text-[#6B655C] font-black uppercase text-[10px] tracking-[0.3em]">
+          <Info className="w-8 h-8 text-[#8A8279] mb-4" />
+          <p className="text-[#8A8279] font-black uppercase text-[10px] tracking-[0.3em]">
             No items currently marked for auction.
           </p>
         </div>
@@ -510,14 +510,14 @@ export function AuctionQueue({ branchId, activeBranchId }: AuctionQueueProps) {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-[rgba(201,160,92,0.08)]">
-                  <th className="px-5 py-4 text-left text-[10px] font-black uppercase tracking-wider text-[#6B655C]">Ticket</th>
-                  <th className="px-5 py-4 text-left text-[10px] font-black uppercase tracking-wider text-[#6B655C]">Item</th>
-                  <th className="px-5 py-4 text-left text-[10px] font-black uppercase tracking-wider text-[#6B655C]">Category</th>
-                  <th className="px-5 py-4 text-right text-[10px] font-black uppercase tracking-wider text-[#6B655C]">Loan</th>
-                  <th className="px-5 py-4 text-right text-[10px] font-black uppercase tracking-wider text-[#6B655C]">Recovery</th>
-                  <th className="px-5 py-4 text-center text-[10px] font-black uppercase tracking-wider text-[#6B655C]">Status</th>
-                  <th className="px-5 py-4 text-center text-[10px] font-black uppercase tracking-wider text-[#6B655C]">Deadline</th>
-                  <th className="px-5 py-4 text-right text-[10px] font-black uppercase tracking-wider text-[#6B655C]"></th>
+                  <th className="px-5 py-4 text-left text-[10px] font-black uppercase tracking-wider text-[#8A8279]">Ticket</th>
+                  <th className="px-5 py-4 text-left text-[10px] font-black uppercase tracking-wider text-[#8A8279]">Item</th>
+                  <th className="px-5 py-4 text-left text-[10px] font-black uppercase tracking-wider text-[#8A8279]">Category</th>
+                  <th className="px-5 py-4 text-right text-[10px] font-black uppercase tracking-wider text-[#8A8279]">Loan</th>
+                  <th className="px-5 py-4 text-right text-[10px] font-black uppercase tracking-wider text-[#8A8279]">Recovery</th>
+                  <th className="px-5 py-4 text-center text-[10px] font-black uppercase tracking-wider text-[#8A8279]">Status</th>
+                  <th className="px-5 py-4 text-center text-[10px] font-black uppercase tracking-wider text-[#8A8279]">Deadline</th>
+                  <th className="px-5 py-4 text-right text-[10px] font-black uppercase tracking-wider text-[#8A8279]"></th>
                 </tr>
               </thead>
               <tbody>
@@ -540,21 +540,21 @@ export function AuctionQueue({ branchId, activeBranchId }: AuctionQueueProps) {
                       className="border-b border-[rgba(201,160,92,0.04)] hover:bg-[rgba(201,160,92,0.03)] transition-colors cursor-pointer group"
                     >
                       <td className="px-5 py-4">
-                        <span className="px-3 py-1 bg-[#1C1C26] text-[#999186] rounded-full text-[11px] font-black tracking-wider border border-[rgba(201,160,92,0.12)]">
+                        <span className="px-3 py-1 bg-[#1C1C26] text-[#B8B0A4] rounded-full text-[11px] font-black tracking-wider border border-[rgba(201,160,92,0.12)]">
                           {item.ticketNumber}
                         </span>
                       </td>
                       <td className="px-5 py-4">
-                        <p className="font-bold text-[#EAE2D6] group-hover:text-[#C9A05C] transition-colors">
+                        <p className="font-bold text-[#F5F0E8] group-hover:text-[#C9A05C] transition-colors">
                           {item.description}
                         </p>
                       </td>
                       <td className="px-5 py-4">
-                        <span className="flex items-center gap-1.5 font-bold text-[#6B655C]">
+                        <span className="flex items-center gap-1.5 font-bold text-[#8A8279]">
                           <Tag className="w-3.5 h-3.5 text-[#C9A05C]" /> {item.category}
                         </span>
                       </td>
-                      <td className="px-5 py-4 text-right font-bold text-[#6B655C]">
+                      <td className="px-5 py-4 text-right font-bold text-[#8A8279]">
                         {formatCurrency(item.loanAmount)}
                       </td>
                       <td className="px-5 py-4 text-right font-black text-[#C9A05C]">
@@ -565,13 +565,13 @@ export function AuctionQueue({ branchId, activeBranchId }: AuctionQueueProps) {
                           {badgeLabel}
                         </span>
                       </td>
-                      <td className="px-5 py-4 text-center text-[#6B655C] text-xs font-bold whitespace-nowrap">
+                      <td className="px-5 py-4 text-center text-[#8A8279] text-xs font-bold whitespace-nowrap">
                         {item.expiryDate ? new Date(item.expiryDate).toLocaleDateString() : 'Not set'}
                       </td>
                       <td className="px-5 py-4 text-right">
                         <button
                           onClick={(e) => { e.stopPropagation(); setSelectedItem(item); }}
-                          className="px-4 py-2 rounded-xl bg-[#1C1C26] text-[#EAE2D6] text-[10px] font-black uppercase tracking-wider border border-[rgba(201,160,92,0.15)] hover:bg-[#C9A05C] hover:text-white hover:border-[#C9A05C] transition-all"
+                          className="px-4 py-2 rounded-xl bg-[#1C1C26] text-[#F5F0E8] text-[10px] font-black uppercase tracking-wider border border-[rgba(201,160,92,0.15)] hover:bg-[#C9A05C] hover:text-white hover:border-[#C9A05C] transition-all"
                         >
                           View
                         </button>
@@ -601,10 +601,10 @@ export function AuctionQueue({ branchId, activeBranchId }: AuctionQueueProps) {
                 <Gavel className="w-5 h-5" />
               </div>
               <div>
-                <h2 className="text-xl font-black text-[#EAE2D6] tracking-tight" style={{ fontFamily: "'Syne', sans-serif" }}>
+                <h2 className="text-xl font-black text-[#F5F0E8] tracking-tight" style={{ fontFamily: "'Syne', sans-serif" }}>
                   Auction Details
                 </h2>
-                <p className="text-[10px] text-[#6B655C] font-bold uppercase tracking-wider">{selectedItem.ticketNumber}</p>
+                <p className="text-[10px] text-[#8A8279] font-bold uppercase tracking-wider">{selectedItem.ticketNumber}</p>
               </div>
             </div>
             <button
@@ -613,13 +613,13 @@ export function AuctionQueue({ branchId, activeBranchId }: AuctionQueueProps) {
               className="w-10 h-10 rounded-xl bg-[#1C1C26] flex items-center justify-center hover:bg-[#222228] transition-colors disabled:opacity-50"
               aria-label="Close"
             >
-              <X className="w-5 h-5 text-[#999186]" />
+              <X className="w-5 h-5 text-[#B8B0A4]" />
             </button>
           </div>
 
           <div className="p-6 sm:p-8 space-y-6">
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <h3 className="text-2xl font-black text-[#EAE2D6] leading-tight" style={{ fontFamily: "'Syne', sans-serif" }}>
+              <h3 className="text-2xl font-black text-[#F5F0E8] leading-tight" style={{ fontFamily: "'Syne', sans-serif" }}>
                 {selectedItem.description}
               </h3>
               {(() => {
@@ -637,14 +637,14 @@ export function AuctionQueue({ branchId, activeBranchId }: AuctionQueueProps) {
                 );
               })()}
             </div>
-            <p className="text-[#6B655C] text-sm flex items-center gap-2 font-medium">
+            <p className="text-[#8A8279] text-sm flex items-center gap-2 font-medium">
               <Tag className="w-4 h-4 text-[#C9A05C]" /> {selectedItem.category}
             </p>
 
             <div className="mt-2">
-              <p className="text-[10px] text-[#6B655C] uppercase font-black tracking-[0.1em] mb-3">Item Photos</p>
+              <p className="text-[10px] text-[#8A8279] uppercase font-black tracking-[0.1em] mb-3">Item Photos</p>
               {loadingImages ? (
-                <div className="flex items-center justify-center gap-2 bg-[#1C1C26] border border-[rgba(201,160,92,0.1)] rounded-2xl h-48 text-[#6B655C] text-xs font-black uppercase tracking-widest">
+                <div className="flex items-center justify-center gap-2 bg-[#1C1C26] border border-[rgba(201,160,92,0.1)] rounded-2xl h-48 text-[#8A8279] text-xs font-black uppercase tracking-widest">
                   <Loader2 className="w-4 h-4 text-[#C9A05C] animate-spin" /> Loading photos...
                 </div>
               ) : selectedImages.length > 0 ? (
@@ -675,7 +675,7 @@ export function AuctionQueue({ branchId, activeBranchId }: AuctionQueueProps) {
                   ))}
                 </div>
               ) : (
-                <div className="flex items-center justify-center bg-[#1C1C26] border border-dashed border-[rgba(201,160,92,0.15)] rounded-2xl h-40 text-[#6B655C]">
+                <div className="flex items-center justify-center bg-[#1C1C26] border border-dashed border-[rgba(201,160,92,0.15)] rounded-2xl h-40 text-[#8A8279]">
                   <div className="flex flex-col items-center gap-2">
                     <ImageOff className="w-6 h-6" />
                     <p className="text-[10px] font-black uppercase tracking-widest">No photo available</p>
@@ -688,9 +688,9 @@ export function AuctionQueue({ branchId, activeBranchId }: AuctionQueueProps) {
               <div>
                 <div className="flex items-center gap-2 mb-2">
                   <Package className="w-3.5 h-3.5 text-[#C9A05C]" />
-                  <p className="text-[10px] text-[#6B655C] uppercase font-black tracking-[0.1em]">Loan Principal</p>
+                  <p className="text-[10px] text-[#8A8279] uppercase font-black tracking-[0.1em]">Loan Principal</p>
                 </div>
-                <p className="font-black text-[#EAE2D6] text-xl">{formatCurrency(selectedItem.loanAmount)}</p>
+                <p className="font-black text-[#F5F0E8] text-xl">{formatCurrency(selectedItem.loanAmount)}</p>
               </div>
               <div>
                 <div className="flex items-center gap-2 mb-2">
@@ -714,39 +714,39 @@ export function AuctionQueue({ branchId, activeBranchId }: AuctionQueueProps) {
 
             <div className="grid grid-cols-1 gap-3">
               <label className="block">
-                <span className="text-[10px] text-[#6B655C] uppercase font-black tracking-[0.1em] block mb-1">Item Condition</span>
+                <span className="text-[10px] text-[#8A8279] uppercase font-black tracking-[0.1em] block mb-1">Item Condition</span>
                 <input
                   type="text"
                   value={selectedItem.itemCondition}
                   onChange={(e) => updateItem(selectedItem.id, { itemCondition: e.target.value })}
-                  className="w-full rounded-xl bg-[#1C1C26] border border-[rgba(201,160,92,0.12)] px-3 py-2.5 text-sm text-[#EAE2D6] placeholder-[#6B655C] focus:border-[#C9A05C] focus:outline-none transition-all"
+                  className="w-full rounded-xl bg-[#1C1C26] border border-[rgba(201,160,92,0.12)] px-3 py-2.5 text-sm text-[#F5F0E8] placeholder-[#8A8279] focus:border-[#C9A05C] focus:outline-none transition-all"
                   placeholder="Item condition (e.g. Excellent, Good, Fair)"
                 />
               </label>
               <label className="block">
-                <span className="text-[10px] text-[#6B655C] uppercase font-black tracking-[0.1em] block mb-1">Item Specifications</span>
+                <span className="text-[10px] text-[#8A8279] uppercase font-black tracking-[0.1em] block mb-1">Item Specifications</span>
                 <textarea
                   value={selectedItem.itemSpecifications}
                   onChange={(e) => updateItem(selectedItem.id, { itemSpecifications: e.target.value })}
-                  className="w-full min-h-16 rounded-xl bg-[#1C1C26] border border-[rgba(201,160,92,0.12)] px-3 py-2.5 text-sm text-[#EAE2D6] placeholder-[#6B655C] focus:border-[#C9A05C] focus:outline-none transition-all resize-none"
+                  className="w-full min-h-16 rounded-xl bg-[#1C1C26] border border-[rgba(201,160,92,0.12)] px-3 py-2.5 text-sm text-[#F5F0E8] placeholder-[#8A8279] focus:border-[#C9A05C] focus:outline-none transition-all resize-none"
                   placeholder="Item specifications (brand, model, size, material, serials)"
                 />
               </label>
               <label className="block">
-                <span className="text-[10px] text-[#6B655C] uppercase font-black tracking-[0.1em] block mb-1">Provenance Details</span>
+                <span className="text-[10px] text-[#8A8279] uppercase font-black tracking-[0.1em] block mb-1">Provenance Details</span>
                 <textarea
                   value={selectedItem.provenanceDetails}
                   onChange={(e) => updateItem(selectedItem.id, { provenanceDetails: e.target.value })}
-                  className="w-full min-h-16 rounded-xl bg-[#1C1C26] border border-[rgba(201,160,92,0.12)] px-3 py-2.5 text-sm text-[#EAE2D6] placeholder-[#6B655C] focus:border-[#C9A05C] focus:outline-none transition-all resize-none"
+                  className="w-full min-h-16 rounded-xl bg-[#1C1C26] border border-[rgba(201,160,92,0.12)] px-3 py-2.5 text-sm text-[#F5F0E8] placeholder-[#8A8279] focus:border-[#C9A05C] focus:outline-none transition-all resize-none"
                   placeholder="Provenance details (history/source of item)"
                 />
               </label>
               <label className="block">
-                <span className="text-[10px] text-[#6B655C] uppercase font-black tracking-[0.1em] block mb-1">Disclosure Notes</span>
+                <span className="text-[10px] text-[#8A8279] uppercase font-black tracking-[0.1em] block mb-1">Disclosure Notes</span>
                 <textarea
                   value={selectedItem.disclosureNotes}
                   onChange={(e) => updateItem(selectedItem.id, { disclosureNotes: e.target.value })}
-                  className="w-full min-h-16 rounded-xl bg-[#1C1C26] border border-[rgba(201,160,92,0.12)] px-3 py-2.5 text-sm text-[#EAE2D6] placeholder-[#6B655C] focus:border-[#C9A05C] focus:outline-none transition-all resize-none"
+                  className="w-full min-h-16 rounded-xl bg-[#1C1C26] border border-[rgba(201,160,92,0.12)] px-3 py-2.5 text-sm text-[#F5F0E8] placeholder-[#8A8279] focus:border-[#C9A05C] focus:outline-none transition-all resize-none"
                   placeholder="Disclosure notes (defects, missing accessories, known issues)"
                 />
               </label>
@@ -759,7 +759,7 @@ export function AuctionQueue({ branchId, activeBranchId }: AuctionQueueProps) {
                   <p className="text-xs font-black uppercase tracking-widest text-[#E5C88C]">
                     Edit Pending Approval
                   </p>
-                  <p className="text-xs font-semibold text-[#6B655C] mt-0.5">
+                  <p className="text-xs font-semibold text-[#8A8279] mt-0.5">
                     Changes you made to this published listing are awaiting review by an owner or higher. They will apply once approved.
                   </p>
                 </div>
@@ -774,7 +774,7 @@ export function AuctionQueue({ branchId, activeBranchId }: AuctionQueueProps) {
               {savingDetailsId === selectedItem.id ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Save Item Details'}
             </button>
 
-            <div className="flex items-center gap-2 text-[#6B655C] text-xs font-bold">
+            <div className="flex items-center gap-2 text-[#8A8279] text-xs font-bold">
               <Calendar className="w-4 h-4 text-[#C9A05C]" />
               Deadline: {selectedItem.expiryDate ? new Date(selectedItem.expiryDate).toLocaleDateString() : 'Not set'}
             </div>
@@ -786,7 +786,7 @@ export function AuctionQueue({ branchId, activeBranchId }: AuctionQueueProps) {
                 </p>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="text-[10px] text-[#6B655C] font-bold block mb-1.5">Min Bid Increment (₱)</label>
+                    <label className="text-[10px] text-[#8A8279] font-bold block mb-1.5">Min Bid Increment (₱)</label>
                     <input
                       type="number"
                       min={1}
@@ -795,11 +795,11 @@ export function AuctionQueue({ branchId, activeBranchId }: AuctionQueueProps) {
                         const v = parseInt(e.target.value) || 100;
                         updateItem(selectedItem.id, { minBidIncrement: v });
                       }}
-                      className="w-full rounded-xl px-3 py-2.5 border border-[rgba(201,160,92,0.12)] bg-[#14141B] text-sm font-bold text-[#EAE2D6] focus:border-[#C9A05C] focus:outline-none transition-all"
+                      className="w-full rounded-xl px-3 py-2.5 border border-[rgba(201,160,92,0.12)] bg-[#14141B] text-sm font-bold text-[#F5F0E8] focus:border-[#C9A05C] focus:outline-none transition-all"
                     />
                   </div>
                   <div>
-                    <label className="text-[10px] text-[#6B655C] font-bold block mb-1.5">Anti-Snipe Extension (min)</label>
+                    <label className="text-[10px] text-[#8A8279] font-bold block mb-1.5">Anti-Snipe Extension (min)</label>
                     <input
                       type="number"
                       min={1}
@@ -808,19 +808,19 @@ export function AuctionQueue({ branchId, activeBranchId }: AuctionQueueProps) {
                         const v = parseInt(e.target.value) || 5;
                         updateItem(selectedItem.id, { bidExtensionMin: v });
                       }}
-                      className="w-full rounded-xl px-3 py-2.5 border border-[rgba(201,160,92,0.12)] bg-[#14141B] text-sm font-bold text-[#EAE2D6] focus:border-[#C9A05C] focus:outline-none transition-all"
+                      className="w-full rounded-xl px-3 py-2.5 border border-[rgba(201,160,92,0.12)] bg-[#14141B] text-sm font-bold text-[#F5F0E8] focus:border-[#C9A05C] focus:outline-none transition-all"
                     />
                   </div>
                 </div>
                 <div>
-                  <label className="text-[10px] text-[#6B655C] font-bold block mb-1.5">Auction Duration</label>
+                  <label className="text-[10px] text-[#8A8279] font-bold block mb-1.5">Auction Duration</label>
                   <select
                     value={selectedItem.durationHours}
                     onChange={(e) => {
                       const v = parseInt(e.target.value);
                       updateItem(selectedItem.id, { durationHours: v });
                     }}
-                    className="w-full rounded-xl px-3 py-2.5 border border-[rgba(201,160,92,0.12)] bg-[#14141B] text-sm font-bold text-[#EAE2D6] focus:border-[#C9A05C] focus:outline-none transition-all"
+                    className="w-full rounded-xl px-3 py-2.5 border border-[rgba(201,160,92,0.12)] bg-[#14141B] text-sm font-bold text-[#F5F0E8] focus:border-[#C9A05C] focus:outline-none transition-all"
                   >
                     <option value={1}>1 Hour</option>
                     <option value={6}>6 Hours</option>
@@ -841,7 +841,7 @@ export function AuctionQueue({ branchId, activeBranchId }: AuctionQueueProps) {
               <button
                 onClick={() => handleCancel(selectedItem)}
                 disabled={publishingId === selectedItem.id}
-                className="w-full bg-[#1C1C26] text-[#EAE2D6] py-3.5 rounded-2xl font-black text-xs uppercase tracking-widest border border-[#D44545]/30 hover:border-[#D44545] hover:text-[#D44545] shadow-lg transition-all disabled:opacity-60 flex items-center justify-center gap-2"
+                className="w-full bg-[#1C1C26] text-[#F5F0E8] py-3.5 rounded-2xl font-black text-xs uppercase tracking-widest border border-[#D44545]/30 hover:border-[#D44545] hover:text-[#D44545] shadow-lg transition-all disabled:opacity-60 flex items-center justify-center gap-2"
               >
                 {publishingId === selectedItem.id ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Cancel Listing'}
               </button>
@@ -858,7 +858,7 @@ export function AuctionQueue({ branchId, activeBranchId }: AuctionQueueProps) {
                   <button
                     onClick={() => handleReturnToVault(selectedItem)}
                     disabled={actionId === selectedItem.id}
-                    className="w-full bg-[#1C1C26] text-[#EAE2D6] py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest border border-[rgba(201,160,92,0.15)] hover:bg-[#14141B] transition-all disabled:opacity-60 flex items-center justify-center gap-2"
+                    className="w-full bg-[#1C1C26] text-[#F5F0E8] py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest border border-[rgba(201,160,92,0.15)] hover:bg-[#14141B] transition-all disabled:opacity-60 flex items-center justify-center gap-2"
                   >
                     {actionId === selectedItem.id ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Return to Vault'}
                   </button>

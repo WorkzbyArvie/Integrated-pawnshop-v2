@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Card, CardContent, CardInner } from "@/components/ui/card";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import { 
@@ -705,7 +705,7 @@ export function Dashboard({
                         <Cell key={`cell-${index}`} fill={entry.color} stroke="none" />
                       ))}
                     </Pie>
-                    <Tooltip contentStyle={{ borderRadius: '12px', border: '1px solid rgba(201,160,92,0.15)', background: '#14141B', color: '#EAE2D6', fontSize: 12 }} />
+                    <Tooltip contentStyle={{ borderRadius: '12px', border: '1px solid rgba(201,160,92,0.15)', background: '#14141B', color: '#F5F0E8', fontSize: 12 }} />
                   </PieChart>
                 </ResponsiveContainer>
               </div>
@@ -781,8 +781,8 @@ export function Dashboard({
                 ].map(({ label, value, key }) => (
                   <div key={key} className="flex items-center justify-between bg-[#1C1C26] rounded-2xl px-5 py-3.5 border border-[rgba(201,160,92,0.08)]">
                     <div className="min-w-0">
-                      <p className="text-[9px] font-black text-[#6B655C] uppercase tracking-[0.2em]">{label}</p>
-                      <p className="text-sm font-bold text-[#EAE2D6] truncate">{value}</p>
+                      <p className="text-[9px] font-black text-[#8A8279] uppercase tracking-[0.2em]">{label}</p>
+                      <p className="text-sm font-bold text-[#F5F0E8] truncate">{value}</p>
                     </div>
                     <button
                       onClick={() => {
@@ -795,7 +795,7 @@ export function Dashboard({
                     >
                       {copiedField === key
                         ? <Check className="w-4 h-4 text-emerald-600" />
-                        : <Copy className="w-4 h-4 text-[#6B655C]" />}
+                        : <Copy className="w-4 h-4 text-[#8A8279]" />}
                     </button>
                   </div>
                 ))}
@@ -832,14 +832,14 @@ export function Dashboard({
             <div className="bg-[#14141B]/95 backdrop-blur-md rounded-[calc(2rem-2px)] p-8 space-y-6">
               <div className="flex justify-between items-center">
                 <div>
-                  <h2 className="text-xl font-black uppercase text-[#EAE2D6]">Add Admin</h2>
+                  <h2 className="text-xl font-black uppercase text-[#F5F0E8]">Add Admin</h2>
                   <p className="text-[10px] font-bold text-[#C9A05C] uppercase tracking-widest mt-2">
                     📍 {activeBranchName}
                   </p>
                 </div>
                 <button
                   onClick={closeAddAdminModal}
-                  className="w-8 h-8 rounded-full bg-[#1C1C26] flex items-center justify-center hover:bg-[#222228] transition-all text-[#6B655C]"
+                  className="w-8 h-8 rounded-full bg-[#1C1C26] flex items-center justify-center hover:bg-[#222228] transition-all text-[#8A8279]"
                 >
                   <span className="text-sm">✕</span>
                 </button>
@@ -851,38 +851,38 @@ export function Dashboard({
                 </div>
 
                 <div>
-                  <label className="text-[10px] font-black text-[#6B655C] uppercase tracking-[0.2em] block mb-2">Email Address</label>
+                  <label className="text-[10px] font-black text-[#8A8279] uppercase tracking-[0.2em] block mb-2">Email Address</label>
                   <input
                     type="email"
                     value={adminEmail}
                     onChange={(e) => setAdminEmail(e.target.value)}
                     placeholder="admin@branch.com"
-                    className="w-full px-4 py-3 bg-[#1C1C26] border border-[rgba(201,160,92,0.08)] rounded-2xl focus:ring-2 focus:ring-[#C9A05C] outline-none font-bold text-[#EAE2D6] placeholder:text-[#6B655C]/50"
+                    className="w-full px-4 py-3 bg-[#1C1C26] border border-[rgba(201,160,92,0.08)] rounded-2xl focus:ring-2 focus:ring-[#C9A05C] outline-none font-bold text-[#F5F0E8] placeholder:text-[#8A8279]/50"
                     required
                   />
                 </div>
 
                 <div>
-                  <label className="text-[10px] font-black text-[#6B655C] uppercase tracking-[0.2em] block mb-2">Password (Min 8 characters)</label>
+                  <label className="text-[10px] font-black text-[#8A8279] uppercase tracking-[0.2em] block mb-2">Password (Min 8 characters)</label>
                   <input
                     type="password"
                     value={adminPassword}
                     onChange={(e) => setAdminPassword(e.target.value)}
                     placeholder="Enter secure password"
-                    className="w-full px-4 py-3 bg-[#1C1C26] border border-[rgba(201,160,92,0.08)] rounded-2xl focus:ring-2 focus:ring-[#C9A05C] outline-none font-bold text-[#EAE2D6] placeholder:text-[#6B655C]/50"
+                    className="w-full px-4 py-3 bg-[#1C1C26] border border-[rgba(201,160,92,0.08)] rounded-2xl focus:ring-2 focus:ring-[#C9A05C] outline-none font-bold text-[#F5F0E8] placeholder:text-[#8A8279]/50"
                     required
                   />
                 </div>
 
                 <div>
-                  <label className="text-[10px] font-black text-[#6B655C] uppercase tracking-[0.2em] block mb-2">Authentication Code</label>
+                  <label className="text-[10px] font-black text-[#8A8279] uppercase tracking-[0.2em] block mb-2">Authentication Code</label>
                   <div className="flex gap-2">
                     <input
                       type="text"
                       value={adminAuthCode}
                       onChange={(e) => setAdminAuthCode(e.target.value)}
                       placeholder="Enter auth code"
-                      className="w-full px-4 py-3 bg-[#1C1C26] border border-[rgba(201,160,92,0.08)] rounded-2xl focus:ring-2 focus:ring-[#C9A05C] outline-none font-bold text-[#EAE2D6] placeholder:text-[#6B655C]/50"
+                      className="w-full px-4 py-3 bg-[#1C1C26] border border-[rgba(201,160,92,0.08)] rounded-2xl focus:ring-2 focus:ring-[#C9A05C] outline-none font-bold text-[#F5F0E8] placeholder:text-[#8A8279]/50"
                       required
                     />
                     <button
@@ -894,18 +894,18 @@ export function Dashboard({
                     </button>
                   </div>
                   {inAppCodeInfo && (
-                    <div className="mt-3 p-3 rounded-xl bg-[#D4A84B]/10 border border-[#D4A84B]/30 text-xs font-semibold text-[#EAE2D6] break-all">
+                    <div className="mt-3 p-3 rounded-xl bg-[#D4A84B]/10 border border-[#D4A84B]/30 text-xs font-semibold text-[#F5F0E8] break-all">
                       ⚠️ {inAppCodeInfo}
                     </div>
                   )}
                 </div>
 
                 <div>
-                  <label className="text-[10px] font-black text-[#6B655C] uppercase tracking-[0.2em] block mb-2">Role for this Pawnshop</label>
+                  <label className="text-[10px] font-black text-[#8A8279] uppercase tracking-[0.2em] block mb-2">Role for this Pawnshop</label>
                   <select
                     value={adminRole}
                     onChange={(e) => setAdminRole(e.target.value)}
-                    className="w-full px-4 py-3 bg-[#1C1C26] border border-[rgba(201,160,92,0.08)] rounded-2xl focus:ring-2 focus:ring-[#C9A05C] outline-none font-bold text-[#EAE2D6]"
+                    className="w-full px-4 py-3 bg-[#1C1C26] border border-[rgba(201,160,92,0.08)] rounded-2xl focus:ring-2 focus:ring-[#C9A05C] outline-none font-bold text-[#F5F0E8]"
                   >
                     <option value="BRANCH_ADMIN">Branch Admin</option>
                     <option value="MANAGER">Manager</option>
@@ -934,7 +934,7 @@ export function Dashboard({
                   <button
                     type="button"
                     onClick={closeAddAdminModal}
-                    className="flex-1 py-3 bg-[#1C1C26] text-[#6B655C] rounded-full font-black uppercase tracking-widest text-[10px] hover:bg-[#222228] transition-all"
+                    className="flex-1 py-3 bg-[#1C1C26] text-[#8A8279] rounded-full font-black uppercase tracking-widest text-[10px] hover:bg-[#222228] transition-all"
                   >
                     Cancel
                   </button>

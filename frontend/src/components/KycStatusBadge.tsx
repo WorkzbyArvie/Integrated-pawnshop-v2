@@ -29,7 +29,7 @@ export const KYC_STATUS_PALETTE: Record<string, KycStatusPalette> = {
   },
   NOT_SUBMITTED: {
     label: 'Not Submitted',
-    className: 'bg-[#1C1C26] text-[#6B655C]',
+    className: 'bg-[#1C1C26] text-[#8A8279]',
     testId: 'kyc-icon-not-submitted',
     icon: <ShieldAlert className="h-3 w-3" />,
   },

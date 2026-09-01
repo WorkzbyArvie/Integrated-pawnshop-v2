@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { AlertCircle, Loader2, Search, Shield } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 import { useToast } from '../App';
@@ -103,10 +103,10 @@ export function RejectedAppraisalHistory({ branchId, activeBranchId }: RejectedA
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
       <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
         <div>
-          <h2 className="text-3xl font-black text-[#EAE2D6] tracking-tight uppercase italic leading-none">
+          <h2 className="text-3xl font-black text-[#F5F0E8] tracking-tight uppercase italic leading-none">
             Rejected <span className="text-rose-600">History</span>
           </h2>
-          <p className="mt-2 text-[11px] font-black uppercase tracking-widest text-[#6B655C] flex items-center gap-2">
+          <p className="mt-2 text-[11px] font-black uppercase tracking-widest text-[#8A8279] flex items-center gap-2">
             <Shield className="w-4 h-4 text-rose-500" />
             Owner-only audit trail for rejected appraisals
           </p>
@@ -121,25 +121,25 @@ export function RejectedAppraisalHistory({ branchId, activeBranchId }: RejectedA
       </div>
 
       <div className="relative w-full md:w-[520px]">
-        <Search className="absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#6B655C]" />
+        <Search className="absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#8A8279]" />
         <input
           type="text"
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           placeholder="Search by ticket, customer, category, or reason..."
-          className="w-full pl-12 pr-4 py-3 rounded-2xl border border-[rgba(201,160,92,0.12)] bg-[#14141B] text-sm font-bold placeholder:text-[#6B655C] focus:outline-none focus:ring-2 focus:ring-rose-200"
+          className="w-full pl-12 pr-4 py-3 rounded-2xl border border-[rgba(201,160,92,0.12)] bg-[#14141B] text-sm font-bold placeholder:text-[#8A8279] focus:outline-none focus:ring-2 focus:ring-rose-200"
         />
       </div>
 
       {loading ? (
         <div className="flex flex-col items-center justify-center py-24 bg-[#14141B] rounded-[2.5rem] border border-dashed border-[rgba(201,160,92,0.12)]">
           <Loader2 className="w-10 h-10 text-rose-500 animate-spin mb-3" />
-          <p className="text-[10px] font-black uppercase tracking-widest text-[#6B655C]">Loading Rejected History...</p>
+          <p className="text-[10px] font-black uppercase tracking-widest text-[#8A8279]">Loading Rejected History...</p>
         </div>
       ) : filteredRecords.length === 0 ? (
         <div className="bg-[#14141B] rounded-[2.5rem] border border-[rgba(201,160,92,0.08)] p-8 flex items-center gap-4">
-          <AlertCircle className="w-6 h-6 text-[#6B655C]" />
-          <p className="text-sm font-bold text-[#999186]">No rejected appraisals found for this scope.</p>
+          <AlertCircle className="w-6 h-6 text-[#8A8279]" />
+          <p className="text-sm font-bold text-[#B8B0A4]">No rejected appraisals found for this scope.</p>
         </div>
       ) : (
         <div className="bg-[#14141B] rounded-[2.5rem] border border-[rgba(201,160,92,0.08)] shadow-sm overflow-hidden">
@@ -147,22 +147,22 @@ export function RejectedAppraisalHistory({ branchId, activeBranchId }: RejectedA
             <table className="w-full min-w-[860px]">
               <thead className="bg-[#1C1C26] border-b border-[rgba(201,160,92,0.08)]">
                 <tr>
-                  <th className="px-5 py-4 text-left text-[10px] font-black uppercase tracking-widest text-[#6B655C]">Ticket</th>
-                  <th className="px-5 py-4 text-left text-[10px] font-black uppercase tracking-widest text-[#6B655C]">Customer</th>
-                  <th className="px-5 py-4 text-left text-[10px] font-black uppercase tracking-widest text-[#6B655C]">Category</th>
-                  <th className="px-5 py-4 text-left text-[10px] font-black uppercase tracking-widest text-[#6B655C]">Branch</th>
-                  <th className="px-5 py-4 text-left text-[10px] font-black uppercase tracking-widest text-[#6B655C]">Rejected At</th>
-                  <th className="px-5 py-4 text-left text-[10px] font-black uppercase tracking-widest text-[#6B655C]">Reason</th>
+                  <th className="px-5 py-4 text-left text-[10px] font-black uppercase tracking-widest text-[#8A8279]">Ticket</th>
+                  <th className="px-5 py-4 text-left text-[10px] font-black uppercase tracking-widest text-[#8A8279]">Customer</th>
+                  <th className="px-5 py-4 text-left text-[10px] font-black uppercase tracking-widest text-[#8A8279]">Category</th>
+                  <th className="px-5 py-4 text-left text-[10px] font-black uppercase tracking-widest text-[#8A8279]">Branch</th>
+                  <th className="px-5 py-4 text-left text-[10px] font-black uppercase tracking-widest text-[#8A8279]">Rejected At</th>
+                  <th className="px-5 py-4 text-left text-[10px] font-black uppercase tracking-widest text-[#8A8279]">Reason</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredRecords.map((record) => (
                   <tr key={record.id} className="border-b last:border-b-0 border-[rgba(201,160,92,0.08)] hover:bg-rose-50/30 transition-colors">
-                    <td className="px-5 py-4 text-xs font-black text-[#EAE2D6]">{record.ticketNumber}</td>
-                    <td className="px-5 py-4 text-sm font-bold text-[#6B655C]">{record.customerName}</td>
-                    <td className="px-5 py-4 text-sm font-bold text-[#6B655C]">{record.category}</td>
-                    <td className="px-5 py-4 text-sm font-bold text-[#6B655C]">{record.branchId ?? 'N/A'}</td>
-                    <td className="px-5 py-4 text-sm font-bold text-[#6B655C]">
+                    <td className="px-5 py-4 text-xs font-black text-[#F5F0E8]">{record.ticketNumber}</td>
+                    <td className="px-5 py-4 text-sm font-bold text-[#8A8279]">{record.customerName}</td>
+                    <td className="px-5 py-4 text-sm font-bold text-[#8A8279]">{record.category}</td>
+                    <td className="px-5 py-4 text-sm font-bold text-[#8A8279]">{record.branchId ?? 'N/A'}</td>
+                    <td className="px-5 py-4 text-sm font-bold text-[#8A8279]">
                       {record.rejectedAt ? new Date(record.rejectedAt).toLocaleString() : 'Unknown'}
                     </td>
                     <td className="px-5 py-4 text-sm font-bold text-rose-700 max-w-[360px] whitespace-normal break-words">{record.reason}</td>

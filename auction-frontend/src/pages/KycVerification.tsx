@@ -371,7 +371,7 @@ export default function KycVerification() {
         return;
       }
 
-      Swal.fire({ icon: 'success', title: 'Submitted!', text: 'Your identity verification is under review. You will be able to bid once approved.', confirmButtonColor: '#C9A05C', background: '#1C1C26', color: '#EAE2D6' });
+      Swal.fire({ icon: 'success', title: 'Submitted!', text: 'Your identity verification is under review. You will be able to bid once approved.', confirmButtonColor: '#C9A05C', background: '#1C1C26', color: '#F5F0E8' });
       await refreshKycStatus();
       navigate('/profile');
     } catch (err: any) {
@@ -536,18 +536,18 @@ export default function KycVerification() {
                       flexShrink: 0,
                     }}
                   >
-                    <option value="+63" style={{ color: '#EAE2D6', background: '#1C1C26' }}>+63</option>
-                    <option value="+1" style={{ color: '#EAE2D6', background: '#1C1C26' }}>+1</option>
-                    <option value="+44" style={{ color: '#EAE2D6', background: '#1C1C26' }}>+44</option>
-                    <option value="+61" style={{ color: '#EAE2D6', background: '#1C1C26' }}>+61</option>
-                    <option value="+91" style={{ color: '#EAE2D6', background: '#1C1C26' }}>+91</option>
-                    <option value="+81" style={{ color: '#EAE2D6', background: '#1C1C26' }}>+81</option>
-                    <option value="+86" style={{ color: '#EAE2D6', background: '#1C1C26' }}>+86</option>
-                    <option value="+65" style={{ color: '#EAE2D6', background: '#1C1C26' }}>+65</option>
-                    <option value="+60" style={{ color: '#EAE2D6', background: '#1C1C26' }}>+60</option>
-                    <option value="+62" style={{ color: '#EAE2D6', background: '#1C1C26' }}>+62</option>
-                    <option value="+66" style={{ color: '#EAE2D6', background: '#1C1C26' }}>+66</option>
-                    <option value="+84" style={{ color: '#EAE2D6', background: '#1C1C26' }}>+84</option>
+                    <option value="+63" style={{ color: '#F5F0E8', background: '#1C1C26' }}>+63</option>
+                    <option value="+1" style={{ color: '#F5F0E8', background: '#1C1C26' }}>+1</option>
+                    <option value="+44" style={{ color: '#F5F0E8', background: '#1C1C26' }}>+44</option>
+                    <option value="+61" style={{ color: '#F5F0E8', background: '#1C1C26' }}>+61</option>
+                    <option value="+91" style={{ color: '#F5F0E8', background: '#1C1C26' }}>+91</option>
+                    <option value="+81" style={{ color: '#F5F0E8', background: '#1C1C26' }}>+81</option>
+                    <option value="+86" style={{ color: '#F5F0E8', background: '#1C1C26' }}>+86</option>
+                    <option value="+65" style={{ color: '#F5F0E8', background: '#1C1C26' }}>+65</option>
+                    <option value="+60" style={{ color: '#F5F0E8', background: '#1C1C26' }}>+60</option>
+                    <option value="+62" style={{ color: '#F5F0E8', background: '#1C1C26' }}>+62</option>
+                    <option value="+66" style={{ color: '#F5F0E8', background: '#1C1C26' }}>+66</option>
+                    <option value="+84" style={{ color: '#F5F0E8', background: '#1C1C26' }}>+84</option>
                   </select>
                   <input
                     value={phoneNumber}
@@ -576,7 +576,7 @@ export default function KycVerification() {
                 <label style={labelStyle}>ID Type *</label>
                 <select value={idType} onChange={(e) => setIdType(e.target.value)} style={selectStyle}>
                   {ID_TYPES.map((t) => (
-                    <option key={t.value} value={t.value} style={{ color: '#EAE2D6', background: '#1C1C26' }}>{t.label}</option>
+                    <option key={t.value} value={t.value} style={{ color: '#F5F0E8', background: '#1C1C26' }}>{t.label}</option>
                   ))}
                 </select>
               </div>
@@ -850,7 +850,7 @@ const inputStyle: React.CSSProperties = {
 
 const selectStyle: React.CSSProperties = {
   ...inputStyle,
-  color: '#EAE2D6',
+  color: '#F5F0E8',
   colorScheme: 'dark',
   appearance: 'none',
   WebkitAppearance: 'none',

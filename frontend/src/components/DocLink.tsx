@@ -33,7 +33,7 @@ export default function DocLink({ url, label }: DocLinkProps) {
     return (
       <span
         title="Document unavailable"
-        className="flex items-center gap-2 text-sm text-[#6B655C]"
+        className="flex items-center gap-2 text-sm text-[#8A8279]"
       >
         <ExternalLink className="w-3 h-3" /> {label}
       </span>

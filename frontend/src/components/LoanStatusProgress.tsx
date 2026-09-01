@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Loader2, XCircle } from 'lucide-react';
 import api from '../lib/apiClient';
 import { humanizeStatus } from '../lib/formatters';
@@ -92,8 +92,8 @@ export function LoanStatusProgress({ loanId }: LoanStatusProgressProps) {
     <div className="bg-[#14141B] rounded-2xl border border-[rgba(201,160,92,0.08)] p-6 space-y-5">
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-sm font-black text-[#EAE2D6] uppercase tracking-wider">Loan Status</p>
-          <p className="text-[11px] font-bold text-[#6B655C]">#{data.loanId}</p>
+          <p className="text-sm font-black text-[#F5F0E8] uppercase tracking-wider">Loan Status</p>
+          <p className="text-[11px] font-bold text-[#8A8279]">#{data.loanId}</p>
         </div>
         <div className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider text-white ${currentStep.color}`}>
           {currentStep.label}
@@ -101,7 +101,7 @@ export function LoanStatusProgress({ loanId }: LoanStatusProgressProps) {
       </div>
 
       <div className="space-y-2">
-        <div className="flex justify-between text-[11px] font-bold text-[#6B655C]">
+        <div className="flex justify-between text-[11px] font-bold text-[#8A8279]">
           <span>Progress</span>
           <span>{progress}%</span>
         </div>
@@ -115,7 +115,7 @@ export function LoanStatusProgress({ loanId }: LoanStatusProgressProps) {
 
       {data.validTransitions.length > 0 && (
         <div>
-          <p className="text-[10px] font-black uppercase tracking-wider text-[#6B655C] mb-2">Allowed Next Steps</p>
+          <p className="text-[10px] font-black uppercase tracking-wider text-[#8A8279] mb-2">Allowed Next Steps</p>
           <div className="flex flex-wrap gap-2">
             {data.validTransitions.map((t) => {
               const next = statusLabels[t];
@@ -135,25 +135,25 @@ export function LoanStatusProgress({ loanId }: LoanStatusProgressProps) {
       {data.timing && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 pt-3 border-t border-[rgba(201,160,92,0.08)]">
           <div>
-            <p className="text-[10px] font-black uppercase tracking-wider text-[#6B655C]">Days Elapsed</p>
-            <p className="text-lg font-black text-[#EAE2D6]">{data.timing.daysElapsed}d</p>
+            <p className="text-[10px] font-black uppercase tracking-wider text-[#8A8279]">Days Elapsed</p>
+            <p className="text-lg font-black text-[#F5F0E8]">{data.timing.daysElapsed}d</p>
           </div>
           {data.timing.expiryDate && (
             <div>
-              <p className="text-[10px] font-black uppercase tracking-wider text-[#6B655C]">Expiry</p>
-              <p className="text-sm font-bold text-[#EAE2D6]">{new Date(data.timing.expiryDate).toLocaleDateString()}</p>
+              <p className="text-[10px] font-black uppercase tracking-wider text-[#8A8279]">Expiry</p>
+              <p className="text-sm font-bold text-[#F5F0E8]">{new Date(data.timing.expiryDate).toLocaleDateString()}</p>
             </div>
           )}
           {data.timing.gracePeriodEnd && (
             <div>
-              <p className="text-[10px] font-black uppercase tracking-wider text-[#6B655C]">Grace End</p>
-              <p className="text-sm font-bold text-[#EAE2D6]">{new Date(data.timing.gracePeriodEnd).toLocaleDateString()}</p>
+              <p className="text-[10px] font-black uppercase tracking-wider text-[#8A8279]">Grace End</p>
+              <p className="text-sm font-bold text-[#F5F0E8]">{new Date(data.timing.gracePeriodEnd).toLocaleDateString()}</p>
             </div>
           )}
           {data.timing.forfeitureDate && (
             <div>
-              <p className="text-[10px] font-black uppercase tracking-wider text-[#6B655C]">Forfeiture</p>
-              <p className="text-sm font-bold text-[#EAE2D6]">{new Date(data.timing.forfeitureDate).toLocaleDateString()}</p>
+              <p className="text-[10px] font-black uppercase tracking-wider text-[#8A8279]">Forfeiture</p>
+              <p className="text-sm font-bold text-[#F5F0E8]">{new Date(data.timing.forfeitureDate).toLocaleDateString()}</p>
             </div>
           )}
         </div>

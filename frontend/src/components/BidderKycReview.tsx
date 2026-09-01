@@ -79,7 +79,7 @@ export default function BidderKycReview() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-xl font-bold text-[#EAE2D6]" style={{ fontFamily: "'Syne', sans-serif" }}>
+          <h2 className="text-xl font-bold text-[#F5F0E8]" style={{ fontFamily: "'Syne', sans-serif" }}>
             Bidder KYC Verification
           </h2>
           <p className="text-sm text-[#9B9488] mt-1">Review identity documents submitted by auction bidders</p>
@@ -87,17 +87,17 @@ export default function BidderKycReview() {
         <div className="flex items-center gap-2">
           <button
             onClick={() => setTab('pending')}
-            className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${tab === 'pending' ? 'bg-[#C9A05C] text-[#0A0A0F]' : 'bg-[#1C1C26] text-[#9B9488] hover:text-[#EAE2D6]'}`}
+            className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${tab === 'pending' ? 'bg-[#C9A05C] text-[#0A0A0F]' : 'bg-[#1C1C26] text-[#9B9488] hover:text-[#F5F0E8]'}`}
           >
             Pending ({tab === 'pending' ? records.length : '...'})
           </button>
           <button
             onClick={() => setTab('all')}
-            className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${tab === 'all' ? 'bg-[#C9A05C] text-[#0A0A0F]' : 'bg-[#1C1C26] text-[#9B9488] hover:text-[#EAE2D6]'}`}
+            className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${tab === 'all' ? 'bg-[#C9A05C] text-[#0A0A0F]' : 'bg-[#1C1C26] text-[#9B9488] hover:text-[#F5F0E8]'}`}
           >
             All
           </button>
-          <button onClick={load} className="p-1.5 rounded-lg bg-[#1C1C26] text-[#9B9488] hover:text-[#EAE2D6] transition-colors">
+          <button onClick={load} className="p-1.5 rounded-lg bg-[#1C1C26] text-[#9B9488] hover:text-[#F5F0E8] transition-colors">
             <RefreshCw className="w-4 h-4" />
           </button>
         </div>
@@ -123,7 +123,7 @@ export default function BidderKycReview() {
                 <div className="flex items-center gap-4">
                   <div className={`p-2 rounded-lg ${st.bg} ${st.color}`}>{st.icon}</div>
                   <div>
-                    <p className="text-sm font-medium text-[#EAE2D6]">{r.fullName}</p>
+                    <p className="text-sm font-medium text-[#F5F0E8]">{r.fullName}</p>
                     <p className="text-xs text-[#9B9488]">{r.profile?.email || '—'} · {r.idType} · Submitted {new Date(r.createdAt).toLocaleDateString()}</p>
                   </div>
                 </div>
@@ -139,10 +139,10 @@ export default function BidderKycReview() {
           <div className="bg-[#14141C] border border-[rgba(201,160,92,0.15)] rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto p-6" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-6">
               <div>
-                <h3 className="text-lg font-bold text-[#EAE2D6]">{selected.fullName}</h3>
+                <h3 className="text-lg font-bold text-[#F5F0E8]">{selected.fullName}</h3>
                 <p className="text-xs text-[#9B9488]">{selected.profile?.email} · {selected.idType} #{selected.idNumber}</p>
               </div>
-              <button onClick={() => setSelected(null)} className="text-[#9B9488] hover:text-[#EAE2D6] text-xl">&times;</button>
+              <button onClick={() => setSelected(null)} className="text-[#9B9488] hover:text-[#F5F0E8] text-xl">&times;</button>
             </div>
 
             <div className="grid grid-cols-2 gap-6 mb-6">
@@ -154,9 +154,9 @@ export default function BidderKycReview() {
               </div>
               <div className="space-y-3">
                 <h4 className="text-xs font-semibold uppercase tracking-wider text-[#C9A05C]">Personal Info</h4>
-                <p className="text-sm text-[#EAE2D6]">DOB: {new Date(selected.dateOfBirth).toLocaleDateString()}</p>
-                <p className="text-sm text-[#EAE2D6]">Phone: {selected.phoneNumber}</p>
-                <p className="text-sm text-[#EAE2D6]">Address: {selected.address}</p>
+                <p className="text-sm text-[#F5F0E8]">DOB: {new Date(selected.dateOfBirth).toLocaleDateString()}</p>
+                <p className="text-sm text-[#F5F0E8]">Phone: {selected.phoneNumber}</p>
+                <p className="text-sm text-[#F5F0E8]">Address: {selected.address}</p>
               </div>
             </div>
 
@@ -175,7 +175,7 @@ export default function BidderKycReview() {
                     placeholder="Rejection reason (required to reject)"
                     value={rejectReason}
                     onChange={(e) => setRejectReason(e.target.value)}
-                    className="w-full px-3 py-2 bg-[#1C1C26] border border-[rgba(201,160,92,0.15)] rounded-lg text-sm text-[#EAE2D6] placeholder:text-[#6B655C] focus:outline-none focus:border-[#C9A05C]"
+                    className="w-full px-3 py-2 bg-[#1C1C26] border border-[rgba(201,160,92,0.15)] rounded-lg text-sm text-[#F5F0E8] placeholder:text-[#8A8279] focus:outline-none focus:border-[#C9A05C]"
                   />
                 </div>
                 <button
@@ -194,7 +194,7 @@ export default function BidderKycReview() {
                   {selected.status === 'VERIFIED' ? 'Approved' : 'Rejected'}
                 </span>
                 {selected.rejectionReason && <span className="text-[#9B9488]">— {selected.rejectionReason}</span>}
-                {selected.reviewedAt && <span className="text-[#6B655C]">on {new Date(selected.reviewedAt).toLocaleDateString()}</span>}
+                {selected.reviewedAt && <span className="text-[#8A8279]">on {new Date(selected.reviewedAt).toLocaleDateString()}</span>}
               </div>
             )}
           </div>

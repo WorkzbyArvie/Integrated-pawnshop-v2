@@ -13,7 +13,7 @@ function Card({ className, style, ...props }: React.ComponentProps<"div">) {
         borderRadius: "var(--radius-lg, 20px)",
         boxShadow:
           "0 0 0 1px rgba(201,160,92,0.06) inset, 0 1px 0 rgba(255,255,255,0.04) inset, 0 8px 32px rgba(0,0,0,0.35)",
-        color: "var(--text-primary, #EAE2D6)",
+        color: "var(--text-primary, #F5F0E8)",
         ...style,
       }}
       {...props}
@@ -39,7 +39,7 @@ function CardTitle({ className, ...props }: React.ComponentProps<"div">) {
     <h4
       data-slot="card-title"
       className={cn("leading-none text-sm font-semibold tracking-[-0.01em]", className)}
-      style={{ color: "var(--text-primary, #EAE2D6)", fontFamily: "var(--font-display)" }}
+      style={{ color: "var(--text-primary, #F5F0E8)", fontFamily: "var(--font-display)" }}
       {...props}
     />
   );
@@ -50,7 +50,7 @@ function CardDescription({ className, ...props }: React.ComponentProps<"div">) {
     <p
       data-slot="card-description"
       className={cn("text-[12px] leading-relaxed", className)}
-      style={{ color: "var(--text-secondary, #999186)" }}
+      style={{ color: "var(--text-secondary, #B8B0A4)" }}
       {...props}
     />
   );

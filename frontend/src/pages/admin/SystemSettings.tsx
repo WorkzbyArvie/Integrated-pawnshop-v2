@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import Swal from 'sweetalert2';
 import { 
   Users, 
@@ -382,9 +382,9 @@ export function SystemSettings({ config, setConfig, userRole, branchId, onBrandi
             </div>
             <div>
               <p className="text-sm font-black uppercase tracking-widest leading-none">Changes Saved</p>
-              <p className="text-[10px] text-[#6B655C] mt-1 font-medium">System configuration synchronized.</p>
+              <p className="text-[10px] text-[#8A8279] mt-1 font-medium">System configuration synchronized.</p>
             </div>
-            <button onClick={() => setShowToast(false)} className="ml-4 text-[#6B655C] hover:text-white transition-colors">
+            <button onClick={() => setShowToast(false)} className="ml-4 text-[#8A8279] hover:text-white transition-colors">
               <X size={16} />
             </button>
           </div>
@@ -394,10 +394,10 @@ export function SystemSettings({ config, setConfig, userRole, branchId, onBrandi
       {/* HEADER SECTION */}
       <div className="flex justify-between items-start">
         <div>
-          <h2 className="text-3xl font-black text-[#EAE2D6] tracking-tight uppercase italic leading-none">
+          <h2 className="text-3xl font-black text-[#F5F0E8] tracking-tight uppercase italic leading-none">
             {isSuperAdmin ? 'Platform Control' : 'Branch Settings'}
           </h2>
-          <p className="text-[#6B655C] font-medium mt-2">
+          <p className="text-[#8A8279] font-medium mt-2">
             {isSuperAdmin 
               ? 'Manage global feature availability for all tenants.' 
               : 'Configure active modules for this specific branch.'}
@@ -440,7 +440,7 @@ export function SystemSettings({ config, setConfig, userRole, branchId, onBrandi
             >
               <div className="flex items-center justify-between mb-6">
                 <div className={`p-4 rounded-2xl transition-all duration-500 ${
-                  isEnabled ? (isSuperAdmin ? 'bg-[#C9A05C] shadow-indigo-600/20' : 'bg-blue-600 shadow-blue-600/20') : 'bg-[#1C1C26] text-[#6B655C]'
+                  isEnabled ? (isSuperAdmin ? 'bg-[#C9A05C] shadow-indigo-600/20' : 'bg-blue-600 shadow-blue-600/20') : 'bg-[#1C1C26] text-[#8A8279]'
                 } text-white shadow-lg`}>
                   <feature.icon className="w-7 h-7" />
                 </div>
@@ -458,7 +458,7 @@ export function SystemSettings({ config, setConfig, userRole, branchId, onBrandi
 
               <div>
                 <div className="flex items-center gap-2 mb-2">
-                  <span className={`text-[9px] font-black uppercase tracking-[0.2em] ${isEnabled ? (isSuperAdmin ? 'text-[#C9A05C]' : 'text-[#C9A05C]') : 'text-[#6B655C]'}`}>
+                  <span className={`text-[9px] font-black uppercase tracking-[0.2em] ${isEnabled ? (isSuperAdmin ? 'text-[#C9A05C]' : 'text-[#C9A05C]') : 'text-[#8A8279]'}`}>
                     {feature.category}
                   </span>
                   {globalDisabled && (
@@ -467,8 +467,8 @@ export function SystemSettings({ config, setConfig, userRole, branchId, onBrandi
                     </span>
                   )}
                 </div>
-                <h3 className="text-xl font-black text-[#EAE2D6] mb-2">{feature.name}</h3>
-                <p className="text-sm text-[#6B655C] font-medium leading-relaxed">{feature.description}</p>
+                <h3 className="text-xl font-black text-[#F5F0E8] mb-2">{feature.name}</h3>
+                <p className="text-sm text-[#8A8279] font-medium leading-relaxed">{feature.description}</p>
               </div>
             </div>
           );
@@ -479,11 +479,11 @@ export function SystemSettings({ config, setConfig, userRole, branchId, onBrandi
         <div className="flex items-center justify-between mb-6">
           <div>
             <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#C9A05C]">Redemption Policy</p>
-            <h3 className="text-2xl font-black text-[#EAE2D6] mt-1 flex items-center gap-2">
+            <h3 className="text-2xl font-black text-[#F5F0E8] mt-1 flex items-center gap-2">
               <Undo2 className="w-6 h-6 text-[#C9A05C]" />
               Redemption Approval Threshold
             </h3>
-            <p className="text-sm text-[#6B655C] mt-2">
+            <p className="text-sm text-[#8A8279] mt-2">
               Redemption requests above this amount require owner approval in the Approval Queue.
             </p>
           </div>
@@ -496,7 +496,7 @@ export function SystemSettings({ config, setConfig, userRole, branchId, onBrandi
             step={1}
             value={redemptionThreshold}
             onChange={(event) => setRedemptionThreshold(Number(event.target.value))}
-            className="w-full rounded-2xl border border-[rgba(201,160,92,0.12)] px-4 py-3 text-sm font-semibold text-[#EAE2D6]"
+            className="w-full rounded-2xl border border-[rgba(201,160,92,0.12)] px-4 py-3 text-sm font-semibold text-[#F5F0E8]"
             placeholder="50000"
           />
         </div>
@@ -507,34 +507,34 @@ export function SystemSettings({ config, setConfig, userRole, branchId, onBrandi
           <div className="flex items-center justify-between mb-6">
             <div>
               <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#C9A05C]">Contract Policy</p>
-              <h3 className="text-2xl font-black text-[#EAE2D6] mt-1 flex items-center gap-2">
+              <h3 className="text-2xl font-black text-[#F5F0E8] mt-1 flex items-center gap-2">
                 <FileText className="w-6 h-6 text-[#C9A05C]" />
                 Contract Terms & Responsibilities
               </h3>
-              <p className="text-sm text-[#6B655C] mt-2">
+              <p className="text-sm text-[#8A8279] mt-2">
                 These appear on every loan contract your pawnshop generates. If you set Terms and Conditions, they replace the standard text. Write one item per line.
               </p>
             </div>
           </div>
           <div className="grid grid-cols-1 gap-6">
             <div>
-              <label className="text-xs font-black uppercase tracking-wider text-[#6B655C]">Terms and Conditions</label>
+              <label className="text-xs font-black uppercase tracking-wider text-[#8A8279]">Terms and Conditions</label>
               <textarea
                 value={contractTerms}
                 onChange={(event) => setContractTerms(event.target.value)}
                 rows={9}
                 placeholder={'1. The Pawnee acknowledges receipt of the loan amount.\n2. Interest accrues monthly at the rate stated on the contract.\n3. The Pawnshop reserves the right to sell the collateral if the loan is not redeemed within the term and grace period.'}
-                className="mt-2 w-full rounded-2xl border border-[rgba(201,160,92,0.12)] px-4 py-3 text-sm font-medium text-[#EAE2D6] bg-[#1C1C26] focus:outline-none focus:border-[#C9A05C]"
+                className="mt-2 w-full rounded-2xl border border-[rgba(201,160,92,0.12)] px-4 py-3 text-sm font-medium text-[#F5F0E8] bg-[#1C1C26] focus:outline-none focus:border-[#C9A05C]"
               />
             </div>
             <div>
-              <label className="text-xs font-black uppercase tracking-wider text-[#6B655C]">Pawnshop Responsibilities</label>
+              <label className="text-xs font-black uppercase tracking-wider text-[#8A8279]">Pawnshop Responsibilities</label>
               <textarea
                 value={contractResponsibilities}
                 onChange={(event) => setContractResponsibilities(event.target.value)}
                 rows={6}
                 placeholder={'The Pawnshop shall safely store the collateral for the full term of the loan.\nThe Pawnshop shall release the collateral upon full payment of principal and interest.\nThe Pawnshop shall issue a receipt for every payment received.'}
-                className="mt-2 w-full rounded-2xl border border-[rgba(201,160,92,0.12)] px-4 py-3 text-sm font-medium text-[#EAE2D6] bg-[#1C1C26] focus:outline-none focus:border-[#C9A05C]"
+                className="mt-2 w-full rounded-2xl border border-[rgba(201,160,92,0.12)] px-4 py-3 text-sm font-medium text-[#F5F0E8] bg-[#1C1C26] focus:outline-none focus:border-[#C9A05C]"
               />
             </div>
             <div className="flex justify-end">
@@ -556,11 +556,11 @@ export function SystemSettings({ config, setConfig, userRole, branchId, onBrandi
           <div className="flex items-center justify-between mb-6">
             <div>
               <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#C9A05C]">Enterprise Feature</p>
-              <h3 className="text-2xl font-black text-[#EAE2D6] mt-1 flex items-center gap-2">
+              <h3 className="text-2xl font-black text-[#F5F0E8] mt-1 flex items-center gap-2">
                 <Palette className="w-6 h-6 text-[#C9A05C]" />
                 Custom Branding
               </h3>
-              <p className="text-sm text-[#6B655C] mt-2">
+              <p className="text-sm text-[#8A8279] mt-2">
                 Set your sidebar name, logo, and brand colors. This applies to your pawnshop workspace.
               </p>
             </div>
@@ -573,7 +573,7 @@ export function SystemSettings({ config, setConfig, userRole, branchId, onBrandi
           </div>
 
           {loadingBranding ? (
-            <div className="flex items-center gap-3 text-[#6B655C]">
+            <div className="flex items-center gap-3 text-[#8A8279]">
               <Loader2 className="w-4 h-4 animate-spin" />
               Loading branding configuration...
             </div>
@@ -581,32 +581,32 @@ export function SystemSettings({ config, setConfig, userRole, branchId, onBrandi
             <>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 <div className="md:col-span-2">
-                  <label className="text-xs font-black uppercase tracking-wider text-[#6B655C]">Display Name</label>
+                  <label className="text-xs font-black uppercase tracking-wider text-[#8A8279]">Display Name</label>
                   <input
                     type="text"
                     value={branding.displayName}
                     onChange={(event) => handleBrandingChange('displayName', event.target.value)}
                     maxLength={60}
                     disabled={!branding.customBrandingEnabled || savingBranding}
-                    className="mt-2 w-full rounded-2xl border border-[rgba(201,160,92,0.12)] px-4 py-3 text-sm font-semibold text-[#EAE2D6] disabled:bg-[#1C1C26] disabled:text-[#6B655C]"
+                    className="mt-2 w-full rounded-2xl border border-[rgba(201,160,92,0.12)] px-4 py-3 text-sm font-semibold text-[#F5F0E8] disabled:bg-[#1C1C26] disabled:text-[#8A8279]"
                     placeholder="Your pawnshop display name"
                   />
                 </div>
 
                 <div className="md:col-span-2">
-                  <label className="text-xs font-black uppercase tracking-wider text-[#6B655C]">Logo URL</label>
+                  <label className="text-xs font-black uppercase tracking-wider text-[#8A8279]">Logo URL</label>
                   <input
                     type="url"
                     value={branding.logoUrl || ''}
                     onChange={(event) => handleBrandingChange('logoUrl', event.target.value)}
                     disabled={!branding.customBrandingEnabled || savingBranding}
-                    className="mt-2 w-full rounded-2xl border border-[rgba(201,160,92,0.12)] px-4 py-3 text-sm font-semibold text-[#EAE2D6] disabled:bg-[#1C1C26] disabled:text-[#6B655C]"
+                    className="mt-2 w-full rounded-2xl border border-[rgba(201,160,92,0.12)] px-4 py-3 text-sm font-semibold text-[#F5F0E8] disabled:bg-[#1C1C26] disabled:text-[#8A8279]"
                     placeholder="https://example.com/logo.png"
                   />
                 </div>
 
                 <div>
-                  <label className="text-xs font-black uppercase tracking-wider text-[#6B655C]">Primary Color</label>
+                  <label className="text-xs font-black uppercase tracking-wider text-[#8A8279]">Primary Color</label>
                   <div className="mt-2 flex items-center gap-3 rounded-2xl border border-[rgba(201,160,92,0.12)] px-3 py-2">
                     <input
                       type="color"
@@ -615,12 +615,12 @@ export function SystemSettings({ config, setConfig, userRole, branchId, onBrandi
                       disabled={!branding.customBrandingEnabled || savingBranding}
                       className="h-10 w-14 cursor-pointer rounded-xl border-0 bg-transparent disabled:cursor-not-allowed"
                     />
-                    <span className="text-xs font-black text-[#999186] uppercase tracking-widest">{branding.primaryColor}</span>
+                    <span className="text-xs font-black text-[#B8B0A4] uppercase tracking-widest">{branding.primaryColor}</span>
                   </div>
                 </div>
 
                 <div>
-                  <label className="text-xs font-black uppercase tracking-wider text-[#6B655C]">Secondary Color</label>
+                  <label className="text-xs font-black uppercase tracking-wider text-[#8A8279]">Secondary Color</label>
                   <div className="mt-2 flex items-center gap-3 rounded-2xl border border-[rgba(201,160,92,0.12)] px-3 py-2">
                     <input
                       type="color"
@@ -629,7 +629,7 @@ export function SystemSettings({ config, setConfig, userRole, branchId, onBrandi
                       disabled={!branding.customBrandingEnabled || savingBranding}
                       className="h-10 w-14 cursor-pointer rounded-xl border-0 bg-transparent disabled:cursor-not-allowed"
                     />
-                    <span className="text-xs font-black text-[#999186] uppercase tracking-widest">{branding.secondaryColor}</span>
+                    <span className="text-xs font-black text-[#B8B0A4] uppercase tracking-widest">{branding.secondaryColor}</span>
                   </div>
                 </div>
               </div>
@@ -638,8 +638,8 @@ export function SystemSettings({ config, setConfig, userRole, branchId, onBrandi
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-xl" style={{ backgroundColor: branding.primaryColor }} />
                   <div>
-                    <p className="text-sm font-black text-[#EAE2D6]">{branding.displayName || branding.pawnshopName || 'PawnGold'}</p>
-                    <p className="text-xs text-[#6B655C]">Sidebar preview colors</p>
+                    <p className="text-sm font-black text-[#F5F0E8]">{branding.displayName || branding.pawnshopName || 'PawnGold'}</p>
+                    <p className="text-xs text-[#8A8279]">Sidebar preview colors</p>
                   </div>
                 </div>
                 <button
@@ -664,7 +664,7 @@ export function SystemSettings({ config, setConfig, userRole, branchId, onBrandi
           <h3 className="text-xl font-black mb-1 italic uppercase tracking-tighter">
             Save {isSuperAdmin ? 'Global' : 'Branch'} Changes?
           </h3>
-          <p className="text-[#6B655C] text-sm font-medium italic">Confirmation required to proceed.</p>
+          <p className="text-[#8A8279] text-sm font-medium italic">Confirmation required to proceed.</p>
         </div>
         <button 
           onClick={() => setIsModalOpen(true)}
@@ -691,15 +691,15 @@ export function SystemSettings({ config, setConfig, userRole, branchId, onBrandi
                 </div>
                 {!isSaving && (
                   <button onClick={() => setIsModalOpen(false)} className="p-2 hover:bg-[#1C1C26] rounded-xl transition-colors">
-                    <X className="w-6 h-6 text-[#6B655C]" />
+                    <X className="w-6 h-6 text-[#8A8279]" />
                   </button>
                 )}
               </div>
 
-              <h2 className="text-2xl font-black text-[#EAE2D6] uppercase italic tracking-tight mb-2">
+              <h2 className="text-2xl font-black text-[#F5F0E8] uppercase italic tracking-tight mb-2">
                 {isSaving ? 'Processing...' : 'Confirm Update'}
               </h2>
-              <p className="text-[#6B655C] font-medium leading-relaxed mb-8">
+              <p className="text-[#8A8279] font-medium leading-relaxed mb-8">
                 {isSaving 
                   ? "Writing configuration to the system registry. Please do not close this window."
                   : "Are you sure you want to proceed? These changes will take effect immediately across your terminal."}
@@ -718,7 +718,7 @@ export function SystemSettings({ config, setConfig, userRole, branchId, onBrandi
                 {!isSaving && (
                   <button
                     onClick={() => setIsModalOpen(false)}
-                    className="w-full py-4 rounded-2xl font-black uppercase tracking-widest text-xs text-[#6B655C] hover:text-[#999186] hover:bg-[#1C1C26] transition-all"
+                    className="w-full py-4 rounded-2xl font-black uppercase tracking-widest text-xs text-[#8A8279] hover:text-[#B8B0A4] hover:bg-[#1C1C26] transition-all"
                   >
                     Cancel
                   </button>

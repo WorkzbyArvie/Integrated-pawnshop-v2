@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import Swal from 'sweetalert2';
 import {
   Calendar,
@@ -84,7 +84,7 @@ export function RepaymentSchedule({ loanId, onBack }: RepaymentScheduleProps) {
       PAID: 'bg-green-100 text-green-800',
       OVERDUE: 'bg-red-100 text-red-800',
     };
-    return colors[status] || 'bg-gray-100 text-[#EAE2D6]';
+    return colors[status] || 'bg-gray-100 text-[#F5F0E8]';
   };
 
   const getStatusIcon = (status: string) => {
@@ -117,14 +117,14 @@ export function RepaymentSchedule({ loanId, onBack }: RepaymentScheduleProps) {
       <div className="mb-8">
         <button
           onClick={onBack}
-          className="flex items-center gap-2 text-[#999186] hover:text-[#EAE2D6] mb-4 font-medium"
+          className="flex items-center gap-2 text-[#B8B0A4] hover:text-[#F5F0E8] mb-4 font-medium"
         >
           <ArrowLeft className="w-5 h-5" />
           Back to Loan Details
         </button>
 
-        <h1 className="text-3xl font-black text-[#EAE2D6] mb-2">Repayment Schedule</h1>
-        <p className="text-[#999186]">Track your loan installments and payments</p>
+        <h1 className="text-3xl font-black text-[#F5F0E8] mb-2">Repayment Schedule</h1>
+        <p className="text-[#B8B0A4]">Track your loan installments and payments</p>
       </div>
 
       {/* Summary Cards */}
@@ -135,9 +135,9 @@ export function RepaymentSchedule({ loanId, onBack }: RepaymentScheduleProps) {
               <div className="w-10 h-10 bg-[#C9A05C]/15 rounded-xl flex items-center justify-center">
                 <DollarSign className="w-5 h-5 text-[#C9A05C]" />
               </div>
-              <p className="text-sm text-[#999186]">Total Amount</p>
+              <p className="text-sm text-[#B8B0A4]">Total Amount</p>
             </div>
-            <p className="text-2xl font-black text-[#EAE2D6]">
+            <p className="text-2xl font-black text-[#F5F0E8]">
               {formatCurrency(summary.totalAmount)}
             </p>
           </div>
@@ -147,7 +147,7 @@ export function RepaymentSchedule({ loanId, onBack }: RepaymentScheduleProps) {
               <div className="w-10 h-10 bg-green-100 rounded-xl flex items-center justify-center">
                 <CheckCircle2 className="w-5 h-5 text-green-600" />
               </div>
-              <p className="text-sm text-[#999186]">Paid Amount</p>
+              <p className="text-sm text-[#B8B0A4]">Paid Amount</p>
             </div>
             <p className="text-2xl font-black text-green-600">
               {formatCurrency(summary.paidAmount)}
@@ -159,7 +159,7 @@ export function RepaymentSchedule({ loanId, onBack }: RepaymentScheduleProps) {
               <div className="w-10 h-10 bg-orange-100 rounded-xl flex items-center justify-center">
                 <AlertTriangle className="w-5 h-5 text-orange-600" />
               </div>
-              <p className="text-sm text-[#999186]">Remaining</p>
+              <p className="text-sm text-[#B8B0A4]">Remaining</p>
             </div>
             <p className="text-2xl font-black text-orange-600">
               {formatCurrency(summary.remainingAmount)}
@@ -171,7 +171,7 @@ export function RepaymentSchedule({ loanId, onBack }: RepaymentScheduleProps) {
               <div className="w-10 h-10 bg-[#C9A05C]/15 rounded-xl flex items-center justify-center">
                 <Calendar className="w-5 h-5 text-[#C9A05C]" />
               </div>
-              <p className="text-sm text-[#999186]">Progress</p>
+              <p className="text-sm text-[#B8B0A4]">Progress</p>
             </div>
             <p className="text-2xl font-black text-[#C9A05C]">
               {summary.progressPercentage.toFixed(1)}%
@@ -192,31 +192,31 @@ export function RepaymentSchedule({ loanId, onBack }: RepaymentScheduleProps) {
           <table className="w-full">
             <thead className="bg-gray-50 border-b border-[rgba(201,160,92,0.1)]">
               <tr>
-                <th className="px-6 py-4 text-left text-xs font-bold text-[#999186] uppercase tracking-wider">
+                <th className="px-6 py-4 text-left text-xs font-bold text-[#B8B0A4] uppercase tracking-wider">
                   #
                 </th>
-                <th className="px-6 py-4 text-left text-xs font-bold text-[#999186] uppercase tracking-wider">
+                <th className="px-6 py-4 text-left text-xs font-bold text-[#B8B0A4] uppercase tracking-wider">
                   Due Date
                 </th>
-                <th className="px-6 py-4 text-right text-xs font-bold text-[#999186] uppercase tracking-wider">
+                <th className="px-6 py-4 text-right text-xs font-bold text-[#B8B0A4] uppercase tracking-wider">
                   Principal
                 </th>
-                <th className="px-6 py-4 text-right text-xs font-bold text-[#999186] uppercase tracking-wider">
+                <th className="px-6 py-4 text-right text-xs font-bold text-[#B8B0A4] uppercase tracking-wider">
                   Interest
                 </th>
-                <th className="px-6 py-4 text-right text-xs font-bold text-[#999186] uppercase tracking-wider">
+                <th className="px-6 py-4 text-right text-xs font-bold text-[#B8B0A4] uppercase tracking-wider">
                   Penalty
                 </th>
-                <th className="px-6 py-4 text-right text-xs font-bold text-[#999186] uppercase tracking-wider">
+                <th className="px-6 py-4 text-right text-xs font-bold text-[#B8B0A4] uppercase tracking-wider">
                   Total Due
                 </th>
-                <th className="px-6 py-4 text-right text-xs font-bold text-[#999186] uppercase tracking-wider">
+                <th className="px-6 py-4 text-right text-xs font-bold text-[#B8B0A4] uppercase tracking-wider">
                   Paid
                 </th>
-                <th className="px-6 py-4 text-center text-xs font-bold text-[#999186] uppercase tracking-wider">
+                <th className="px-6 py-4 text-center text-xs font-bold text-[#B8B0A4] uppercase tracking-wider">
                   Status
                 </th>
-                <th className="px-6 py-4 text-center text-xs font-bold text-[#999186] uppercase tracking-wider">
+                <th className="px-6 py-4 text-center text-xs font-bold text-[#B8B0A4] uppercase tracking-wider">
                   Actions
                 </th>
               </tr>
@@ -227,27 +227,27 @@ export function RepaymentSchedule({ loanId, onBack }: RepaymentScheduleProps) {
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-2">
                       {getStatusIcon(item.status)}
-                      <span className="font-bold text-[#EAE2D6]">
+                      <span className="font-bold text-[#F5F0E8]">
                         {item.installmentNumber}
                       </span>
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex items-center gap-2 text-[#EAE2D6]">
-                      <Calendar className="w-4 h-4 text-[#6B655C]" />
+                    <div className="flex items-center gap-2 text-[#F5F0E8]">
+                      <Calendar className="w-4 h-4 text-[#8A8279]" />
                       {formatDate(item.dueDate)}
                     </div>
                   </td>
-                  <td className="px-6 py-4 text-right font-medium text-[#EAE2D6]">
+                  <td className="px-6 py-4 text-right font-medium text-[#F5F0E8]">
                     {formatCurrency(item.principalAmount)}
                   </td>
-                  <td className="px-6 py-4 text-right font-medium text-[#999186]">
+                  <td className="px-6 py-4 text-right font-medium text-[#B8B0A4]">
                     {formatCurrency(item.interestAmount)}
                   </td>
                   <td className="px-6 py-4 text-right font-medium text-red-600">
                     {item.penaltyAmount > 0 ? formatCurrency(item.penaltyAmount) : '-'}
                   </td>
-                  <td className="px-6 py-4 text-right font-bold text-[#EAE2D6]">
+                  <td className="px-6 py-4 text-right font-bold text-[#F5F0E8]">
                     {formatCurrency(item.totalDue)}
                   </td>
                   <td className="px-6 py-4 text-right">
@@ -256,7 +256,7 @@ export function RepaymentSchedule({ loanId, onBack }: RepaymentScheduleProps) {
                         {formatCurrency(item.paidAmount)}
                       </p>
                       {item.paidDate && (
-                        <p className="text-xs text-[#6B655C]">
+                        <p className="text-xs text-[#8A8279]">
                           {formatDate(item.paidDate)}
                         </p>
                       )}
@@ -361,22 +361,22 @@ function PaymentModal({ schedule, onClose, onSuccess }: PaymentModalProps) {
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-[#14141B] rounded-2xl shadow-2xl max-w-lg w-full">
         <div className="p-6 border-b border-[rgba(201,160,92,0.1)]">
-          <h2 className="text-2xl font-black text-[#EAE2D6]">Record Payment</h2>
-          <p className="text-[#999186] mt-1">
+          <h2 className="text-2xl font-black text-[#F5F0E8]">Record Payment</h2>
+          <p className="text-[#B8B0A4] mt-1">
             Installment #{schedule.installmentNumber}
           </p>
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           <div className="p-4 bg-gray-50 rounded-xl">
-            <p className="text-sm text-[#999186] mb-1">Total Due</p>
-            <p className="text-2xl font-black text-[#EAE2D6]">
+            <p className="text-sm text-[#B8B0A4] mb-1">Total Due</p>
+            <p className="text-2xl font-black text-[#F5F0E8]">
               {formatCurrency(schedule.totalDue)}
             </p>
           </div>
 
           <div>
-            <label className="block text-sm font-bold text-[#999186] mb-2">
+            <label className="block text-sm font-bold text-[#B8B0A4] mb-2">
               Payment Amount
             </label>
             <input
@@ -390,7 +390,7 @@ function PaymentModal({ schedule, onClose, onSuccess }: PaymentModalProps) {
           </div>
 
           <div>
-            <label className="block text-sm font-bold text-[#999186] mb-2">
+            <label className="block text-sm font-bold text-[#B8B0A4] mb-2">
               Payment Method
             </label>
             <select
@@ -407,7 +407,7 @@ function PaymentModal({ schedule, onClose, onSuccess }: PaymentModalProps) {
           </div>
 
           <div>
-            <label className="block text-sm font-bold text-[#999186] mb-2">
+            <label className="block text-sm font-bold text-[#B8B0A4] mb-2">
               Reference Number (Optional)
             </label>
             <input
@@ -420,7 +420,7 @@ function PaymentModal({ schedule, onClose, onSuccess }: PaymentModalProps) {
           </div>
 
           <div>
-            <label className="block text-sm font-bold text-[#999186] mb-2">
+            <label className="block text-sm font-bold text-[#B8B0A4] mb-2">
               Notes (Optional)
             </label>
             <textarea
@@ -436,7 +436,7 @@ function PaymentModal({ schedule, onClose, onSuccess }: PaymentModalProps) {
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 px-6 py-3 bg-gray-100 text-[#999186] font-bold rounded-xl hover:bg-gray-200 transition"
+              className="flex-1 px-6 py-3 bg-gray-100 text-[#B8B0A4] font-bold rounded-xl hover:bg-gray-200 transition"
               disabled={loading}
             >
               Cancel

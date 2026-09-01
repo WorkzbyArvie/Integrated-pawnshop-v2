@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   CheckCircle2, XCircle, Search, Eye, Loader2, Scale, User, Calendar,
   AlertTriangle, CheckCheck, ChevronLeft, ChevronRight, Package, FileText, CreditCard,
@@ -192,7 +192,7 @@ export function AppraisalApproval({ branchId, activeBranchId, userRole = 'STAFF'
       icon: 'question',
       showCancelButton: true,
       confirmButtonColor: '#C9A05C',
-      cancelButtonColor: '#6B655C',
+      cancelButtonColor: '#8A8279',
       confirmButtonText: 'Yes, proceed',
       cancelButtonText: 'Cancel',
     });
@@ -309,13 +309,13 @@ export function AppraisalApproval({ branchId, activeBranchId, userRole = 'STAFF'
           <h1 className="text-2xl font-black text-[#030213] uppercase italic tracking-tighter">
             Appraisal <span className="text-[#C9A05C]">Approval</span>
           </h1>
-          <p className="text-[#6B655C] text-xs font-bold uppercase tracking-wide mt-1">
+          <p className="text-[#8A8279] text-xs font-bold uppercase tracking-wide mt-1">
             Review and approve pending appraisals
           </p>
         </div>
         <div className="flex items-center gap-3">
           <div className="bg-[#14141B] border border-[rgba(201,160,92,0.12)] rounded-2xl px-4 py-2">
-            <p className="text-[9px] font-black text-[#6B655C] uppercase tracking-widest">Pending</p>
+            <p className="text-[9px] font-black text-[#8A8279] uppercase tracking-widest">Pending</p>
             <p className="text-2xl font-black text-[#C9A05C]">{appraisals.length}</p>
           </div>
         </div>
@@ -331,13 +331,13 @@ export function AppraisalApproval({ branchId, activeBranchId, userRole = 'STAFF'
       {/* Search */}
       <div className="bg-[#14141B] rounded-2xl shadow-sm border border-[rgba(201,160,92,0.08)] p-4">
         <div className="relative">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-[#6B655C]" />
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-[#8A8279]" />
           <input
             type="text"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             placeholder="Search by customer name or ticket number..."
-            className="w-full pl-12 pr-4 py-3 border border-[rgba(201,160,92,0.12)] rounded-xl focus:border-[#C9A05C] focus:ring-2 focus:ring-[rgba(201,160,92,0.2)] outline-none transition font-bold text-[#EAE2D6]"
+            className="w-full pl-12 pr-4 py-3 border border-[rgba(201,160,92,0.12)] rounded-xl focus:border-[#C9A05C] focus:ring-2 focus:ring-[rgba(201,160,92,0.2)] outline-none transition font-bold text-[#F5F0E8]"
           />
         </div>
       </div>
@@ -353,7 +353,7 @@ export function AppraisalApproval({ branchId, activeBranchId, userRole = 'STAFF'
           ) : filteredAppraisals.length === 0 ? (
             <div className="bg-[#14141B] rounded-3xl p-12 text-center border border-[rgba(201,160,92,0.08)]">
               <CheckCheck className="w-16 h-16 text-slate-300 mx-auto mb-4" />
-              <p className="text-[#6B655C] font-bold text-sm uppercase tracking-widest">No pending appraisals</p>
+              <p className="text-[#8A8279] font-bold text-sm uppercase tracking-widest">No pending appraisals</p>
             </div>
           ) : (
             <div className="space-y-4">
@@ -372,7 +372,7 @@ export function AppraisalApproval({ branchId, activeBranchId, userRole = 'STAFF'
                 >
                   <div className="flex justify-between items-start mb-4">
                     <div>
-                      <h3 className="font-black text-[#EAE2D6] text-lg flex items-center gap-2">
+                      <h3 className="font-black text-[#F5F0E8] text-lg flex items-center gap-2">
                         {appraisal.customerName}
                         <span className={`px-2 py-0.5 rounded-full text-[9px] font-black text-white ${tierColors[appraisal.loyaltyTier] || 'bg-gray-600'}`}>
                           {appraisal.loyaltyTier}
@@ -391,20 +391,20 @@ export function AppraisalApproval({ branchId, activeBranchId, userRole = 'STAFF'
 
                   <div className="grid grid-cols-3 gap-4 mb-4">
                     <div>
-                      <p className="text-[9px] font-black text-[#6B655C] uppercase tracking-widest mb-1">Category</p>
-                      <p className="text-sm font-bold text-[#6B655C]">{appraisal.category}</p>
+                      <p className="text-[9px] font-black text-[#8A8279] uppercase tracking-widest mb-1">Category</p>
+                      <p className="text-sm font-bold text-[#8A8279]">{appraisal.category}</p>
                     </div>
                     <div>
-                      <p className="text-[9px] font-black text-[#6B655C] uppercase tracking-widest mb-1">Weight</p>
-                      <p className="text-sm font-bold text-[#6B655C]">{appraisal.weight}g</p>
+                      <p className="text-[9px] font-black text-[#8A8279] uppercase tracking-widest mb-1">Weight</p>
+                      <p className="text-sm font-bold text-[#8A8279]">{appraisal.weight}g</p>
                     </div>
                     <div className="text-right">
-                      <p className="text-[9px] font-black text-[#6B655C] uppercase tracking-widest mb-1">Loan Amount</p>
+                      <p className="text-[9px] font-black text-[#8A8279] uppercase tracking-widest mb-1">Loan Amount</p>
                       <p className="text-lg font-black text-[#C9A05C]">{formatCurrency(appraisal.loanAmount)}</p>
                     </div>
                   </div>
 
-                  <p className="text-xs text-[#999186] line-clamp-2">{appraisal.description || 'No description provided.'}</p>
+                  <p className="text-xs text-[#B8B0A4] line-clamp-2">{appraisal.description || 'No description provided.'}</p>
                 </div>
               ))}
             </div>
@@ -416,34 +416,34 @@ export function AppraisalApproval({ branchId, activeBranchId, userRole = 'STAFF'
           {selectedAppraisal ? (
             <div className="bg-[#14141B] rounded-3xl p-8 shadow-sm border border-[rgba(201,160,92,0.08)] sticky top-8 space-y-6">
               <div>
-                <h3 className="text-[10px] font-black text-[#6B655C] uppercase tracking-widest mb-4">Appraisal Details</h3>
+                <h3 className="text-[10px] font-black text-[#8A8279] uppercase tracking-widest mb-4">Appraisal Details</h3>
 
                 <div className="space-y-4">
                   <div className="flex items-center gap-3 pb-4 border-b border-[rgba(201,160,92,0.08)]">
                     <User className="w-5 h-5 text-[#C9A05C]" />
                     <div>
-                      <p className="text-[9px] font-black text-[#6B655C] uppercase tracking-widest">Customer</p>
-                      <p className="font-bold text-[#EAE2D6] flex items-center gap-2">
+                      <p className="text-[9px] font-black text-[#8A8279] uppercase tracking-widest">Customer</p>
+                      <p className="font-bold text-[#F5F0E8] flex items-center gap-2">
                         {selectedAppraisal.customerName}
                         <span className={`px-2 py-0.5 rounded-full text-[9px] font-black text-white ${tierColors[selectedAppraisal.loyaltyTier] || 'bg-gray-600'}`}>
                           {selectedAppraisal.loyaltyTier}
                         </span>
                       </p>
-                      <p className="text-xs text-[#999186]">{selectedAppraisal.customerContact}</p>
+                      <p className="text-xs text-[#B8B0A4]">{selectedAppraisal.customerContact}</p>
                     </div>
                   </div>
 
                   <div className="flex items-center gap-3 pb-4 border-b border-[rgba(201,160,92,0.08)]">
                     <Scale className="w-5 h-5 text-[#C9A05C]" />
                     <div>
-                      <p className="text-[9px] font-black text-[#6B655C] uppercase tracking-widest">Item Details</p>
-                      <p className="font-bold text-[#EAE2D6]">{selectedAppraisal.category}</p>
-                      <p className="text-xs text-[#999186]">{selectedAppraisal.weight}g</p>
+                      <p className="text-[9px] font-black text-[#8A8279] uppercase tracking-widest">Item Details</p>
+                      <p className="font-bold text-[#F5F0E8]">{selectedAppraisal.category}</p>
+                      <p className="text-xs text-[#B8B0A4]">{selectedAppraisal.weight}g</p>
                     </div>
                   </div>
 
                   <div className="bg-[#1C1C26] rounded-2xl p-4">
-                    <p className="text-[9px] font-black text-[#6B655C] uppercase tracking-widest mb-2">Photos</p>
+                    <p className="text-[9px] font-black text-[#8A8279] uppercase tracking-widest mb-2">Photos</p>
                     <div className="relative h-44 rounded-2xl border border-[rgba(201,160,92,0.12)] bg-[#14141B] overflow-hidden flex items-center justify-center">
                       {photoSrc ? (
                         <img
@@ -455,7 +455,7 @@ export function AppraisalApproval({ branchId, activeBranchId, userRole = 'STAFF'
                       ) : photoFailed ? (
                         <div className="flex flex-col items-center gap-2 text-slate-300 p-4">
                           <ImageOff className="w-8 h-8" />
-                          <p className="text-xs font-bold text-[#6B655C]">Photo unavailable</p>
+                          <p className="text-xs font-bold text-[#8A8279]">Photo unavailable</p>
                           <button
                             onClick={resolveCurrentPhoto}
                             className="text-[10px] font-black uppercase tracking-widest text-[#C9A05C] hover:underline"
@@ -497,22 +497,22 @@ export function AppraisalApproval({ branchId, activeBranchId, userRole = 'STAFF'
                       ) : null}
                     </div>
                     {selectedAppraisal.photoUrls.length > 1 ? (
-                      <p className="text-[10px] mt-2 font-black text-[#6B655C] uppercase tracking-widest">
+                      <p className="text-[10px] mt-2 font-black text-[#8A8279] uppercase tracking-widest">
                         Photo {detailPhotoIndex + 1} / {selectedAppraisal.photoUrls.length}
                       </p>
                     ) : null}
                   </div>
 
                   <div className="bg-[#1C1C26] rounded-2xl p-4">
-                    <p className="text-[9px] font-black text-[#6B655C] uppercase tracking-widest mb-2">Description</p>
-                    <p className="text-sm text-[#6B655C]">{selectedAppraisal.description || 'No description provided.'}</p>
+                    <p className="text-[9px] font-black text-[#8A8279] uppercase tracking-widest mb-2">Description</p>
+                    <p className="text-sm text-[#8A8279]">{selectedAppraisal.description || 'No description provided.'}</p>
                   </div>
 
                   <div className="flex items-center gap-3 pb-4 border-b border-[rgba(201,160,92,0.08)]">
                     <Calendar className="w-5 h-5 text-[#C9A05C]" />
                     <div>
-                      <p className="text-[9px] font-black text-[#6B655C] uppercase tracking-widest">Expiry Date</p>
-                      <p className="font-bold text-[#EAE2D6]">
+                      <p className="text-[9px] font-black text-[#8A8279] uppercase tracking-widest">Expiry Date</p>
+                      <p className="font-bold text-[#F5F0E8]">
                         {new Date(selectedAppraisal.expiryDate).toLocaleDateString('en-PH', {
                           year: 'numeric',
                           month: 'long',
@@ -615,7 +615,7 @@ export function AppraisalApproval({ branchId, activeBranchId, userRole = 'STAFF'
           ) : (
             <div className="bg-[#14141B] rounded-3xl p-12 text-center border border-[rgba(201,160,92,0.08)] sticky top-8">
               <Eye className="w-16 h-16 text-slate-300 mx-auto mb-4" />
-              <p className="text-[#6B655C] font-bold text-sm uppercase tracking-widest">Select an appraisal to review</p>
+              <p className="text-[#8A8279] font-bold text-sm uppercase tracking-widest">Select an appraisal to review</p>
             </div>
           )}
         </div>

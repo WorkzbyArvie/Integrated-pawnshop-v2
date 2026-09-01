@@ -1,4 +1,4 @@
-﻿/**
+/**
  * FinanceTreasury -- Unified Finance & Treasury dashboard.
  *
  * Shows the integrated view of:
@@ -157,16 +157,16 @@ export function FinanceTreasury({ branchId: _branchId, activeBranchId }: Finance
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h2 className="text-3xl font-black text-[#EAE2D6] tracking-tighter uppercase italic">
+          <h2 className="text-3xl font-black text-[#F5F0E8] tracking-tighter uppercase italic">
             Finance <span className="text-[#C9A05C]">&amp;</span> Treasury
           </h2>
-          <p className="text-[#6B655C] font-medium uppercase text-[10px] tracking-widest">
+          <p className="text-[#8A8279] font-medium uppercase text-[10px] tracking-widest">
             Attendance &bull; Payroll &bull; Cash Flow -- Integrated View
           </p>
         </div>
         <div className="flex items-center gap-3">
           <Input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="w-36 text-xs" />
-          <span className="text-[#6B655C] text-xs font-bold">to</span>
+          <span className="text-[#8A8279] text-xs font-bold">to</span>
           <Input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="w-36 text-xs" />
           <Button variant="outline" size="sm" onClick={refetch} disabled={loading}>
             <RefreshCw className={`w-4 h-4 mr-1 ${loading ? 'animate-spin' : ''}`} /> Refresh
@@ -204,7 +204,7 @@ export function FinanceTreasury({ branchId: _branchId, activeBranchId }: Finance
         {/* Cash Flow Net */}
         <Card className="rounded-2xl shadow-md">
           <CardHeader className="pb-2">
-            <CardTitle className="text-xs font-black uppercase tracking-widest text-[#6B655C] flex items-center gap-2">
+            <CardTitle className="text-xs font-black uppercase tracking-widest text-[#8A8279] flex items-center gap-2">
               <TrendingUp className="w-4 h-4" /> Net Cash Flow
             </CardTitle>
           </CardHeader>
@@ -212,14 +212,14 @@ export function FinanceTreasury({ branchId: _branchId, activeBranchId }: Finance
             <p className={`text-3xl font-black tracking-tight ${(d?.cashFlow?.net ?? 0) >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
               {loading ? '---' : formatCurrency(d?.cashFlow?.net ?? 0)}
             </p>
-            <p className="text-xs text-[#6B655C] mt-1">{d?.transactionCount ?? 0} transactions this period</p>
+            <p className="text-xs text-[#8A8279] mt-1">{d?.transactionCount ?? 0} transactions this period</p>
           </CardContent>
         </Card>
 
         {/* Payroll Expense */}
         <Card className="rounded-2xl shadow-md">
           <CardHeader className="pb-2">
-            <CardTitle className="text-xs font-black uppercase tracking-widest text-[#6B655C] flex items-center gap-2">
+            <CardTitle className="text-xs font-black uppercase tracking-widest text-[#8A8279] flex items-center gap-2">
               <Banknote className="w-4 h-4" /> Payroll Expense
             </CardTitle>
           </CardHeader>
@@ -227,7 +227,7 @@ export function FinanceTreasury({ branchId: _branchId, activeBranchId }: Finance
             <p className="text-3xl font-black tracking-tight text-rose-600">
               {loading ? '---' : formatCurrency(d?.payroll?.totalNetPay ?? 0)}
             </p>
-            <p className="text-xs text-[#6B655C] mt-1">
+            <p className="text-xs text-[#8A8279] mt-1">
               {d?.payroll?.payslipCount ?? 0} payslips &bull; {d?.payroll?.paidCount ?? 0} paid &bull; {d?.payroll?.pendingCount ?? 0} pending
             </p>
           </CardContent>
@@ -239,7 +239,7 @@ export function FinanceTreasury({ branchId: _branchId, activeBranchId }: Finance
         {/* Attendance Impact */}
         <Card className="rounded-2xl shadow-md">
           <CardHeader className="pb-2">
-            <CardTitle className="text-xs font-black uppercase tracking-widest text-[#6B655C] flex items-center gap-2">
+            <CardTitle className="text-xs font-black uppercase tracking-widest text-[#8A8279] flex items-center gap-2">
               <Clock className="w-4 h-4" /> Attendance Impact
             </CardTitle>
           </CardHeader>
@@ -250,7 +250,7 @@ export function FinanceTreasury({ branchId: _branchId, activeBranchId }: Finance
               <StatBox label="Late" value={d?.attendance?.late ?? 0} color="amber" />
               <StatBox label="On Leave" value={d?.attendance?.onLeave ?? 0} color="blue" />
             </div>
-            <div className="pt-2 border-t space-y-1 text-xs text-[#999186]">
+            <div className="pt-2 border-t space-y-1 text-xs text-[#B8B0A4]">
               <div className="flex justify-between"><span>Total Work Hours</span><span className="font-bold">{(d?.attendance?.totalWorkHours ?? 0).toFixed(1)}h</span></div>
               <div className="flex justify-between"><span>Overtime Hours</span><span className="font-bold text-[#C9A05C]">{(d?.attendance?.totalOvertimeHours ?? 0).toFixed(1)}h</span></div>
               <div className="flex justify-between"><span>Late Minutes</span><span className="font-bold text-amber-600">{d?.attendance?.totalLateMinutes ?? 0} min</span></div>
@@ -261,7 +261,7 @@ export function FinanceTreasury({ branchId: _branchId, activeBranchId }: Finance
         {/* Payroll Breakdown */}
         <Card className="rounded-2xl shadow-md">
           <CardHeader className="pb-2">
-            <CardTitle className="text-xs font-black uppercase tracking-widest text-[#6B655C] flex items-center gap-2">
+            <CardTitle className="text-xs font-black uppercase tracking-widest text-[#8A8279] flex items-center gap-2">
               <Receipt className="w-4 h-4" /> Payroll Breakdown
             </CardTitle>
           </CardHeader>
@@ -283,19 +283,19 @@ export function FinanceTreasury({ branchId: _branchId, activeBranchId }: Finance
         {/* Category Breakdown */}
         <Card className="rounded-2xl shadow-md">
           <CardHeader className="pb-2">
-            <CardTitle className="text-xs font-black uppercase tracking-widest text-[#6B655C] flex items-center gap-2">
+            <CardTitle className="text-xs font-black uppercase tracking-widest text-[#8A8279] flex items-center gap-2">
               <PieChart className="w-4 h-4" /> By Category
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-2 text-xs max-h-80 overflow-y-auto">
             {categoryBreakdown.length === 0 && !loading && (
-              <p className="text-[#6B655C] text-center py-4">No transactions</p>
+              <p className="text-[#8A8279] text-center py-4">No transactions</p>
             )}
             {categoryBreakdown.map(c => (
               <div key={c.category} className="flex items-center justify-between py-1.5 border-b border-slate-50 last:border-0">
                 <div>
-                  <span className="font-bold text-[#6B655C]">{CATEGORY_LABELS[c.category] || c.category}</span>
-                  <span className="text-[#6B655C] ml-1">({c.count})</span>
+                  <span className="font-bold text-[#8A8279]">{CATEGORY_LABELS[c.category] || c.category}</span>
+                  <span className="text-[#8A8279] ml-1">({c.count})</span>
                 </div>
                 <div className="flex gap-3">
                   {c.inflow > 0 && <span className="text-emerald-600 font-bold">+{formatCurrency(c.inflow)}</span>}
@@ -312,27 +312,27 @@ export function FinanceTreasury({ branchId: _branchId, activeBranchId }: Finance
         {/* Loan Stats */}
         <Card className="rounded-2xl shadow-md">
           <CardHeader className="pb-2">
-            <CardTitle className="text-xs font-black uppercase tracking-widest text-[#6B655C] flex items-center gap-2">
+            <CardTitle className="text-xs font-black uppercase tracking-widest text-[#8A8279] flex items-center gap-2">
               <Landmark className="w-4 h-4" /> Loan Activity
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <p className="text-2xl font-black text-[#EAE2D6]">{formatCurrency(d?.loanStats?.totalDisbursed ?? 0)}</p>
-                <p className="text-[10px] text-[#6B655C] font-bold uppercase tracking-wider">Total Disbursed</p>
+                <p className="text-2xl font-black text-[#F5F0E8]">{formatCurrency(d?.loanStats?.totalDisbursed ?? 0)}</p>
+                <p className="text-[10px] text-[#8A8279] font-bold uppercase tracking-wider">Total Disbursed</p>
               </div>
               <div>
                 <p className="text-2xl font-black text-emerald-600">{formatCurrency(d?.loanStats?.totalInterest ?? 0)}</p>
-                <p className="text-[10px] text-[#6B655C] font-bold uppercase tracking-wider">Interest Earned</p>
+                <p className="text-[10px] text-[#8A8279] font-bold uppercase tracking-wider">Interest Earned</p>
               </div>
               <div>
                 <p className="text-2xl font-black text-[#C9A05C]">{d?.loanStats?.activeLoans ?? 0}</p>
-                <p className="text-[10px] text-[#6B655C] font-bold uppercase tracking-wider">Active Loans</p>
+                <p className="text-[10px] text-[#8A8279] font-bold uppercase tracking-wider">Active Loans</p>
               </div>
               <div>
-                <p className="text-2xl font-black text-[#999186]">{d?.loanStats?.totalLoans ?? 0}</p>
-                <p className="text-[10px] text-[#6B655C] font-bold uppercase tracking-wider">Total This Period</p>
+                <p className="text-2xl font-black text-[#B8B0A4]">{d?.loanStats?.totalLoans ?? 0}</p>
+                <p className="text-[10px] text-[#8A8279] font-bold uppercase tracking-wider">Total This Period</p>
               </div>
             </div>
           </CardContent>
@@ -341,19 +341,19 @@ export function FinanceTreasury({ branchId: _branchId, activeBranchId }: Finance
         {/* Inventory / Active Pawns */}
         <Card className="rounded-2xl shadow-md">
           <CardHeader className="pb-2">
-            <CardTitle className="text-xs font-black uppercase tracking-widest text-[#6B655C] flex items-center gap-2">
+            <CardTitle className="text-xs font-black uppercase tracking-widest text-[#8A8279] flex items-center gap-2">
               <Package className="w-4 h-4" /> Pawned Inventory
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <p className="text-3xl font-black text-[#EAE2D6]">{d?.inventory?.activeTicketCount ?? 0}</p>
-                <p className="text-[10px] text-[#6B655C] font-bold uppercase tracking-wider">Active Tickets</p>
+                <p className="text-3xl font-black text-[#F5F0E8]">{d?.inventory?.activeTicketCount ?? 0}</p>
+                <p className="text-[10px] text-[#8A8279] font-bold uppercase tracking-wider">Active Tickets</p>
               </div>
               <div>
                 <p className="text-3xl font-black text-[#C9A05C]">{formatCurrency(d?.inventory?.totalPawnValue ?? 0)}</p>
-                <p className="text-[10px] text-[#6B655C] font-bold uppercase tracking-wider">Total Pawn Value</p>
+                <p className="text-[10px] text-[#8A8279] font-bold uppercase tracking-wider">Total Pawn Value</p>
               </div>
             </div>
           </CardContent>
@@ -363,7 +363,7 @@ export function FinanceTreasury({ branchId: _branchId, activeBranchId }: Finance
       {/* â•â•â• THIRD ROW: Recent Transactions â•â•â• */}
       <Card className="rounded-2xl shadow-md">
         <CardHeader className="pb-2">
-          <CardTitle className="text-xs font-black uppercase tracking-widest text-[#6B655C] flex items-center gap-2">
+          <CardTitle className="text-xs font-black uppercase tracking-widest text-[#8A8279] flex items-center gap-2">
             <DollarSign className="w-4 h-4" /> Recent Transactions
           </CardTitle>
         </CardHeader>
@@ -384,21 +384,21 @@ export function FinanceTreasury({ branchId: _branchId, activeBranchId }: Finance
               <TableBody>
                 {(!d?.recentTransactions || d.recentTransactions.length === 0) && !loading && (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center text-[#6B655C] py-8">
+                    <TableCell colSpan={7} className="text-center text-[#8A8279] py-8">
                       No transactions for this period
                     </TableCell>
                   </TableRow>
                 )}
                 {loading && (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center text-[#6B655C] py-8">
+                    <TableCell colSpan={7} className="text-center text-[#8A8279] py-8">
                       <RefreshCw className="w-5 h-5 animate-spin inline mr-2" /> Loading...
                     </TableCell>
                   </TableRow>
                 )}
                 {d?.recentTransactions?.map(tx => (
                   <TableRow key={tx.id} className="text-xs">
-                    <TableCell className="font-mono text-[10px] text-[#6B655C]">{tx.entryNumber}</TableCell>
+                    <TableCell className="font-mono text-[10px] text-[#8A8279]">{tx.entryNumber}</TableCell>
                     <TableCell className="whitespace-nowrap">{formatDateTime(tx.transactionDate)}</TableCell>
                     <TableCell>
                       <Badge variant={tx.entryType === 'CREDIT' ? 'default' : 'destructive'} className="text-[10px]">
@@ -410,7 +410,7 @@ export function FinanceTreasury({ branchId: _branchId, activeBranchId }: Finance
                     <TableCell className={`text-right font-bold ${tx.entryType === 'CREDIT' ? 'text-emerald-600' : 'text-rose-600'}`}>
                       {tx.entryType === 'CREDIT' ? '+' : '-'}{formatCurrency(tx.amount)}
                     </TableCell>
-                    <TableCell className="text-right font-mono text-[#999186]">{formatCurrency(tx.balanceAfter)}</TableCell>
+                    <TableCell className="text-right font-mono text-[#B8B0A4]">{formatCurrency(tx.balanceAfter)}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -432,7 +432,7 @@ function StatBox({ label, value, color }: { label: string; value: number; color:
     blue: 'bg-[#C9A05C]/10 text-[#C9A05C] border-[rgba(201,160,92,0.2)]',
   };
   return (
-    <div className={`rounded-xl border p-3 text-center ${colorMap[color] || 'bg-[#1C1C26] text-[#6B655C] border-[rgba(201,160,92,0.12)]'}`}>
+    <div className={`rounded-xl border p-3 text-center ${colorMap[color] || 'bg-[#1C1C26] text-[#8A8279] border-[rgba(201,160,92,0.12)]'}`}>
       <p className="text-2xl font-black">{value}</p>
       <p className="text-[10px] font-bold uppercase tracking-wider">{label}</p>
     </div>
@@ -452,10 +452,10 @@ function PayrollRow({
   bold?: boolean;
   color?: string;
 }) {
-  const colorClass = color === 'emerald' ? 'text-emerald-600' : color === 'blue' ? 'text-[#C9A05C]' : negative ? 'text-rose-600' : 'text-[#6B655C]';
+  const colorClass = color === 'emerald' ? 'text-emerald-600' : color === 'blue' ? 'text-[#C9A05C]' : negative ? 'text-rose-600' : 'text-[#8A8279]';
   return (
     <div className="flex justify-between items-center">
-      <span className={`text-[#999186] ${bold ? 'font-bold' : ''}`}>{label}</span>
+      <span className={`text-[#B8B0A4] ${bold ? 'font-bold' : ''}`}>{label}</span>
       <span className={`${colorClass} ${bold ? 'font-black' : 'font-semibold'}`}>
         {negative && value > 0 ? '-' : ''}{formatCurrency(value)}
       </span>

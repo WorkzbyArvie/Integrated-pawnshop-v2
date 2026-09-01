@@ -160,10 +160,10 @@ export function PlatformAnalytics() {
       {/* HEADER */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-4xl font-light text-[#EAE2D6] tracking-tight">
+          <h1 className="text-4xl font-light text-[#F5F0E8] tracking-tight">
             Platform <span className="font-bold text-[#C9A05C] italic">Analytics</span>
           </h1>
-          <p className="text-[#6B655C] mt-2 font-medium italic">Cross-pawnshop metrics and management</p>
+          <p className="text-[#8A8279] mt-2 font-medium italic">Cross-pawnshop metrics and management</p>
         </div>
         <div className="flex gap-3">
           <button
@@ -180,7 +180,7 @@ export function PlatformAnalytics() {
           </button>
           <button
             onClick={fetchAnalytics}
-            className="flex items-center gap-2 px-4 py-2.5 border border-[rgba(201,160,92,0.15)] text-[#999186] rounded-xl text-sm hover:bg-[#1C1C26] transition-all"
+            className="flex items-center gap-2 px-4 py-2.5 border border-[rgba(201,160,92,0.15)] text-[#B8B0A4] rounded-xl text-sm hover:bg-[#1C1C26] transition-all"
           >
             <RefreshCcw size={16} />
           </button>
@@ -190,35 +190,35 @@ export function PlatformAnalytics() {
       {/* CREATE PAWNSHOP FORM */}
       {showCreateForm && (
         <div className="rounded-xl border border-[#C9A05C]/20 bg-[#1C1C26] p-6 space-y-4">
-          <h3 className="text-lg font-semibold text-[#EAE2D6]">Create New Pawnshop</h3>
+          <h3 className="text-lg font-semibold text-[#F5F0E8]">Create New Pawnshop</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <input
               placeholder="Pawnshop Name *"
               value={createForm.name}
               onChange={(e) => setCreateForm({ ...createForm, name: e.target.value })}
-              className="px-4 py-3 bg-[#0D0D14] border border-[rgba(201,160,92,0.15)] rounded-xl text-[#EAE2D6] text-sm focus:outline-none focus:border-[#C9A05C]/50"
+              className="px-4 py-3 bg-[#0D0D14] border border-[rgba(201,160,92,0.15)] rounded-xl text-[#F5F0E8] text-sm focus:outline-none focus:border-[#C9A05C]/50"
             />
             <input
               placeholder="Owner Email *"
               type="email"
               value={createForm.ownerEmail}
               onChange={(e) => setCreateForm({ ...createForm, ownerEmail: e.target.value })}
-              className="px-4 py-3 bg-[#0D0D14] border border-[rgba(201,160,92,0.15)] rounded-xl text-[#EAE2D6] text-sm focus:outline-none focus:border-[#C9A05C]/50"
+              className="px-4 py-3 bg-[#0D0D14] border border-[rgba(201,160,92,0.15)] rounded-xl text-[#F5F0E8] text-sm focus:outline-none focus:border-[#C9A05C]/50"
             />
             <input
               placeholder="Owner Name"
               value={createForm.ownerName}
               onChange={(e) => setCreateForm({ ...createForm, ownerName: e.target.value })}
-              className="px-4 py-3 bg-[#0D0D14] border border-[rgba(201,160,92,0.15)] rounded-xl text-[#EAE2D6] text-sm focus:outline-none focus:border-[#C9A05C]/50"
+              className="px-4 py-3 bg-[#0D0D14] border border-[rgba(201,160,92,0.15)] rounded-xl text-[#F5F0E8] text-sm focus:outline-none focus:border-[#C9A05C]/50"
             />
             <input
               placeholder="Contact Phone"
               value={createForm.contactPhone}
               onChange={(e) => setCreateForm({ ...createForm, contactPhone: e.target.value })}
-              className="px-4 py-3 bg-[#0D0D14] border border-[rgba(201,160,92,0.15)] rounded-xl text-[#EAE2D6] text-sm focus:outline-none focus:border-[#C9A05C]/50"
+              className="px-4 py-3 bg-[#0D0D14] border border-[rgba(201,160,92,0.15)] rounded-xl text-[#F5F0E8] text-sm focus:outline-none focus:border-[#C9A05C]/50"
             />
           </div>
-          <label className="flex items-center gap-2 text-sm text-[#999186]">
+          <label className="flex items-center gap-2 text-sm text-[#B8B0A4]">
             <input
               type="checkbox"
               checked={createForm.activateTrial}
@@ -237,7 +237,7 @@ export function PlatformAnalytics() {
             </button>
             <button
               onClick={() => setShowCreateForm(false)}
-              className="px-5 py-2.5 border border-[rgba(201,160,92,0.15)] text-[#999186] rounded-xl text-sm hover:bg-[#1C1C26] transition-all"
+              className="px-5 py-2.5 border border-[rgba(201,160,92,0.15)] text-[#B8B0A4] rounded-xl text-sm hover:bg-[#1C1C26] transition-all"
             >
               Cancel
             </button>
@@ -248,32 +248,32 @@ export function PlatformAnalytics() {
       {/* INVITE OWNER FORM */}
       {showInviteForm && (
         <div className="rounded-xl border border-[#C9A05C]/20 bg-[#1C1C26] p-6 space-y-4">
-          <h3 className="text-lg font-semibold text-[#EAE2D6]">Invite Pawnshop Owner</h3>
+          <h3 className="text-lg font-semibold text-[#F5F0E8]">Invite Pawnshop Owner</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <input
               placeholder="Owner Email *"
               type="email"
               value={inviteForm.email}
               onChange={(e) => setInviteForm({ ...inviteForm, email: e.target.value })}
-              className="px-4 py-3 bg-[#0D0D14] border border-[rgba(201,160,92,0.15)] rounded-xl text-[#EAE2D6] text-sm focus:outline-none focus:border-[#C9A05C]/50"
+              className="px-4 py-3 bg-[#0D0D14] border border-[rgba(201,160,92,0.15)] rounded-xl text-[#F5F0E8] text-sm focus:outline-none focus:border-[#C9A05C]/50"
             />
             <input
               placeholder="Pawnshop Name *"
               value={inviteForm.pawnshopName}
               onChange={(e) => setInviteForm({ ...inviteForm, pawnshopName: e.target.value })}
-              className="px-4 py-3 bg-[#0D0D14] border border-[rgba(201,160,92,0.15)] rounded-xl text-[#EAE2D6] text-sm focus:outline-none focus:border-[#C9A05C]/50"
+              className="px-4 py-3 bg-[#0D0D14] border border-[rgba(201,160,92,0.15)] rounded-xl text-[#F5F0E8] text-sm focus:outline-none focus:border-[#C9A05C]/50"
             />
             <input
               placeholder="Owner Name"
               value={inviteForm.ownerName}
               onChange={(e) => setInviteForm({ ...inviteForm, ownerName: e.target.value })}
-              className="px-4 py-3 bg-[#0D0D14] border border-[rgba(201,160,92,0.15)] rounded-xl text-[#EAE2D6] text-sm focus:outline-none focus:border-[#C9A05C]/50"
+              className="px-4 py-3 bg-[#0D0D14] border border-[rgba(201,160,92,0.15)] rounded-xl text-[#F5F0E8] text-sm focus:outline-none focus:border-[#C9A05C]/50"
             />
             <textarea
               placeholder="Personal message (optional)"
               value={inviteForm.message}
               onChange={(e) => setInviteForm({ ...inviteForm, message: e.target.value })}
-              className="px-4 py-3 bg-[#0D0D14] border border-[rgba(201,160,92,0.15)] rounded-xl text-[#EAE2D6] text-sm focus:outline-none focus:border-[#C9A05C]/50 resize-none"
+              className="px-4 py-3 bg-[#0D0D14] border border-[rgba(201,160,92,0.15)] rounded-xl text-[#F5F0E8] text-sm focus:outline-none focus:border-[#C9A05C]/50 resize-none"
               rows={2}
             />
           </div>
@@ -287,7 +287,7 @@ export function PlatformAnalytics() {
             </button>
             <button
               onClick={() => setShowInviteForm(false)}
-              className="px-5 py-2.5 border border-[rgba(201,160,92,0.15)] text-[#999186] rounded-xl text-sm hover:bg-[#1C1C26] transition-all"
+              className="px-5 py-2.5 border border-[rgba(201,160,92,0.15)] text-[#B8B0A4] rounded-xl text-sm hover:bg-[#1C1C26] transition-all"
             >
               Cancel
             </button>
@@ -302,8 +302,8 @@ export function PlatformAnalytics() {
             <div className={`w-10 h-10 rounded-lg ${stat.bg} flex items-center justify-center mb-3`}>
               <stat.icon className={`w-5 h-5 ${stat.color}`} />
             </div>
-            <p className="text-2xl font-bold text-[#EAE2D6]">{stat.value}</p>
-            <p className="text-xs text-[#6B655C] mt-1">{stat.label}</p>
+            <p className="text-2xl font-bold text-[#F5F0E8]">{stat.value}</p>
+            <p className="text-xs text-[#8A8279] mt-1">{stat.label}</p>
           </div>
         ))}
       </div>
@@ -312,7 +312,7 @@ export function PlatformAnalytics() {
       {subAction && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
           <div className="bg-[#1C1C26] border border-[rgba(201,160,92,0.2)] rounded-2xl p-6 w-full max-w-md space-y-4">
-            <h3 className="text-lg font-semibold text-[#EAE2D6]">
+            <h3 className="text-lg font-semibold text-[#F5F0E8]">
               {subAction.type === 'extend' && `Extend Trial — ${subAction.pawnshopName}`}
               {subAction.type === 'upgrade' && `Upgrade Tier — ${subAction.pawnshopName}`}
               {subAction.type === 'status' && `Change Status — ${subAction.pawnshopName}`}
@@ -323,7 +323,7 @@ export function PlatformAnalytics() {
                 min={1}
                 value={subForm.additionalDays}
                 onChange={(e) => setSubForm({ ...subForm, additionalDays: Number(e.target.value) })}
-                className="w-full px-4 py-3 bg-[#0D0D14] border border-[rgba(201,160,92,0.15)] rounded-xl text-[#EAE2D6] text-sm"
+                className="w-full px-4 py-3 bg-[#0D0D14] border border-[rgba(201,160,92,0.15)] rounded-xl text-[#F5F0E8] text-sm"
                 placeholder="Additional days"
               />
             )}
@@ -331,7 +331,7 @@ export function PlatformAnalytics() {
               <select
                 value={subForm.tier}
                 onChange={(e) => setSubForm({ ...subForm, tier: e.target.value })}
-                className="w-full px-4 py-3 bg-[#0D0D14] border border-[rgba(201,160,92,0.15)] rounded-xl text-[#EAE2D6] text-sm"
+                className="w-full px-4 py-3 bg-[#0D0D14] border border-[rgba(201,160,92,0.15)] rounded-xl text-[#F5F0E8] text-sm"
               >
                 <option value="FREE">FREE</option>
                 <option value="BASIC">BASIC (₱2,999/mo)</option>
@@ -343,7 +343,7 @@ export function PlatformAnalytics() {
               <select
                 value={subForm.status}
                 onChange={(e) => setSubForm({ ...subForm, status: e.target.value })}
-                className="w-full px-4 py-3 bg-[#0D0D14] border border-[rgba(201,160,92,0.15)] rounded-xl text-[#EAE2D6] text-sm"
+                className="w-full px-4 py-3 bg-[#0D0D14] border border-[rgba(201,160,92,0.15)] rounded-xl text-[#F5F0E8] text-sm"
               >
                 <option value="ACTIVE">ACTIVE</option>
                 <option value="TRIAL">TRIAL</option>
@@ -354,7 +354,7 @@ export function PlatformAnalytics() {
             <input
               value={subForm.reason}
               onChange={(e) => setSubForm({ ...subForm, reason: e.target.value })}
-              className="w-full px-4 py-3 bg-[#0D0D14] border border-[rgba(201,160,92,0.15)] rounded-xl text-[#EAE2D6] text-sm"
+              className="w-full px-4 py-3 bg-[#0D0D14] border border-[rgba(201,160,92,0.15)] rounded-xl text-[#F5F0E8] text-sm"
               placeholder="Reason (optional)"
             />
             <div className="flex gap-3">
@@ -366,7 +366,7 @@ export function PlatformAnalytics() {
               </button>
               <button
                 onClick={() => setSubAction(null)}
-                className="px-5 py-2.5 border border-[rgba(201,160,92,0.15)] text-[#999186] rounded-xl text-sm"
+                className="px-5 py-2.5 border border-[rgba(201,160,92,0.15)] text-[#B8B0A4] rounded-xl text-sm"
               >
                 Cancel
               </button>

@@ -121,7 +121,7 @@ export default function MyWinnings() {
       })
       .catch((err: Error) => {
         if (!mounted) return;
-        Swal.fire({ icon: 'error', title: 'Error', text: err.message || 'Failed to load your winnings', confirmButtonColor: '#C9A05C', background: '#1C1C26', color: '#EAE2D6' });
+        Swal.fire({ icon: 'error', title: 'Error', text: err.message || 'Failed to load your winnings', confirmButtonColor: '#C9A05C', background: '#1C1C26', color: '#F5F0E8' });
       })
       .finally(() => {
         if (mounted) setLoading(false);
@@ -142,7 +142,7 @@ export default function MyWinnings() {
       const data = await fetchTosTemplate(session.access_token);
       setContractModal({ item, template: data.template, clauses: data.clauses, signedName: '' });
     } catch (err: any) {
-      Swal.fire({ icon: 'error', title: 'Error', text: err.message || 'Failed to load contract', confirmButtonColor: '#C9A05C', background: '#1C1C26', color: '#EAE2D6' });
+      Swal.fire({ icon: 'error', title: 'Error', text: err.message || 'Failed to load contract', confirmButtonColor: '#C9A05C', background: '#1C1C26', color: '#F5F0E8' });
     } finally {
       setContractLoading(false);
     }
@@ -151,7 +151,7 @@ export default function MyWinnings() {
   const handleSignContract = async () => {
     if (!session?.access_token || !contractModal) return;
     if (!contractModal.signedName.trim()) {
-      Swal.fire({ icon: 'warning', title: 'Name Required', text: 'Please enter your full name to sign.', confirmButtonColor: '#C9A05C', background: '#1C1C26', color: '#EAE2D6' });
+      Swal.fire({ icon: 'warning', title: 'Name Required', text: 'Please enter your full name to sign.', confirmButtonColor: '#C9A05C', background: '#1C1C26', color: '#F5F0E8' });
       return;
     }
     setSigningId(contractModal.item.id);
@@ -160,7 +160,7 @@ export default function MyWinnings() {
       setContractModal(null);
       loadWinnings();
     } catch (err: any) {
-      Swal.fire({ icon: 'error', title: 'Signing Failed', text: err.message || 'Failed to sign contract', confirmButtonColor: '#C9A05C', background: '#1C1C26', color: '#EAE2D6' });
+      Swal.fire({ icon: 'error', title: 'Signing Failed', text: err.message || 'Failed to sign contract', confirmButtonColor: '#C9A05C', background: '#1C1C26', color: '#F5F0E8' });
     } finally {
       setSigningId(null);
     }
@@ -173,7 +173,7 @@ export default function MyWinnings() {
       const result = await createPaymentCheckout(complianceId, session.access_token);
       window.open(result.checkoutUrl, '_blank');
     } catch (err: any) {
-      Swal.fire({ icon: 'error', title: 'Payment Failed', text: err.message || 'Payment failed', confirmButtonColor: '#C9A05C', background: '#1C1C26', color: '#EAE2D6' });
+      Swal.fire({ icon: 'error', title: 'Payment Failed', text: err.message || 'Payment failed', confirmButtonColor: '#C9A05C', background: '#1C1C26', color: '#F5F0E8' });
     } finally {
       setPayingId(null);
     }
@@ -186,7 +186,7 @@ export default function MyWinnings() {
       await simulatePaymentWebhook(complianceId, session.access_token);
       loadWinnings();
     } catch (err: any) {
-      Swal.fire({ icon: 'error', title: 'Simulation Failed', text: err.message || 'Simulation failed', confirmButtonColor: '#C9A05C', background: '#1C1C26', color: '#EAE2D6' });
+      Swal.fire({ icon: 'error', title: 'Simulation Failed', text: err.message || 'Simulation failed', confirmButtonColor: '#C9A05C', background: '#1C1C26', color: '#F5F0E8' });
     } finally {
       setPayingId(null);
     }
@@ -199,7 +199,7 @@ export default function MyWinnings() {
       const receipts = await fetchReceiptsByAuction(item.listingId, session.access_token);
       setReceiptModal({ item, receipts });
     } catch {
-      Swal.fire({ icon: 'error', title: 'Error', text: 'Failed to load receipts', confirmButtonColor: '#C9A05C', background: '#1C1C26', color: '#EAE2D6' });
+      Swal.fire({ icon: 'error', title: 'Error', text: 'Failed to load receipts', confirmButtonColor: '#C9A05C', background: '#1C1C26', color: '#F5F0E8' });
     } finally {
       setReceiptLoading(false);
     }
@@ -210,7 +210,7 @@ export default function MyWinnings() {
       const url = await downloadReceiptPdf(receiptId);
       window.open(url, '_blank');
     } catch {
-      Swal.fire({ icon: 'error', title: 'Error', text: 'Failed to download receipt', confirmButtonColor: '#C9A05C', background: '#1C1C26', color: '#EAE2D6' });
+      Swal.fire({ icon: 'error', title: 'Error', text: 'Failed to download receipt', confirmButtonColor: '#C9A05C', background: '#1C1C26', color: '#F5F0E8' });
     }
   };
 

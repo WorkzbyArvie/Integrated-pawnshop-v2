@@ -1,4 +1,4 @@
-﻿import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import Swal from 'sweetalert2';
 import { Upload, X, FileText, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
 import { getBackendUrl } from '../../lib/backendUrl';
@@ -203,12 +203,12 @@ export function DocumentUpload({ applicationId, onUploadSuccess, onClose }: Docu
       <div className="bg-[#14141B] rounded-2xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="p-6 border-b border-[rgba(201,160,92,0.1)] flex items-center justify-between">
-          <h2 className="text-2xl font-black text-[#EAE2D6]">Upload Documents</h2>
+          <h2 className="text-2xl font-black text-[#F5F0E8]">Upload Documents</h2>
           <button
             onClick={onClose}
             className="p-2 hover:bg-gray-100 rounded-lg transition"
           >
-            <X className="w-6 h-6 text-[#999186]" />
+            <X className="w-6 h-6 text-[#B8B0A4]" />
           </button>
         </div>
 
@@ -228,13 +228,13 @@ export function DocumentUpload({ applicationId, onUploadSuccess, onClose }: Docu
           >
             <Upload
               className={`w-16 h-16 mx-auto mb-4 ${
-                isDragging ? 'text-[#C9A05C]' : 'text-[#6B655C]'
+                isDragging ? 'text-[#C9A05C]' : 'text-[#8A8279]'
               }`}
             />
-            <p className="text-lg font-bold text-[#EAE2D6] mb-2">
+            <p className="text-lg font-bold text-[#F5F0E8] mb-2">
               Drag & drop files here
             </p>
-            <p className="text-[#999186] mb-4">
+            <p className="text-[#B8B0A4] mb-4">
               or click the button below to select files
             </p>
             <label className="inline-block px-6 py-3 bg-[#C9A05C] text-white font-bold rounded-xl hover:bg-[#E5C88C] transition cursor-pointer">
@@ -247,7 +247,7 @@ export function DocumentUpload({ applicationId, onUploadSuccess, onClose }: Docu
                 className="hidden"
               />
             </label>
-            <p className="text-sm text-[#6B655C] mt-4">
+            <p className="text-sm text-[#8A8279] mt-4">
               Supported formats: PDF, PNG, JPG (max 10MB per file)
             </p>
           </div>
@@ -255,17 +255,17 @@ export function DocumentUpload({ applicationId, onUploadSuccess, onClose }: Docu
           {/* Selected Files */}
           {selectedFiles.length > 0 && uploadingFiles.length === 0 && (
             <div className="space-y-3">
-              <h3 className="font-bold text-[#EAE2D6]">Selected Files ({selectedFiles.length})</h3>
+              <h3 className="font-bold text-[#F5F0E8]">Selected Files ({selectedFiles.length})</h3>
               {selectedFiles.map((file, index) => (
                 <div
                   key={index}
                   className="flex items-center justify-between p-4 bg-gray-50 rounded-xl"
                 >
                   <div className="flex items-center gap-3 flex-1">
-                    <FileText className="w-5 h-5 text-[#999186] flex-shrink-0" />
+                    <FileText className="w-5 h-5 text-[#B8B0A4] flex-shrink-0" />
                     <div className="flex-1 min-w-0">
-                      <p className="font-bold text-[#EAE2D6] truncate">{file.name}</p>
-                      <p className="text-sm text-[#6B655C]">{formatFileSize(file.size)}</p>
+                      <p className="font-bold text-[#F5F0E8] truncate">{file.name}</p>
+                      <p className="text-sm text-[#8A8279]">{formatFileSize(file.size)}</p>
                     </div>
                   </div>
                   <button
@@ -282,7 +282,7 @@ export function DocumentUpload({ applicationId, onUploadSuccess, onClose }: Docu
           {/* Uploading Files */}
           {uploadingFiles.length > 0 && (
             <div className="space-y-3">
-              <h3 className="font-bold text-[#EAE2D6]">Uploading Files</h3>
+              <h3 className="font-bold text-[#F5F0E8]">Uploading Files</h3>
               {uploadingFiles.map((uploadFile, index) => (
                 <div
                   key={index}
@@ -290,12 +290,12 @@ export function DocumentUpload({ applicationId, onUploadSuccess, onClose }: Docu
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3 flex-1">
-                      <FileText className="w-5 h-5 text-[#999186] flex-shrink-0" />
+                      <FileText className="w-5 h-5 text-[#B8B0A4] flex-shrink-0" />
                       <div className="flex-1 min-w-0">
-                        <p className="font-bold text-[#EAE2D6] truncate">
+                        <p className="font-bold text-[#F5F0E8] truncate">
                           {uploadFile.file.name}
                         </p>
-                        <p className="text-sm text-[#6B655C]">
+                        <p className="text-sm text-[#8A8279]">
                           {formatFileSize(uploadFile.file.size)}
                         </p>
                       </div>
@@ -351,7 +351,7 @@ export function DocumentUpload({ applicationId, onUploadSuccess, onClose }: Docu
         <div className="p-6 border-t border-[rgba(201,160,92,0.1)] flex justify-end gap-3">
           <button
             onClick={onClose}
-            className="px-6 py-3 bg-gray-100 text-[#999186] font-bold rounded-xl hover:bg-gray-200 transition"
+            className="px-6 py-3 bg-gray-100 text-[#B8B0A4] font-bold rounded-xl hover:bg-gray-200 transition"
             disabled={uploadingFiles.some((uf) => uf.status === 'uploading')}
           >
             Cancel

@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Users, Shield, Clock, TrendingUp, Loader2, UserMinus, MoreVertical, Trash2, KeyRound, UserCog } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 import { useToast } from '../App';
@@ -409,10 +409,10 @@ export function StaffMatrix({ branchId, userRole: propUserRole, activeBranchId =
 
       <div className="flex justify-between items-end">
         <div>
-          <h2 className="text-3xl font-black text-[#EAE2D6] tracking-tighter uppercase italic">
+          <h2 className="text-3xl font-black text-[#F5F0E8] tracking-tighter uppercase italic">
             Staff <span className="text-[#C9A05C]">Matrix</span>
           </h2>
-          <p className="text-[#6B655C] font-medium uppercase text-[10px] tracking-widest">
+          <p className="text-[#8A8279] font-medium uppercase text-[10px] tracking-widest">
             Human Capital & Access Management
           </p>
         </div>
@@ -426,8 +426,8 @@ export function StaffMatrix({ branchId, userRole: propUserRole, activeBranchId =
             </button>
           )}
           <div className="text-right">
-              <p className="text-[10px] font-black text-[#6B655C] uppercase tracking-tighter">Total Personnel</p>
-              <p className="text-2xl font-black text-[#EAE2D6]">{staff.length}</p>
+              <p className="text-[10px] font-black text-[#8A8279] uppercase tracking-tighter">Total Personnel</p>
+              <p className="text-2xl font-black text-[#F5F0E8]">{staff.length}</p>
           </div>
         </div>
       </div>
@@ -435,7 +435,7 @@ export function StaffMatrix({ branchId, userRole: propUserRole, activeBranchId =
       {showAddStaffModal && canManageStaff && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={closeAddStaffModal}>
           <div className="bg-[#14141B] rounded-2xl p-6 w-96 shadow-2xl" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-xl font-black text-[#EAE2D6] mb-4">Add Staff Account</h3>
+            <h3 className="text-xl font-black text-[#F5F0E8] mb-4">Add Staff Account</h3>
             <form onSubmit={handleAddStaff} className="space-y-4">
               <input 
                 type="text" 
@@ -470,17 +470,17 @@ export function StaffMatrix({ branchId, userRole: propUserRole, activeBranchId =
                   type="button"
                   onClick={handleRequestAuthCode}
                   disabled={authCodeCooldown > 0}
-                  className="px-3 py-2 bg-[#222228] text-[#EAE2D6] rounded-lg font-bold text-[10px] uppercase tracking-wide hover:bg-slate-300 disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="px-3 py-2 bg-[#222228] text-[#F5F0E8] rounded-lg font-bold text-[10px] uppercase tracking-wide hover:bg-slate-300 disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   {authCodeCooldown > 0 ? `${authCodeCooldown}s` : 'Get Code'}
                 </button>
               </div>
               {authCodeRequested && (
-                <div className="text-[10px] font-semibold text-[#6B655C]">
+                <div className="text-[10px] font-semibold text-[#8A8279]">
                   {authCodeCooldown > 0 ? (
                     <span>
                       Resend code in{' '}
-                      <span className="font-bold text-[#EAE2D6]">{authCodeCooldown}s</span>
+                      <span className="font-bold text-[#F5F0E8]">{authCodeCooldown}s</span>
                     </span>
                   ) : (
                     <button
@@ -495,7 +495,7 @@ export function StaffMatrix({ branchId, userRole: propUserRole, activeBranchId =
                 </div>
               )}
               {inAppCodeInfo && (
-                <div className="p-3 rounded-lg bg-[#D4A84B]/10 border border-[#D4A84B]/30 text-xs font-semibold text-[#EAE2D6] break-all">
+                <div className="p-3 rounded-lg bg-[#D4A84B]/10 border border-[#D4A84B]/30 text-xs font-semibold text-[#F5F0E8] break-all">
                   ⚠️ {inAppCodeInfo}
                 </div>
               )}
@@ -518,7 +518,7 @@ export function StaffMatrix({ branchId, userRole: propUserRole, activeBranchId =
                 <button
                   type="button"
                   onClick={closeAddStaffModal}
-                  className="flex-1 bg-[#222228] text-[#EAE2D6] py-2 rounded-lg font-bold text-sm hover:bg-slate-300"
+                  className="flex-1 bg-[#222228] text-[#F5F0E8] py-2 rounded-lg font-bold text-sm hover:bg-slate-300"
                 >
                   Cancel
                 </button>
@@ -532,7 +532,7 @@ export function StaffMatrix({ branchId, userRole: propUserRole, activeBranchId =
       {changePasswordData && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setChangePasswordData(null)}>
           <div className="bg-[#14141B] rounded-2xl p-6 w-80 shadow-2xl" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-lg font-black text-[#EAE2D6] mb-4">Change Password</h3>
+            <h3 className="text-lg font-black text-[#F5F0E8] mb-4">Change Password</h3>
             <input 
               type="password" 
               placeholder="New Password"
@@ -551,7 +551,7 @@ export function StaffMatrix({ branchId, userRole: propUserRole, activeBranchId =
               </button>
               <button 
                 onClick={() => setChangePasswordData(null)}
-                className="flex-1 bg-[#222228] text-[#EAE2D6] py-2 rounded-lg font-bold text-sm hover:bg-slate-300"
+                className="flex-1 bg-[#222228] text-[#F5F0E8] py-2 rounded-lg font-bold text-sm hover:bg-slate-300"
               >
                 Cancel
               </button>
@@ -564,8 +564,8 @@ export function StaffMatrix({ branchId, userRole: propUserRole, activeBranchId =
       {deleteConfirmId && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setDeleteConfirmId(null)}>
           <div className="bg-[#14141B] rounded-2xl p-6 w-80 shadow-2xl" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-lg font-black text-[#EAE2D6] mb-4">Confirm Delete</h3>
-            <p className="text-[#999186] text-sm mb-4">Are you sure you want to delete this staff account?</p>
+            <h3 className="text-lg font-black text-[#F5F0E8] mb-4">Confirm Delete</h3>
+            <p className="text-[#B8B0A4] text-sm mb-4">Are you sure you want to delete this staff account?</p>
             <div className="flex gap-2">
               <button 
                 onClick={() => handleDeleteStaff(deleteConfirmId)}
@@ -575,7 +575,7 @@ export function StaffMatrix({ branchId, userRole: propUserRole, activeBranchId =
               </button>
               <button 
                 onClick={() => setDeleteConfirmId(null)}
-                className="flex-1 bg-[#222228] text-[#EAE2D6] py-2 rounded-lg font-bold text-sm hover:bg-slate-300"
+                className="flex-1 bg-[#222228] text-[#F5F0E8] py-2 rounded-lg font-bold text-sm hover:bg-slate-300"
               >
                 Cancel
               </button>
@@ -588,9 +588,9 @@ export function StaffMatrix({ branchId, userRole: propUserRole, activeBranchId =
       {changeRoleData && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setChangeRoleData(null)}>
           <div className="bg-[#14141B] rounded-2xl p-6 w-96 shadow-2xl" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-lg font-black text-[#EAE2D6] mb-2">Change Role</h3>
-            <p className="text-[#6B655C] text-sm mb-4">Update role for <span className="font-bold text-slate-800">{changeRoleData.staffName}</span></p>
-            <p className="text-[10px] font-black text-[#6B655C] uppercase tracking-widest mb-2">Current: {changeRoleData.currentRole}</p>
+            <h3 className="text-lg font-black text-[#F5F0E8] mb-2">Change Role</h3>
+            <p className="text-[#8A8279] text-sm mb-4">Update role for <span className="font-bold text-slate-800">{changeRoleData.staffName}</span></p>
+            <p className="text-[10px] font-black text-[#8A8279] uppercase tracking-widest mb-2">Current: {changeRoleData.currentRole}</p>
             <select
               id="new-role-select"
               defaultValue={changeRoleData.currentRoleCode}
@@ -612,7 +612,7 @@ export function StaffMatrix({ branchId, userRole: propUserRole, activeBranchId =
               </button>
               <button
                 onClick={() => setChangeRoleData(null)}
-                className="flex-1 bg-[#222228] text-[#EAE2D6] py-2 rounded-lg font-bold text-sm hover:bg-slate-300"
+                className="flex-1 bg-[#222228] text-[#F5F0E8] py-2 rounded-lg font-bold text-sm hover:bg-slate-300"
               >
                 Cancel
               </button>
@@ -624,7 +624,7 @@ export function StaffMatrix({ branchId, userRole: propUserRole, activeBranchId =
       {isLoading ? (
         <div className="flex flex-col items-center justify-center py-20 bg-[#14141B] rounded-[3rem] border border-[rgba(201,160,92,0.08)] shadow-sm">
           <Loader2 className="w-10 h-10 text-[#C9A05C] animate-spin mb-4" />
-          <p className="text-[10px] font-black text-[#6B655C] uppercase tracking-widest">Syncing Employee Records...</p>
+          <p className="text-[10px] font-black text-[#8A8279] uppercase tracking-widest">Syncing Employee Records...</p>
         </div>
       ) : staff.length > 0 ? (
         <div className="space-y-6">
@@ -637,11 +637,11 @@ export function StaffMatrix({ branchId, userRole: propUserRole, activeBranchId =
                 </div>
                 <div className="flex flex-col items-end gap-2">
                   <span className={`text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-widest ${
-                    person.status === 'Active' ? 'bg-emerald-100 text-emerald-700' : 'bg-[#1C1C26] text-[#6B655C]'
+                    person.status === 'Active' ? 'bg-emerald-100 text-emerald-700' : 'bg-[#1C1C26] text-[#8A8279]'
                   }`}>
                     {person.status}
                   </span>
-                  <div className="flex items-center gap-1 text-[#6B655C]">
+                  <div className="flex items-center gap-1 text-[#8A8279]">
                     <Shield className="w-3 h-3" />
                     <span className="text-[9px] font-bold uppercase">{person.clearance}</span>
                   </div>
@@ -649,12 +649,12 @@ export function StaffMatrix({ branchId, userRole: propUserRole, activeBranchId =
               </div>
 
               <div className="relative z-10">
-                <h3 className="text-xl font-black text-[#EAE2D6]">{person.name}</h3>
-                <p className="text-[#6B655C] text-sm font-bold uppercase tracking-tighter mb-4">{person.role}</p>
+                <h3 className="text-xl font-black text-[#F5F0E8]">{person.name}</h3>
+                <p className="text-[#8A8279] text-sm font-bold uppercase tracking-tighter mb-4">{person.role}</p>
                 
                 <div className="flex items-center gap-2 mb-6 bg-[#1C1C26] p-2 rounded-xl">
                   <Clock className="w-3.5 h-3.5 text-blue-500" />
-                  <span className="text-[11px] font-bold text-[#999186]">{person.shift}</span>
+                  <span className="text-[11px] font-bold text-[#B8B0A4]">{person.shift}</span>
                 </div>
 
                 <div className="pt-4 border-t border-slate-50 flex justify-between items-center">
@@ -684,13 +684,13 @@ export function StaffMatrix({ branchId, userRole: propUserRole, activeBranchId =
                               });
                               setManageMenuId(null);
                             }}
-                            className="w-full text-left px-4 py-3 text-sm font-bold text-[#6B655C] hover:bg-[#C9A05C]/8 hover:text-[#C9A05C] flex items-center gap-3 transition-colors"
+                            className="w-full text-left px-4 py-3 text-sm font-bold text-[#8A8279] hover:bg-[#C9A05C]/8 hover:text-[#C9A05C] flex items-center gap-3 transition-colors"
                           >
                             <UserCog className="w-4 h-4" /> Change Role
                           </button>
                           <button
                             onClick={() => { setChangePasswordData({ staffId: person.id, newPassword: '' }); setManageMenuId(null); }}
-                            className="w-full text-left px-4 py-3 text-sm font-bold text-[#6B655C] hover:bg-amber-50 hover:text-amber-600 flex items-center gap-3 transition-colors"
+                            className="w-full text-left px-4 py-3 text-sm font-bold text-[#8A8279] hover:bg-amber-50 hover:text-amber-600 flex items-center gap-3 transition-colors"
                           >
                             <KeyRound className="w-4 h-4" /> Change Password
                           </button>
@@ -718,7 +718,7 @@ export function StaffMatrix({ branchId, userRole: propUserRole, activeBranchId =
       ) : (
         <div className="flex flex-col items-center justify-center py-20 bg-[#1C1C26] rounded-[3rem] border-2 border-dashed border-[rgba(201,160,92,0.12)]">
           <UserMinus className="w-12 h-12 text-slate-300 mb-4" />
-          <p className="text-[#6B655C] font-bold uppercase text-[10px] tracking-widest">No personnel assigned to this branch.</p>
+          <p className="text-[#8A8279] font-bold uppercase text-[10px] tracking-widest">No personnel assigned to this branch.</p>
         </div>
       )}
     </div>

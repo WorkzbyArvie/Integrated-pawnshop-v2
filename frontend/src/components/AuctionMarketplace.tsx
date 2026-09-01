@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   Search,
   Clock,
@@ -384,7 +384,7 @@ export function AuctionMarketplace({ branchId, activeBranchId }: AuctionMarketpl
       <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
         <button
           onClick={() => setSelectedListing(null)}
-          className="flex items-center gap-2 text-sm font-bold text-[#6B655C] hover:text-[#EAE2D6] transition-colors"
+          className="flex items-center gap-2 text-sm font-bold text-[#8A8279] hover:text-[#F5F0E8] transition-colors"
         >
           <ArrowLeft className="w-4 h-4" /> Back to Live Auctions
         </button>
@@ -407,27 +407,27 @@ export function AuctionMarketplace({ branchId, activeBranchId }: AuctionMarketpl
             <div className="bg-[#14141B] border border-[rgba(201,160,92,0.08)] rounded-[2.5rem] p-8 shadow-sm space-y-6">
               <div>
                 <span className="text-[10px] font-black text-[#C9A05C] uppercase tracking-widest">{selectedListing.pawnshop.name}</span>
-                <h2 className="text-2xl font-black text-[#EAE2D6] mt-1 leading-tight">{selectedListing.title}</h2>
-                <p className="text-sm text-[#6B655C] mt-2">#{selectedListing.ticket.ticketNumber}</p>
+                <h2 className="text-2xl font-black text-[#F5F0E8] mt-1 leading-tight">{selectedListing.title}</h2>
+                <p className="text-sm text-[#8A8279] mt-2">#{selectedListing.ticket.ticketNumber}</p>
               </div>
 
-              <p className="text-sm text-[#999186] leading-relaxed">
+              <p className="text-sm text-[#B8B0A4] leading-relaxed">
                 {selectedListing.description || selectedListing.ticket.description || 'No description available.'}
               </p>
 
               <div className="grid grid-cols-2 gap-4 py-6 border-y border-[rgba(201,160,92,0.08)]">
                 <div>
-                  <p className="text-[10px] font-black text-[#6B655C] uppercase tracking-widest mb-1">Current Bid</p>
+                  <p className="text-[10px] font-black text-[#8A8279] uppercase tracking-widest mb-1">Current Bid</p>
                   <p className="text-2xl font-black text-[#C9A05C]">{formatCurrency(selectedListing.currentBid || selectedListing.startingPrice)}</p>
                 </div>
                 <div>
-                  <p className="text-[10px] font-black text-[#6B655C] uppercase tracking-widest mb-1">Starting Price</p>
-                  <p className="text-2xl font-black text-[#EAE2D6]">{formatCurrency(selectedListing.startingPrice)}</p>
+                  <p className="text-[10px] font-black text-[#8A8279] uppercase tracking-widest mb-1">Starting Price</p>
+                  <p className="text-2xl font-black text-[#F5F0E8]">{formatCurrency(selectedListing.startingPrice)}</p>
                 </div>
               </div>
 
               <div className="space-y-3">
-                <p className="text-[10px] font-black text-[#6B655C] uppercase tracking-widest">{countdown.label}</p>
+                <p className="text-[10px] font-black text-[#8A8279] uppercase tracking-widest">{countdown.label}</p>
                 <div className="grid grid-cols-3 gap-3">
                   {[
                     { val: countdown.hours, label: 'Hours' },
@@ -435,8 +435,8 @@ export function AuctionMarketplace({ branchId, activeBranchId }: AuctionMarketpl
                     { val: countdown.seconds, label: 'Sec' },
                   ].map((t) => (
                     <div key={t.label} className={`text-center p-3 rounded-2xl border ${countdown.urgent ? 'bg-rose-50 border-rose-200' : 'bg-[#1C1C26] border-[rgba(201,160,92,0.08)]'}`}>
-                      <p className={`text-2xl font-black ${countdown.urgent ? 'text-rose-600' : 'text-[#EAE2D6]'}`}>{t.val}</p>
-                      <p className="text-[9px] font-black text-[#6B655C] uppercase tracking-widest">{t.label}</p>
+                      <p className={`text-2xl font-black ${countdown.urgent ? 'text-rose-600' : 'text-[#F5F0E8]'}`}>{t.val}</p>
+                      <p className="text-[9px] font-black text-[#8A8279] uppercase tracking-widest">{t.label}</p>
                     </div>
                   ))}
                 </div>
@@ -444,20 +444,20 @@ export function AuctionMarketplace({ branchId, activeBranchId }: AuctionMarketpl
 
               <div className="flex gap-4">
                 <div className="flex-1 text-center bg-[#1C1C26] p-3 rounded-2xl border border-[rgba(201,160,92,0.08)]">
-                  <p className="text-lg font-black text-[#EAE2D6]">{selectedListing.bidCount}</p>
-                  <p className="text-[9px] font-black text-[#6B655C] uppercase tracking-widest">Bids</p>
+                  <p className="text-lg font-black text-[#F5F0E8]">{selectedListing.bidCount}</p>
+                  <p className="text-[9px] font-black text-[#8A8279] uppercase tracking-widest">Bids</p>
                 </div>
                 <div className="flex-1 text-center bg-[#1C1C26] p-3 rounded-2xl border border-[rgba(201,160,92,0.08)]">
-                  <p className="text-lg font-black text-[#EAE2D6]">{selectedListing.ticket.category || 'General'}</p>
-                  <p className="text-[9px] font-black text-[#6B655C] uppercase tracking-widest">Category</p>
+                  <p className="text-lg font-black text-[#F5F0E8]">{selectedListing.ticket.category || 'General'}</p>
+                  <p className="text-[9px] font-black text-[#8A8279] uppercase tracking-widest">Category</p>
                 </div>
               </div>
 
               <div className="space-y-3 border border-[rgba(201,160,92,0.08)] rounded-2xl p-4 bg-[#1C1C26]/70">
                 <div className="flex items-center justify-between">
-                  <p className="text-[10px] font-black text-[#6B655C] uppercase tracking-widest">Top Bidder Leaderboard</p>
+                  <p className="text-[10px] font-black text-[#8A8279] uppercase tracking-widest">Top Bidder Leaderboard</p>
                   {bidLeaderboard?.totalBidders ? (
-                    <p className="text-[10px] font-bold text-[#6B655C]">{bidLeaderboard.totalBidders} bidder(s)</p>
+                    <p className="text-[10px] font-bold text-[#8A8279]">{bidLeaderboard.totalBidders} bidder(s)</p>
                   ) : null}
                 </div>
 
@@ -470,18 +470,18 @@ export function AuctionMarketplace({ branchId, activeBranchId }: AuctionMarketpl
                     {bidLeaderboard.topBidders.map((entry) => (
                       <div key={entry.bidderId} className="flex items-center justify-between gap-3 rounded-xl border border-[rgba(201,160,92,0.12)] bg-[#14141B] px-3 py-2">
                         <div className="min-w-0">
-                          <p className="text-xs font-black text-[#6B655C] truncate">#{entry.rank} {entry.bidderName}</p>
-                          <p className="text-[10px] text-[#6B655C] truncate">{entry.bidderEmail || entry.bidderId}</p>
+                          <p className="text-xs font-black text-[#8A8279] truncate">#{entry.rank} {entry.bidderName}</p>
+                          <p className="text-[10px] text-[#8A8279] truncate">{entry.bidderEmail || entry.bidderId}</p>
                         </div>
                         <div className="text-right">
                           <p className="text-sm font-black text-[#C9A05C]">{formatCurrency(entry.highestBid)}</p>
-                          <p className="text-[10px] text-[#6B655C]">{entry.totalBids} bid{entry.totalBids !== 1 ? 's' : ''}</p>
+                          <p className="text-[10px] text-[#8A8279]">{entry.totalBids} bid{entry.totalBids !== 1 ? 's' : ''}</p>
                         </div>
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <p className="text-xs text-[#6B655C]">No bids yet for this listing.</p>
+                  <p className="text-xs text-[#8A8279]">No bids yet for this listing.</p>
                 )}
               </div>
 
@@ -499,8 +499,8 @@ export function AuctionMarketplace({ branchId, activeBranchId }: AuctionMarketpl
 
               <div className="space-y-3 border border-[rgba(201,160,92,0.08)] rounded-2xl p-4 bg-[#14141B]">
                 <div className="flex items-center justify-between">
-                  <p className="text-[10px] font-black text-[#6B655C] uppercase tracking-widest">Private Proof Trail</p>
-                  <p className="text-[10px] font-bold text-[#6B655C]">Visible to authenticated staff only</p>
+                  <p className="text-[10px] font-black text-[#8A8279] uppercase tracking-widest">Private Proof Trail</p>
+                  <p className="text-[10px] font-bold text-[#8A8279]">Visible to authenticated staff only</p>
                 </div>
 
                 {proofTrailLoading ? (
@@ -513,13 +513,13 @@ export function AuctionMarketplace({ branchId, activeBranchId }: AuctionMarketpl
                       <div key={proof.proofNumber} className="rounded-xl border border-[rgba(201,160,92,0.12)] bg-[#1C1C26] px-3 py-2">
                         <div className="flex items-start justify-between gap-2">
                           <div className="min-w-0">
-                            <p className="text-xs font-black text-[#6B655C] truncate">{proof.title}</p>
-                            <p className="text-[10px] text-[#6B655C] uppercase tracking-widest">{proof.recordType}</p>
+                            <p className="text-xs font-black text-[#8A8279] truncate">{proof.title}</p>
+                            <p className="text-[10px] text-[#8A8279] uppercase tracking-widest">{proof.recordType}</p>
                           </div>
-                          <p className="text-[10px] font-bold text-[#6B655C] truncate">{proof.proofNumber}</p>
+                          <p className="text-[10px] font-bold text-[#8A8279] truncate">{proof.proofNumber}</p>
                         </div>
-                        <p className="text-xs text-[#999186] mt-1">{proof.summary}</p>
-                        <div className="flex items-center justify-between mt-2 text-[10px] text-[#6B655C]">
+                        <p className="text-xs text-[#B8B0A4] mt-1">{proof.summary}</p>
+                        <div className="flex items-center justify-between mt-2 text-[10px] text-[#8A8279]">
                           <span>{proof.createdAt ? new Date(proof.createdAt).toLocaleString('en-PH') : 'Unknown time'}</span>
                           <span>{proof.sourceHash ? `${proof.sourceHash.slice(0, 12)}...` : 'No hash'}</span>
                         </div>
@@ -527,7 +527,7 @@ export function AuctionMarketplace({ branchId, activeBranchId }: AuctionMarketpl
                     ))}
                   </div>
                 ) : (
-                  <p className="text-xs text-[#6B655C]">No private proof trail is available for this listing yet.</p>
+                  <p className="text-xs text-[#8A8279]">No private proof trail is available for this listing yet.</p>
                 )}
               </div>
 
@@ -551,13 +551,13 @@ export function AuctionMarketplace({ branchId, activeBranchId }: AuctionMarketpl
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Star className="w-5 h-5 text-amber-500" />
-                  <p className="text-[10px] font-black text-[#6B655C] uppercase tracking-widest">Ratings & Feedback</p>
+                  <p className="text-[10px] font-black text-[#8A8279] uppercase tracking-widest">Ratings & Feedback</p>
                 </div>
                 {ratingSummary && ratingSummary.totalRatings > 0 && (
                   <div className="flex items-center gap-1">
                     <span className="text-lg font-black text-amber-600">{ratingSummary.averageRating}</span>
                     <Star className="w-4 h-4 text-amber-400 fill-amber-400" />
-                    <span className="text-xs text-[#6B655C] font-bold">({ratingSummary.totalRatings})</span>
+                    <span className="text-xs text-[#8A8279] font-bold">({ratingSummary.totalRatings})</span>
                   </div>
                 )}
               </div>
@@ -565,7 +565,7 @@ export function AuctionMarketplace({ branchId, activeBranchId }: AuctionMarketpl
               {/* Submit Rating (only for ENDED auctions) */}
               {(selectedListing.status === 'ENDED' || selectedListing.status === 'CANCELLED') && (
                 <div className="space-y-3 p-4 bg-[#1C1C26] rounded-2xl">
-                  <p className="text-xs font-bold text-[#999186]">Leave your rating</p>
+                  <p className="text-xs font-bold text-[#B8B0A4]">Leave your rating</p>
                   <div className="flex items-center gap-1">
                     {[1, 2, 3, 4, 5].map((star) => (
                       <button
@@ -582,7 +582,7 @@ export function AuctionMarketplace({ branchId, activeBranchId }: AuctionMarketpl
                   <select
                     value={myRatingType}
                     onChange={(e) => setMyRatingType(e.target.value as any)}
-                    className="w-full rounded-xl px-3 py-2 border border-[rgba(201,160,92,0.12)] text-sm font-bold text-[#6B655C]"
+                    className="w-full rounded-xl px-3 py-2 border border-[rgba(201,160,92,0.12)] text-sm font-bold text-[#8A8279]"
                   >
                     <option value="ITEM_QUALITY">Item Quality</option>
                     <option value="TRANSACTION_EXPERIENCE">Transaction Experience</option>
@@ -594,7 +594,7 @@ export function AuctionMarketplace({ branchId, activeBranchId }: AuctionMarketpl
                     placeholder="Write a comment (optional)..."
                     maxLength={500}
                     rows={3}
-                    className="w-full rounded-xl px-3 py-2 border border-[rgba(201,160,92,0.12)] text-sm text-[#6B655C] resize-none focus:border-amber-300 focus:ring-0 transition-all"
+                    className="w-full rounded-xl px-3 py-2 border border-[rgba(201,160,92,0.12)] text-sm text-[#8A8279] resize-none focus:border-amber-300 focus:ring-0 transition-all"
                   />
                   <button
                     onClick={handleSubmitRating}
@@ -620,8 +620,8 @@ export function AuctionMarketplace({ branchId, activeBranchId }: AuctionMarketpl
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
-                          <p className="text-xs font-bold text-[#6B655C]">{r.customer.fullName}</p>
-                          <span className="text-[9px] font-bold text-[#6B655C] uppercase">
+                          <p className="text-xs font-bold text-[#8A8279]">{r.customer.fullName}</p>
+                          <span className="text-[9px] font-bold text-[#8A8279] uppercase">
                             {r.ratingType.replace(/_/g, ' ')}
                           </span>
                         </div>
@@ -630,13 +630,13 @@ export function AuctionMarketplace({ branchId, activeBranchId }: AuctionMarketpl
                             <Star key={s} className={`w-3 h-3 ${s <= r.rating ? 'text-amber-400 fill-amber-400' : 'text-slate-200'}`} />
                           ))}
                         </div>
-                        {r.comment && <p className="text-xs text-[#6B655C] mt-1">{r.comment}</p>}
+                        {r.comment && <p className="text-xs text-[#8A8279] mt-1">{r.comment}</p>}
                       </div>
                     </div>
                   ))}
                 </div>
               ) : (
-                <p className="text-xs text-[#6B655C] text-center py-4">No ratings yet.</p>
+                <p className="text-xs text-[#8A8279] text-center py-4">No ratings yet.</p>
               )}
             </div>
 
@@ -664,24 +664,24 @@ export function AuctionMarketplace({ branchId, activeBranchId }: AuctionMarketpl
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
-          <h1 className="text-3xl font-black text-[#EAE2D6] flex items-center gap-3 tracking-tight">
+          <h1 className="text-3xl font-black text-[#F5F0E8] flex items-center gap-3 tracking-tight">
             <div className="p-2 bg-amber-500 rounded-xl shadow-lg shadow-amber-200">
               <Gavel className="w-6 h-6 text-white" />
             </div>
             Live Auctions
           </h1>
-          <p className="text-[#6B655C] font-medium mt-1">
+          <p className="text-[#8A8279] font-medium mt-1">
             Browse live auction listings from your pawnshop network.
           </p>
           <div className="mt-3 inline-flex items-center rounded-full border border-[rgba(201,160,92,0.12)] bg-[#1C1C26] px-3 py-1">
-            <span className="text-[10px] font-black uppercase tracking-widest text-[#6B655C]">
+            <span className="text-[10px] font-black uppercase tracking-widest text-[#8A8279]">
               View Only for Pawnshop Team
             </span>
           </div>
         </div>
 
         <div className="relative group">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-[#6B655C] group-focus-within:text-amber-500 transition-colors" />
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-[#8A8279] group-focus-within:text-amber-500 transition-colors" />
           <input
             type="text"
             placeholder="Search listings or ticket numbers..."
@@ -697,22 +697,22 @@ export function AuctionMarketplace({ branchId, activeBranchId }: AuctionMarketpl
         <div className="bg-[#14141B] border border-[rgba(201,160,92,0.08)] p-6 rounded-[2rem] shadow-sm">
           <div className="flex items-center gap-3 mb-4">
             <div className="p-2 bg-amber-50 text-amber-600 rounded-lg"><Gavel className="w-4 h-4" /></div>
-            <p className="text-[#6B655C] text-[10px] font-black uppercase tracking-widest">Live Listings</p>
+            <p className="text-[#8A8279] text-[10px] font-black uppercase tracking-widest">Live Listings</p>
           </div>
-          <p className="text-3xl font-black text-[#EAE2D6]">{liveCount}</p>
+          <p className="text-3xl font-black text-[#F5F0E8]">{liveCount}</p>
         </div>
 
         <div className="bg-[#14141B] border border-[rgba(201,160,92,0.08)] p-6 rounded-[2rem] shadow-sm">
           <div className="flex items-center gap-3 mb-4">
             <div className="p-2 bg-emerald-50 text-emerald-600 rounded-lg"><TrendingUp className="w-4 h-4" /></div>
-            <p className="text-[#6B655C] text-[10px] font-black uppercase tracking-widest">Total Bid Value</p>
+            <p className="text-[#8A8279] text-[10px] font-black uppercase tracking-widest">Total Bid Value</p>
           </div>
-          <p className="text-3xl font-black text-[#EAE2D6]">{formatCurrency(totalValue)}</p>
+          <p className="text-3xl font-black text-[#F5F0E8]">{formatCurrency(totalValue)}</p>
         </div>
 
         <div className="bg-slate-900 p-6 rounded-[2rem] shadow-xl shadow-slate-200">
           <div className="flex justify-between items-start mb-4">
-            <p className="text-[#6B655C] text-[10px] font-black uppercase tracking-widest">Total Bids</p>
+            <p className="text-[#8A8279] text-[10px] font-black uppercase tracking-widest">Total Bids</p>
             <span className="flex h-2 w-2 rounded-full bg-emerald-400 animate-pulse"></span>
           </div>
           <p className="text-3xl font-bold text-white leading-tight">{totalBids}</p>
@@ -727,7 +727,7 @@ export function AuctionMarketplace({ branchId, activeBranchId }: AuctionMarketpl
             className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all ${
               categoryFilter === 'all'
                 ? 'bg-slate-900 text-white shadow-lg'
-                : 'bg-[#14141B] border border-[rgba(201,160,92,0.12)] text-[#999186] hover:bg-[#1C1C26]'
+                : 'bg-[#14141B] border border-[rgba(201,160,92,0.12)] text-[#B8B0A4] hover:bg-[#1C1C26]'
             }`}
           >
             All
@@ -739,7 +739,7 @@ export function AuctionMarketplace({ branchId, activeBranchId }: AuctionMarketpl
               className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all ${
                 categoryFilter === cat
                   ? 'bg-slate-900 text-white shadow-lg'
-                  : 'bg-[#14141B] border border-[rgba(201,160,92,0.12)] text-[#999186] hover:bg-[#1C1C26]'
+                  : 'bg-[#14141B] border border-[rgba(201,160,92,0.12)] text-[#B8B0A4] hover:bg-[#1C1C26]'
               }`}
             >
               {cat}
@@ -752,7 +752,7 @@ export function AuctionMarketplace({ branchId, activeBranchId }: AuctionMarketpl
       {loading ? (
         <div className="py-20 text-center">
           <Loader2 className="w-10 h-10 text-amber-500 animate-spin mx-auto" />
-          <p className="text-[#6B655C] text-[10px] font-black uppercase mt-4 tracking-widest">Loading live auctions...</p>
+          <p className="text-[#8A8279] text-[10px] font-black uppercase mt-4 tracking-widest">Loading live auctions...</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
@@ -786,7 +786,7 @@ export function AuctionMarketplace({ branchId, activeBranchId }: AuctionMarketpl
                       </span>
                     </div>
                     <div className="absolute top-4 right-4">
-                      <span className="px-3 py-1 bg-white/90 backdrop-blur-sm rounded-full text-[10px] font-black text-[#6B655C]">
+                      <span className="px-3 py-1 bg-white/90 backdrop-blur-sm rounded-full text-[10px] font-black text-[#8A8279]">
                         {listing.bidCount} bid{listing.bidCount !== 1 ? 's' : ''}
                       </span>
                     </div>
@@ -798,26 +798,26 @@ export function AuctionMarketplace({ branchId, activeBranchId }: AuctionMarketpl
                       <div className="flex items-center gap-2 mb-2">
                         <span className="text-[9px] font-black text-amber-600 uppercase tracking-widest">{listing.pawnshop.name}</span>
                         <span className="text-slate-300">|</span>
-                        <span className="text-[9px] font-black text-[#6B655C] uppercase tracking-widest flex items-center gap-1">
+                        <span className="text-[9px] font-black text-[#8A8279] uppercase tracking-widest flex items-center gap-1">
                           <Tag className="w-3 h-3" /> {cat}
                         </span>
                       </div>
-                      <h3 className="text-lg font-black text-[#EAE2D6] leading-tight group-hover:text-amber-600 transition-colors">
+                      <h3 className="text-lg font-black text-[#F5F0E8] leading-tight group-hover:text-amber-600 transition-colors">
                         {listing.title}
                       </h3>
-                      <p className="text-xs text-[#6B655C] mt-1">#{listing.ticket?.ticketNumber || 'N/A'}</p>
+                      <p className="text-xs text-[#8A8279] mt-1">#{listing.ticket?.ticketNumber || 'N/A'}</p>
                     </div>
 
                     <div className="flex items-baseline justify-between mt-auto">
                       <div>
-                        <p className="text-[9px] font-black text-[#6B655C] uppercase tracking-widest">Current Bid</p>
+                        <p className="text-[9px] font-black text-[#8A8279] uppercase tracking-widest">Current Bid</p>
                         <p className="text-xl font-black text-[#C9A05C]">{formatCurrency(listing.currentBid || listing.startingPrice)}</p>
                       </div>
                       <div className="text-right">
-                        <p className="text-[9px] font-black text-[#6B655C] uppercase tracking-widest flex items-center gap-1 justify-end">
+                        <p className="text-[9px] font-black text-[#8A8279] uppercase tracking-widest flex items-center gap-1 justify-end">
                           <Clock className="w-3 h-3" /> {countdown.label}
                         </p>
-                        <p className={`text-sm font-black ${countdown.urgent ? 'text-rose-600' : 'text-[#EAE2D6]'}`}>
+                        <p className={`text-sm font-black ${countdown.urgent ? 'text-rose-600' : 'text-[#F5F0E8]'}`}>
                           {countdown.hours}h {countdown.minutes}m {countdown.seconds}s
                         </p>
                       </div>
@@ -837,7 +837,7 @@ export function AuctionMarketplace({ branchId, activeBranchId }: AuctionMarketpl
           ) : (
             <div className="col-span-full py-20 text-center bg-[#1C1C26] rounded-[3rem] border-2 border-dashed border-[rgba(201,160,92,0.12)]">
               <Gavel className="w-12 h-12 text-slate-300 mx-auto mb-4" />
-              <p className="text-[#6B655C] font-bold text-[10px] uppercase tracking-widest">
+              <p className="text-[#8A8279] font-bold text-[10px] uppercase tracking-widest">
                 {search || categoryFilter !== 'all'
                   ? 'No listings match your filters.'
                   : 'No live auctions at this time.'}

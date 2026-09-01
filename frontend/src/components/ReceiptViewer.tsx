@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Receipt, Loader2, XCircle, ExternalLink, X, FileDown,
 } from 'lucide-react';
@@ -72,7 +72,7 @@ export function ReceiptViewer({ receiptId, referenceType, referenceId, open, onC
         <div className="sticky top-0 bg-[#14141B] border-b border-[rgba(201,160,92,0.08)] px-8 py-5 flex items-center justify-between rounded-t-[2.5rem]">
           <div className="flex items-center gap-3">
             <Receipt className="w-5 h-5 text-[#C9A05C]" />
-            <h2 className="text-lg font-black text-[#EAE2D6] uppercase tracking-tight">
+            <h2 className="text-lg font-black text-[#F5F0E8] uppercase tracking-tight">
               {receiptId ? 'Receipt' : 'Receipts'}
             </h2>
           </div>
@@ -80,7 +80,7 @@ export function ReceiptViewer({ receiptId, referenceType, referenceId, open, onC
             onClick={onClose}
             className="w-10 h-10 rounded-xl bg-[#1C1C26] flex items-center justify-center hover:bg-[#222228] transition-colors"
           >
-            <X className="w-5 h-5 text-[#999186]" />
+            <X className="w-5 h-5 text-[#B8B0A4]" />
           </button>
         </div>
 
@@ -88,7 +88,7 @@ export function ReceiptViewer({ receiptId, referenceType, referenceId, open, onC
           {loading && (
             <div className="flex flex-col items-center justify-center py-16">
               <Loader2 className="w-8 h-8 text-[#C9A05C] animate-spin mb-3" />
-              <p className="text-[10px] font-black uppercase tracking-widest text-[#6B655C]">Loading...</p>
+              <p className="text-[10px] font-black uppercase tracking-widest text-[#8A8279]">Loading...</p>
             </div>
           )}
 
@@ -103,8 +103,8 @@ export function ReceiptViewer({ receiptId, referenceType, referenceId, open, onC
             <div className="space-y-6">
               <div className={`flex items-center justify-between ${receipt.isVoid ? 'opacity-60' : ''}`}>
                 <div>
-                  <p className="text-2xl font-black text-[#EAE2D6]">{receipt.receiptNumber}</p>
-                  <p className="text-sm font-bold text-[#6B655C] mt-1">
+                  <p className="text-2xl font-black text-[#F5F0E8]">{receipt.receiptNumber}</p>
+                  <p className="text-sm font-bold text-[#8A8279] mt-1">
                     {humanizeStatus(receipt.receiptType)} -- {receipt.customerName}
                   </p>
                 </div>
@@ -120,18 +120,18 @@ export function ReceiptViewer({ receiptId, referenceType, referenceId, open, onC
                   <table className="w-full text-sm">
                     <thead className="bg-[#1C1C26]">
                       <tr>
-                        <th className="px-5 py-3 text-left text-[10px] font-black uppercase tracking-wider text-[#6B655C]">Item</th>
-                        <th className="px-5 py-3 text-right text-[10px] font-black uppercase tracking-wider text-[#6B655C]">Amount</th>
+                        <th className="px-5 py-3 text-left text-[10px] font-black uppercase tracking-wider text-[#8A8279]">Item</th>
+                        <th className="px-5 py-3 text-right text-[10px] font-black uppercase tracking-wider text-[#8A8279]">Amount</th>
                       </tr>
                     </thead>
                     <tbody>
                       {receipt.lineItems.map((item, idx) => (
                         <tr key={idx} className="border-t border-[rgba(201,160,92,0.08)]">
-                          <td className="px-5 py-3 text-sm font-bold text-[#EAE2D6]">
+                          <td className="px-5 py-3 text-sm font-bold text-[#F5F0E8]">
                             {item.description}
                             {item.quantity && item.quantity > 1 && ` x${item.quantity}`}
                           </td>
-                          <td className="px-5 py-3 text-sm font-bold text-[#EAE2D6] text-right">
+                          <td className="px-5 py-3 text-sm font-bold text-[#F5F0E8] text-right">
                             {formatCurrency(item.amount * (item.quantity || 1))}
                           </td>
                         </tr>
@@ -139,13 +139,13 @@ export function ReceiptViewer({ receiptId, referenceType, referenceId, open, onC
                     </tbody>
                   </table>
                   <div className="border-t border-[rgba(201,160,92,0.08)] px-5 py-3 flex justify-between bg-[#1C1C26]">
-                    <span className="text-xs font-bold text-[#6B655C]">Subtotal</span>
-                    <span className="text-sm font-bold text-[#EAE2D6]">{formatCurrency(receipt.amount)}</span>
+                    <span className="text-xs font-bold text-[#8A8279]">Subtotal</span>
+                    <span className="text-sm font-bold text-[#F5F0E8]">{formatCurrency(receipt.amount)}</span>
                   </div>
                   {receipt.taxAmount > 0 && (
                     <div className="border-t border-[rgba(201,160,92,0.08)] px-5 py-3 flex justify-between bg-[#1C1C26]">
-                      <span className="text-xs font-bold text-[#6B655C]">Tax</span>
-                      <span className="text-sm font-bold text-[#EAE2D6]">{formatCurrency(receipt.taxAmount)}</span>
+                      <span className="text-xs font-bold text-[#8A8279]">Tax</span>
+                      <span className="text-sm font-bold text-[#F5F0E8]">{formatCurrency(receipt.taxAmount)}</span>
                     </div>
                   )}
                   <div className="border-t border-[rgba(201,160,92,0.08)] px-5 py-4 flex justify-between bg-[#C9A05C]/10">
@@ -157,12 +157,12 @@ export function ReceiptViewer({ receiptId, referenceType, referenceId, open, onC
 
               <div className="grid grid-cols-2 gap-4 text-sm">
                 <div>
-                  <p className="text-[10px] font-black uppercase tracking-wider text-[#6B655C]">Date</p>
-                  <p className="font-bold text-[#EAE2D6]">{formatDateTime(receipt.generatedAt)}</p>
+                  <p className="text-[10px] font-black uppercase tracking-wider text-[#8A8279]">Date</p>
+                  <p className="font-bold text-[#F5F0E8]">{formatDateTime(receipt.generatedAt)}</p>
                 </div>
                 {receipt.isVoid && receipt.voidReason && (
                   <div>
-                    <p className="text-[10px] font-black uppercase tracking-wider text-[#6B655C]">Void Reason</p>
+                    <p className="text-[10px] font-black uppercase tracking-wider text-[#8A8279]">Void Reason</p>
                     <p className="font-bold text-rose-600">{receipt.voidReason}</p>
                   </div>
                 )}
@@ -190,11 +190,11 @@ export function ReceiptViewer({ receiptId, referenceType, referenceId, open, onC
                   className="border border-[rgba(201,160,92,0.08)] rounded-2xl p-5 flex items-center justify-between hover:border-[rgba(201,160,92,0.2)] transition-colors"
                 >
                   <div>
-                    <p className="text-sm font-black text-[#EAE2D6]">{r.receiptNumber}</p>
-                    <p className="text-xs font-bold text-[#6B655C] mt-0.5">
+                    <p className="text-sm font-black text-[#F5F0E8]">{r.receiptNumber}</p>
+                    <p className="text-xs font-bold text-[#8A8279] mt-0.5">
                       {humanizeStatus(r.receiptType)} -- {formatCurrency(r.totalAmount)}
                     </p>
-                    <p className="text-[10px] font-semibold text-[#6B655C]">{formatDateTime(r.generatedAt)}</p>
+                    <p className="text-[10px] font-semibold text-[#8A8279]">{formatDateTime(r.generatedAt)}</p>
                   </div>
                   <button
                     onClick={async () => {

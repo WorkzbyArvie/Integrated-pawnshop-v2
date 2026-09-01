@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   History, Loader2, DollarSign, FileCheck2, Receipt, AlertTriangle,
   Clock, ArrowRight, CheckCircle2, XCircle,
@@ -60,7 +60,7 @@ const eventColors: Record<string, string> = {
   PROOF_RECORD: 'text-[#C9A05C] bg-[#C9A05C]/15',
   DISBURSEMENT: 'text-amber-600 bg-amber-100',
   PENALTY: 'text-rose-600 bg-rose-100',
-  RECEIPT: 'text-[#999186] bg-[#1C1C26]',
+  RECEIPT: 'text-[#B8B0A4] bg-[#1C1C26]',
   LIFECYCLE_STATUS: 'text-violet-600 bg-violet-100',
   LOAN_CREATED: 'text-sky-600 bg-sky-100',
 };
@@ -118,7 +118,7 @@ export function LoanHistoryTimeline({ loanId, customerId }: LoanHistoryTimelineP
 
   if (!loanId && !customerId) {
     return (
-      <div className="bg-[#14141B] rounded-[2.5rem] border border-[rgba(201,160,92,0.08)] p-8 text-sm font-bold text-[#6B655C]">
+      <div className="bg-[#14141B] rounded-[2.5rem] border border-[rgba(201,160,92,0.08)] p-8 text-sm font-bold text-[#8A8279]">
         Select a loan or customer to view history
       </div>
     );
@@ -128,7 +128,7 @@ export function LoanHistoryTimeline({ loanId, customerId }: LoanHistoryTimelineP
     return (
       <div className="flex flex-col items-center justify-center py-24 bg-[#14141B] rounded-[2.5rem] border border-dashed border-[rgba(201,160,92,0.12)]">
         <Loader2 className="w-10 h-10 text-[#C9A05C] animate-spin mb-3" />
-        <p className="text-[10px] font-black uppercase tracking-widest text-[#6B655C]">Loading History...</p>
+        <p className="text-[10px] font-black uppercase tracking-widest text-[#8A8279]">Loading History...</p>
       </div>
     );
   }
@@ -146,7 +146,7 @@ export function LoanHistoryTimeline({ loanId, customerId }: LoanHistoryTimelineP
 
   if (!data || !data.timeline?.length) {
     return (
-      <div className="bg-[#14141B] rounded-[2.5rem] border border-[rgba(201,160,92,0.08)] p-8 text-sm font-bold text-[#6B655C]">
+      <div className="bg-[#14141B] rounded-[2.5rem] border border-[rgba(201,160,92,0.08)] p-8 text-sm font-bold text-[#8A8279]">
         No history events found.
       </div>
     );
@@ -156,18 +156,18 @@ export function LoanHistoryTimeline({ loanId, customerId }: LoanHistoryTimelineP
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700 text-left">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-3xl font-black text-[#EAE2D6] tracking-tight uppercase italic leading-none">
+          <h2 className="text-3xl font-black text-[#F5F0E8] tracking-tight uppercase italic leading-none">
             Loan <span className="text-[#C9A05C]">History</span>
           </h2>
-          <p className="mt-2 text-[11px] font-black uppercase tracking-widest text-[#6B655C] flex items-center gap-2">
+          <p className="mt-2 text-[11px] font-black uppercase tracking-widest text-[#8A8279] flex items-center gap-2">
             <History className="w-4 h-4 text-[#C9A05C]" />
             {customerId ? 'Customer Timeline' : `Loan #${data.loan?.id ?? loanId} Timeline`}
           </p>
         </div>
         {data.loan && (
           <div className="text-right">
-            <p className="text-2xl font-black text-[#EAE2D6]">{formatCurrency(data.loan.principalAmount)}</p>
-            <p className="text-[10px] font-black uppercase tracking-wider text-[#6B655C]">
+            <p className="text-2xl font-black text-[#F5F0E8]">{formatCurrency(data.loan.principalAmount)}</p>
+            <p className="text-[10px] font-black uppercase tracking-wider text-[#8A8279]">
               {humanizeStatus(data.loan.lifecycleStatus || data.loan.status)}
             </p>
           </div>
@@ -180,20 +180,20 @@ export function LoanHistoryTimeline({ loanId, customerId }: LoanHistoryTimelineP
         <div className="space-y-0">
           {data.timeline.map((event) => {
             const Icon = eventIcons[event.eventType] || History;
-            const colorClass = eventColors[event.eventType] || 'text-[#999186] bg-[#1C1C26]';
+            const colorClass = eventColors[event.eventType] || 'text-[#B8B0A4] bg-[#1C1C26]';
             return (
               <div key={`${event.eventType}-${event.timestamp}-${event.sequenceNumber}`} className="relative flex items-start gap-5 pb-8 last:pb-0">
                 <div className={`relative z-10 w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 ${colorClass}`}>
                   <Icon className="w-6 h-6" />
                 </div>
                 <div className="flex-1 min-w-0 pt-2">
-                  <p className="text-sm font-black text-[#EAE2D6] uppercase tracking-wider">
+                  <p className="text-sm font-black text-[#F5F0E8] uppercase tracking-wider">
                     {humanizeStatus(event.eventType)}
                   </p>
-                  <p className="text-sm font-semibold text-[#999186] mt-1">
+                  <p className="text-sm font-semibold text-[#B8B0A4] mt-1">
                     {getEventSummary(event)}
                   </p>
-                  <p className="text-[11px] font-bold text-[#6B655C] mt-1">
+                  <p className="text-[11px] font-bold text-[#8A8279] mt-1">
                     {formatDateTime(event.timestamp)}
                   </p>
                 </div>

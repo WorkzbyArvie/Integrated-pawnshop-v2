@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Lock, Loader2, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
@@ -139,12 +139,12 @@ export default function ResetPassword() {
           <CardTitle className="text-2xl font-black uppercase italic tracking-tighter">
             Reset Password
           </CardTitle>
-          <p className="text-[#6B655C] text-[10px] font-black uppercase tracking-[0.2em] mt-2">PawnGold Account Recovery</p>
+          <p className="text-[#8A8279] text-[10px] font-black uppercase tracking-[0.2em] mt-2">PawnGold Account Recovery</p>
         </CardHeader>
 
         <CardContent className="p-8 space-y-6 bg-[#14141B]">
           {state === 'validating' && (
-            <div className="flex items-center justify-center gap-3 text-[#6B655C] font-bold text-sm">
+            <div className="flex items-center justify-center gap-3 text-[#8A8279] font-bold text-sm">
               <Loader2 className="w-5 h-5 animate-spin text-[#C9A05C]" />
               Validating reset link...
             </div>
@@ -167,12 +167,12 @@ export default function ResetPassword() {
           {state === 'ready' && (
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2 text-left">
-                <label className="text-[10px] font-black text-[#6B655C] uppercase tracking-widest ml-1">New Password</label>
+                <label className="text-[10px] font-black text-[#8A8279] uppercase tracking-widest ml-1">New Password</label>
                 <input
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full px-4 py-3.5 bg-[#1C1C26] border-none rounded-2xl focus:ring-2 focus:ring-[#C9A05C] outline-none font-bold text-[#EAE2D6] transition-all"
+                  className="w-full px-4 py-3.5 bg-[#1C1C26] border-none rounded-2xl focus:ring-2 focus:ring-[#C9A05C] outline-none font-bold text-[#F5F0E8] transition-all"
                   placeholder="Minimum 8 characters"
                   minLength={8}
                   required
@@ -180,12 +180,12 @@ export default function ResetPassword() {
               </div>
 
               <div className="space-y-2 text-left">
-                <label className="text-[10px] font-black text-[#6B655C] uppercase tracking-widest ml-1">Confirm Password</label>
+                <label className="text-[10px] font-black text-[#8A8279] uppercase tracking-widest ml-1">Confirm Password</label>
                 <input
                   type="password"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
-                  className="w-full px-4 py-3.5 bg-[#1C1C26] border-none rounded-2xl focus:ring-2 focus:ring-[#C9A05C] outline-none font-bold text-[#EAE2D6] transition-all"
+                  className="w-full px-4 py-3.5 bg-[#1C1C26] border-none rounded-2xl focus:ring-2 focus:ring-[#C9A05C] outline-none font-bold text-[#F5F0E8] transition-all"
                   placeholder="Re-enter password"
                   minLength={8}
                   required

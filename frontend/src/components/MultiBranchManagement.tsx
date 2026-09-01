@@ -1,4 +1,4 @@
-﻿import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { Building2, Eye, GitBranch, Loader2, MapPin, Pencil, PlusCircle, Save, ShieldCheck, ToggleLeft, ToggleRight, UserCircle2 } from 'lucide-react';
 import api from '../lib/apiClient';
 import { useToast } from '../App';
@@ -236,37 +236,37 @@ export function MultiBranchManagement({
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700 text-left">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
-          <h2 className="text-3xl font-black tracking-tight text-[#EAE2D6] uppercase italic flex items-center gap-3">
+          <h2 className="text-3xl font-black tracking-tight text-[#F5F0E8] uppercase italic flex items-center gap-3">
             <span className="p-2 rounded-xl bg-emerald-600 shadow-lg shadow-emerald-200">
               <GitBranch className="w-6 h-6 text-white" />
             </span>
             Multi-Branch Management
           </h2>
-          <p className="text-[#6B655C] font-medium mt-2">Create, organize, and govern branch operations per pawnshop subscription limits.</p>
+          <p className="text-[#8A8279] font-medium mt-2">Create, organize, and govern branch operations per pawnshop subscription limits.</p>
         </div>
       </div>
 
       {loading ? (
         <div className="bg-[#14141B] border border-[rgba(201,160,92,0.12)] rounded-3xl p-12 flex flex-col items-center justify-center gap-3">
           <Loader2 className="w-10 h-10 text-emerald-600 animate-spin" />
-          <p className="text-xs font-black uppercase tracking-[0.2em] text-[#6B655C]">Loading Branch Network...</p>
+          <p className="text-xs font-black uppercase tracking-[0.2em] text-[#8A8279]">Loading Branch Network...</p>
         </div>
       ) : (
         <>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="bg-[#14141B] border border-[rgba(201,160,92,0.12)] rounded-3xl p-6">
-              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#6B655C]">Active Branches</p>
-              <p className="text-3xl font-black text-[#EAE2D6] mt-2">{data?.limit.activeBranches ?? 0}</p>
+              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#8A8279]">Active Branches</p>
+              <p className="text-3xl font-black text-[#F5F0E8] mt-2">{data?.limit.activeBranches ?? 0}</p>
             </div>
             <div className="bg-[#14141B] border border-[rgba(201,160,92,0.12)] rounded-3xl p-6">
-              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#6B655C]">Plan Limit</p>
-              <p className="text-3xl font-black text-[#EAE2D6] mt-2">
+              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#8A8279]">Plan Limit</p>
+              <p className="text-3xl font-black text-[#F5F0E8] mt-2">
                 {data?.limit.maxBranches === null ? 'Unlimited' : data?.limit.maxBranches ?? 0}
               </p>
             </div>
             <div className="bg-[#14141B] border border-[rgba(201,160,92,0.12)] rounded-3xl p-6">
-              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#6B655C]">Remaining</p>
-              <p className="text-3xl font-black text-[#EAE2D6] mt-2">
+              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#8A8279]">Remaining</p>
+              <p className="text-3xl font-black text-[#F5F0E8] mt-2">
                 {data?.limit.remaining === null ? 'Infinity' : data?.limit.remaining ?? 0}
               </p>
             </div>
@@ -275,11 +275,11 @@ export function MultiBranchManagement({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="bg-[#14141B] border border-[rgba(201,160,92,0.12)] rounded-3xl p-6">
               <p className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-500">Performing Branches</p>
-              <p className="text-3xl font-black text-[#EAE2D6] mt-2">{branchPerformanceSummary.performing}</p>
+              <p className="text-3xl font-black text-[#F5F0E8] mt-2">{branchPerformanceSummary.performing}</p>
             </div>
             <div className="bg-[#14141B] border border-[rgba(201,160,92,0.12)] rounded-3xl p-6">
               <p className="text-[10px] font-black uppercase tracking-[0.2em] text-rose-500">At Risk Branches</p>
-              <p className="text-3xl font-black text-[#EAE2D6] mt-2">{branchPerformanceSummary.atRisk}</p>
+              <p className="text-3xl font-black text-[#F5F0E8] mt-2">{branchPerformanceSummary.atRisk}</p>
             </div>
           </div>
 
@@ -287,7 +287,7 @@ export function MultiBranchManagement({
             <form onSubmit={handleCreate} className="bg-[#14141B] border border-[rgba(201,160,92,0.12)] rounded-3xl p-6 md:p-8 space-y-4">
               <div className="flex items-center gap-3 mb-2">
                 <PlusCircle className="w-5 h-5 text-emerald-600" />
-                <h3 className="text-lg font-black text-[#EAE2D6] uppercase tracking-wide">Create New Branch</h3>
+                <h3 className="text-lg font-black text-[#F5F0E8] uppercase tracking-wide">Create New Branch</h3>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -314,7 +314,7 @@ export function MultiBranchManagement({
               </div>
 
               <div className="rounded-2xl border border-[rgba(201,160,92,0.12)] p-4 space-y-3">
-                <label className="flex items-center gap-2 text-sm font-bold text-[#6B655C]">
+                <label className="flex items-center gap-2 text-sm font-bold text-[#8A8279]">
                   <input
                     type="checkbox"
                     checked={form.assignAdmin}
@@ -387,22 +387,22 @@ export function MultiBranchManagement({
                     <div className="space-y-4">
                       <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
                         <div className="space-y-2">
-                          <h4 className="text-3xl font-black tracking-tight text-[#EAE2D6] uppercase flex items-center gap-2">
+                          <h4 className="text-3xl font-black tracking-tight text-[#F5F0E8] uppercase flex items-center gap-2">
                             <Building2 className="w-6 h-6 text-emerald-600" />
                             {branch.name}
                           </h4>
-                          <p className="text-base text-[#6B655C] font-medium flex items-center gap-2">
-                            <MapPin className="w-4 h-4 text-[#6B655C]" />
+                          <p className="text-base text-[#8A8279] font-medium flex items-center gap-2">
+                            <MapPin className="w-4 h-4 text-[#8A8279]" />
                             {branch.location}
                           </p>
-                          <p className="text-base text-[#6B655C] font-medium flex items-center gap-2">
-                            <UserCircle2 className="w-4 h-4 text-[#6B655C]" />
+                          <p className="text-base text-[#8A8279] font-medium flex items-center gap-2">
+                            <UserCircle2 className="w-4 h-4 text-[#8A8279]" />
                             {branch.manager_name || 'Manager not assigned'}
                           </p>
                         </div>
 
                         <div className="flex flex-wrap items-center gap-2">
-                          <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${branch.is_active ? 'bg-emerald-100 text-emerald-700' : 'bg-[#222228] text-[#999186]'}`}>
+                          <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${branch.is_active ? 'bg-emerald-100 text-emerald-700' : 'bg-[#222228] text-[#B8B0A4]'}`}>
                             {branch.is_active ? 'Active' : 'Inactive'}
                           </span>
                           <span
@@ -417,7 +417,7 @@ export function MultiBranchManagement({
                           {canManage && (
                             <button
                               onClick={() => startEdit(branch)}
-                              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-[rgba(201,160,92,0.12)] text-[#6B655C] text-xs font-black uppercase tracking-wider hover:border-emerald-500 hover:text-emerald-700 transition-colors"
+                              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-[rgba(201,160,92,0.12)] text-[#8A8279] text-xs font-black uppercase tracking-wider hover:border-emerald-500 hover:text-emerald-700 transition-colors"
                             >
                               <Pencil className="w-3.5 h-3.5" />
                               Edit
@@ -440,10 +440,10 @@ export function MultiBranchManagement({
                       </div>
 
                       <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-[10px] font-black uppercase tracking-wider">
-                        <div className="px-3 py-2 rounded-xl bg-[#1C1C26] text-[#6B655C]">
+                        <div className="px-3 py-2 rounded-xl bg-[#1C1C26] text-[#8A8279]">
                           Active Tickets: {branch.active_tickets ?? 0}
                         </div>
-                        <div className="px-3 py-2 rounded-xl bg-[#1C1C26] text-[#6B655C]">
+                        <div className="px-3 py-2 rounded-xl bg-[#1C1C26] text-[#8A8279]">
                           At Risk: {branch.at_risk_tickets ?? 0}
                         </div>
                         <div className="px-3 py-2 rounded-xl bg-emerald-50 text-emerald-700">
@@ -451,7 +451,7 @@ export function MultiBranchManagement({
                         </div>
                       </div>
 
-                      <p className="text-[11px] font-semibold text-[#6B655C]">
+                      <p className="text-[11px] font-semibold text-[#8A8279]">
                         {branch.owner_user_id
                           ? `Owner linked: ${shortOwnerId(branch.owner_user_id)}`
                           : 'Owner not linked yet'}
@@ -483,7 +483,7 @@ export function MultiBranchManagement({
                       <button
                         type="button"
                         onClick={() => setEditForm((prev) => ({ ...prev, isActive: !prev.isActive }))}
-                        className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-[rgba(201,160,92,0.12)] text-xs font-black uppercase tracking-wider text-[#6B655C] hover:border-emerald-500 hover:text-emerald-700 transition-colors"
+                        className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-[rgba(201,160,92,0.12)] text-xs font-black uppercase tracking-wider text-[#8A8279] hover:border-emerald-500 hover:text-emerald-700 transition-colors"
                       >
                         {editForm.isActive ? <ToggleRight className="w-4 h-4" /> : <ToggleLeft className="w-4 h-4" />}
                         {editForm.isActive ? 'Set Inactive' : 'Set Active'}
@@ -502,7 +502,7 @@ export function MultiBranchManagement({
                         <button
                           type="button"
                           onClick={() => setEditingBranchId(null)}
-                          className="px-4 py-2 rounded-xl border border-[rgba(201,160,92,0.12)] text-xs font-black uppercase tracking-wider text-[#6B655C] hover:border-slate-300"
+                          className="px-4 py-2 rounded-xl border border-[rgba(201,160,92,0.12)] text-xs font-black uppercase tracking-wider text-[#8A8279] hover:border-slate-300"
                         >
                           Cancel
                         </button>
@@ -516,8 +516,8 @@ export function MultiBranchManagement({
             {(data?.branches || []).length === 0 && (
               <div className="bg-[#1C1C26] border-2 border-dashed border-[rgba(201,160,92,0.12)] rounded-3xl p-10 text-center">
                 <ShieldCheck className="w-10 h-10 text-slate-300 mx-auto" />
-                <p className="mt-3 text-xs font-black uppercase tracking-[0.2em] text-[#6B655C]">No Branches Yet</p>
-                <p className="mt-2 text-sm text-[#6B655C]">Create your first branch to enable multi-location operations.</p>
+                <p className="mt-3 text-xs font-black uppercase tracking-[0.2em] text-[#8A8279]">No Branches Yet</p>
+                <p className="mt-2 text-sm text-[#8A8279]">Create your first branch to enable multi-location operations.</p>
               </div>
             )}
           </div>

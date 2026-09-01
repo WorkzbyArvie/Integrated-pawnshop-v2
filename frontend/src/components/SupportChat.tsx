@@ -1,4 +1,4 @@
-﻿import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { Loader2, MessageSquareText, PlusCircle, SendHorizonal } from 'lucide-react';
 import api from '../lib/apiClient';
 import { useToast } from '../App';
@@ -178,7 +178,7 @@ export function SupportChat({ pawnshopId, userRole }: SupportChatProps) {
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 text-left">
       <div className="flex items-center justify-between gap-3">
-        <h2 className="text-2xl font-black uppercase tracking-tight text-[#EAE2D6] flex items-center gap-2">
+        <h2 className="text-2xl font-black uppercase tracking-tight text-[#F5F0E8] flex items-center gap-2">
           <MessageSquareText className="w-6 h-6 text-[#C9A05C]" />
           Support Chat
         </h2>
@@ -203,7 +203,7 @@ export function SupportChat({ pawnshopId, userRole }: SupportChatProps) {
       </div>
       {!isSuperAdmin && (
         <form onSubmit={handleCreateConversation} className="bg-[#14141B] border border-[rgba(201,160,92,0.12)] rounded-3xl p-4 space-y-3">
-          <div className="flex items-center gap-2 text-sm font-black text-[#6B655C] uppercase tracking-wider">
+          <div className="flex items-center gap-2 text-sm font-black text-[#8A8279] uppercase tracking-wider">
             <PlusCircle className="w-4 h-4 text-[#C9A05C]" />
             New Inquiry
           </div>
@@ -241,7 +241,7 @@ export function SupportChat({ pawnshopId, userRole }: SupportChatProps) {
             {groupedConversations.map((group) => (
               <div key={group.pawnshopName || 'default'} className="space-y-2">
                 {isSuperAdmin && group.pawnshopName && (
-                  <p className="text-[10px] font-black uppercase tracking-widest text-[#6B655C] px-1">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-[#8A8279] px-1">
                     {group.pawnshopName}
                   </p>
                 )}
@@ -258,10 +258,10 @@ export function SupportChat({ pawnshopId, userRole }: SupportChatProps) {
                       onClick={() => setActiveConversationId(c.id)}
                       className="w-full text-left"
                     >
-                      <p className="text-xs font-black uppercase tracking-wider text-[#6B655C]">{c.status}</p>
-                      <p className="text-sm font-bold text-[#EAE2D6] mt-1">{c.subject}</p>
+                      <p className="text-xs font-black uppercase tracking-wider text-[#8A8279]">{c.status}</p>
+                      <p className="text-sm font-bold text-[#F5F0E8] mt-1">{c.subject}</p>
                       {c.last_message && (
-                        <p className="text-xs text-[#6B655C] mt-2 line-clamp-2">{c.last_message}</p>
+                        <p className="text-xs text-[#8A8279] mt-2 line-clamp-2">{c.last_message}</p>
                       )}
                     </button>
 
@@ -275,7 +275,7 @@ export function SupportChat({ pawnshopId, userRole }: SupportChatProps) {
                             className={`px-2 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider border ${
                               c.status === status
                                 ? 'bg-emerald-100 border-emerald-300 text-emerald-700'
-                                : 'bg-[#14141B] border-[rgba(201,160,92,0.12)] text-[#999186] hover:bg-[#1C1C26]'
+                                : 'bg-[#14141B] border-[rgba(201,160,92,0.12)] text-[#B8B0A4] hover:bg-[#1C1C26]'
                             } disabled:opacity-50`}
                           >
                             {status}
@@ -288,7 +288,7 @@ export function SupportChat({ pawnshopId, userRole }: SupportChatProps) {
               </div>
             ))}
             {conversations.length === 0 && (
-              <p className="text-xs text-[#6B655C] text-center py-8">No inquiries yet.</p>
+              <p className="text-xs text-[#8A8279] text-center py-8">No inquiries yet.</p>
             )}
           </div>
 
@@ -312,10 +312,10 @@ export function SupportChat({ pawnshopId, userRole }: SupportChatProps) {
                 );
               })}
               {activeConversationId && messages.length === 0 && (
-                <p className="text-xs text-[#6B655C] text-center py-8">No messages yet.</p>
+                <p className="text-xs text-[#8A8279] text-center py-8">No messages yet.</p>
               )}
               {!activeConversationId && (
-                <p className="text-xs text-[#6B655C] text-center py-8">Select a conversation to start chatting.</p>
+                <p className="text-xs text-[#8A8279] text-center py-8">Select a conversation to start chatting.</p>
               )}
             </div>
 

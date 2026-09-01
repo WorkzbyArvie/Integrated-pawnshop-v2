@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Filter, Loader2, Search, Shield } from 'lucide-react';
 import api from '../lib/apiClient';
 import { useToast } from '../App';
@@ -154,10 +154,10 @@ export function AuditHistory({ branchId, userRole }: AuditHistoryProps) {
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700 text-left">
       <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
         <div>
-          <h2 className="text-3xl font-black text-[#EAE2D6] tracking-tight uppercase italic leading-none">
+          <h2 className="text-3xl font-black text-[#F5F0E8] tracking-tight uppercase italic leading-none">
             Audit <span className="text-[#C9A05C]">History</span>
           </h2>
-          <p className="mt-2 text-[11px] font-black uppercase tracking-widest text-[#6B655C] flex items-center gap-2">
+          <p className="mt-2 text-[11px] font-black uppercase tracking-widest text-[#8A8279] flex items-center gap-2">
             <Shield className="w-4 h-4 text-[#C9A05C]" />
             {roleBadge}
           </p>
@@ -172,7 +172,7 @@ export function AuditHistory({ branchId, userRole }: AuditHistoryProps) {
 
       <div className="bg-[#14141B] rounded-[2rem] border border-[rgba(201,160,92,0.08)] p-4 flex flex-col md:flex-row gap-3">
         <div className="relative flex-1">
-          <Search className="w-4 h-4 text-[#6B655C] absolute left-4 top-1/2 -translate-y-1/2" />
+          <Search className="w-4 h-4 text-[#8A8279] absolute left-4 top-1/2 -translate-y-1/2" />
           <input
             type="text"
             value={searchTerm}
@@ -203,10 +203,10 @@ export function AuditHistory({ branchId, userRole }: AuditHistoryProps) {
       {loading ? (
         <div className="flex flex-col items-center justify-center py-24 bg-[#14141B] rounded-[2.5rem] border border-dashed border-[rgba(201,160,92,0.12)]">
           <Loader2 className="w-10 h-10 text-[#C9A05C] animate-spin mb-3" />
-          <p className="text-[10px] font-black uppercase tracking-widest text-[#6B655C]">Loading Audit Logs...</p>
+          <p className="text-[10px] font-black uppercase tracking-widest text-[#8A8279]">Loading Audit Logs...</p>
         </div>
       ) : visibleRows.length === 0 ? (
-        <div className="bg-[#14141B] rounded-[2.5rem] border border-[rgba(201,160,92,0.08)] p-8 text-sm font-bold text-[#6B655C]">
+        <div className="bg-[#14141B] rounded-[2.5rem] border border-[rgba(201,160,92,0.08)] p-8 text-sm font-bold text-[#8A8279]">
           No audit logs found for the current scope.
         </div>
       ) : (
@@ -215,11 +215,11 @@ export function AuditHistory({ branchId, userRole }: AuditHistoryProps) {
             <table className="w-full min-w-[980px]">
               <thead className="bg-[#1C1C26] border-b border-[rgba(201,160,92,0.08)]">
                 <tr>
-                  <th className="px-5 py-4 text-left text-[10px] font-black uppercase tracking-widest text-[#6B655C]">Time</th>
-                  <th className="px-5 py-4 text-left text-[10px] font-black uppercase tracking-widest text-[#6B655C]">Actor</th>
-                  <th className="px-5 py-4 text-left text-[10px] font-black uppercase tracking-widest text-[#6B655C]">Category</th>
-                  <th className="px-5 py-4 text-left text-[10px] font-black uppercase tracking-widest text-[#6B655C]">Action</th>
-                  <th className="px-5 py-4 text-left text-[10px] font-black uppercase tracking-widest text-[#6B655C]">Reason</th>
+                  <th className="px-5 py-4 text-left text-[10px] font-black uppercase tracking-widest text-[#8A8279]">Time</th>
+                  <th className="px-5 py-4 text-left text-[10px] font-black uppercase tracking-widest text-[#8A8279]">Actor</th>
+                  <th className="px-5 py-4 text-left text-[10px] font-black uppercase tracking-widest text-[#8A8279]">Category</th>
+                  <th className="px-5 py-4 text-left text-[10px] font-black uppercase tracking-widest text-[#8A8279]">Action</th>
+                  <th className="px-5 py-4 text-left text-[10px] font-black uppercase tracking-widest text-[#8A8279]">Reason</th>
                 </tr>
               </thead>
               <tbody>
@@ -229,15 +229,15 @@ export function AuditHistory({ branchId, userRole }: AuditHistoryProps) {
                   const actionLabel = toHumanActionLabel(row.action);
                   return (
                     <tr key={row.id} className="border-b last:border-b-0 border-[rgba(201,160,92,0.08)] hover:bg-[#C9A05C]/8/20 transition-colors">
-                      <td className="px-5 py-4 text-sm font-bold text-[#6B655C]">
+                      <td className="px-5 py-4 text-sm font-bold text-[#8A8279]">
                         {row.created_at ? new Date(row.created_at).toLocaleString() : 'Unknown'}
                       </td>
-                      <td className="px-5 py-4 text-sm font-bold text-[#6B655C]">
+                      <td className="px-5 py-4 text-sm font-bold text-[#8A8279]">
                         {row.actor_name || row.actor_email || row.actor_user_id}
                       </td>
                       <td className="px-5 py-4 text-xs font-black uppercase tracking-wider text-[#C9A05C]">{category}</td>
-                      <td className="px-5 py-4 text-sm font-bold text-[#6B655C]">{actionLabel}</td>
-                      <td className="px-5 py-4 text-xs text-[#999186] max-w-[420px] whitespace-pre-wrap break-words">
+                      <td className="px-5 py-4 text-sm font-bold text-[#8A8279]">{actionLabel}</td>
+                      <td className="px-5 py-4 text-xs text-[#B8B0A4] max-w-[420px] whitespace-pre-wrap break-words">
                         {reason}
                       </td>
                     </tr>
