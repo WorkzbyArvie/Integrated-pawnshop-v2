@@ -25,7 +25,7 @@ export async function getSignedKycDocUrl(storedUrl: string, ttlSeconds = 3600): 
     .from('kyc-documents')
     .createSignedUrl(objectPath, ttlSeconds);
   if (error || !data?.signedUrl) {
-    throw new Error('Unable to sign KYC document URL');
+    return storedUrl;
   }
   return data.signedUrl;
 }

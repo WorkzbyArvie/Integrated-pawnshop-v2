@@ -137,7 +137,7 @@ function SignedDocImage({ url, alt }: { url: string; alt: string }) {
       rel="noopener noreferrer"
       className="block overflow-hidden rounded-lg border border-gilded-border transition-colors hover:border-gilded-gold/50"
     >
-      <img src={signedUrl} alt={alt} className="h-48 w-full object-cover" />
+      <img src={signedUrl} alt={alt} onError={() => setFailed(true)} className="h-48 w-full object-cover" />
     </a>
   );
 }
@@ -185,7 +185,12 @@ function SignedDocViewer({ url, fileName }: { url: string; fileName: string }) {
     <div className="space-y-3">
       <div className="overflow-hidden rounded-lg border border-gilded-border bg-gilded-darker/60">
         {isImage ? (
-          <img src={signedUrl} alt={fileName} className="mx-auto max-h-[70vh] w-full object-contain" />
+          <img
+            src={signedUrl}
+            alt={fileName}
+            onError={() => setFailed(true)}
+            className="mx-auto max-h-[70vh] w-full object-contain"
+          />
         ) : (
           <iframe
             src={signedUrl}
