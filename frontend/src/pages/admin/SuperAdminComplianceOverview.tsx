@@ -14,6 +14,7 @@ import {
   Phone,
   CreditCard,
   Loader2,
+  ExternalLink,
 } from 'lucide-react';
 import { api } from '../../lib/apiClient';
 import { getSignedKycDocUrl } from '../../lib/kycDocs';
@@ -22,6 +23,9 @@ interface PendingReview {
   id: string;
   documentType: string;
   fileName: string;
+  fileUrl: string;
+  fileSize?: number | null;
+  hasViewed?: boolean;
   status: string;
   rejectionReason: string | null;
   createdAt: string;
@@ -138,6 +142,71 @@ function SignedDocImage({ url, alt }: { url: string; alt: string }) {
   );
 }
 
+function SignedDocViewer({ url, fileName }: { url: string; fileName: string }) {
+  const [signedUrl, setSignedUrl] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    setSignedUrl(null);
+    setFailed(false);
+    getSignedKycDocUrl(url)
+      .then((minted) => {
+        if (!cancelled) setSignedUrl(minted);
+      })
+      .catch(() => {
+        if (!cancelled) setFailed(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [url]);
+
+  if (failed) {
+    return (
+      <div className="flex h-72 w-full flex-col items-center justify-center gap-3 rounded-lg border border-gilded-border bg-gilded-darker/60">
+        <p className="text-sm text-gilded-muted">Document unavailable</p>
+        <p className="text-xs text-gilded-muted/70">{fileName}</p>
+      </div>
+    );
+  }
+
+  if (!signedUrl) {
+    return (
+      <div className="flex h-72 w-full animate-pulse items-center justify-center rounded-lg border border-gilded-border bg-gilded-darker/60">
+        <Loader2 className="h-6 w-6 animate-spin text-gilded-muted" />
+      </div>
+    );
+  }
+
+  const isImage = /\.(jpe?g|png|gif|webp|bmp)$/i.test(fileName) || /^image\//i.test(url);
+
+  return (
+    <div className="space-y-3">
+      <div className="overflow-hidden rounded-lg border border-gilded-border bg-gilded-darker/60">
+        {isImage ? (
+          <img src={signedUrl} alt={fileName} className="mx-auto max-h-[70vh] w-full object-contain" />
+        ) : (
+          <iframe
+            src={signedUrl}
+            title={fileName}
+            className="h-[70vh] w-full"
+          />
+        )}
+      </div>
+      <a
+        href={signedUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="inline-flex items-center gap-1.5 text-sm text-gilded-gold hover:underline"
+      >
+        <ExternalLink className="w-4 h-4" />
+        Open in new tab
+      </a>
+    </div>
+  );
+}
+
 export default function SuperAdminComplianceOverview() {
   const [pendingReviews, setPendingReviews] = useState<PendingReview[]>([]);
   const [kycPendingReviews, setKycPendingReviews] = useState<KycPendingReview[]>([]);
@@ -151,6 +220,7 @@ export default function SuperAdminComplianceOverview() {
   const [kycRejectReason, setKycRejectReason] = useState('');
   const [activeTab, setActiveTab] = useState<'pending' | 'kyc' | 'overview'>('pending');
   const [viewingKyc, setViewingKyc] = useState<KycPendingReview | null>(null);
+  const [viewingDoc, setViewingDoc] = useState<PendingReview | null>(null);
 
   useEffect(() => {
     fetchData();
@@ -299,6 +369,13 @@ export default function SuperAdminComplianceOverview() {
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setViewingDoc(review)}
+                        className="flex items-center gap-1 px-3 py-1.5 bg-blue-500/10 text-blue-400 rounded-lg hover:bg-blue-500/20 transition-colors"
+                      >
+                        <Eye className="w-4 h-4" />
+                        View
+                      </button>
                       <button
                         onClick={() => handleVerify(review.id, 'VERIFIED')}
                         disabled={verifyingId === review.id}
@@ -629,6 +706,60 @@ export default function SuperAdminComplianceOverview() {
                 <button
                   onClick={() => { setViewingKyc(null); setShowKycRejectModal(viewingKyc.id); }}
                   disabled={verifyingKycId === viewingKyc.id}
+                  className="flex items-center gap-1.5 px-4 py-2 bg-red-500/10 text-red-400 rounded-lg hover:bg-red-500/20 transition-colors disabled:opacity-50 text-sm font-medium"
+                >
+                  <XCircle className="w-4 h-4" />
+                  Reject
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {viewingDoc && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90" onClick={() => setViewingDoc(null)}>
+          <div className="border border-gilded-border rounded-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto shadow-2xl relative" style={{ backgroundColor: '#0A0A0F' }} onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-5 border-b border-gilded-border">
+              <div>
+                <h2 className="text-lg font-display font-bold text-gilded-gold">
+                  {DOCUMENT_LABELS[viewingDoc.documentType] || viewingDoc.documentType}
+                </h2>
+                <p className="text-sm text-gilded-muted mt-0.5">
+                  {viewingDoc.pawnshop.name} &middot; {viewingDoc.pawnshop.ownerEmail}
+                </p>
+              </div>
+              <button onClick={() => setViewingDoc(null)} className="p-2 rounded-lg hover:bg-gilded-darker transition-colors">
+                <X className="w-5 h-5 text-gilded-muted" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-5">
+              <div className="flex items-center justify-between text-xs text-gilded-muted">
+                <span className="font-medium">{viewingDoc.fileName}</span>
+                <span>
+                  Submitted {new Date(viewingDoc.createdAt).toLocaleDateString()} &middot;{' '}
+                  {viewingDoc.fileSize ? `${(viewingDoc.fileSize / 1024).toFixed(1)} KB` : 'Unknown size'}
+                </span>
+              </div>
+
+              <SignedDocViewer url={viewingDoc.fileUrl} fileName={viewingDoc.fileName} />
+
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-gilded-border">
+                <button onClick={() => setViewingDoc(null)} className="px-4 py-2 bg-gilded-darker border border-gilded-border rounded-lg text-gilded-light text-sm hover:border-gilded-gold/30 transition-colors">
+                  Close
+                </button>
+                <button
+                  onClick={() => { handleVerify(viewingDoc.id, 'VERIFIED'); setViewingDoc(null); }}
+                  disabled={verifyingId === viewingDoc.id}
+                  className="flex items-center gap-1.5 px-4 py-2 bg-emerald-500/10 text-emerald-400 rounded-lg hover:bg-emerald-500/20 transition-colors disabled:opacity-50 text-sm font-medium"
+                >
+                  <CheckCircle className="w-4 h-4" />
+                  Approve
+                </button>
+                <button
+                  onClick={() => { setViewingDoc(null); setShowRejectModal(viewingDoc.id); }}
+                  disabled={verifyingId === viewingDoc.id}
                   className="flex items-center gap-1.5 px-4 py-2 bg-red-500/10 text-red-400 rounded-lg hover:bg-red-500/20 transition-colors disabled:opacity-50 text-sm font-medium"
                 >
                   <XCircle className="w-4 h-4" />
