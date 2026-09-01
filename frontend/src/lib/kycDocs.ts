@@ -25,7 +25,10 @@ export async function getSignedKycDocUrl(storedUrl: string, ttlSeconds = 3600): 
     .from('kyc-documents')
     .createSignedUrl(objectPath, ttlSeconds);
   if (error || !data?.signedUrl) {
-    return storedUrl;
+    return (
+      supabase.storage.from('kyc-documents').getPublicUrl(objectPath).data?.publicUrl ??
+      storedUrl
+    );
   }
   return data.signedUrl;
 }
