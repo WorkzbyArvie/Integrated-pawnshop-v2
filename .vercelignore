@@ -1,0 +1,12 @@
+backend
+mobile
+auction-frontend
+docs
+node_modules
+*.sql
+*.md
+.git
+.gitignore
+.planning
+.env
+.env.*

@@ -42,3 +42,5 @@ Thumbs.db
 
 # Keep .env in git (private repo, clone-and-run)
 # .env
+.vercel
+.env*
