@@ -477,50 +477,77 @@ export default function SuperAdminComplianceOverview() {
           </button>
         </div>
 
-        {activeTab === 'pending' && (
-          <div className="space-y-4">
-            {pendingReviews.length === 0 ? (
-              <div className="text-center py-12 text-gilded-muted">
-                No documents pending review
-              </div>
-            ) : (
-              pendingReviews.map((review) => (
-                <div
-                  key={review.id}
-                  className="bg-gilded-dark border border-gilded-border rounded-xl p-5"
-                >
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-start gap-4">
-                      <div className="w-10 h-10 rounded-lg bg-blue-500/10 flex items-center justify-center">
-                        <FileText className="w-5 h-5 text-blue-400" />
-                      </div>
-                      <div>
-                        <h4 className="font-semibold text-gilded-light">
-                          {DOCUMENT_LABELS[review.documentType] || review.documentType}
-                        </h4>
-                        <p className="text-sm text-gilded-muted mt-0.5">
-                          {review.pawnshop.name} &middot; {review.pawnshop.ownerEmail}
-                        </p>
-                        <p className="text-xs text-gilded-muted mt-1">
-                          File: {review.fileName} &middot; Submitted: {new Date(review.createdAt).toLocaleDateString()}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => setViewingDoc(review)}
-                        className="flex items-center gap-1 px-3 py-1.5 bg-blue-500/10 text-blue-400 rounded-lg hover:bg-blue-500/20 transition-colors"
-                      >
-                        <Eye className="w-4 h-4" />
-                        View
-                      </button>
-                    </div>
-                  </div>
+        {activeTab === 'pending' && (() => {
+          const grouped = pendingReviews.reduce<Record<string, PendingReview[]>>((acc, review) => {
+            const psId = review.pawnshop.id;
+            (acc[psId] = acc[psId] || []).push(review);
+            return acc;
+          }, {});
+          const pawnshops = Object.values(grouped);
+
+          return (
+            <div className="space-y-4">
+              {pawnshops.length === 0 ? (
+                <div className="text-center py-12 text-gilded-muted">
+                  No documents pending review
                 </div>
-              ))
-            )}
-          </div>
-        )}
+              ) : (
+                pawnshops.map((reviews) => {
+                  const pawnshop = reviews[0].pawnshop;
+                  return (
+                    <div
+                      key={pawnshop.id}
+                      className="bg-gilded-dark border border-gilded-border rounded-xl p-5"
+                    >
+                      <div className="flex items-start justify-between mb-4 pb-4 border-b border-gilded-border">
+                        <div className="flex items-start gap-4">
+                          <div className="w-10 h-10 rounded-lg bg-blue-500/10 flex items-center justify-center">
+                            <FileText className="w-5 h-5 text-blue-400" />
+                          </div>
+                          <div>
+                            <h4 className="font-semibold text-gilded-light">{pawnshop.name}</h4>
+                            <p className="text-sm text-gilded-muted mt-0.5">{pawnshop.ownerEmail}</p>
+                            <p className="text-xs text-gilded-muted mt-1">
+                              {reviews.length} document{reviews.length > 1 ? 's' : ''} pending review
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="space-y-3">
+                        {reviews.map((review) => (
+                          <div
+                            key={review.id}
+                            className="flex items-start justify-between gap-3 rounded-lg bg-gilded-darker/60 border border-gilded-border px-4 py-3"
+                          >
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-2">
+                                <Clock className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                                <h5 className="font-medium text-gilded-light">
+                                  {DOCUMENT_LABELS[review.documentType] || review.documentType}
+                                </h5>
+                              </div>
+                              <p className="text-xs text-gilded-muted mt-1">
+                                File: {review.fileName} &middot; Submitted: {new Date(review.createdAt).toLocaleDateString()}
+                              </p>
+                            </div>
+                            <button
+                              onClick={() => setViewingDoc(review)}
+                              className="flex items-center gap-1 px-3 py-1.5 bg-blue-500/10 text-blue-400 rounded-lg hover:bg-blue-500/20 transition-colors shrink-0"
+                            >
+                              <Eye className="w-4 h-4" />
+                              View
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          );
+        })()}
 
         {activeTab === 'kyc' && (
           <div className="space-y-4">
