@@ -628,24 +628,27 @@ export default function LandingPage() {
 
       {/* HEADER */}
       <header
-        className="sticky top-0 z-50 transition-all duration-300"
+        className="fixed inset-x-0 top-0 z-50 transition-all duration-300"
         style={{
-          padding: scrolled ? '10px 16px 0' : '0',
+          padding: scrolled ? '10px 16px' : '0',
           background: 'transparent',
           borderBottom: 'none',
           backdropFilter: 'none',
+          pointerEvents: 'none',
         }}
       >
         <div
-          className="mx-auto transition-all duration-300"
+          className="transition-all duration-300"
           style={{
-            maxWidth: scrolled ? '820px' : '1152px',
+            maxWidth: scrolled ? '820px' : '100%',
+            margin: '0 auto',
+            padding: '0 16px',
             background: scrolled ? 'rgba(10,10,15,0.88)' : 'transparent',
             borderBottom: scrolled ? 'none' : '1px solid rgba(201,160,92,0.08)',
             backdropFilter: scrolled ? 'blur(20px)' : 'none',
             borderRadius: scrolled ? '16px' : '0',
             boxShadow: scrolled ? '0 8px 32px rgba(0,0,0,0.45)' : 'none',
-            margin: scrolled ? '10px auto 0' : '0 auto',
+            pointerEvents: 'auto',
           }}
         >
           <div className="h-[2px]" style={{ background: scrolled ? 'transparent' : 'rgba(201,160,92,0.06)' }}>
@@ -719,7 +722,7 @@ export default function LandingPage() {
 
       <main>
         {/* HERO — Editorial split */}
-        <section id="home" className="mx-auto grid max-w-6xl gap-12 px-6 pb-20 pt-16 lg:grid-cols-[1fr_1fr] lg:px-8">
+        <section id="home" className="mx-auto grid max-w-6xl gap-12 px-6 pb-20 pt-20 lg:grid-cols-[1fr_1fr] lg:px-8">
           <div className="reveal flex flex-col justify-center">
             <div
               className="mb-5 inline-flex w-fit items-center gap-2 rounded-full px-3 py-1.5 text-[11px] font-semibold tracking-[0.14em]"
