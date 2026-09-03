@@ -1425,15 +1425,19 @@ function App() {
 
   if (!loading && isPendingLimitedMode && ownerRegistrationChecked) {
     return (
-      <PendingAccessDashboard
-        ownerEmail={session?.user?.email ?? null}
-        ownerName={
-          (session?.user?.user_metadata?.full_name as string | undefined) ||
-          (session?.user?.user_metadata?.name as string | undefined) ||
-          null
-        }
-        registrationStatus={ownerRegistrationStatus}
-      />
+      <div className="h-screen w-screen bg-[#0A0A0F] overflow-y-auto">
+        <div className="p-6 lg:p-8 max-w-[1600px] mx-auto">
+          <PendingAccessDashboard
+            ownerEmail={session?.user?.email ?? null}
+            ownerName={
+              (session?.user?.user_metadata?.full_name as string | undefined) ||
+              (session?.user?.user_metadata?.name as string | undefined) ||
+              null
+            }
+            registrationStatus={ownerRegistrationStatus}
+          />
+        </div>
+      </div>
     );
   }
 
@@ -1568,7 +1572,7 @@ function App() {
             </div>
           )}
 
-          <div className="p-6 lg:p-8 max-w-[1600px] mx-auto animate-fade-in">
+          <div className="p-6 lg:p-8 max-w-[1600px] mx-auto min-h-full animate-fade-in">
             {userRole !== 'Super Admin' && userRole !== 'Owner' && !isPendingLimitedMode && !isSubscriptionFrozen && clockStatus !== 'loading' && (
               <div className={`mb-5 rounded-xl border px-5 py-3.5 flex items-center justify-between transition-all ${
                 clockStatus === 'not_clocked'
