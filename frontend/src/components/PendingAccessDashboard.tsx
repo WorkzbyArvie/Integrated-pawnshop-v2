@@ -1,8 +1,9 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
-import { Clock3, MessageSquare, RefreshCcw, Send, Upload, FileCheck, AlertCircle } from 'lucide-react';
+import { Clock3, MessageSquare, RefreshCcw, Send, Upload, FileCheck, AlertCircle, LogOut } from 'lucide-react';
 import api from '../lib/apiClient';
 import { overallLabel, overallTone, rejectedDocumentCount } from '../lib/onboardingStatus';
 import { useToast } from '../App';
+import { supabase } from '../lib/supabaseClient';
 
 type TrialRequest = {
   id: string;
@@ -403,16 +404,29 @@ export function PendingAccessDashboard({ ownerEmail, registrationStatus }: Pendi
               <p className="mt-1 text-xs text-[#8A8279]">Current status: {registrationStatus}</p>
             ) : null}
           </div>
-          <button
-            type="button"
-            onClick={() => {
-              loadRequests();
-              loadStatusSummary();
-            }}
-            className="inline-flex items-center gap-2 rounded-xl border border-[rgba(201,160,92,0.12)] px-3 py-2 text-xs font-bold uppercase tracking-wider text-[#8A8279] hover:bg-[#1C1C26]"
-          >
-            <RefreshCcw className="h-4 w-4" /> Refresh
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                loadRequests();
+                loadStatusSummary();
+              }}
+              className="inline-flex items-center gap-2 rounded-xl border border-[rgba(201,160,92,0.12)] px-3 py-2 text-xs font-bold uppercase tracking-wider text-[#8A8279] hover:bg-[#1C1C26]"
+            >
+              <RefreshCcw className="h-4 w-4" /> Refresh
+            </button>
+            <button
+              type="button"
+              onClick={async () => {
+                await supabase.auth.signOut();
+                localStorage.clear();
+                window.location.href = '/';
+              }}
+              className="inline-flex items-center gap-2 rounded-xl border border-[rgba(201,160,92,0.12)] px-3 py-2 text-xs font-bold uppercase tracking-wider text-[#D44545] hover:bg-[#D44545]/10"
+            >
+              <LogOut className="h-4 w-4" /> Logout
+            </button>
+          </div>
         </div>
       </div>
 
