@@ -640,7 +640,7 @@ export default function LandingPage() {
         <div
           className="transition-all duration-300"
           style={{
-            maxWidth: scrolled ? '820px' : '100%',
+            maxWidth: scrolled ? '1152px' : '100%',
             margin: '0 auto',
             padding: '0 16px',
             background: scrolled ? 'rgba(10,10,15,0.88)' : 'transparent',
