@@ -1568,7 +1568,7 @@ function App() {
             </div>
           )}
 
-          <div className="p-6 lg:p-8 max-w-[1600px] mx-auto min-h-full animate-fade-in">
+          <div className="p-6 lg:p-8 max-w-[1600px] mx-auto animate-fade-in">
             {userRole !== 'Super Admin' && userRole !== 'Owner' && !isPendingLimitedMode && !isSubscriptionFrozen && clockStatus !== 'loading' && (
               <div className={`mb-5 rounded-xl border px-5 py-3.5 flex items-center justify-between transition-all ${
                 clockStatus === 'not_clocked'
