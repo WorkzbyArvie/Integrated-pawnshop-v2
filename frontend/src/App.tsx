@@ -1425,7 +1425,7 @@ function App() {
 
   if (!loading && isPendingLimitedMode && ownerRegistrationChecked) {
     return (
-      <div className="h-screen w-screen bg-[#0A0A0F] overflow-y-auto">
+      <div className="h-screen w-screen bg-[#0A0A0F] overflow-y-auto custom-scrollbar">
         <div className="p-6 lg:p-8 max-w-[1600px] mx-auto">
           <PendingAccessDashboard
             ownerEmail={session?.user?.email ?? null}
