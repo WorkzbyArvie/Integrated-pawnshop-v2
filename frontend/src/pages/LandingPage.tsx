@@ -212,6 +212,7 @@ export default function LandingPage() {
   const [showModal, setShowModal] = useState(false);
   const [activeSection, setActiveSection] = useState('home');
   const [scrollProgress, setScrollProgress] = useState(0);
+  const [scrolled, setScrolled] = useState(false);
   const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(0);
   const [plansFromApi, setPlansFromApi] = useState<BackendPlan[] | null>(null);
   const [authMode, setAuthMode] = useState<'signup' | 'signin'>('signup');
@@ -306,6 +307,7 @@ export default function LandingPage() {
       const docHeight = document.documentElement.scrollHeight - window.innerHeight;
       const progress = docHeight > 0 ? (scrollTop / docHeight) * 100 : 0;
       setScrollProgress(Math.min(100, Math.max(0, progress)));
+      setScrolled(scrollTop > 8);
     };
 
     nodes.forEach((node) => observer.observe(node));
@@ -626,77 +628,91 @@ export default function LandingPage() {
 
       {/* HEADER */}
       <header
-        className="sticky top-0 z-50"
+        className="sticky top-0 z-50 transition-all duration-300"
         style={{
-          background: 'rgba(10,10,15,0.88)',
-          borderBottom: '1px solid rgba(201,160,92,0.08)',
-          backdropFilter: 'blur(20px)',
+          padding: scrolled ? '10px 16px 0' : '0',
+          background: 'transparent',
+          borderBottom: 'none',
+          backdropFilter: 'none',
         }}
       >
-        <div className="h-[2px]" style={{ background: 'rgba(201,160,92,0.06)' }}>
-          <div className="h-full transition-all duration-150" style={{ width: `${scrollProgress}%`, background: 'var(--gold)' }} />
-        </div>
-        <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-6 lg:px-8">
-          <div className="flex items-center gap-3">
-            <div
-              className="flex h-8 w-8 items-center justify-center rounded-[10px]"
-              style={{ background: 'rgba(201,160,92,0.12)', border: '1px solid rgba(201,160,92,0.2)' }}
-            >
-              <Shield className="h-4 w-4" style={{ color: 'var(--gold)' }} />
-            </div>
-            <span className="text-[18px] font-bold tracking-tight" style={{ fontFamily: 'var(--font-display)', color: 'var(--text-primary)' }}>PawnGold</span>
+        <div
+          className="mx-auto transition-all duration-300"
+          style={{
+            maxWidth: scrolled ? '820px' : '1152px',
+            background: scrolled ? 'rgba(10,10,15,0.88)' : 'transparent',
+            borderBottom: scrolled ? 'none' : '1px solid rgba(201,160,92,0.08)',
+            backdropFilter: scrolled ? 'blur(20px)' : 'none',
+            borderRadius: scrolled ? '16px' : '0',
+            boxShadow: scrolled ? '0 8px 32px rgba(0,0,0,0.45)' : 'none',
+            margin: scrolled ? '10px auto 0' : '0 auto',
+          }}
+        >
+          <div className="h-[2px]" style={{ background: scrolled ? 'transparent' : 'rgba(201,160,92,0.06)' }}>
+            <div className="h-full transition-all duration-150" style={{ width: `${scrollProgress}%`, background: 'var(--gold)', borderRadius: '2px 0 0 0' }} />
           </div>
+          <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-6 lg:px-8">
+            <div className="flex items-center gap-3">
+              <div
+                className="flex h-8 w-8 items-center justify-center rounded-[10px]"
+                style={{ background: 'rgba(201,160,92,0.12)', border: '1px solid rgba(201,160,92,0.2)' }}
+              >
+                <Shield className="h-4 w-4" style={{ color: 'var(--gold)' }} />
+              </div>
+              <span className="text-[18px] font-bold tracking-tight" style={{ fontFamily: 'var(--font-display)', color: 'var(--text-primary)' }}>PawnGold</span>
+            </div>
 
-          <nav className="hidden items-center gap-7 text-[14px] md:flex">
-            {HEADER_LINKS.map((item) =>
-              item.external ? (
-                <a
-                  key={item.label}
-                  href={item.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="transition-colors duration-150 flex items-center gap-1.5"
-                  style={{
-                    color: 'var(--gold)',
-                    fontWeight: 600,
-                  }}
-                >
-                  {item.label}
-                  <svg width="10" height="10" viewBox="0 0 10 10" fill="none" style={{ opacity: 0.7 }}>
-                    <path d="M1.5 8.5L8.5 1.5M8.5 1.5H3.5M8.5 1.5V6.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                </a>
-              ) : (
-                <button
-                  key={item.label}
-                  type="button"
-                  onClick={() => scrollToSection(item.href)}
-                  className="transition-colors duration-150"
-                  style={{
-                    color: activeSection === item.href.replace('#', '') ? 'var(--gold)' : 'var(--text-secondary)',
-                    fontWeight: activeSection === item.href.replace('#', '') ? 600 : 400,
-                  }}
-                >
-                  {item.label}
-                </button>
-              )
-            )}
-          </nav>
+            <nav className="hidden items-center gap-7 text-[14px] md:flex">
+              {HEADER_LINKS.map((item) =>
+                item.external ? (
+                  <a
+                    key={item.label}
+                    href={item.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="transition-colors duration-150 flex items-center gap-1.5"
+                    style={{
+                      color: 'var(--gold)',
+                      fontWeight: 600,
+                    }}
+                  >
+                    {item.label}
+                    <svg width="10" height="10" viewBox="0 0 10 10" fill="none" style={{ opacity: 0.7 }}>
+                      <path d="M1.5 8.5L8.5 1.5M8.5 1.5H3.5M8.5 1.5V6.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                  </a>
+                ) : (
+                  <button
+                    key={item.label}
+                    type="button"
+                    onClick={() => scrollToSection(item.href)}
+                    className="transition-colors duration-150"
+                    style={{
+                      color: activeSection === item.href.replace('#', '') ? 'var(--gold)' : 'var(--text-secondary)',
+                      fontWeight: activeSection === item.href.replace('#', '') ? 600 : 400,
+                    }}
+                  >
+                    {item.label}
+                  </button>
+                )
+              )}
+            </nav>
 
-          <div className="flex items-center gap-3">
-            <Link to="/login" className="text-[13px] font-medium" style={{ color: 'var(--text-secondary)' }}>Sign In</Link>
-            <button
-              onClick={openModal}
-              className="rounded-[10px] px-4 py-2 text-[13px] font-semibold transition-all active:scale-[0.97]"
-              style={{
-                background: 'linear-gradient(135deg, #C9A05C 0%, #A07D40 100%)',
-                color: '#0A0A0F',
-                border: '1px solid rgba(201,160,92,0.45)',
-                boxShadow: '0 4px 12px rgba(201,160,92,0.2)',
-              }}
-            >
-              Start Free Trial
-            </button>
+            <div className="flex items-center gap-3">
+              <Link to="/login" className="text-[13px] font-medium" style={{ color: 'var(--text-secondary)' }}>Sign In</Link>
+              <button
+                onClick={openModal}
+                className="rounded-[10px] px-4 py-2 text-[13px] font-semibold transition-all active:scale-[0.97]"
+                style={{
+                  background: 'linear-gradient(135deg, #C9A05C 0%, #A07D40 100%)',
+                  color: '#0A0A0F',
+                  border: '1px solid rgba(201,160,92,0.45)',
+                  boxShadow: '0 4px 12px rgba(201,160,92,0.2)',
+                }}
+              >
+                Start Free Trial
+              </button>
+            </div>
           </div>
         </div>
       </header>
