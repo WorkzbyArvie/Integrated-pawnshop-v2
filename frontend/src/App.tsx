@@ -1292,6 +1292,10 @@ function App() {
       return false;
     }
 
+    if (item.id === 'support-chat') {
+      return true;
+    }
+
     if (userRole === 'Super Admin') {
       return item.type === 'PLATFORM';
     }
@@ -1321,6 +1325,9 @@ function App() {
     if (item.id === 'pending-access' || item.id === 'frozen-access' || item.id === 'subscription' || item.id === 'compliance') {
       return 'Access';
     }
+    if (item.id === 'support-chat') {
+      return 'Support';
+    }
     if (item.type === 'PLATFORM') {
       return 'Platform';
     }
@@ -1340,9 +1347,6 @@ function App() {
     }
     if (item.id === 'auction-queue' || item.id === 'auction-settlements' || item.id === 'auction-live') {
       return 'Auctions';
-    }
-    if (item.id === 'support-chat') {
-      return 'Support';
     }
     return 'Operations';
   };
