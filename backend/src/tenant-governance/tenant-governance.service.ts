@@ -2748,6 +2748,22 @@ export class TenantGovernanceService {
       }
     }
 
+    const validTransitions: Record<string, string[]> = {
+      OPEN: ['HANDLING'],
+      HANDLING: ['FIXING', 'DONE'],
+      FIXING: ['HANDLING', 'DONE'],
+      DONE: [],
+      CLOSED: [],
+    };
+
+    const allowed = validTransitions[conversation.status];
+    if (!allowed || !allowed.includes(dto.status)) {
+      throw new BadRequestException(
+        `Cannot transition ticket from ${conversation.status} to ${dto.status}. ` +
+        `Allowed transitions: ${allowed?.join(', ') || 'none (terminal state)'}`,
+      );
+    }
+
     const updatedRows = await this.prisma.$queryRaw<Array<Record<string, unknown>> >`
       UPDATE public.support_chat_conversations
       SET

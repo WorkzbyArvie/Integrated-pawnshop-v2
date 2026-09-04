@@ -182,7 +182,7 @@ const STATIC_NAV_ITEMS = [
     { id: 'system-settings', label: 'System Control', icon: Settings2, roles: ['Super Admin'], type: 'PLATFORM' },
     { id: 'trial-requests', label: 'Trial Requests', icon: ClipboardList, roles: ['Super Admin'], type: 'PLATFORM' },
     { id: 'platform-compliance', label: 'Compliance', icon: Shield, roles: ['Super Admin'], type: 'PLATFORM' },
-    { id: 'support-chat', label: 'Support Hub', icon: Users2, roles: ['Super Admin'], type: 'PLATFORM' },
+    { id: 'support-chat', label: 'Support Hub', icon: Users2, roles: ['Super Admin', 'Owner', 'Admin'], type: 'PLATFORM' },
 
     // Owner onboarding limited mode
     { id: 'pending-access', label: 'Pending Access', icon: Clock, roles: ['Owner'], type: 'OPERATIONAL' },

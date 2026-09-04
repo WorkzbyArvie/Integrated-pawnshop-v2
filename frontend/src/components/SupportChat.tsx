@@ -21,6 +21,14 @@ type ChatMessage = {
   created_at: string;
 };
 
+const validStatusTransitions: Record<Conversation['status'], Conversation['status'][]> = {
+  OPEN: ['HANDLING'],
+  HANDLING: ['FIXING', 'DONE'],
+  FIXING: ['HANDLING', 'DONE'],
+  DONE: [],
+  CLOSED: [],
+};
+
 interface SupportChatProps {
   pawnshopId: string | null;
   userRole: string;
@@ -267,7 +275,7 @@ export function SupportChat({ pawnshopId, userRole }: SupportChatProps) {
 
                     {canManageTicketStatus && (
                       <div className="mt-2 flex flex-wrap gap-1">
-                        {(['HANDLING', 'FIXING', 'DONE'] as Conversation['status'][]).map((status) => (
+                        {validStatusTransitions[c.status]?.map((status) => (
                           <button
                             key={status}
                             onClick={() => updateConversationStatus(c.id, status)}
