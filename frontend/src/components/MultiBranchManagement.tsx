@@ -3,6 +3,7 @@ import { Building2, Eye, GitBranch, Loader2, MapPin, Pencil, PlusCircle, Save, S
 import api from '../lib/apiClient';
 import { useToast } from '../App';
 import { formatCurrency } from '../lib/formatters';
+import { LocationPicker } from './LocationPicker';
 
 type BranchRow = {
   id: number;
@@ -60,7 +61,11 @@ export function MultiBranchManagement({
     adminPassword: '',
     adminAuthCode: '',
   });
+  const [formLat, setFormLat] = useState<number | null>(null);
+  const [formLng, setFormLng] = useState<number | null>(null);
   const [editForm, setEditForm] = useState({ name: '', location: '', managerName: '', isActive: true });
+  const [editLat, setEditLat] = useState<number | null>(null);
+  const [editLng, setEditLng] = useState<number | null>(null);
 
   const normalizedRole = (userRole || '').toUpperCase().replace(/[_\s]/g, '');
   const canManage = ['OWNER'].includes(normalizedRole);
@@ -124,6 +129,8 @@ export function MultiBranchManagement({
       adminPassword: '',
       adminAuthCode: '',
     });
+    setFormLat(null);
+    setFormLng(null);
   };
 
   const requestAdminAuthCode = async () => {
@@ -202,6 +209,8 @@ export function MultiBranchManagement({
       managerName: branch.manager_name || '',
       isActive: branch.is_active,
     });
+    setEditLat(null);
+    setEditLng(null);
   };
 
   const saveEdit = async (branchId: number) => {
@@ -290,18 +299,11 @@ export function MultiBranchManagement({
                 <h3 className="text-lg font-black text-[#F5F0E8] uppercase tracking-wide">Create New Branch</h3>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <input
                   value={form.name}
                   onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))}
                   placeholder="Branch name"
-                  className="w-full px-4 py-3 rounded-2xl border border-[rgba(201,160,92,0.12)] focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                  required
-                />
-                <input
-                  value={form.location}
-                  onChange={(e) => setForm((prev) => ({ ...prev, location: e.target.value }))}
-                  placeholder="Branch location"
                   className="w-full px-4 py-3 rounded-2xl border border-[rgba(201,160,92,0.12)] focus:outline-none focus:ring-2 focus:ring-emerald-500"
                   required
                 />
@@ -311,6 +313,19 @@ export function MultiBranchManagement({
                   placeholder="Manager name (optional)"
                   className="w-full px-4 py-3 rounded-2xl border border-[rgba(201,160,92,0.12)] focus:outline-none focus:ring-2 focus:ring-emerald-500"
                 />
+              </div>
+
+              <div>
+                <label className="text-[10px] font-black uppercase tracking-[0.2em] text-[#8A8279] mb-2 block">Branch Location on Map</label>
+                <LocationPicker
+                  latitude={formLat}
+                  longitude={formLng}
+                  onLocationSelect={(lat, lng) => { setFormLat(lat); setFormLng(lng); }}
+                  onAddressResolve={(address) => setForm((prev) => ({ ...prev, location: address }))}
+                />
+                {form.location && (
+                  <p className="text-xs text-[#8A8279] mt-2 font-mono bg-[#1C1C26] px-3 py-2 rounded-lg">{form.location}</p>
+                )}
               </div>
 
               <div className="rounded-2xl border border-[rgba(201,160,92,0.12)] p-4 space-y-3">
@@ -459,16 +474,10 @@ export function MultiBranchManagement({
                     </div>
                   ) : (
                     <div className="space-y-4">
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         <input
                           value={editForm.name}
                           onChange={(e) => setEditForm((prev) => ({ ...prev, name: e.target.value }))}
-                          className="w-full px-4 py-3 rounded-2xl border border-[rgba(201,160,92,0.12)] focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                          required
-                        />
-                        <input
-                          value={editForm.location}
-                          onChange={(e) => setEditForm((prev) => ({ ...prev, location: e.target.value }))}
                           className="w-full px-4 py-3 rounded-2xl border border-[rgba(201,160,92,0.12)] focus:outline-none focus:ring-2 focus:ring-emerald-500"
                           required
                         />
@@ -478,6 +487,19 @@ export function MultiBranchManagement({
                           placeholder="Manager name"
                           className="w-full px-4 py-3 rounded-2xl border border-[rgba(201,160,92,0.12)] focus:outline-none focus:ring-2 focus:ring-emerald-500"
                         />
+                      </div>
+
+                      <div>
+                        <label className="text-[10px] font-black uppercase tracking-[0.2em] text-[#8A8279] mb-2 block">Branch Location on Map</label>
+                        <LocationPicker
+                          latitude={editLat}
+                          longitude={editLng}
+                          onLocationSelect={(lat, lng) => { setEditLat(lat); setEditLng(lng); }}
+                          onAddressResolve={(address) => setEditForm((prev) => ({ ...prev, location: address }))}
+                        />
+                        {editForm.location && (
+                          <p className="text-xs text-[#8A8279] mt-2 font-mono bg-[#1C1C26] px-3 py-2 rounded-lg">{editForm.location}</p>
+                        )}
                       </div>
 
                       <button
