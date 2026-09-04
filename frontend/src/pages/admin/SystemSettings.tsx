@@ -19,9 +19,11 @@ import {
   Crown,
   Palette,
   FileText,
+  MapPin,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
 import api from '../../lib/apiClient';
+import { LocationPicker } from '../../components/LocationPicker';
 
 interface SystemSettingsProps {
   config: {
@@ -72,6 +74,10 @@ export function SystemSettings({ config, setConfig, userRole, branchId, onBrandi
   const [contractTerms, setContractTerms] = useState('');
   const [contractResponsibilities, setContractResponsibilities] = useState('');
   const [savingContractTerms, setSavingContractTerms] = useState(false);
+  const [pawnshopLat, setPawnshopLat] = useState<number | null>(null);
+  const [pawnshopLng, setPawnshopLng] = useState<number | null>(null);
+  const [pawnshopAddress, setPawnshopAddress] = useState('');
+  const [savingLocation, setSavingLocation] = useState(false);
   
   const normalizedRole = (userRole || '').toUpperCase().replace(/[_\s]/g, '');
   const isSuperAdmin = normalizedRole === 'SUPERADMIN' || normalizedRole === 'SUPER';
@@ -108,7 +114,7 @@ export function SystemSettings({ config, setConfig, userRole, branchId, onBrandi
           // Branch Admin: load own branch settings (single query)
           const { data, error } = await supabase
             .from('pawnshops')
-            .select('settings')
+            .select('settings, latitude, longitude, address')
             .eq('id', branchId)
             .single();
           
@@ -122,12 +128,17 @@ export function SystemSettings({ config, setConfig, userRole, branchId, onBrandi
             setRedemptionThreshold(Number(redemptionApprovalThreshold) || 50000);
             setContractTerms(String(data.settings.contractTermsAndConditions || ''));
             setContractResponsibilities(String(data.settings.contractPawnshopResponsibilities || ''));
-            // Set local config (what the Branch Admin sees/edits)
             setConfig((prev: any) => ({ ...prev, ...localSettings }));
-            // Set global overrides for the "Restricted" badge / grey-out check
             if (global_overrides) {
               setGlobalConfig(global_overrides);
             }
+          }
+          if (data?.latitude != null && data?.longitude != null) {
+            setPawnshopLat(Number(data.latitude));
+            setPawnshopLng(Number(data.longitude));
+          }
+          if (data?.address) {
+            setPawnshopAddress(String(data.address));
           }
         }
       } catch (error) {
@@ -370,6 +381,43 @@ export function SystemSettings({ config, setConfig, userRole, branchId, onBrandi
     }
   };
 
+  const handleSaveLocation = async () => {
+    if (!branchId) return;
+    if (pawnshopLat == null || pawnshopLng == null) {
+      await Swal.fire({
+        icon: 'warning',
+        title: 'No Location Selected',
+        text: 'Click on the map or use GPS to set your pawnshop location.',
+        confirmButtonColor: '#ef4444',
+      });
+      return;
+    }
+    setSavingLocation(true);
+    try {
+      await api.patch(`/pawnshops/${branchId}/location`, {
+        latitude: pawnshopLat,
+        longitude: pawnshopLng,
+        address: pawnshopAddress,
+      });
+      await Swal.fire({
+        icon: 'success',
+        title: 'Location Saved',
+        text: 'Your pawnshop location has been updated.',
+        timer: 2200,
+        showConfirmButton: false,
+      });
+    } catch (error: any) {
+      await Swal.fire({
+        icon: 'error',
+        title: 'Location Save Failed',
+        text: error?.message || 'Unable to save location right now.',
+        confirmButtonColor: '#ef4444',
+      });
+    } finally {
+      setSavingLocation(false);
+    }
+  };
+
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-1000 font-inter pb-20 text-left relative">
       
@@ -545,6 +593,44 @@ export function SystemSettings({ config, setConfig, userRole, branchId, onBrandi
               >
                 {savingContractTerms && <Loader2 className="w-4 h-4 animate-spin" />}
                 Save Contract Terms
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {!isSuperAdmin && branchId && (
+        <div className="bg-[#14141B] rounded-[2.8rem] p-8 border-2 border-[rgba(201,160,92,0.08)] shadow-xl">
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#C9A05C]">Pawnshop Location</p>
+              <h3 className="text-2xl font-black text-[#F5F0E8] mt-1 flex items-center gap-2">
+                <MapPin className="w-6 h-6 text-[#C9A05C]" />
+                Set Pawnshop on Map
+              </h3>
+              <p className="text-sm text-[#8A8279] mt-2">
+                Pin your pawnshop location. This is used for nearby customer discovery and branch identification.
+              </p>
+            </div>
+          </div>
+          <div className="space-y-4">
+            <LocationPicker
+              latitude={pawnshopLat}
+              longitude={pawnshopLng}
+              onLocationSelect={(lat, lng) => { setPawnshopLat(lat); setPawnshopLng(lng); }}
+              onAddressResolve={(address) => setPawnshopAddress(address)}
+            />
+            {pawnshopAddress && (
+              <p className="text-xs text-[#8A8279] font-mono bg-[#1C1C26] px-4 py-3 rounded-xl">{pawnshopAddress}</p>
+            )}
+            <div className="flex justify-end">
+              <button
+                onClick={() => void handleSaveLocation()}
+                disabled={savingLocation}
+                className="px-6 py-3 rounded-2xl bg-[#C9A05C] text-white text-xs font-black uppercase tracking-widest hover:bg-[#C9A05C]/80 disabled:opacity-50 inline-flex items-center gap-2"
+              >
+                {savingLocation && <Loader2 className="w-4 h-4 animate-spin" />}
+                Save Location
               </button>
             </div>
           </div>

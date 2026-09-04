@@ -174,8 +174,8 @@ export class TenantGovernanceService {
       LIMIT 1
     `;
 
-    // Fallback to FREE tier behavior if no active subscription row exists.
-    return rows[0]?.max_branches ?? 1;
+    if (rows.length === 0) return 1;
+    return rows[0].max_branches;
   }
 
   private parseBranchId(branchId: string): number {
