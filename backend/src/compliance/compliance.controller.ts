@@ -88,4 +88,16 @@ export class ComplianceController {
   async getSuperAdminOverview() {
     return this.complianceService.getSuperAdminOverview();
   }
+
+  @Get('expiry-register')
+  @RequiresPermission(PERMISSIONS['compliance.view'])
+  async getExpiryRegister(@Req() req: any) {
+    return this.complianceService.getComplianceExpiryRegister(req.user.id);
+  }
+
+  @Get('reminder-history')
+  @RequiresPermission(PERMISSIONS['compliance.view'])
+  async getReminderHistory(@Req() req: any) {
+    return this.complianceService.getComplianceReminderHistory(req.user.id);
+  }
 }

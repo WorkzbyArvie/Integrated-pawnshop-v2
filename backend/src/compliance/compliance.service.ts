@@ -6,7 +6,8 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { ComplianceDocStatus, ComplianceDocType, NotificationChannel, NotificationType } from '@prisma/client';
+import { ComplianceDocStatus, ComplianceDocType, NotificationChannel, NotificationStatus, NotificationType } from '@prisma/client';
+import { createTransport, type Transporter } from 'nodemailer';
 import { PrismaService } from '../prisma.service';
 import { NotificationService } from '../notification/notification.service';
 import { UploadDocumentDto } from './dto/upload-document.dto';
@@ -477,6 +478,7 @@ export class ComplianceService {
 
         const ownerProfile = await this.prisma.profile.findFirst({
           where: { pawnshopId: doc.pawnshop.id, role: 'OWNER' },
+          select: { id: true, email: true },
         });
 
         if (ownerProfile) {
@@ -494,6 +496,16 @@ export class ComplianceService {
                 daysUntilExpiry: days,
               },
             });
+
+            const label = doc.documentType.replace(/_/g, ' ');
+            const subject = `[${severity}] ${label} expires in ${days} days`;
+            const text = `Your ${label} for ${doc.pawnshop.name} expires in ${days} days. Please upload a renewed, verified copy to stay compliant with PawnGold.`;
+            const html = `<div style="font-family:'Segoe UI',Arial,sans-serif;color:#1a1d29;line-height:1.6">
+              <h2 style="margin:0 0 12px;color:#8a6d3b">${label} expiring soon</h2>
+              <p>${text}</p>
+              <p style="margin-top:12px;color:#6b7280;font-size:13px">— PawnGold Compliance Team</p>
+            </div>`;
+            await this.sendComplianceEmail(ownerProfile.email, subject, text, html);
           } catch (err: any) {
             this.logger.error(`Failed to send expiry notification: ${err.message}`);
           }
@@ -509,6 +521,7 @@ export class ComplianceService {
 
       const ownerProfile = await this.prisma.profile.findFirst({
         where: { pawnshopId: doc.pawnshop.id, role: 'OWNER' },
+        select: { id: true, email: true },
       });
 
       if (ownerProfile) {
@@ -526,6 +539,16 @@ export class ComplianceService {
               daysUntilExpiry: 0,
             },
           });
+
+          const label = doc.documentType.replace(/_/g, ' ');
+          const subject = `[EXPIRED] ${label} has expired`;
+          const text = `Your ${label} for ${doc.pawnshop.name} has expired. Upload a renewed, verified copy to maintain compliance with PawnGold.`;
+          const html = `<div style="font-family:'Segoe UI',Arial,sans-serif;color:#1a1d29;line-height:1.6">
+            <h2 style="margin:0 0 12px;color:#b91c1c">${label} has expired</h2>
+            <p>${text}</p>
+            <p style="margin-top:12px;color:#6b7280;font-size:13px">— PawnGold Compliance Team</p>
+          </div>`;
+          await this.sendComplianceEmail(ownerProfile.email, subject, text, html);
         } catch (err: any) {
           this.logger.error(`Failed to send expiry notification: ${err.message}`);
         }
@@ -543,4 +566,208 @@ export class ComplianceService {
     }
     return profile;
   }
+
+  async getComplianceExpiryRegister(userId: string) {
+    const profile = await this.getProfileOrThrow(userId);
+    const isSuperAdmin = profile.role === 'SUPER_ADMIN';
+    const now = Date.now();
+
+    const pawnshops = isSuperAdmin
+      ? await this.prisma.pawnshop.findMany({
+          where: { status: 'ACTIVE', isActive: true },
+          select: { id: true, name: true, ownerEmail: true },
+        })
+      : profile.pawnshopId
+      ? await this.prisma.pawnshop.findMany({
+          where: { id: profile.pawnshopId },
+          select: { id: true, name: true, ownerEmail: true },
+        })
+      : [];
+
+    if (pawnshops.length === 0) return { pawnshops: [] };
+
+    const pawnshopIds = pawnshops.map((ps) => ps.id);
+    const allDocs = await this.prisma.pawnshopDocument.findMany({
+      where: { pawnshopId: { in: pawnshopIds } },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    const docsByPawnshop = new Map<string, typeof allDocs>();
+    for (const doc of allDocs) {
+      const list = docsByPawnshop.get(doc.pawnshopId) || [];
+      list.push(doc);
+      docsByPawnshop.set(doc.pawnshopId, list);
+    }
+
+    const register = pawnshops.map((ps) => {
+      const docs = docsByPawnshop.get(ps.id) || [];
+      const latestByType = new Map<ComplianceDocType, (typeof allDocs)[number]>();
+      for (const doc of docs) {
+        const existing = latestByType.get(doc.documentType);
+        if (!existing || doc.createdAt > existing.createdAt) {
+          latestByType.set(doc.documentType, doc);
+        }
+      }
+
+      const rows = REQUIRED_DOCUMENTS.map((reqType) => {
+        const doc = latestByType.get(reqType);
+        if (!doc) {
+          return {
+            id: '',
+            type: reqType,
+            status: 'NOT_UPLOADED',
+            expiryDate: null,
+            daysUntilExpiry: null,
+            fileName: '',
+          };
+        }
+        const isExpired = doc.expiryDate && doc.expiryDate.getTime() < now;
+        const daysUntilExpiry = doc.expiryDate
+          ? Math.ceil((doc.expiryDate.getTime() - now) / (1000 * 60 * 60 * 24))
+          : null;
+        return {
+          id: doc.id,
+          type: reqType,
+          status: isExpired ? 'EXPIRED' : doc.status,
+          expiryDate: doc.expiryDate,
+          daysUntilExpiry,
+          fileName: doc.fileName,
+        };
+      });
+
+      rows.sort((a, b) => {
+        const av = a.daysUntilExpiry ?? Number.POSITIVE_INFINITY;
+        const bv = b.daysUntilExpiry ?? Number.POSITIVE_INFINITY;
+        return av - bv;
+      });
+
+      return {
+        pawnshopId: ps.id,
+        pawnshopName: ps.name,
+        ownerEmail: ps.ownerEmail,
+        documents: rows,
+        expiringCount: rows.filter(
+          (d) => d.daysUntilExpiry !== null && d.daysUntilExpiry <= 30,
+        ).length,
+        expiredCount: rows.filter((d) => d.status === 'EXPIRED').length,
+      };
+    });
+
+    register.sort((a, b) => {
+      const aMin = Math.min(...a.documents.map((d) => d.daysUntilExpiry ?? Number.POSITIVE_INFINITY));
+      const bMin = Math.min(...b.documents.map((d) => d.daysUntilExpiry ?? Number.POSITIVE_INFINITY));
+      return aMin - bMin;
+    });
+
+    return { pawnshops: register };
+  }
+
+  async getComplianceReminderHistory(userId: string) {
+    const profile = await this.getProfileOrThrow(userId);
+    const isSuperAdmin = profile.role === 'SUPER_ADMIN';
+
+    const notifications = await this.prisma.notification.findMany({
+      where: {
+        type: 'COMPLIANCE_REMINDER',
+        ...(!isSuperAdmin ? { recipientId: profile.id } : {}),
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 200,
+    });
+
+    const records = notifications.map((n) => {
+      const data = (n.data || {}) as Record<string, unknown>;
+      return {
+        id: n.id,
+        title: n.title,
+        body: n.body,
+        channel: n.channel,
+        createdAt: n.createdAt,
+        documentType: (data.documentType as string) || '',
+        pawnshopId: (data.pawnshopId as string) || '',
+        expiryDate: (data.expiryDate as string) || null,
+        daysUntilExpiry: (data.daysUntilExpiry as number) ?? null,
+      };
+    });
+
+    return { reminders: records };
+  }
+
+  private async sendComplianceEmail(to: string, subject: string, text: string, html: string): Promise<boolean> {
+    if (!to) return false;
+
+    const fromEmail = String(
+      process.env.RESEND_FROM_EMAIL || process.env.SMTP_FROM_EMAIL || process.env.MAIL_FROM_EMAIL || '',
+    ).trim();
+    const fromName = String(
+      process.env.RESEND_FROM_NAME || process.env.SMTP_FROM_NAME || process.env.MAIL_FROM_NAME || 'PawnGold Platform',
+    ).trim();
+
+    const resendApiKey = String(process.env.RESEND_API_KEY || '').trim();
+    if (resendApiKey && fromEmail) {
+      try {
+        const response = await fetch('https://api.resend.com/emails', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${resendApiKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            from: `"${fromName}" <${fromEmail}>`,
+            to: [to],
+            subject,
+            text,
+            html,
+          }),
+        });
+        if (response.ok) return true;
+        const errorBody = await response.text().catch(() => '');
+        this.logger.warn(`Resend email failed (${response.status}): ${errorBody}`);
+      } catch (err: any) {
+        this.logger.warn(`Resend email error: ${err.message}`);
+      }
+    }
+
+    const smtpCandidates = this.buildSmtpTransportCandidates();
+    if (fromEmail && smtpCandidates.length > 0) {
+      for (const options of smtpCandidates as any[]) {
+        const transporter: Transporter = createTransport(options);
+        try {
+          await transporter.sendMail({
+            from: `"${fromName}" <${fromEmail}>`,
+            to,
+            subject,
+            text,
+            html,
+          });
+          return true;
+        } catch (err: any) {
+          this.logger.warn(`SMTP email error: ${err.message}`);
+        } finally {
+          transporter.close();
+        }
+      }
+    }
+
+    this.logger.warn('No email transport configured; skipping compliance email.');
+    return false;
+  }
+
+  private buildSmtpTransportCandidates(): any[] {
+    const host = process.env.SMTP_HOST;
+    if (!host) return [];
+    const candidates = [
+      {
+        host,
+        port: Number(process.env.SMTP_PORT) || 587,
+        secure: false,
+        auth:
+          process.env.SMTP_USER && process.env.SMTP_PASS
+            ? { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS }
+            : undefined,
+      },
+    ];
+    return candidates;
+  }
+
 }

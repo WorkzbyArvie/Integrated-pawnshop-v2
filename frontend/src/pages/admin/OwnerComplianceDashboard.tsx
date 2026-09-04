@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { api } from '../../lib/apiClient';
 import { supabase } from '../../lib/supabaseClient';
+import ComplianceExpiryRegister from '../../components/ComplianceExpiryRegister';
 
 interface ComplianceData {
   score: number;
@@ -105,6 +106,7 @@ export default function OwnerComplianceDashboard() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [expiryDate, setExpiryDate] = useState('');
   const [renewMessage, setRenewMessage] = useState('');
+  const [view, setView] = useState<'docs' | 'register'>('docs');
 
   useEffect(() => {
     fetchData();
@@ -204,6 +206,29 @@ export default function OwnerComplianceDashboard() {
           </button>
         </div>
 
+        <div className="flex gap-4 border-b border-gilded-border pb-2">
+          <button
+            onClick={() => setView('docs')}
+            className={`px-4 py-2 font-medium transition-colors ${
+              view === 'docs' ? 'text-gilded-gold border-b-2 border-gilded-gold' : 'text-gilded-muted hover:text-gilded-light'
+            }`}
+          >
+            Documents &amp; Compliance
+          </button>
+          <button
+            onClick={() => setView('register')}
+            className={`px-4 py-2 font-medium transition-colors ${
+              view === 'register' ? 'text-gilded-gold border-b-2 border-gilded-gold' : 'text-gilded-muted hover:text-gilded-light'
+            }`}
+          >
+            Expiry Register
+          </button>
+        </div>
+
+        {view === 'register' ? (
+          <ComplianceExpiryRegister isSuperAdmin={false} />
+        ) : (
+        <>
         {compliance && (
           <div className="bg-gilded-dark border border-gilded-border rounded-xl p-6">
             <div className="flex items-center gap-6">
@@ -411,6 +436,8 @@ export default function OwnerComplianceDashboard() {
             </div>
           </div>
         </div>
+        </>
+        )}
       </div>
     </div>
   );

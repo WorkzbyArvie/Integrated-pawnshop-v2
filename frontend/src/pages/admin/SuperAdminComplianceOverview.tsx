@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { api } from '../../lib/apiClient';
 import { getSignedKycDocUrl } from '../../lib/kycDocs';
+import ComplianceExpiryRegister from '../../components/ComplianceExpiryRegister';
 
 interface PendingReview {
   id: string;
@@ -357,7 +358,7 @@ export default function SuperAdminComplianceOverview() {
   const [showKycRejectModal, setShowKycRejectModal] = useState<string | null>(null);
   const [docRejectOpen, setDocRejectOpen] = useState(false);
   const [kycRejectReason, setKycRejectReason] = useState('');
-  const [activeTab, setActiveTab] = useState<'pending' | 'kyc' | 'overview'>('pending');
+  const [activeTab, setActiveTab] = useState<'pending' | 'kyc' | 'overview' | 'register'>('pending');
   const [viewingKyc, setViewingKyc] = useState<KycPendingReview | null>(null);
   const [viewingDoc, setViewingDoc] = useState<PendingReview | null>(null);
   const [requestingReplacementFor, setRequestingReplacementFor] = useState<string | null>(null);
@@ -493,6 +494,17 @@ export default function SuperAdminComplianceOverview() {
           >
             <Shield className="w-4 h-4" />
             All Pawnshops ({allCompliance.length})
+          </button>
+          <button
+            onClick={() => setActiveTab('register')}
+            className={`flex items-center gap-2 px-4 py-2 font-medium transition-colors ${
+              activeTab === 'register'
+                ? 'text-gilded-gold border-b-2 border-gilded-gold'
+                : 'text-gilded-muted hover:text-gilded-light'
+            }`}
+          >
+            <Calendar className="w-4 h-4" />
+            Expiry Register
           </button>
         </div>
 
@@ -877,6 +889,10 @@ export default function SuperAdminComplianceOverview() {
               })}
             </div>
           </div>
+        )}
+
+        {activeTab === 'register' && (
+          <ComplianceExpiryRegister isSuperAdmin />
         )}
       </div>
 
