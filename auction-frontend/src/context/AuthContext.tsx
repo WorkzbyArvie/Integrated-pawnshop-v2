@@ -97,7 +97,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setKycProfile(null);
       }
     } catch {
-      // Silently fail — user stays NOT_SUBMITTED
       setKycStatus('NOT_SUBMITTED');
       setKycProfile(null);
     } finally {
@@ -106,8 +105,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    // Restore existing session on mount
+    let mounted = true;
+
     supabase.auth.getSession().then(({ data: { session: s } }) => {
+      if (!mounted) return;
       setSession(s);
       setUser(s?.user ?? null);
       setLoading(false);
@@ -116,8 +117,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     });
 
-    // Listen for auth state changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, newSession) => {
+      if (!mounted) return;
       if (_event === 'TOKEN_REFRESHED') return;
       setSession(newSession);
       setUser(newSession?.user ?? null);
@@ -129,7 +130,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
   }, [fetchKycStatus]);
 
   const refreshKycStatus = useCallback(async () => {
