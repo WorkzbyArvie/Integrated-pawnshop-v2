@@ -119,6 +119,12 @@ async function bootstrap() {
         if (req.path.startsWith('/auth/register-bidder')) return true;
         if (req.path.startsWith('/tenant-governance/client-registrations'))
           return true;
+        if (/^\/notifications\/user\/[^/]+$/.test(req.path) && req.method === 'GET')
+          return true;
+        if (req.path === '/queue/my-tickets' && req.method === 'GET')
+          return true;
+        if (/^\/queue\/my-tickets\/[^/]+\/(cancel|messages)$/.test(req.path))
+          return true;
         return false;
       },
       message: {
@@ -318,6 +324,19 @@ async function bootstrap() {
       }
 
       if (req.method === 'GET' && /^\/notifications\/user\/[^/]+$/.test(pathName)) {
+        next();
+        return;
+      }
+
+      if (req.method === 'GET' && pathName === '/queue/my-tickets') {
+        next();
+        return;
+      }
+
+      if (
+        /^\/queue\/my-tickets\/[^/]+\/(cancel|messages)$/.test(pathName) &&
+        (req.method === 'POST' || req.method === 'GET')
+      ) {
         next();
         return;
       }
