@@ -436,6 +436,16 @@ export class TenantGovernanceController {
     return this.tenantGovernanceService.deletePawnshop(userId, id);
   }
 
+  @Get('pawnshops/:id/staff')
+  @RequiresPermission(PERMISSIONS['platform.manage'])
+  async listPawnshopStaff(
+    @Headers('authorization') authHeader: string | undefined,
+    @Param('id') id: string,
+  ) {
+    const userId = await this.authUserService.getUserIdFromAuthHeader(authHeader);
+    return this.tenantGovernanceService.listPawnshopStaff(userId, id);
+  }
+
   @Post('pawnshops')
   @RequiresPermission(PERMISSIONS['platform.manage'])
   async createPawnshopDirect(

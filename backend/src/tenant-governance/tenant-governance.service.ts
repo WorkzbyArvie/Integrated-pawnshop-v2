@@ -3311,6 +3311,32 @@ export class TenantGovernanceService {
     };
   }
 
+  async listPawnshopStaff(actorUserId: string, pawnshopId: string) {
+    await this.assertSuperAdmin(actorUserId);
+
+    const profiles = await this.prisma.profile.findMany({
+      where: { pawnshopId },
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        email: true,
+        fullName: true,
+        role: true,
+        staffType: true,
+        isOnline: true,
+        lastSeenAt: true,
+        createdAt: true,
+        branchId: true,
+      },
+    });
+
+    return {
+      pawnshopId,
+      totalAccounts: profiles.length,
+      accounts: profiles,
+    };
+  }
+
   private async assertSuperAdmin(userId: string) {
     const profile = await this.getProfileOrThrow(userId);
     if (!profile || profile.role !== 'SUPER_ADMIN') {
