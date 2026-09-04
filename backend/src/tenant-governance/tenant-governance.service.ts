@@ -2674,6 +2674,12 @@ export class TenantGovernanceService {
       throw new NotFoundException('Conversation not found');
     }
 
+    if (conversation.status === 'DONE' || conversation.status === 'CLOSED') {
+      throw new BadRequestException(
+        'This conversation is already resolved/closed. No further messages can be sent.',
+      );
+    }
+
     if (role !== 'SUPER_ADMIN') {
       this.assertRole(actor, ['OWNER', 'ADMIN']);
     }
@@ -2752,7 +2758,7 @@ export class TenantGovernanceService {
       OPEN: ['HANDLING'],
       HANDLING: ['FIXING', 'DONE'],
       FIXING: ['HANDLING', 'DONE'],
-      DONE: [],
+      DONE: ['CLOSED'],
       CLOSED: [],
     };
 

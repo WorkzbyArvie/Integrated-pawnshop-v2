@@ -25,9 +25,12 @@ const validStatusTransitions: Record<Conversation['status'], Conversation['statu
   OPEN: ['HANDLING'],
   HANDLING: ['FIXING', 'DONE'],
   FIXING: ['HANDLING', 'DONE'],
-  DONE: [],
+  DONE: ['CLOSED'],
   CLOSED: [],
 };
+
+const isSealed = (status: Conversation['status']) =>
+  status === 'DONE' || status === 'CLOSED';
 
 interface SupportChatProps {
   pawnshopId: string | null;
@@ -47,6 +50,7 @@ export function SupportChat({ pawnshopId, userRole }: SupportChatProps) {
   const [creating, setCreating] = useState(false);
   const [superFilterPawnshopName, setSuperFilterPawnshopName] = useState('');
   const [updatingStatusId, setUpdatingStatusId] = useState<string | null>(null);
+  const [activeConversationStatus, setActiveConversationStatus] = useState<Conversation['status'] | null>(null);
 
   const normalizedRole = useMemo(
     () => (userRole || '').toUpperCase().replace(/[_\s]/g, ''),
@@ -71,7 +75,9 @@ export function SupportChat({ pawnshopId, userRole }: SupportChatProps) {
       setConversations(data.conversations || []);
 
       if (!activeConversationId && data.conversations?.length) {
-        setActiveConversationId(data.conversations[0].id);
+        const first = data.conversations[0];
+        setActiveConversationId(first.id);
+        setActiveConversationStatus(first.status);
       }
     } catch (error: any) {
       showToast(error?.message || 'Failed to load support conversations', 'error');
@@ -87,6 +93,9 @@ export function SupportChat({ pawnshopId, userRole }: SupportChatProps) {
     setUpdatingStatusId(conversationId);
     try {
       await api.patch(`/tenant-governance/support-chat/conversations/${conversationId}/status`, { status });
+      if (activeConversationId === conversationId) {
+        setActiveConversationStatus(status);
+      }
       await fetchConversations();
       showToast(`Ticket marked as ${status}.`, 'success');
     } catch (error: any) {
@@ -196,7 +205,7 @@ export function SupportChat({ pawnshopId, userRole }: SupportChatProps) {
               value={superFilterPawnshopName}
               onChange={(e) => setSuperFilterPawnshopName(e.target.value)}
               placeholder="Search pawnshop name"
-              className="px-3 py-2 border border-[rgba(201,160,92,0.12)] rounded-xl text-xs w-64"
+              className="px-3 py-2 border border-[rgba(201,160,92,0.18)] rounded-xl text-xs w-64 bg-[#1C1C26] text-[#F5F0E8] placeholder-[#8A8279] focus:outline-none focus:ring-2 focus:ring-[#C9A05C]/40"
             />
             <button
               onClick={() => {
@@ -219,14 +228,14 @@ export function SupportChat({ pawnshopId, userRole }: SupportChatProps) {
             value={subjectDraft}
             onChange={(e) => setSubjectDraft(e.target.value)}
             placeholder="Subject"
-            className="w-full px-3 py-2 border border-[rgba(201,160,92,0.12)] rounded-xl text-sm"
+            className="w-full px-4 py-2.5 border border-[rgba(201,160,92,0.18)] rounded-xl bg-[#1C1C26] text-[#F5F0E8] placeholder-[#8A8279] focus:outline-none focus:ring-2 focus:ring-[#C9A05C]/40 text-sm"
             required
           />
           <textarea
             value={initialDraft}
             onChange={(e) => setInitialDraft(e.target.value)}
             placeholder="Describe your question or concern"
-            className="w-full min-h-24 px-3 py-2 border border-[rgba(201,160,92,0.12)] rounded-xl text-sm"
+            className="w-full min-h-24 px-4 py-2.5 border border-[rgba(201,160,92,0.18)] rounded-xl bg-[#1C1C26] text-[#F5F0E8] placeholder-[#8A8279] focus:outline-none focus:ring-2 focus:ring-[#C9A05C]/40 text-sm resize-none"
             required
           />
           <button
@@ -263,10 +272,16 @@ export function SupportChat({ pawnshopId, userRole }: SupportChatProps) {
                     }`}
                   >
                     <button
-                      onClick={() => setActiveConversationId(c.id)}
+                      onClick={() => { setActiveConversationId(c.id); setActiveConversationStatus(c.status); }}
                       className="w-full text-left"
                     >
-                      <p className="text-xs font-black uppercase tracking-wider text-[#8A8279]">{c.status}</p>
+                      <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                        c.status === 'DONE' || c.status === 'CLOSED'
+                          ? 'bg-emerald-500/15 text-emerald-400'
+                          : c.status === 'HANDLING' || c.status === 'FIXING'
+                            ? 'bg-amber-500/15 text-amber-400'
+                            : 'bg-blue-500/15 text-blue-400'
+                      }`}>{c.status}</span>
                       <p className="text-sm font-bold text-[#F5F0E8] mt-1">{c.subject}</p>
                       {c.last_message && (
                         <p className="text-xs text-[#8A8279] mt-2 line-clamp-2">{c.last_message}</p>
@@ -309,12 +324,12 @@ export function SupportChat({ pawnshopId, userRole }: SupportChatProps) {
                     <div
                       className={`max-w-[78%] px-3 py-2 rounded-2xl text-sm ${
                         isPlatform
-                          ? 'bg-slate-900 text-white rounded-tl-md'
-                          : 'bg-blue-600 text-white rounded-tr-md'
+                          ? 'bg-[#2A2A36] text-[#F5F0E8] rounded-tl-md'
+                          : 'bg-[#C9A05C] text-[#14141B] rounded-tr-md'
                       }`}
                     >
-                      <p className="text-[10px] uppercase tracking-wider opacity-75 mb-1">{m.sender_role}</p>
-                      <p>{m.message}</p>
+                      <p className="text-[10px] uppercase tracking-wider opacity-70 mb-1">{m.sender_role}</p>
+                      <p className="whitespace-pre-wrap break-words leading-relaxed">{m.message}</p>
                     </div>
                   </div>
                 );
@@ -327,22 +342,30 @@ export function SupportChat({ pawnshopId, userRole }: SupportChatProps) {
               )}
             </div>
 
-            <form onSubmit={handleSend} className="pt-3 mt-3 border-t border-[rgba(201,160,92,0.08)] flex gap-2">
-              <input
-                value={messageDraft}
-                onChange={(e) => setMessageDraft(e.target.value)}
-                placeholder="Type your message"
-                className="flex-1 px-3 py-2 border border-[rgba(201,160,92,0.12)] rounded-xl text-sm"
-                disabled={!activeConversationId || sending}
-              />
-              <button
-                type="submit"
-                disabled={!activeConversationId || sending || !messageDraft.trim()}
-                className="px-3 py-2 rounded-xl bg-blue-600 text-white disabled:opacity-50"
-              >
-                {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <SendHorizonal className="w-4 h-4" />}
-              </button>
-            </form>
+            <div className="pt-3 mt-3 border-t border-[rgba(201,160,92,0.08)]">
+              {activeConversationStatus && isSealed(activeConversationStatus) ? (
+                <p className="text-xs font-bold uppercase tracking-wider text-[#8A8279] text-center py-2">
+                  This ticket is {activeConversationStatus === 'DONE' ? 'resolved' : 'closed'} — chat is locked.
+                </p>
+              ) : (
+                <form onSubmit={handleSend} className="flex gap-2">
+                  <input
+                    value={messageDraft}
+                    onChange={(e) => setMessageDraft(e.target.value)}
+                    placeholder="Type your message"
+                    className="flex-1 px-4 py-2.5 rounded-xl border border-[rgba(201,160,92,0.18)] bg-[#1C1C26] text-[#F5F0E8] placeholder-[#8A8279] focus:outline-none focus:ring-2 focus:ring-[#C9A05C]/40 text-sm"
+                    disabled={!activeConversationId || sending}
+                  />
+                  <button
+                    type="submit"
+                    disabled={!activeConversationId || sending || !messageDraft.trim()}
+                    className="px-3 py-2 rounded-xl bg-[#C9A05C] text-[#14141B] disabled:opacity-50 font-black"
+                  >
+                    {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <SendHorizonal className="w-4 h-4" />}
+                  </button>
+                </form>
+              )}
+            </div>
           </div>
         </div>
       )}
