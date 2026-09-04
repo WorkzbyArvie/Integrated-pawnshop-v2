@@ -190,7 +190,7 @@ const FAQ_ITEMS = [
   },
 ];
 
-const HERO_STATS = [
+const HERO_STATS_DEFAULT = [
   { label: 'Active Pawnshops', value: '240+' },
   { label: 'Average Onboarding', value: '48 Hours' },
   { label: 'Platform Uptime', value: '99.9%' },
@@ -237,6 +237,7 @@ export default function LandingPage() {
     message: '',
   });
   const emailCheckTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [heroStats, setHeroStats] = useState(HERO_STATS_DEFAULT);
 
   const checkEmailAvailability = useCallback(async (email: string) => {
     if (!email || !email.includes('@')) {
@@ -382,6 +383,22 @@ export default function LandingPage() {
     return () => {
       mounted = false;
     };
+  }, []);
+
+  useEffect(() => {
+    let mounted = true;
+    api
+      .get<{ activePawnshops: number; uptimePercent: number; avgOnboardingHours: number }>('/stats/public')
+      .then((data) => {
+        if (!mounted || !data) return;
+        setHeroStats([
+          { label: 'Active Pawnshops', value: `${data.activePawnshops}+` },
+          { label: 'Average Onboarding', value: `${data.avgOnboardingHours} Hours` },
+          { label: 'Platform Uptime', value: `${data.uptimePercent}%` },
+        ]);
+      })
+      .catch(() => {});
+    return () => { mounted = false; };
   }, []);
 
   useEffect(() => {
@@ -763,7 +780,7 @@ export default function LandingPage() {
               </button>
             </div>
             <div className="mt-8 grid grid-cols-3 gap-3">
-              {HERO_STATS.map((stat) => (
+              {heroStats.map((stat) => (
                 <div
                   key={stat.label}
                   className="rounded-[14px] px-4 py-3"

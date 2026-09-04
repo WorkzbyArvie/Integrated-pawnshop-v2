@@ -433,4 +433,10 @@ export class AppController {
   createCustomer(@Body() body: any) {
     return this.appService.createCustomer(body);
   }
+
+  @Public()
+  @Get('stats/public')
+  async getPublicStats() {
+    return this.appService.getPublicStats();
+  }
 }
