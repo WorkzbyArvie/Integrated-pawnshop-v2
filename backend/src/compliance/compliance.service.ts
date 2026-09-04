@@ -159,6 +159,63 @@ export class ComplianceService {
     return newDocument;
   }
 
+  async requestDocumentReplacement(userId: string, documentId: string) {
+    const profile = await this.getProfileOrThrow(userId);
+    if (profile.role !== 'SUPER_ADMIN') {
+      throw new ForbiddenException('Only Super Admin can request a document replacement');
+    }
+
+    const document = await this.prisma.pawnshopDocument.findUnique({
+      where: { id: documentId },
+    });
+
+    if (!document) {
+      throw new NotFoundException('Document not found');
+    }
+
+    if (document.status !== 'VERIFIED' && document.status !== 'EXPIRED') {
+      throw new BadRequestException(
+        `Only a VERIFIED or EXPIRED document can be flagged for replacement (current: ${document.status}).`,
+      );
+    }
+
+    const updated = await this.prisma.pawnshopDocument.update({
+      where: { id: documentId },
+      data: {
+        status: 'REJECTED',
+        verifiedAt: null,
+        rejectionReason:
+          document.status === 'EXPIRED'
+            ? 'Document has expired. Please upload a renewed copy.'
+            : 'Renewal requested by platform. Please upload a new, updated copy of this document.',
+      },
+    });
+
+    await this.notifyOwnerDocumentReplacement(document.pawnshopId, document.documentType, updated.rejectionReason);
+
+    return updated;
+  }
+
+  private async notifyOwnerDocumentReplacement(pawnshopId: string, documentType: string, reason: string) {
+    try {
+      const ownerProfile = await this.prisma.profile.findFirst({
+        where: { pawnshopId, role: 'OWNER' },
+      });
+      if (ownerProfile) {
+        await this.notificationService.sendNotification({
+          recipientId: ownerProfile.id,
+          channel: NotificationChannel.IN_APP,
+          type: NotificationType.COMPLIANCE_REMINDER,
+          title: 'Document Replacement Requested',
+          body: `Action needed: ${documentType.replace(/_/g, ' ')}. ${reason}`,
+          data: { documentType, pawnshopId, reason },
+        });
+      }
+    } catch (err: any) {
+      this.logger.error(`Failed to send replacement notification: ${err.message}`);
+    }
+  }
+
   async getComplianceScore(userId: string) {
     const profile = await this.getProfileOrThrow(userId);
 
@@ -201,6 +258,7 @@ export class ComplianceService {
     let notExpired = 0;
 
     const docStatuses: Array<{
+      id: string;
       type: ComplianceDocType;
       status: string;
       expiryDate: Date | null;
@@ -221,6 +279,7 @@ export class ComplianceService {
         if (!isExpired) notExpired++;
 
         docStatuses.push({
+          id: doc.id,
           type: reqType,
           status: isExpired ? 'EXPIRED' : doc.status,
           expiryDate: doc.expiryDate,
@@ -229,6 +288,7 @@ export class ComplianceService {
         });
       } else {
         docStatuses.push({
+          id: '',
           type: reqType,
           status: 'NOT_UPLOADED',
           expiryDate: null,

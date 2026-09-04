@@ -295,11 +295,18 @@ export default function OwnerComplianceDashboard() {
                       {doc.expiryDate && (
                         <div
                           className={`text-xs mt-0.5 ${
-                            doc.status === 'EXPIRED' ? 'text-red-400' : 'text-gilded-muted'
+                            doc.status === 'EXPIRED'
+                              ? 'text-red-400 font-medium'
+                              : doc.daysUntilExpiry !== null && doc.daysUntilExpiry <= 30
+                              ? 'text-amber-400 font-medium'
+                              : 'text-gilded-muted'
                           }`}
                         >
                           {doc.status === 'EXPIRED' ? 'Expired: ' : 'Expires: '}
                           {formatExpiryDate(doc.expiryDate)}
+                          {doc.status !== 'EXPIRED' && doc.daysUntilExpiry !== null && doc.daysUntilExpiry <= 30 && (
+                            <> ({doc.daysUntilExpiry}d left — replace soon)</>
+                          )}
                         </div>
                       )}
                       {doc.rejectionReason && doc.status === 'REJECTED' && (
@@ -334,12 +341,13 @@ export default function OwnerComplianceDashboard() {
                     <span className={`text-xs font-medium ${config.color}`}>
                       {doc.status.replace(/_/g, ' ')}
                     </span>
-                    {(doc.status === 'EXPIRED' || doc.status === 'REJECTED' || doc.status === 'NOT_UPLOADED') && (
+                    {(doc.status === 'EXPIRED' || doc.status === 'REJECTED' || doc.status === 'NOT_UPLOADED' ||
+                      (doc.status === 'VERIFIED' && doc.daysUntilExpiry !== null && doc.daysUntilExpiry <= 60)) && (
                       <button
                         onClick={() => handleRenew(doc.type)}
                         className="text-[10px] px-2 py-0.5 bg-gilded-gold/10 text-gilded-gold border border-gilded-gold/30 rounded hover:bg-gilded-gold/20 transition-colors"
                       >
-                        {doc.status === 'NOT_UPLOADED' ? 'Upload' : 'Renew'}
+                        {doc.status === 'NOT_UPLOADED' ? 'Upload' : 'Replace / Renew'}
                       </button>
                     )}
                   </div>

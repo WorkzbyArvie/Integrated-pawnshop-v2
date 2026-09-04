@@ -66,6 +66,7 @@ interface PawnshopCompliance {
   createdAt?: string | null;
   score: number;
   documents: Array<{
+    id: string;
     type: string;
     status: string;
     expiryDate: string | null;
@@ -359,6 +360,7 @@ export default function SuperAdminComplianceOverview() {
   const [activeTab, setActiveTab] = useState<'pending' | 'kyc' | 'overview'>('pending');
   const [viewingKyc, setViewingKyc] = useState<KycPendingReview | null>(null);
   const [viewingDoc, setViewingDoc] = useState<PendingReview | null>(null);
+  const [requestingReplacementFor, setRequestingReplacementFor] = useState<string | null>(null);
 
   useEffect(() => {
     fetchData();
@@ -409,6 +411,23 @@ export default function SuperAdminComplianceOverview() {
       console.error('KYC review failed:', err);
     } finally {
       setVerifyingKycId(null);
+    }
+  }
+
+  async function handleRequestReplacement(documentId: string) {
+    const confirmed = window.confirm(
+      'Flag this document for replacement? The owner will be notified and must upload a new, updated copy.',
+    );
+    if (!confirmed) return;
+    setRequestingReplacementFor(documentId);
+    try {
+      await api.post(`/compliance/documents/${documentId}/request-replacement`, {});
+      fetchData();
+    } catch (err: any) {
+      window.alert(err?.message || 'Failed to request replacement');
+      console.error('Request replacement failed:', err);
+    } finally {
+      setRequestingReplacementFor(null);
     }
   }
 
@@ -792,6 +811,12 @@ export default function SuperAdminComplianceOverview() {
                           !expired &&
                           doc.daysUntilExpiry !== null &&
                           doc.daysUntilExpiry <= 30;
+                        const replacementEligible =
+                          !!doc.id &&
+                          (expired ||
+                            (doc.status === 'VERIFIED' &&
+                              doc.daysUntilExpiry !== null &&
+                              doc.daysUntilExpiry <= 60));
                         return (
                           <div
                             key={doc.type}
@@ -813,24 +838,35 @@ export default function SuperAdminComplianceOverview() {
                               />
                               {DOCUMENT_LABELS[doc.type] || doc.type}
                             </span>
-                            <span
-                              className={`ml-2 text-right ${
-                                expired
-                                  ? 'text-red-400 font-medium'
-                                  : expiring
-                                  ? 'text-amber-400 font-medium'
-                                  : 'text-gilded-muted'
-                              }`}
-                            >
-                              {doc.status === 'NOT_UPLOADED'
-                                ? 'Missing'
-                                : doc.status === 'REJECTED'
-                                ? 'Rejected'
-                                : doc.expiryDate
-                                ? `${expired ? 'Expired' : 'Expires'} ${formatDate(doc.expiryDate)}${
-                                    expiring && doc.daysUntilExpiry !== null ? ` (${doc.daysUntilExpiry}d)` : ''
-                                  }`
-                                : 'No expiry'}
+                            <span className="flex items-center gap-2">
+                              <span
+                                className={`ml-2 text-right ${
+                                  expired
+                                    ? 'text-red-400 font-medium'
+                                    : expiring
+                                    ? 'text-amber-400 font-medium'
+                                    : 'text-gilded-muted'
+                                }`}
+                              >
+                                {doc.status === 'NOT_UPLOADED'
+                                  ? 'Missing'
+                                  : doc.status === 'REJECTED'
+                                  ? 'Rejected'
+                                  : doc.expiryDate
+                                  ? `${expired ? 'Expired' : 'Expires'} ${formatDate(doc.expiryDate)}${
+                                      expiring && doc.daysUntilExpiry !== null ? ` (${doc.daysUntilExpiry}d)` : ''
+                                    }`
+                                  : 'No expiry'}
+                              </span>
+                              {replacementEligible && (
+                                <button
+                                  onClick={() => handleRequestReplacement(doc.id)}
+                                  disabled={requestingReplacementFor === doc.id}
+                                  className="shrink-0 px-2 py-0.5 rounded text-[10px] font-semibold bg-gilded-gold/10 text-gilded-gold border border-gilded-gold/30 hover:bg-gilded-gold/20 transition-colors disabled:opacity-50"
+                                >
+                                  {requestingReplacementFor === doc.id ? '...' : 'Request New Overwrite'}
+                                </button>
+                              )}
                             </span>
                           </div>
                         );

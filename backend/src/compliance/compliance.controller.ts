@@ -53,6 +53,12 @@ export class ComplianceController {
     return this.complianceService.renewDocument(req.user.id, id, dto);
   }
 
+  @Post('documents/:id/request-replacement')
+  @RequiresPermission(PERMISSIONS['platform.manage'])
+  async requestDocumentReplacement(@Req() req: any, @Param('id') id: string) {
+    return this.complianceService.requestDocumentReplacement(req.user.id, id);
+  }
+
   @Get()
   @RequiresPermission(PERMISSIONS['compliance.view'])
   async root(@Req() req: any) {
