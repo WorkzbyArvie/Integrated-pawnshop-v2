@@ -2,6 +2,29 @@ import { render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { vi } from 'vitest';
 import ListingDetail from '../ListingDetail';
+import type { ReactNode } from 'react';
+
+vi.mock('../../context/AuthContext', () => ({
+  useAuth: () => ({
+    user: null,
+    session: null,
+    loading: false,
+    kycStatus: 'NOT_SUBMITTED',
+    kycProfile: null,
+    kycLoading: false,
+    signIn: vi.fn(),
+    requestAuthCode: vi.fn(),
+    signUp: vi.fn(),
+    signOut: vi.fn(),
+    refreshKycStatus: vi.fn(),
+  }),
+  AuthProvider: ({ children }: { children: ReactNode }) => <>{children}</>,
+}));
+
+vi.mock('../../context/BrandingContext', () => ({
+  useBranding: () => ({ branding: null, setBrandingId: vi.fn() }),
+  BrandingProvider: ({ children }: { children: ReactNode }) => <>{children}</>,
+}));
 
 const listing = {
   id: 202,
@@ -23,6 +46,15 @@ const listing = {
 describe('ListingDetail', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+    class MockIntersectionObserver {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+      takeRecords() {
+        return [];
+      }
+    }
+    (globalThis as any).IntersectionObserver = MockIntersectionObserver;
   });
 
   it('renders listing detail from API', async () => {

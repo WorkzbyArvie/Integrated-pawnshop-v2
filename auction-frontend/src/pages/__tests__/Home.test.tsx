@@ -2,6 +2,29 @@ import { render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { vi } from 'vitest';
 import Home from '../Home';
+import type { ReactNode } from 'react';
+
+vi.mock('../../context/AuthContext', () => ({
+  useAuth: () => ({
+    user: null,
+    session: null,
+    loading: false,
+    kycStatus: 'NOT_SUBMITTED',
+    kycProfile: null,
+    kycLoading: false,
+    signIn: vi.fn(),
+    requestAuthCode: vi.fn(),
+    signUp: vi.fn(),
+    signOut: vi.fn(),
+    refreshKycStatus: vi.fn(),
+  }),
+  AuthProvider: ({ children }: { children: ReactNode }) => <>{children}</>,
+}));
+
+vi.mock('../../context/BrandingContext', () => ({
+  useBranding: () => ({ branding: null, setBrandingId: vi.fn() }),
+  BrandingProvider: ({ children }: { children: ReactNode }) => <>{children}</>,
+}));
 
 const listingResponse = {
   items: [
@@ -28,6 +51,15 @@ const listingResponse = {
 describe('Home', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+    class MockIntersectionObserver {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+      takeRecords() {
+        return [];
+      }
+    }
+    (globalThis as any).IntersectionObserver = MockIntersectionObserver;
   });
 
   it('renders live auctions from API', async () => {
@@ -44,7 +76,7 @@ describe('Home', () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByRole('heading', { name: 'Live Auctions' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Active Auctions' })).toBeInTheDocument();
 
     await waitFor(() => {
       expect(screen.getAllByText('Rolex Daytona 18K').length).toBeGreaterThan(0);
