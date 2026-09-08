@@ -342,6 +342,7 @@ model Profile {
   updatedAt       DateTime                 @map("updated_at") @default(now())
   email           String?
   fullName        String?                  @map("full_name")
+  passwordHash    String?                  @map("password_hash")
   branchId        String?                  @map("branch_id") @db.Uuid
   isOnline        Boolean                  @map("is_online") @default(false)
   lastSeenAt      DateTime?                @map("last_seen_at")

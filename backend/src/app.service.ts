@@ -10,6 +10,8 @@ import { createHash, randomBytes } from 'crypto';
 import { createTransport, type Transporter } from 'nodemailer';
 import { isIP } from 'node:net';
 import { resolve4, resolve6 } from 'node:dns/promises';
+import * as jwt from 'jsonwebtoken';
+import * as bcrypt from 'bcryptjs';
 import { calculatePawnCharges } from './finance/pawn-charge-calculator';
 import {
   assertValidKycDocumentUrl,
@@ -94,11 +96,17 @@ export class AppService {
   // --- Helper: verify JWT and return user ID ---
   async getUserIdFromToken(token: string): Promise<string | null> {
     try {
-      const { data, error } = await this.supabaseAdmin.auth.getUser(token);
-      if (error || !data?.user?.id) return null;
-      return data.user.id;
+      const payload = this.verifyBackendToken(token);
+      if (!payload?.sub) return null;
+      return payload.sub;
     } catch {
-      return null;
+      try {
+        const { data, error } = await this.supabaseAdmin.auth.getUser(token);
+        if (error || !data?.user?.id) return null;
+        return data.user.id;
+      } catch {
+        return null;
+      }
     }
   }
 
@@ -1062,10 +1070,88 @@ export class AppService {
     return { success: true, message: 'Staff account removed successfully' };
   }
 
+  signBackendToken(payload: {
+    sub: string;
+    role: string;
+    pawnshopId?: string | null;
+    email?: string | null;
+  }): string {
+    const secret = process.env.JWT_SECRET || 'pawn_gold_dev_secret';
+    const expiresIn = process.env.JWT_EXPIRES_IN || '30d';
+    return jwt.sign(payload, secret, { expiresIn } as jwt.SignOptions);
+  }
+
+  verifyBackendToken(token: string): any {
+    const secret = process.env.JWT_SECRET || 'pawn_gold_dev_secret';
+    return jwt.verify(token, secret);
+  }
+
+  async loginNative(data: any) {
+    const email = normalizeEmail(data?.email);
+    const password = String(data?.password || '');
+
+    if (!email || !password) {
+      throw new Error('Email and password are required');
+    }
+
+    const profile = await this.prisma.profile.findFirst({ where: { email } });
+
+    let passwordValid = false;
+    if (profile?.passwordHash) {
+      passwordValid = await bcrypt.compare(password, profile.passwordHash);
+    } else {
+      try {
+        const { data: authData, error } =
+          await this.supabaseAdmin.auth.signInWithPassword({
+            email,
+            password,
+          });
+        passwordValid = !error && !!authData?.user?.id;
+      } catch {
+        passwordValid = false;
+      }
+    }
+
+    if (!profile || !passwordValid) {
+      throw new Error('Invalid email or password');
+    }
+
+    if (!profile.passwordHash) {
+      try {
+        const hash = await bcrypt.hash(password, 10);
+        await this.prisma.profile.update({
+          where: { id: profile.id },
+          data: { passwordHash: hash },
+        });
+      } catch (error: any) {
+        console.warn(`[loginNative] hash backfill skipped: ${error.message}`);
+      }
+    }
+
+    const accessToken = this.signBackendToken({
+      sub: profile.id,
+      role: profile.role,
+      pawnshopId: profile.pawnshopId,
+      email: profile.email,
+    });
+
+    return {
+      success: true,
+      access_token: accessToken,
+      token_type: 'Bearer',
+      user: {
+        id: profile.id,
+        email: profile.email,
+        full_name: profile.fullName,
+        role: profile.role,
+        pawnshop_id: profile.pawnshopId,
+      },
+    };
+  }
+
   // --- LOCAL AUTH (Development Only) ---
   // This allows login without Supabase when credentials are invalid/expired
   async localLogin(data: any) {
-    // Only available in development
     if (process.env.NODE_ENV === 'production') {
       return {
         success: false,
@@ -1128,12 +1214,14 @@ export class AppService {
 
     const syncBidderProfile = async (userId: string) => {
       try {
+        const passwordHash = await bcrypt.hash(password, 10);
         await this.prisma.profile.upsert({
           where: { id: userId },
           update: {
             email,
             fullName: displayName,
             pawnshopId: null,
+            passwordHash,
           },
           create: {
             id: userId,
@@ -1141,6 +1229,7 @@ export class AppService {
             fullName: displayName,
             role: 'BIDDER',
             pawnshopId: null,
+            passwordHash,
           },
         });
         console.log(`✅ [registerBidder] Profile synced for ${email}`);

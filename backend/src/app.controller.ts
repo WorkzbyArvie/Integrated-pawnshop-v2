@@ -13,17 +13,26 @@ import {
   UnauthorizedException,
   Res,
   Req,
+  UploadedFile,
+  UseInterceptors,
+  BadRequestException,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { Public } from './common/decorators/public.decorator';
 import { RequiresPermission } from './common/decorators/requires-permission.decorator';
 import { PERMISSIONS } from './common/permissions/permissions.const';
 import { Throttle } from './common/decorators/throttle.decorator';
 import { AppService } from './app.service';
+import { StorageService } from './common/storage/storage.service';
 import type { Request, Response } from 'express';
+import type { File } from 'multer';
 
 @Controller()
 export class AppController {
-  constructor(private readonly appService: AppService) {}
+  constructor(
+    private readonly appService: AppService,
+    private readonly storageService: StorageService,
+  ) {}
 
   @Public()
   @Get('healthz')
@@ -86,6 +95,24 @@ export class AppController {
   @Post('auth/local-login')
   localLogin(@Body() body: any) {
     return this.appService.localLogin(body);
+  }
+
+  @Public()
+  @Throttle({ ttl: 60_000, limit: 10 })
+  @Post('auth/login-native')
+  async loginNative(@Body() body: any) {
+    try {
+      return await this.appService.loginNative(body);
+    } catch (error: any) {
+      throw new HttpException(
+        {
+          success: false,
+          error: error.message || 'Login failed',
+          message: error.message || 'Login failed',
+        },
+        error.statusCode || HttpStatus.UNAUTHORIZED,
+      );
+    }
   }
 
   @Public()
@@ -272,6 +299,50 @@ export class AppController {
   }
 
   // --- KYC ENDPOINTS ---
+  @Post('auth/kyc/upload')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      limits: { fileSize: 8 * 1024 * 1024 },
+    }),
+  )
+  async uploadKycDocument(
+    @UploadedFile() file: File | undefined,
+    @Body() body: any,
+    @Headers('authorization') authHeader: string | undefined,
+  ) {
+    try {
+      const userId = await this.extractUserId(authHeader);
+      if (!file?.buffer) {
+        throw new BadRequestException('File is required for upload.');
+      }
+
+      const folder = String(body?.folder || 'id-front');
+      const rawName = String(file?.originalname || 'upload').toLowerCase();
+      const extMatch = rawName.match(/\.(png|jpe?g|webp|heic)$/);
+      const ext = extMatch ? extMatch[1] : 'jpg';
+
+      const fileName = `${userId}_${Date.now()}.${ext}`;
+      const url = await this.storageService.uploadImage(
+        file.buffer,
+        'kyc-documents',
+        fileName,
+        file.mimetype || 'image/jpeg',
+      );
+
+      return {
+        success: true,
+        url,
+        folder,
+        fileName,
+      };
+    } catch (error: any) {
+      throw new HttpException(
+        { success: false, message: error.message || 'Upload failed' },
+        error.status || HttpStatus.BAD_REQUEST,
+      );
+    }
+  }
+
   @Get('auth/kyc/status')
   async getKycStatus(@Headers('authorization') authHeader: string | undefined) {
     const userId = await this.extractUserId(authHeader);

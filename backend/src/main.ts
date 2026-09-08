@@ -14,6 +14,7 @@ import rateLimit from 'express-rate-limit';
 import compression from 'compression';
 import { SubscriptionStatus } from '@prisma/client';
 import * as dns from 'node:dns';
+import * as jwt from 'jsonwebtoken';
 
 // Load .env file explicitly — try multiple paths for dev vs compiled
 dotenv.config({ path: path.resolve(__dirname, '..', '.env') });
@@ -279,11 +280,33 @@ async function bootstrap() {
         return;
       }
 
-      const { data: authData, error: authError } = await supabaseAdmin.client.auth.getUser(
-        token,
-      );
+      let resolvedUserId: string | null = null;
+      let nativeRole: string | null = null;
+      let nativePawnshopId: string | null = null;
 
-      if (authError || !authData?.user?.id) {
+      const jwtSecret = process.env.JWT_SECRET || 'pawn_gold_dev_secret';
+      try {
+        const payload = jwt.verify(token, jwtSecret) as any;
+        if (payload?.sub) {
+          resolvedUserId = payload.sub;
+          nativeRole = payload.role || null;
+          nativePawnshopId = payload.pawnshopId || null;
+        }
+      } catch {
+        const { data: authData, error: authError } = await supabaseAdmin.client.auth.getUser(
+          token,
+        );
+        if (authError || !authData?.user?.id) {
+          res.status(401).json({
+            success: false,
+            message: 'Invalid or expired token.',
+          });
+          return;
+        }
+        resolvedUserId = authData.user.id;
+      }
+
+      if (!resolvedUserId) {
         res.status(401).json({
           success: false,
           message: 'Invalid or expired token.',
@@ -292,7 +315,7 @@ async function bootstrap() {
       }
 
       const actor = await prisma.profile.findUnique({
-        where: { id: authData.user.id },
+        where: { id: resolvedUserId },
         select: { role: true, pawnshopId: true },
       });
 
@@ -304,9 +327,15 @@ async function bootstrap() {
         return;
       }
 
-      const normalizedRole = String(actor.role || '')
+      const normalizedRole = String(nativeRole || actor.role || '')
         .toUpperCase()
         .replace(/[\s-]+/g, '_');
+
+      (req as any).actor = {
+        id: resolvedUserId,
+        role: normalizedRole,
+        pawnshopId: actor.pawnshopId || nativePawnshopId || null,
+      };
 
       if (normalizedRole === 'SUPER_ADMIN') {
         next();

@@ -8,6 +8,40 @@ export class StorageService {
 
   constructor(private readonly supabaseAdmin: SupabaseAdminService) {}
 
+  async uploadImage(
+    buffer: Buffer,
+    folder: 'kyc-documents' | 'proofs' | 'receipts',
+    fileName: string,
+    contentType = 'image/jpeg',
+  ): Promise<string> {
+    if (!this.supabaseAdmin.isAvailable) {
+      const localPath = `${folder}/${fileName}`;
+      this.logger.warn(`No Supabase client — returning local path: ${localPath}`);
+      return localPath;
+    }
+
+    const filePath = `${folder}/${fileName}`;
+
+    const { error } = await this.supabaseAdmin.client.storage
+      .from(this.bucketName)
+      .upload(filePath, buffer, {
+        contentType,
+        upsert: true,
+      });
+
+    if (error) {
+      this.logger.warn(`Supabase upload skipped (storage not configured): ${error.message}`);
+      const localPath = `${folder}/${fileName}`;
+      return localPath;
+    }
+
+    const { data: urlData } = this.supabaseAdmin.client.storage
+      .from(this.bucketName)
+      .getPublicUrl(filePath);
+
+    return urlData?.publicUrl || filePath;
+  }
+
   async uploadPdf(
     buffer: Buffer,
     folder: 'contracts' | 'receipts' | 'proofs',
