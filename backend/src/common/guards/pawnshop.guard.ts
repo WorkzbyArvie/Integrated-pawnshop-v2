@@ -45,6 +45,7 @@ export class PawnshopGuard implements CanActivate {
     '/pawnshops',
     '/security',
     '/profile',
+    '/reviews',
   ];
 
   constructor(private reflector: Reflector) {}

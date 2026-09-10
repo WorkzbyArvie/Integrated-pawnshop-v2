@@ -147,8 +147,9 @@ export default function KycVerification() {
   const [liveSelfieDataUrl, setLiveSelfieDataUrl] = useState<string | null>(null);
   const [selfieCapturedAt, setSelfieCapturedAt] = useState<string | null>(null);
 
-  const [submitting, setSubmitting] = useState(false);
-  const [submitError, setSubmitError] = useState<string | null>(null);
+const [submitting, setSubmitting] = useState(false);
+const [submitError, setSubmitError] = useState<string | null>(null);
+const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [rejectionReason] = useState<string | undefined>(undefined);
 
   const detectCamera = useCallback(async () => {
@@ -330,6 +331,11 @@ export default function KycVerification() {
 
   const handleSubmit = async () => {
     if (!session?.access_token || !idFront || !liveSelfieDataUrl) return;
+
+    if (!acceptedTerms) {
+      setSubmitError('You must agree to the Terms of Service and Privacy Policy before submitting.');
+      return;
+    }
 
     setSubmitting(true);
     setSubmitError(null);
@@ -796,6 +802,31 @@ export default function KycVerification() {
               {submitError && (
                 <p style={{ color: '#ff8a7c', fontSize: '0.85rem', margin: 0 }}>{submitError}</p>
               )}
+
+              <label
+                style={{
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: '0.5rem',
+                  fontSize: '0.8rem',
+                  color: 'var(--muted)',
+                  cursor: 'pointer',
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={acceptedTerms}
+                  onChange={(e) => setAcceptedTerms(e.target.checked)}
+                  style={{ marginTop: '0.15rem', accentColor: '#C9A05C' }}
+                />
+                <span>
+                  I consent to my submitted identification data being processed and stored to verify my
+                  identity and prevent fraud. I have read and agree to the{' '}
+                  <Link to="/terms" style={{ color: '#C9A05C', textDecoration: 'underline' }}>Terms of Service</Link>{' '}
+                  and{' '}
+                  <Link to="/privacy" style={{ color: '#C9A05C', textDecoration: 'underline' }}>Privacy Policy</Link>.
+                </span>
+              </label>
             </div>
           )}
 

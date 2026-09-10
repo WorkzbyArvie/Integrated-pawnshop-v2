@@ -29,6 +29,7 @@ const SUPER_ADMIN_PERMISSIONS = new Set<string>([
   'compliance.manage_documents',
   'onboarding.review_documents',
   'onboarding.approve',
+  'review.moderate',
 ]);
 
 const SUPER_ADMIN_GOVERNANCE_PREFIXES = [

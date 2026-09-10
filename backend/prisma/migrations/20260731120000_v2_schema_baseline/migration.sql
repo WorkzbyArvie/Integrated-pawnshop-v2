@@ -245,7 +245,11 @@ VALUES
   ('customer.view_history', 'customer', NULL),
   ('customer.manage_tier', 'customer', NULL),
   ('payroll.manage', 'payroll', NULL),
-  ('attendance.manage', 'attendance', NULL)
+('attendance.manage', 'attendance', 
+NULL),
+  ('review.create', 'review', NULL),
+  ('review.view', 'review', NULL),
+  ('review.moderate', 'review', NULL)
 ON CONFLICT (name) DO NOTHING;
 
 -- Role -> permission matrix (101 mappings; SUPER_ADMIN gets platform.manage only,
@@ -254,6 +258,7 @@ INSERT INTO role_permissions (role, permission_id)
 SELECT v.role, p.id
 FROM (VALUES
   ('SUPER_ADMIN','platform.manage'),
+  ('SUPER_ADMIN','review.moderate'),
   ('OWNER','tenant.manage'),
   ('OWNER','tenant.view_audit'),
   ('OWNER','tenant.manage_branches'),
@@ -288,6 +293,8 @@ FROM (VALUES
   ('OWNER','customer.manage_tier'),
   ('OWNER','payroll.manage'),
   ('OWNER','attendance.manage'),
+  ('OWNER','review.create'),
+  ('OWNER','review.view'),
   ('ADMIN','tenant.view_audit'),
   ('ADMIN','auction.settle'),
   ('ADMIN','auction.manual_settle'),

@@ -122,6 +122,7 @@ export default function Home() {
   const [authName, setAuthName] = useState('');
   const [authCode, setAuthCode] = useState('');
   const [authSubmitting, setAuthSubmitting] = useState(false);
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [emailCheck, setEmailCheck] = useState<{ checking: boolean; exists: boolean; message: string }>({
     checking: false,
     exists: false,
@@ -601,7 +602,7 @@ export default function Home() {
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" strokeWidth="1.5"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
             </div>
             <h4>Verified Network</h4>
-            <p>Connected to a trusted network of licensed pawnshops with full compliance documentation and KYC.</p>
+            <p>Bidders complete ID verification (KYC) and bidders agree to auction terms before placing bids.</p>
           </div>
           <div className="trust-card">
             <div className="trust-card-icon">
@@ -665,7 +666,7 @@ export default function Home() {
               {branding?.name || 'PawnGold'} <span>Auction House</span>
             </div>
             <p>
-              The Philippines' premier online auction platform for authenticated luxury items from verified pawnshops.
+              An online auction platform for authenticated items from paired pawnshop partners.
             </p>
           </div>
           <div className="footer-col">
@@ -700,8 +701,8 @@ export default function Home() {
           <p>&copy; {new Date().getFullYear()} {branding?.name || 'PawnGold'}. All rights reserved.</p>
           <div className="footer-bottom-links">
             <Link to="/terms">Terms</Link>
-            <a href="#">Privacy</a>
-            <a href="#">Cookies</a>
+            <Link to="/privacy">Privacy</Link>
+            <Link to="/cookies">Cookies</Link>
           </div>
         </div>
       </footer>
@@ -728,7 +729,7 @@ export default function Home() {
               <button
                 className={authTab === 'login' ? 'primary-button' : 'ghost-button'}
                 style={{ flex: 1, padding: '0.5rem', textAlign: 'center' }}
-                onClick={() => { setAuthTab('login'); }}
+                onClick={() => { setAuthTab('login'); setAcceptedTerms(false); }}
               >
                 Login
               </button>
@@ -746,6 +747,10 @@ export default function Home() {
                 e.preventDefault();
 
                 if (authTab === 'signup') {
+                  if (!acceptedTerms) {
+                    notifyError('You must agree to the Terms of Service and Privacy Policy to create an account.');
+                    return;
+                  }
                   if (!authCode.trim()) {
                     notifyError('Enter your verification code before creating an account.');
                     return;
@@ -801,6 +806,7 @@ export default function Home() {
               {authTab === 'signup' && (
                 <input
                   placeholder="Full name"
+                  aria-label="Full name"
                   value={authName}
                   onChange={(e) => setAuthName(e.target.value)}
                   required
@@ -808,6 +814,7 @@ export default function Home() {
               )}
               <input
                 placeholder="Email address"
+                aria-label="Email address"
                 type="email"
                 value={authEmail}
                 onChange={(e) => setAuthEmail(e.target.value)}
@@ -823,6 +830,7 @@ export default function Home() {
               )}
               <input
                 placeholder="Password"
+                aria-label="Password"
                 type="password"
                 value={authPassword}
                 onChange={(e) => setAuthPassword(e.target.value)}
@@ -834,6 +842,7 @@ export default function Home() {
                   <div style={{ display: 'flex', gap: '0.5rem' }}>
                     <input
                       placeholder="Authentication code"
+                      aria-label="Authentication code"
                       value={authCode}
                       onChange={(e) => setAuthCode(e.target.value)}
                       required
@@ -861,6 +870,33 @@ export default function Home() {
                     </button>
                   </div>
                 </div>
+              )}
+
+              {authTab === 'signup' && (
+                <label
+                  style={{
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: '0.5rem',
+                    fontSize: '0.75rem',
+                    color: '#B8B0A4',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={acceptedTerms}
+                    onChange={(e) => setAcceptedTerms(e.target.checked)}
+                    style={{ marginTop: '0.15rem', accentColor: '#C9A05C' }}
+                    required
+                  />
+                  <span>
+                    I have read and agree to the{' '}
+                    <Link to="/terms" style={{ color: '#C9A05C', textDecoration: 'underline' }}>Terms of Service</Link>{' '}
+                    and{' '}
+                    <Link to="/privacy" style={{ color: '#C9A05C', textDecoration: 'underline' }}>Privacy Policy</Link>.
+                  </span>
+                </label>
               )}
 
               <button

@@ -36,12 +36,15 @@ export const PERMISSIONS = {
   'customer.manage_tier': 'customer.manage_tier',
   'payroll.manage': 'payroll.manage',
   'attendance.manage': 'attendance.manage',
+  'review.create': 'review.create',
+  'review.view': 'review.view',
+  'review.moderate': 'review.moderate',
 } as const;
 
 export type PermissionName = keyof typeof PERMISSIONS;
 
 export const ROLE_PERMISSIONS: Record<string, PermissionName[]> = {
-  SUPER_ADMIN: ['platform.manage'],
+  SUPER_ADMIN: ['platform.manage', 'review.moderate'],
   OWNER: [
     'tenant.manage',
     'tenant.view_audit',
@@ -77,6 +80,8 @@ export const ROLE_PERMISSIONS: Record<string, PermissionName[]> = {
     'customer.manage_tier',
     'payroll.manage',
     'attendance.manage',
+    'review.create',
+    'review.view',
   ],
   ADMIN: [
     'tenant.view_audit',

@@ -29,6 +29,7 @@ import { BrandingModule } from './branding/branding.module';
 import { ContractModule } from './contract/contract.module';
 import { ReceiptModule } from './receipt/receipt.module';
 import { TierModule } from './tier/tier.module';
+import { ReviewsModule } from './reviews/reviews.module';
 import { CommonModule } from './common/common.module';
 
 @Module({
@@ -56,6 +57,7 @@ import { CommonModule } from './common/common.module';
     ContractModule,
     ReceiptModule,
     TierModule,
+    ReviewsModule,
   ],
   controllers: [AppController],
   providers: [

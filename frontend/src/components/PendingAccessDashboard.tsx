@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { Clock3, MessageSquare, RefreshCcw, Send, Upload, FileCheck, AlertCircle, LogOut } from 'lucide-react';
 import api from '../lib/apiClient';
 import { overallLabel, overallTone, rejectedDocumentCount } from '../lib/onboardingStatus';
@@ -74,6 +75,7 @@ export function PendingAccessDashboard({ ownerEmail, registrationStatus }: Pendi
   const [cancellingRequest, setCancellingRequest] = useState(false);
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   const [, setError] = useState<string | null>(null);
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [form, setForm] = useState<TrialRequestForm>({
     pawnshopName: '',
     ownerEmail: ownerEmail || '',
@@ -269,6 +271,13 @@ export function PendingAccessDashboard({ ownerEmail, registrationStatus }: Pendi
 
     if (!hasDraft || !latestRequest?.id) {
       const message = 'Please upload all regulatory documents before submitting.';
+      setError(message);
+      showToast(message, 'error');
+      return;
+    }
+
+    if (!acceptedTerms) {
+      const message = 'You must agree to the Terms of Service and Privacy Policy before submitting.';
       setError(message);
       showToast(message, 'error');
       return;
@@ -499,6 +508,22 @@ export function PendingAccessDashboard({ ownerEmail, registrationStatus }: Pendi
                   className="min-h-24 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
                 />
               </div>
+
+              <label className="flex items-start gap-2.5 rounded-xl border border-[rgba(201,160,92,0.15)] bg-[#1C1C26] px-4 py-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={acceptedTerms}
+                  onChange={(e) => setAcceptedTerms(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 shrink-0 rounded accent-[#C9A05C]"
+                  required
+                />
+                <span className="text-xs leading-relaxed text-[#B8B0A4]">
+                  I have read and agree to the{' '}
+                  <Link to="/terms" className="text-[#C9A05C] underline">Terms of Service</Link>{' '}
+                  and{' '}
+                  <Link to="/privacy" className="text-[#C9A05C] underline">Privacy Policy</Link>.
+                </span>
+              </label>
 
               {hasDraft ? (
                 allRequiredDocsUploaded ? (

@@ -218,6 +218,7 @@ model Pawnshop {
   pawnshopDocuments         PawnshopDocument[]
   approvalRecords           ApprovalRecord[]
   customerKycRecords        CustomerKyc[]
+  systemReviews             SystemReview[]
   @@index([status])
   @@index([status, isActive])
   @@map("pawnshops")
@@ -356,6 +357,7 @@ model Profile {
   paymentMethods  CustomerPaymentMethod[]
   securityLogs    SecurityLog[]
   tosAcceptances  TOSAcceptance[]
+  systemReviews   SystemReview[]
   approvalRequests  ApprovalRecord[]       @relation("ApprovalRequestedBy")
   approvalDecisions ApprovalRecord[]       @relation("ApprovalDecidedBy")
   @@index([pawnshopId])
@@ -900,6 +902,38 @@ model AuctionRating {
   @@unique([listingId, customerId, ratingType])
   @@index([customerId])
   @@map("auction_ratings")
+  @@schema("public")
+}
+
+// ============================================================================
+// System Reviews (Owner/User feedback on the PawnGold platform)
+// ============================================================================
+
+enum SystemReviewStatus {
+  PENDING
+  APPROVED
+  HIDDEN
+  @@schema("public")
+}
+
+model SystemReview {
+  id            String             @id @default(uuid()) @db.Uuid
+  profileId     String             @map("profile_id") @db.Uuid
+  pawnshopId    String?            @map("pawnshop_id") @db.Uuid
+  rating        Int
+  title         String?            @db.VarChar(160)
+  comment       String             @db.VarChar(2000)
+  status        SystemReviewStatus @default(PENDING) @map("status")
+  createdAt     DateTime           @default(now()) @map("created_at")
+  updatedAt     DateTime           @updatedAt @map("updated_at")
+
+  profile       Profile            @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  pawnshop      Pawnshop?          @relation(fields: [pawnshopId], references: [id], onDelete: SetNull)
+
+  @@unique([profileId])
+  @@index([pawnshopId])
+  @@index([status, createdAt])
+  @@map("system_reviews")
   @@schema("public")
 }
 

@@ -7,6 +7,7 @@ import Terms from './pages/Terms';
 import MyBids from './pages/MyBids';
 import MyWinnings from './pages/MyWinnings';
 import Profile from './pages/Profile';
+import LegalInfo from './pages/LegalInfo';
 
 function App() {
   return (
@@ -16,6 +17,9 @@ function App() {
         <Route path="/listing/:id" element={<ListingDetail />} />
         <Route path="/kyc" element={<KycVerification />} />
         <Route path="/terms" element={<Terms />} />
+        <Route path="/privacy" element={<LegalInfo />} />
+        <Route path="/cookies" element={<LegalInfo />} />
+        <Route path="/refunds" element={<LegalInfo />} />
         <Route path="/my-bids" element={<MyBids />} />
         <Route path="/my-winnings" element={<MyWinnings />} />
         <Route path="/profile" element={<Profile />} />

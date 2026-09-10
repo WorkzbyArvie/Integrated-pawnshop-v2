@@ -213,6 +213,18 @@ const MATRIX: Record<string, { tuple: string[]; permission: string }> = {
     tuple: ['SUPER_ADMIN'],
     permission: 'platform.manage',
   },
+  'tenant-governance.controller.ts::archivePawnshop': {
+    tuple: ['SUPER_ADMIN'],
+    permission: 'platform.manage',
+  },
+  'tenant-governance.controller.ts::restorePawnshop': {
+    tuple: ['SUPER_ADMIN'],
+    permission: 'platform.manage',
+  },
+  'tenant-governance.controller.ts::listPawnshopStaff': {
+    tuple: ['SUPER_ADMIN'],
+    permission: 'platform.manage',
+  },
   'tenant-governance.controller.ts::createPawnshopDirect': {
     tuple: ['SUPER_ADMIN'],
     permission: 'platform.manage',
@@ -289,6 +301,18 @@ const MATRIX: Record<string, { tuple: string[]; permission: string }> = {
     tuple: ['OWNER', 'STAFF', 'SUPER_ADMIN'],
     permission: 'compliance.view',
   },
+  'compliance.controller.ts::getExpiryRegister': {
+    tuple: ['OWNER', 'STAFF', 'SUPER_ADMIN'],
+    permission: 'compliance.view',
+  },
+  'compliance.controller.ts::getReminderHistory': {
+    tuple: ['OWNER', 'STAFF', 'SUPER_ADMIN'],
+    permission: 'compliance.view',
+  },
+  'compliance.controller.ts::requestDocumentReplacement': {
+    tuple: ['SUPER_ADMIN'],
+    permission: 'platform.manage',
+  },
   'compliance.controller.ts::getPendingReviews': {
     tuple: ['SUPER_ADMIN'],
     permission: 'platform.manage',
@@ -320,6 +344,22 @@ const MATRIX: Record<string, { tuple: string[]; permission: string }> = {
   'tenant-governance.controller.ts::updatePawnshopContractTerms': {
     tuple: ['OWNER'],
     permission: 'tenant.manage',
+  },
+  'reviews.controller.ts::create': {
+    tuple: ['OWNER'],
+    permission: 'review.create',
+  },
+  'reviews.controller.ts::myReview': {
+    tuple: ['OWNER'],
+    permission: 'review.view',
+  },
+  'reviews.controller.ts::listAll': {
+    tuple: ['SUPER_ADMIN'],
+    permission: 'review.moderate',
+  },
+  'reviews.controller.ts::moderate': {
+    tuple: ['SUPER_ADMIN'],
+    permission: 'review.moderate',
   },
 };
 
@@ -391,26 +431,26 @@ describe('permission catalog consistency', () => {
     ...migrationSql.matchAll(/^\s*\('([a-z_.]+)',\s*'[a-z_]+',\s*NULL\)[,]?$/gm),
   ].map((m) => m[1]);
 
-  it('holds exactly 37 distinct values in the const', () => {
-    expect(constNames).toHaveLength(37);
-    expect(new Set(constNames).size).toBe(37);
+  it('holds exactly 40 distinct values in the const', () => {
+    expect(constNames).toHaveLength(40);
+    expect(new Set(constNames).size).toBe(40);
   });
 
   it('matches the migration SQL permission names both ways', () => {
-    expect(sqlNames).toHaveLength(37);
+    expect(sqlNames).toHaveLength(40);
     expect(new Set(sqlNames)).toEqual(new Set(constNames));
   });
 
-  it('ROLE_PERMISSIONS references only const values and sums to 109 mappings', () => {
+  it('ROLE_PERMISSIONS references only const values and sums to 112 mappings', () => {
     const mapped = Object.values(ROLE_PERMISSIONS).flat();
-    expect(mapped.length).toBe(109);
+    expect(mapped.length).toBe(112);
     for (const name of mapped) {
       expect(PERMISSIONS[name]).toBe(name);
     }
     const sqlRows = [
       ...migrationSql.matchAll(/^\s*\('[A-Z_]+','[a-z_.]+'\)[,]?$/gm),
     ].length;
-    expect(sqlRows).toBe(103);
+    expect(sqlRows).toBe(106);
   });
 });
 
@@ -426,12 +466,12 @@ describe('69-site equivalence scan', () => {
     }
   });
 
-  it('finds all 73 guarded endpoints across the controllers', () => {
+  it('finds all 82 guarded endpoints across the controllers', () => {
     const total = [...sitesByFile.values()].reduce((sum, sites) => {
       const withAny = sites.filter((s) => s.roles || s.permissions);
       return sum + withAny.length;
     }, 0);
-    expect(total).toBe(73);
+    expect(total).toBe(82);
   });
 
   it('matrix tuples match the current @Roles tuples (RED-phase calibration)', () => {

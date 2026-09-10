@@ -30,6 +30,7 @@ import {
   LogOut as LogOutIcon,
   BarChart3,
   Shield,
+  MessageSquareQuote,
 } from 'lucide-react';
 
 // Import Libs
@@ -71,6 +72,8 @@ const OwnerComplianceDashboard = lazy(() => import('./pages/admin/OwnerComplianc
 const BidderKycReview = lazy(() => import('./components/BidderKycReview'));
 const TransactionHistory = lazy(() => import('./pages/loans/TransactionHistory').then(m => ({ default: m.TransactionHistory })));
 const LandingPage = lazy(() => import('./pages/LandingPage'));
+const ReviewsFeedback = lazy(() => import('./components/ReviewsFeedback').then(m => ({ default: m.ReviewsFeedback })));
+const LegalDocPage = lazy(() => import('./pages/LegalDocPage'));
 
 // Standardized Roles
 export type Role =
@@ -214,6 +217,7 @@ const STATIC_NAV_ITEMS = [
     { id: 'payroll', label: 'Payroll', icon: Receipt, roles: ['Owner', 'Admin', 'HR'], type: 'OPERATIONAL' },
     { id: 'compliance', label: 'Compliance', icon: FileCheck2, roles: ['Owner', 'Admin', 'Manager', 'HR', 'Auditor'], type: 'OPERATIONAL' },
     { id: 'subscription', label: 'Subscription', icon: CreditCard, roles: ['Owner'], type: 'OPERATIONAL' },
+    { id: 'reviews', label: 'Reviews & Feedback', icon: MessageSquareQuote, roles: ['Owner'], type: 'OPERATIONAL' },
 ];
 
 const FREE_ALLOWED_NAV_IDS = new Set([
@@ -261,6 +265,11 @@ function App() {
 
   const isResetPasswordRoute = normalizedPath === '/reset-password' || hasRecoveryIntent;
   const isLoginRoute = normalizedPath === '/login';
+  const isLegalDocRoute =
+    normalizedPath === '/terms' ||
+    normalizedPath === '/privacy' ||
+    normalizedPath === '/cookies' ||
+    normalizedPath === '/refunds';
   const hasOnboardingIntent =
     searchParams.get('onboarding') === '1' ||
     hashParams.get('onboarding') === '1';
@@ -1445,6 +1454,7 @@ function App() {
     );
   }
 
+  if (isLegalDocRoute) return <LegalDocPage path={normalizedPath} />;
   if (isResetPasswordRoute) return <ResetPassword />;
   if (!session) {
     if (isLoginRoute) return <Login />;
@@ -1705,6 +1715,7 @@ function App() {
             {activeTab === 'support-chat' && ['Owner', 'Admin', 'Super Admin'].includes(userRole) && (
               <SupportChat pawnshopId={currentBranchId} userRole={userRole} />
             )}
+            {activeTab === 'reviews' && userRole === 'Owner' && <ReviewsFeedback />}
             {activeTab === 'multi-branches' && (
               <MultiBranchManagement
                 pawnshopId={currentBranchId}

@@ -143,30 +143,6 @@ const PLAN_ROWS = [
   },
 ];
 
-const TESTIMONIALS = [
-  {
-    initials: 'MR',
-    name: 'Michael Rodriguez',
-    role: 'Owner, Golden Valley Pawn',
-    quote:
-      'PawnGold transformed how we manage our three locations. The real-time inventory sync alone has saved us countless hours.',
-  },
-  {
-    initials: 'SC',
-    name: 'Sarah Chen',
-    role: 'Operations Manager, QuickCash Pawnshop',
-    quote:
-      'The appraisal system and automated reporting have made our business much more efficient. Customer service is excellent.',
-  },
-  {
-    initials: 'DT',
-    name: 'David Thompson',
-    role: 'Founder, Premier Pawn Group',
-    quote:
-      'The security features and role-based access give us complete peace of mind across all our locations.',
-  },
-];
-
 const FAQ_ITEMS = [
   {
     question: 'How long does onboarding take?',
@@ -191,10 +167,19 @@ const FAQ_ITEMS = [
 ];
 
 const HERO_STATS_DEFAULT = [
-  { label: 'Active Pawnshops', value: '240+' },
-  { label: 'Average Onboarding', value: '48 Hours' },
-  { label: 'Platform Uptime', value: '99.9%' },
+  { label: 'Active Pawnshops', value: '—' },
+  { label: 'Average Onboarding', value: '—' },
+  { label: 'Platform Uptime', value: '—' },
 ];
+
+type ApprovedReview = {
+  id: string;
+  rating: number;
+  title: string | null;
+  comment: string;
+  pawnshopName: string | null;
+  createdAt: string;
+};
 
 const AUCTION_URL = import.meta.env.VITE_AUCTION_URL || 'https://pawngold-auctionhouse-v2.vercel.app';
 
@@ -238,6 +223,25 @@ export default function LandingPage() {
   });
   const emailCheckTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [heroStats, setHeroStats] = useState(HERO_STATS_DEFAULT);
+  const [communityReviews, setCommunityReviews] = useState<ApprovedReview[]>([]);
+  const [reviewsSummary, setReviewsSummary] = useState({ averageRating: 0, totalReviews: 0 });
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
+  const [cookieConsent, setCookieConsent] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('pawngold_cookie_consent') === 'accepted';
+    } catch {
+      return false;
+    }
+  });
+
+  const acceptCookies = () => {
+    try {
+      localStorage.setItem('pawngold_cookie_consent', 'accepted');
+    } catch {
+      /* storage unavailable */
+    }
+    setCookieConsent(true);
+  };
 
   const checkEmailAvailability = useCallback(async (email: string) => {
     if (!email || !email.includes('@')) {
@@ -402,6 +406,19 @@ export default function LandingPage() {
   }, []);
 
   useEffect(() => {
+    let mounted = true;
+    api
+      .get<{ reviews: ApprovedReview[]; summary: { averageRating: number; totalReviews: number } }>('/reviews')
+      .then((data) => {
+        if (!mounted) return;
+        setCommunityReviews(Array.isArray(data?.reviews) ? data.reviews : []);
+        setReviewsSummary(data?.summary ?? { averageRating: 0, totalReviews: 0 });
+      })
+      .catch(() => {});
+    return () => { mounted = false; };
+  }, []);
+
+  useEffect(() => {
     if (resendTimer <= 0) return;
     const id = setTimeout(() => setResendTimer((t) => t - 1), 1000);
     return () => clearTimeout(id);
@@ -454,6 +471,7 @@ export default function LandingPage() {
     setAuthStep('form');
     setOtpCode('');
     setResendTimer(0);
+    setAcceptedTerms(false);
     syncOwnerSessionContext().catch(() => {
       setOwnerUserId(null);
     });
@@ -497,6 +515,10 @@ export default function LandingPage() {
     }
     if (authForm.password !== authForm.confirmPassword) {
       setAuthError('Passwords do not match.');
+      return;
+    }
+    if (!acceptedTerms) {
+      setAuthError('You must agree to the Terms of Service and Privacy Policy to create an account.');
       return;
     }
 
@@ -1018,10 +1040,10 @@ export default function LandingPage() {
             </div>
             <div className="grid gap-4 md:grid-cols-4">
               {[
-                { title: 'End-to-End Encryption', desc: 'AES-256 encryption for all data in transit and at rest', icon: Lock },
+                { title: 'Encryption in Transit & at Rest', desc: 'Secure connections (TLS) and encrypted storage for sensitive records', icon: Lock },
                 { title: 'Tenant Isolation', desc: 'Complete data separation between every pawnshop account', icon: Shield },
                 { title: 'Admin Audit Logs', desc: 'Comprehensive audit trails for all administrative actions', icon: Users },
-                { title: '99.9% Uptime SLA', desc: 'Enterprise-grade servers with regular automated backups', icon: Building2 },
+                { title: 'Automated Backups', desc: 'Regular automated backups to keep your data protected', icon: Building2 },
               ].map((item) => {
                 const Icon = item.icon;
                 return (
@@ -1043,11 +1065,11 @@ export default function LandingPage() {
               style={{ background: 'rgba(201,160,92,0.05)', border: '1px solid rgba(201,160,92,0.15)' }}
             >
               <div>
-                <h3 className="text-[15px] font-semibold" style={{ color: 'var(--text-primary)' }}>GDPR & Privacy Compliant</h3>
-                <p className="mt-1 text-[13px]" style={{ color: 'var(--text-secondary)' }}>Strict data protection with full transparency.</p>
+                <h3 className="text-[15px] font-semibold" style={{ color: 'var(--text-primary)' }}>Data privacy by design</h3>
+                <p className="mt-1 text-[13px]" style={{ color: 'var(--text-secondary)' }}>Architected with the Philippine Data Privacy Act (RA 10173) in mind.</p>
               </div>
               <div className="flex gap-2">
-                {['ISO 27001', 'SOC 2 Type II', 'GDPR'].map((badge) => (
+                {['Data Encryption', 'Role-Based Access', 'Audit Trails'].map((badge) => (
                   <span
                     key={badge}
                     className="rounded-[8px] px-3 py-1 text-[11px] font-semibold"
@@ -1061,36 +1083,81 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {/* TESTIMONIALS */}
+        {/* REVIEWS */}
         <section className="mx-auto max-w-6xl px-6 py-16 lg:px-8">
-          <div className="reveal mb-10">
-            <h2 className="text-[32px] font-bold tracking-tight sm:text-[40px]" style={{ fontFamily: 'var(--font-display)', color: 'var(--text-primary)' }}>Trusted nationwide</h2>
-            <p className="mt-2 text-[15px]" style={{ color: 'var(--text-secondary)' }}>What pawnshop owners say about PawnGold.</p>
-          </div>
-          <div className="grid gap-4 lg:grid-cols-3">
-            {TESTIMONIALS.map((item) => (
-              <article key={item.name} className="reveal lp-card rounded-[20px] p-5">
-                <div className="mb-4 flex gap-0.5">
-                  {[1, 2, 3, 4, 5].map((star) => (
-                    <Star key={star} className="h-3.5 w-3.5 fill-current" style={{ color: 'var(--gold)' }} />
-                  ))}
-                </div>
-                <p className="text-[13px] leading-relaxed" style={{ color: 'var(--text-secondary)' }}>"{item.quote}"</p>
-                <div className="mt-5 flex items-center gap-3">
-                  <div
-                    className="flex h-9 w-9 items-center justify-center rounded-full text-[12px] font-bold flex-shrink-0"
-                    style={{ background: 'rgba(201,160,92,0.15)', border: '1px solid rgba(201,160,92,0.25)', color: 'var(--gold)' }}
-                  >
-                    {item.initials}
+          <div className="reveal mb-10 flex flex-wrap items-end justify-between gap-4">
+            <div>
+              <h2 className="text-[32px] font-bold tracking-tight sm:text-[40px]" style={{ fontFamily: 'var(--font-display)', color: 'var(--text-primary)' }}>Verified owner reviews</h2>
+              <p className="mt-2 text-[15px]" style={{ color: 'var(--text-secondary)' }}>Real feedback submitted by registered PawnGold owners.</p>
+            </div>
+            {reviewsSummary.totalReviews > 0 && (
+              <div
+                className="flex items-center gap-3 rounded-[14px] px-4 py-3"
+                style={{ background: 'rgba(20,20,27,0.9)', border: '1px solid rgba(201,160,92,0.15)' }}
+                aria-label={`Average rating ${reviewsSummary.averageRating} out of 5 from ${reviewsSummary.totalReviews} reviews`}
+              >
+                <p className="text-[24px] font-bold" style={{ color: 'var(--gold)', fontFamily: 'var(--font-display)' }}>{reviewsSummary.averageRating}</p>
+                <div>
+                  <div className="flex gap-0.5">
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <Star
+                        key={star}
+                        className={`h-3 w-3 ${star <= Math.round(reviewsSummary.averageRating) ? 'fill-current' : ''}`}
+                        style={{ color: 'var(--gold)' }}
+                      />
+                    ))}
                   </div>
-                  <div>
-                    <p className="text-[13px] font-semibold" style={{ color: 'var(--text-primary)' }}>{item.name}</p>
-                    <p className="text-[11px]" style={{ color: 'var(--text-muted)' }}>{item.role}</p>
-                  </div>
+                  <p className="mt-0.5 text-[11px]" style={{ color: 'var(--text-muted)' }}>
+                    Based on {reviewsSummary.totalReviews} verified review{reviewsSummary.totalReviews !== 1 ? 's' : ''}
+                  </p>
                 </div>
-              </article>
-            ))}
+              </div>
+            )}
           </div>
+          {communityReviews.length === 0 ? (
+            <div className="reveal lp-card rounded-[20px] p-10 text-center">
+              <p className="text-[14px]" style={{ color: 'var(--text-secondary)' }}>
+                No published reviews yet. Owners can share their experience after signing up.
+              </p>
+              <p className="mt-2 text-[12px]" style={{ color: 'var(--text-muted)' }}>
+                Every review is moderated before it appears here.
+              </p>
+            </div>
+          ) : (
+            <div className="grid gap-4 lg:grid-cols-3">
+              {communityReviews.map((item) => (
+                <article key={item.id} className="reveal lp-card rounded-[20px] p-5">
+                  <div className="mb-4 flex items-center justify-between">
+                    <div className="flex gap-0.5" aria-label={`${item.rating} out of 5 stars`}>
+                      {[1, 2, 3, 4, 5].map((star) => (
+                        <Star
+                          key={star}
+                          className={`h-3.5 w-3.5 ${star <= item.rating ? 'fill-current' : ''}`}
+                          style={{ color: 'var(--gold)' }}
+                        />
+                      ))}
+                    </div>
+                    <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
+                      {new Date(item.createdAt).toLocaleDateString()}
+                    </span>
+                  </div>
+                  {item.title && <p className="text-[13px] font-semibold" style={{ color: 'var(--text-primary)' }}>{item.title}</p>}
+                  <p className="mt-1 text-[13px] leading-relaxed" style={{ color: 'var(--text-secondary)' }}>"{item.comment}"</p>
+                  <div className="mt-5 flex items-center gap-2.5">
+                    <div
+                      className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full text-[11px] font-bold"
+                      style={{ background: 'rgba(201,160,92,0.15)', border: '1px solid rgba(201,160,92,0.25)', color: 'var(--gold)' }}
+                    >
+                      P
+                    </div>
+                    <p className="text-[12px]" style={{ color: 'var(--text-muted)' }}>
+                      {item.pawnshopName ? `${item.pawnshopName} · Verified Owner` : 'Verified Owner'}
+                    </p>
+                  </div>
+                </article>
+              ))}
+            </div>
+          )}
         </section>
 
         {/* FAQ */}
@@ -1189,23 +1256,69 @@ export default function LandingPage() {
           </div>
 
           {[
-            { label: 'Product', items: ['Features', 'Pricing', 'Security', 'Integrations', 'API'] },
-            { label: 'Company', items: ['About Us', 'Blog', 'Careers', 'Press Kit', 'Contact'] },
-            { label: 'Legal', items: ['Privacy Policy', 'Terms of Service', 'Cookie Policy', 'GDPR', 'Compliance'] },
+            {
+              label: 'Product',
+              items: [
+                { label: 'Features', href: '#features' },
+                { label: 'Pricing', href: '#pricing' },
+                { label: 'Security', href: '#security' },
+                { label: 'FAQ', href: '#faq' },
+              ],
+            },
+            {
+              label: 'Legal',
+              items: [
+                { label: 'Terms of Service', href: '/terms' },
+                { label: 'Privacy Policy', href: '/privacy' },
+                { label: 'Cookie Policy', href: '/cookies' },
+                { label: 'Refund & Cancellation', href: '/refunds' },
+              ],
+            },
           ].map((col) => (
             <div key={col.label} className="reveal">
               <p className="text-[13px] font-semibold uppercase tracking-[0.12em] mb-3" style={{ color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>{col.label}</p>
               <ul className="space-y-2">
                 {col.items.map((item) => (
-                  <li key={item} className="text-[13px] cursor-pointer" style={{ color: 'var(--text-secondary)' }}>{item}</li>
+                  <li key={item.label}>
+                    {item.href.startsWith('#') ? (
+                      <button
+                        type="button"
+                        onClick={() => scrollToSection(item.href)}
+                        className="text-[13px] transition-colors hover:opacity-80"
+                        style={{ color: 'var(--text-secondary)' }}
+                      >
+                        {item.label}
+                      </button>
+                    ) : (
+                      <Link to={item.href} className="text-[13px] transition-colors hover:opacity-80" style={{ color: 'var(--text-secondary)' }}>
+                        {item.label}
+                      </Link>
+                    )}
+                  </li>
                 ))}
               </ul>
             </div>
           ))}
+
+          <div className="reveal">
+            <p className="text-[13px] font-semibold uppercase tracking-[0.12em] mb-3" style={{ color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>Contact</p>
+            <ul className="space-y-2 text-[13px]" style={{ color: 'var(--text-secondary)' }}>
+              <li>Dasmarinas, Cavite, Philippines</li>
+              <li>Academic capstone project</li>
+            </ul>
+            <p className="mt-4 text-[11px] leading-relaxed" style={{ color: 'var(--text-dim)' }}>
+              Built as a thesis project for demonstration and educational purposes only.
+            </p>
+          </div>
         </div>
 
         <div className="mx-auto mt-10 max-w-6xl border-t px-6 pt-6 text-[12px] lg:px-8" style={{ borderColor: 'rgba(201,160,92,0.08)', color: 'var(--text-dim)' }}>
           <p>© 2026 PawnGold. All rights reserved.</p>
+          <p className="mt-2 max-w-3xl leading-relaxed">
+            PawnGold is an academic thesis and capstone project. The platform is provided for demonstration
+            and educational use only and is not a registered financial institution, money service business,
+            or pawnshop operator. Products and services described are illustrative and may not be commercially available.
+          </p>
         </div>
       </footer>
 
@@ -1291,6 +1404,7 @@ export default function LandingPage() {
                       value={authForm.fullName}
                       onChange={(e) => setAuthForm((prev) => ({ ...prev, fullName: e.target.value }))}
                       placeholder="Enter your full name"
+                      aria-label="Full name"
                       className="w-full rounded-[12px] px-3.5 py-2.5 text-[13px] outline-none"
                       style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(201,160,92,0.15)', color: 'var(--text-primary)' }}
                       required
@@ -1303,6 +1417,7 @@ export default function LandingPage() {
                     name="ownerEmail"
                     autoComplete="off"
                     placeholder="Type your email address"
+                    aria-label="Email address"
                     className="w-full rounded-[12px] px-3.5 py-2.5 text-[13px] outline-none"
                     style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(201,160,92,0.15)', color: 'var(--text-primary)' }}
                     required
@@ -1323,6 +1438,7 @@ export default function LandingPage() {
                       name="ownerPassword"
                       autoComplete="new-password"
                       placeholder="Enter your password"
+                      aria-label="Password"
                       className="rounded-[12px] px-3.5 py-2.5 text-[13px] outline-none"
                       style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(201,160,92,0.15)', color: 'var(--text-primary)' }}
                       required
@@ -1335,12 +1451,32 @@ export default function LandingPage() {
                         name="ownerConfirmPassword"
                         autoComplete="new-password"
                         placeholder="Re-enter your password"
+                        aria-label="Confirm password"
                         className="rounded-[12px] px-3.5 py-2.5 text-[13px] outline-none"
                         style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(201,160,92,0.15)', color: 'var(--text-primary)' }}
                         required
                       />
                     )}
                   </div>
+
+                  {authMode === 'signup' && (
+                    <label className="flex items-start gap-2.5 pt-1 cursor-pointer" htmlFor="owner-terms-consent">
+                      <input
+                        id="owner-terms-consent"
+                        type="checkbox"
+                        checked={acceptedTerms}
+                        onChange={(e) => setAcceptedTerms(e.target.checked)}
+                        className="mt-0.5 h-4 w-4 shrink-0 rounded accent-[#C9A05C]"
+                        required
+                      />
+                      <span className="text-[12px] leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
+                        I have read and agree to the{' '}
+                        <Link to="/terms" className="underline" style={{ color: 'var(--gold)' }}>Terms of Service</Link>{' '}
+                        and{' '}
+                        <Link to="/privacy" className="underline" style={{ color: 'var(--gold)' }}>Privacy Policy</Link>.
+                      </span>
+                    </label>
+                  )}
 
                   {authMessage && (
                     <p className="rounded-[10px] px-3 py-2 text-[12px]" style={{ background: 'rgba(61,168,108,0.1)', color: 'var(--green)', border: '1px solid rgba(61,168,108,0.2)' }}>{authMessage}</p>
@@ -1360,7 +1496,7 @@ export default function LandingPage() {
                     </button>
                     <button
                       type="button"
-                      onClick={() => { setAuthError(null); setAuthMessage(null); setAuthMode((prev) => (prev === 'signup' ? 'signin' : 'signup')); }}
+                      onClick={() => { setAuthError(null); setAuthMessage(null); setAcceptedTerms(false); setAuthMode((prev) => (prev === 'signup' ? 'signin' : 'signup')); }}
                       className="rounded-[12px] px-4 py-2.5 text-[13px] font-medium transition-all"
                       style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: 'var(--text-secondary)' }}
                     >
@@ -1386,6 +1522,7 @@ export default function LandingPage() {
                     inputMode="numeric"
                     maxLength={6}
                     placeholder="000000"
+                    aria-label="6-digit verification code"
                     className="w-full rounded-[12px] px-3.5 py-3 text-[20px] text-center tracking-[0.4em] font-mono outline-none"
                     style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(201,160,92,0.15)', color: 'var(--text-primary)' }}
                     autoFocus
@@ -1455,6 +1592,52 @@ export default function LandingPage() {
                 </div>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* COOKIE CONSENT */}
+      {!cookieConsent && (
+        <div
+          className="fixed bottom-4 left-4 right-4 z-[110] sm:right-auto sm:max-w-sm"
+          role="dialog"
+          aria-label="Cookie notice"
+        >
+          <div
+            className="rounded-[16px] p-5"
+            style={{
+              background: 'rgba(20,20,27,0.98)',
+              border: '1px solid rgba(201,160,92,0.2)',
+              boxShadow: '0 24px 64px rgba(0,0,0,0.5)',
+            }}
+          >
+            <p className="text-[13px] font-semibold" style={{ color: 'var(--text-primary)' }}>Your privacy</p>
+            <p className="mt-1.5 text-[12px] leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
+              PawnGold does not use tracking cookies. We only store essential session data locally
+              so you can sign in. See our{' '}
+              <Link to="/cookies" className="underline" style={{ color: 'var(--gold)' }}>Cookie Policy</Link> for details.
+            </p>
+            <div className="mt-4 flex gap-2">
+              <button
+                type="button"
+                onClick={acceptCookies}
+                className="rounded-[10px] px-4 py-2 text-[12px] font-semibold transition-all active:scale-[0.97]"
+                style={{
+                  background: 'linear-gradient(135deg, #C9A05C 0%, #A07D40 100%)',
+                  color: '#0A0A0F',
+                  border: '1px solid rgba(201,160,92,0.45)',
+                }}
+              >
+                Got it
+              </button>
+              <Link
+                to="/cookies"
+                className="rounded-[10px] px-4 py-2 text-[12px] font-medium transition-all"
+                style={{ border: '1px solid rgba(255,255,255,0.1)', color: 'var(--text-secondary)' }}
+              >
+                Learn more
+              </Link>
+            </div>
           </div>
         </div>
       )}
