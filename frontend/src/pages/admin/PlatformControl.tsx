@@ -18,6 +18,7 @@ export function PlatformControl({ userRole }: PlatformControlProps) {
   const [isArchiving, setIsArchiving] = useState(false);
   const [staffAccounts, setStaffAccounts] = useState<any[]>([]);
   const [loadingStaff, setLoadingStaff] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'archived'>('all');
 
   const isSuperAdmin = userRole === 'SUPER' || userRole === 'SUPER_ADMIN' || userRole === 'Super Admin';
 
@@ -113,10 +114,13 @@ export function PlatformControl({ userRole }: PlatformControlProps) {
     }
   };
 
-  const filteredShops = pawnshops.filter(shop =>
-    (shop.name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-    (shop.contactEmail || shop.owner_email || '').toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredShops = pawnshops.filter(shop => {
+    const matchesSearch = (shop.name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (shop.contactEmail || shop.owner_email || '').toLowerCase().includes(searchQuery.toLowerCase());
+    if (statusFilter === 'active') return matchesSearch && shop.status !== 'ARCHIVED';
+    if (statusFilter === 'archived') return matchesSearch && shop.status === 'ARCHIVED';
+    return matchesSearch;
+  });
 
   const fetchStaffAccounts = async (pawnshopId: string) => {
     setLoadingStaff(true);
@@ -156,6 +160,25 @@ export function PlatformControl({ userRole }: PlatformControlProps) {
           onChange={(e) => setSearchQuery(e.target.value)}
           className="w-full pl-14 pr-6 py-4 rounded-2xl border border-[rgba(201,160,92,0.08)] bg-[#14141B] shadow-sm outline-none font-medium text-[#F5F0E8]"
         />
+      </div>
+
+      <div className="flex gap-2">
+        {(['all', 'active', 'archived'] as const).map((tab) => {
+          const count = tab === 'all' ? pawnshops.length : pawnshops.filter(s => tab === 'archived' ? s.status === 'ARCHIVED' : s.status !== 'ARCHIVED').length;
+          return (
+            <button
+              key={tab}
+              onClick={() => setStatusFilter(tab)}
+              className={`px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                statusFilter === tab
+                  ? 'bg-[#C9A05C] text-white'
+                  : 'bg-[#1C1C26] text-[#8A8279] hover:text-[#F5F0E8]'
+              }`}
+            >
+              {tab} ({count})
+            </button>
+          );
+        })}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 text-left">
