@@ -19,6 +19,12 @@ describe('AttendanceService', () => {
         create: jest.fn(),
         update: jest.fn(),
       },
+      profile: {
+        findUnique: jest.fn(),
+      },
+      staffSchedule: {
+        findUnique: jest.fn().mockResolvedValue(null),
+      },
     };
 
     const module: TestingModule = await Test.createTestingModule({

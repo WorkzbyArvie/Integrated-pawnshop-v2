@@ -3,6 +3,9 @@ import { AuctionSettlementService } from './auction-settlement.service';
 import { PrismaService } from '../prisma.service';
 import { AuctionStatus, ComplianceStatus } from '@prisma/client';
 import { ContractTemplateService } from '../contract/contract-template.service';
+import { LegalProofService } from '../loan/legal-proof.service';
+import { ReceiptService } from '../receipt/receipt.service';
+import { NotificationService } from '../notification/notification.service';
 
 describe('AuctionSettlementService', () => {
   let service: AuctionSettlementService;
@@ -39,6 +42,18 @@ describe('AuctionSettlementService', () => {
         {
           provide: ContractTemplateService,
           useValue: { listTemplates: jest.fn(), getTemplate: jest.fn() },
+        },
+        {
+          provide: LegalProofService,
+          useValue: { createProof: jest.fn() },
+        },
+        {
+          provide: ReceiptService,
+          useValue: { generateReceipt: jest.fn() },
+        },
+        {
+          provide: NotificationService,
+          useValue: { sendNotification: jest.fn() },
         },
       ],
     }).compile();

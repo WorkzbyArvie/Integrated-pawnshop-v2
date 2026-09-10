@@ -14,6 +14,7 @@ describe('NotificationService', () => {
 
   beforeEach(async () => {
     prisma = {
+      ensureConnected: jest.fn().mockResolvedValue(true),
       pushToken: {
         upsert: jest.fn(),
         findMany: jest.fn(),

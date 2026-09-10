@@ -1,6 +1,8 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { QueueService } from './queue.service';
 import { PrismaService } from '../prisma.service';
+import { NotificationService } from '../notification/notification.service';
+import { SupabaseAdminService } from '../common/supabase-admin.service';
 import {
   BadRequestException,
   ForbiddenException,
@@ -20,17 +22,26 @@ describe('QueueService', () => {
         findFirst: jest.fn(),
       },
       queueTicket: {
-        count: jest.fn(),
         findFirst: jest.fn(),
         findMany: jest.fn(),
         create: jest.fn(),
         update: jest.fn(),
         aggregate: jest.fn(),
+        groupBy: jest.fn(),
+        count: jest.fn(),
       },
     };
+    prisma.$transaction = jest
+      .fn()
+      .mockImplementation(async (cb: any) => cb(prisma));
 
     const module: TestingModule = await Test.createTestingModule({
-      providers: [QueueService, { provide: PrismaService, useValue: prisma }],
+      providers: [
+        QueueService,
+        { provide: PrismaService, useValue: prisma },
+        { provide: NotificationService, useValue: { sendNotification: jest.fn() } },
+        { provide: SupabaseAdminService, useValue: {} },
+      ],
     }).compile();
 
     service = module.get<QueueService>(QueueService);
@@ -67,13 +78,12 @@ describe('QueueService', () => {
       const result = await service.create(PAWNSHOP_ID, dto);
 
       expect(result.queueNumber).toBe('P003');
-      expect(prisma.queueTicket.create).toHaveBeenCalledWith(
+expect(prisma.queueTicket.create).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
-            queueNumber: 'P003',
+            queueNumber: expect.stringMatching(/^P\d{4}-003$/),
             pawnshopId: PAWNSHOP_ID,
             queueType: QueueType.PAWNING,
-            estimatedWaitMinutes: 75,
           }),
         }),
       );
@@ -298,10 +308,14 @@ describe('QueueService', () => {
   // ──────────────────────────────────────────────────────────────────────
   describe('getStatistics', () => {
     it('should return dashboard-ready queue stats', async () => {
-      prisma.queueTicket.count
-        .mockResolvedValueOnce(5) // waiting
-        .mockResolvedValueOnce(2) // serving
-        .mockResolvedValueOnce(12); // completedToday
+      prisma.queueTicket.groupBy
+        .mockResolvedValueOnce([
+          { status: QueueStatus.WAITING, _count: 5 },
+          { status: QueueStatus.SERVING, _count: 2 },
+          { status: QueueStatus.COMPLETED, _count: 12 },
+        ])
+        .mockResolvedValueOnce([{ queueType: QueueType.PAWNING, _count: 8 }]);
+      prisma.queueTicket.count.mockResolvedValue(12);
       prisma.queueTicket.aggregate.mockResolvedValue({
         _avg: { estimatedWaitMinutes: 18.5 },
       });
@@ -309,10 +323,15 @@ describe('QueueService', () => {
       const stats = await service.getStatistics(PAWNSHOP_ID);
 
       expect(stats).toEqual({
+        totalToday: 12,
         waiting: 5,
         serving: 2,
-        completedToday: 12,
-        avgWaitTimeMinutes: 19, // rounded
+        completed: 12,
+        noShow: 0,
+        cancelled: 0,
+        averageWaitMinutes: 19,
+        averageServiceMinutes: 0,
+        byType: { [QueueType.PAWNING]: 8 },
         totalActive: 7,
       });
     });

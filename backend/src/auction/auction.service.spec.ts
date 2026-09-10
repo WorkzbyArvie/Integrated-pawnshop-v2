@@ -5,6 +5,7 @@ import { AuctionStatus } from '@prisma/client';
 import { FinanceService } from '../finance/finance.service';
 import { TOSService } from '../contract/tos.service';
 import { ContractTemplateService } from '../contract/contract-template.service';
+import { NotificationService } from '../notification/notification.service';
 
 const prismaMock = {
   ticket: {
@@ -23,6 +24,7 @@ const prismaMock = {
   },
   auctionBid: {
     create: jest.fn(),
+    findFirst: jest.fn(),
   },
   auctionImage: {
     createMany: jest.fn(),
@@ -36,7 +38,12 @@ const prismaMock = {
   legalProof: {
     create: jest.fn(),
   },
+  approvalRecord: {
+    findMany: jest.fn().mockResolvedValue([]),
+  },
   $transaction: jest.fn(),
+  $queryRaw: jest.fn(),
+  $executeRaw: jest.fn(),
 };
 
 const financeMock = {
@@ -52,6 +59,12 @@ const tosServiceMock = {
 const contractTemplateServiceMock = {
   listTemplates: jest.fn(),
   getTemplate: jest.fn(),
+};
+
+const notificationServiceMock = {
+  sendNotification: jest.fn(),
+  notifyOutbid: jest.fn(),
+  notifyAuctionWon: jest.fn(),
 };
 
 describe('AuctionService', () => {
@@ -77,6 +90,10 @@ describe('AuctionService', () => {
           provide: ContractTemplateService,
           useValue: contractTemplateServiceMock,
         },
+        {
+          provide: NotificationService,
+          useValue: notificationServiceMock,
+        },
       ],
     }).compile();
 
@@ -92,11 +109,15 @@ describe('AuctionService', () => {
     prismaMock.auctionListing.updateMany.mockReset();
     prismaMock.auctionListing.findMany.mockReset();
     prismaMock.auctionBid.create.mockReset();
+    prismaMock.auctionBid.findFirst.mockReset();
     prismaMock.auctionImage.createMany.mockReset();
     prismaMock.profile.findUnique.mockReset();
     prismaMock.bidderKyc.findUnique.mockReset();
     prismaMock.$transaction.mockReset();
+    prismaMock.$queryRaw.mockReset();
+    prismaMock.$executeRaw.mockReset();
     prismaMock.legalProof.create.mockReset();
+    prismaMock.approvalRecord.findMany.mockReset().mockResolvedValue([]);
     financeMock.createEntry.mockReset();
     tosServiceMock.hasAccepted.mockReset();
     tosServiceMock.acceptTOS.mockReset();
@@ -288,6 +309,12 @@ describe('AuctionService', () => {
         expiryDate: new Date('2026-03-01T00:00:00.000Z'),
         listingId: 9,
         listingStatus: AuctionStatus.LIVE,
+        detailsApprovalRecordId: null,
+        detailsPendingApproval: false,
+        disclosureNotes: null,
+        itemCondition: null,
+        itemSpecifications: null,
+        provenanceDetails: null,
       },
     ]);
   });
