@@ -1798,7 +1798,6 @@ export class AppService {
   // --- PAWNSHOPS ---
   async getAllPawnshops() {
     return await this.prisma.pawnshop.findMany({
-      where: { isActive: true },
       orderBy: { name: 'asc' },
       select: {
         id: true,
