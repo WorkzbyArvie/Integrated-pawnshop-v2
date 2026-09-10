@@ -2806,7 +2806,7 @@ export class TenantGovernanceService {
 
     const currentActive = rows[0].is_active ?? true;
     const updated = await this.prisma.$queryRaw<Array<{ id: string; is_active: boolean }>>`
-      UPDATE public.pawnshops SET is_active = ${!currentActive}, updated_at = NOW()
+      UPDATE public.pawnshops SET is_active = ${!currentActive}
       WHERE id = ${pawnshopId}::uuid
       RETURNING id, is_active
     `;
@@ -2835,7 +2835,7 @@ export class TenantGovernanceService {
     if (!rows.length) throw new NotFoundException('Pawnshop not found');
 
     await this.prisma.$executeRaw`
-      UPDATE public.pawnshops SET settings = ${JSON.stringify(settings)}::jsonb, updated_at = NOW()
+      UPDATE public.pawnshops SET settings = ${JSON.stringify(settings)}::jsonb
       WHERE id = ${pawnshopId}::uuid
     `;
 
@@ -2876,7 +2876,7 @@ export class TenantGovernanceService {
     }
 
     await this.prisma.$executeRaw`
-      UPDATE public.pawnshops SET settings = ${JSON.stringify(updated)}::jsonb, updated_at = NOW()
+      UPDATE public.pawnshops SET settings = ${JSON.stringify(updated)}::jsonb
       WHERE id = ${pawnshopId}::uuid
     `;
 
