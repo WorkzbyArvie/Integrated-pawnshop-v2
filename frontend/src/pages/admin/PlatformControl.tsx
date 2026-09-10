@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import {
   Building2, Globe, Loader2,
-  X, Trash2, AlertTriangle, Search, TrendingUp, CreditCard, Users, UserCircle2, Shield
+  X, Archive, ArchiveRestore, AlertTriangle, Search, TrendingUp, CreditCard, Users, UserCircle2, Shield
 } from 'lucide-react';
 import Swal from 'sweetalert2';
 import api from '../../lib/apiClient';
@@ -13,9 +13,9 @@ interface PlatformControlProps {
 export function PlatformControl({ userRole }: PlatformControlProps) {
   const [pawnshops, setPawnshops] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
-  const [shopToDelete, setShopToDelete] = useState<any>(null);
+  const [shopToArchive, setShopToArchive] = useState<any>(null);
   const [selectedShop, setSelectedShop] = useState<any>(null);
-  const [isDeleting, setIsDeleting] = useState(false);
+  const [isArchiving, setIsArchiving] = useState(false);
   const [staffAccounts, setStaffAccounts] = useState<any[]>([]);
   const [loadingStaff, setLoadingStaff] = useState(false);
 
@@ -78,18 +78,28 @@ export function PlatformControl({ userRole }: PlatformControlProps) {
     }
   };
 
-  const handleDeleteConfirm = async () => {
-    if (!shopToDelete) return;
-    setIsDeleting(true);
+  const handleArchiveConfirm = async () => {
+    if (!shopToArchive) return;
+    setIsArchiving(true);
     try {
-      await api.post(`/tenant-governance/pawnshops/${shopToDelete.id}/delete`);
-      showNotification(`${shopToDelete.name} has been removed.`);
+      await api.post(`/tenant-governance/pawnshops/${shopToArchive.id}/archive`);
+      showNotification(`${shopToArchive.name} has been archived.`);
       await fetchPawnshops();
-      setShopToDelete(null);
+      setShopToArchive(null);
     } catch (err: unknown) {
-      showNotification((err instanceof Error ? err.message : String(err)) || "Failed to delete pawnshop.", "error");
+      showNotification((err instanceof Error ? err.message : String(err)) || "Failed to archive pawnshop.", "error");
     } finally {
-      setIsDeleting(false);
+      setIsArchiving(false);
+    }
+  };
+
+  const handleRestore = async (shop: any) => {
+    try {
+      await api.post(`/tenant-governance/pawnshops/${shop.id}/restore`);
+      showNotification(`${shop.name} has been restored.`);
+      await fetchPawnshops();
+    } catch (err: unknown) {
+      showNotification((err instanceof Error ? err.message : String(err)) || "Failed to restore pawnshop.", "error");
     }
   };
 
@@ -156,14 +166,23 @@ export function PlatformControl({ userRole }: PlatformControlProps) {
                 <Building2 size={24} />
               </div>
               <div className="flex gap-2 items-center">
-                <button onClick={() => setShopToDelete(shop)} className="p-2 text-slate-300 hover:text-rose-500 transition-colors"><Trash2 size={18} /></button>
+                {shop.status === 'ARCHIVED' ? (
+                  <button onClick={() => handleRestore(shop)} className="p-2 text-slate-300 hover:text-emerald-500 transition-colors" title="Restore"><ArchiveRestore size={18} /></button>
+                ) : (
+                  <button onClick={() => setShopToArchive(shop)} className="p-2 text-slate-300 hover:text-amber-500 transition-colors" title="Archive"><Archive size={18} /></button>
+                )}
                 <button onClick={() => toggleShopStatus(shop.id, shop.isActive)} className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase border transition-all ${shop.isActive ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-rose-50 text-rose-600 border-rose-100'}`}>
                   {shop.isActive ? 'Active' : 'Suspended'}
                 </button>
               </div>
             </div>
 
-            <h3 className="font-bold text-2xl text-[#F5F0E8] mb-1 tracking-tight">{shop.name}</h3>
+            <div className="flex items-center gap-2 mb-1">
+              <h3 className="font-bold text-2xl text-[#F5F0E8] tracking-tight">{shop.name}</h3>
+              {shop.status === 'ARCHIVED' && (
+                <span className="px-2 py-0.5 bg-amber-500/20 text-amber-500 text-[9px] font-black uppercase rounded-full">Archived</span>
+              )}
+            </div>
             <p className="text-sm text-[#8A8279] font-medium mb-6 italic">{shop.contactEmail || 'No email'}</p>
 
             <div className="inline-flex items-center gap-2 px-4 py-2 bg-[#1C1C26] rounded-xl border border-[rgba(201,160,92,0.08)] mb-6">
@@ -286,17 +305,17 @@ export function PlatformControl({ userRole }: PlatformControlProps) {
         </div>
       )}
 
-      {shopToDelete && (
+      {shopToArchive && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-[#030213]/60 backdrop-blur-sm animate-in fade-in" onClick={() => setShopToDelete(null)} />
+          <div className="absolute inset-0 bg-[#030213]/60 backdrop-blur-sm animate-in fade-in" onClick={() => setShopToArchive(null)} />
           <div className="relative bg-[#14141B] w-full max-w-md rounded-[40px] p-10 shadow-2xl border border-[rgba(201,160,92,0.08)] text-left">
-            <AlertTriangle className="text-rose-500 mb-6" size={32} />
-            <h2 className="text-3xl font-black text-[#F5F0E8] tracking-tighter uppercase italic mb-4 leading-none">Confirm Delete</h2>
-            <p className="text-[#8A8279] font-medium mb-8 leading-relaxed">Remove <span className="text-[#F5F0E8] font-bold underline">"{shopToDelete.name}"</span>? All branches, staff, and data under this tenant will be affected.</p>
+            <Archive className="text-amber-500 mb-6" size={32} />
+            <h2 className="text-3xl font-black text-[#F5F0E8] tracking-tighter uppercase italic mb-4 leading-none">Archive Tenant</h2>
+            <p className="text-[#8A8279] font-medium mb-8 leading-relaxed">Archive <span className="text-[#F5F0E8] font-bold underline">"{shopToArchive.name}"</span>? The tenant will be disabled but data will be preserved. You can restore it later.</p>
             <div className="flex gap-4">
-              <button onClick={() => setShopToDelete(null)} className="flex-1 py-4 rounded-2xl bg-[#1C1C26] text-[#B8B0A4] font-bold text-xs uppercase">Cancel</button>
-              <button onClick={handleDeleteConfirm} disabled={isDeleting} className="flex-1 py-4 rounded-2xl bg-rose-500 text-white font-black text-xs uppercase flex items-center justify-center gap-2">
-                {isDeleting ? <Loader2 className="animate-spin" size={16} /> : 'Delete'}
+              <button onClick={() => setShopToArchive(null)} className="flex-1 py-4 rounded-2xl bg-[#1C1C26] text-[#B8B0A4] font-bold text-xs uppercase">Cancel</button>
+              <button onClick={handleArchiveConfirm} disabled={isArchiving} className="flex-1 py-4 rounded-2xl bg-amber-500 text-white font-black text-xs uppercase flex items-center justify-center gap-2">
+                {isArchiving ? <Loader2 className="animate-spin" size={16} /> : 'Archive'}
               </button>
             </div>
           </div>

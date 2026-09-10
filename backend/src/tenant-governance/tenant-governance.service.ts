@@ -2915,40 +2915,62 @@ export class TenantGovernanceService {
     }
   }
 
-  async deletePawnshop(actorUserId: string, pawnshopId: string) {
+  async archivePawnshop(actorUserId: string, pawnshopId: string) {
     const actor = await this.getProfileOrThrow(actorUserId);
     this.assertRole(actor, ['SUPER_ADMIN']);
 
-    const rows = await this.prisma.$queryRaw<Array<{ id: string }>>`
-      SELECT id FROM public.pawnshops WHERE id = ${pawnshopId}::uuid LIMIT 1
+    const rows = await this.prisma.$queryRaw<Array<{ id: string; status: string }>>`
+      SELECT id, status FROM public.pawnshops WHERE id = ${pawnshopId}::uuid LIMIT 1
     `;
     if (!rows.length) throw new NotFoundException('Pawnshop not found');
 
-    const ticketRows = await this.prisma.$queryRaw<Array<{ id: number }>>`
-      SELECT id FROM public.ticket WHERE pawnshop_id = ${pawnshopId}::uuid
-    `;
-    const ticketIds = ticketRows.map((t) => t.id);
-
-    if (ticketIds.length > 0) {
-      await this.prisma.$executeRaw`DELETE FROM public.loan WHERE ticketid = ANY(${ticketIds})`;
-      await this.prisma.$executeRaw`DELETE FROM public.inventory WHERE ticketid = ANY(${ticketIds})`;
-      await this.prisma.$executeRaw`DELETE FROM public.transaction WHERE ticketid = ANY(${ticketIds})`;
-      await this.prisma.$executeRaw`DELETE FROM public.ticket WHERE id = ANY(${ticketIds})`;
+    if (rows[0].status === 'ARCHIVED') {
+      throw new BadRequestException('Pawnshop is already archived');
     }
 
-    await this.prisma.$executeRaw`DELETE FROM public.admin_invites WHERE pawnshop_id = ${pawnshopId}::uuid`;
-    await this.prisma.$executeRaw`DELETE FROM public.profiles WHERE pawnshop_id = ${pawnshopId}::uuid`;
-    await this.prisma.$executeRaw`DELETE FROM public.customer WHERE pawnshop_id = ${pawnshopId}::uuid`;
-    await this.prisma.$executeRaw`DELETE FROM public.pawnshops WHERE id = ${pawnshopId}::uuid`;
+    await this.prisma.$executeRaw`
+      UPDATE public.pawnshops 
+      SET status = 'ARCHIVED', is_active = false, updated_at = NOW()
+      WHERE id = ${pawnshopId}::uuid
+    `;
 
     await this.logAudit({
       pawnshopId,
       actorUserId,
-      action: 'PAWNSHOP_DELETED',
-      metadata: { deletedTickets: ticketIds.length },
+      action: 'PAWNSHOP_ARCHIVED',
+      metadata: { previousStatus: rows[0].status },
     });
 
-    return { success: true };
+    return { success: true, message: 'Pawnshop archived successfully' };
+  }
+
+  async restorePawnshop(actorUserId: string, pawnshopId: string) {
+    const actor = await this.getProfileOrThrow(actorUserId);
+    this.assertRole(actor, ['SUPER_ADMIN']);
+
+    const rows = await this.prisma.$queryRaw<Array<{ id: string; status: string }>>`
+      SELECT id, status FROM public.pawnshops WHERE id = ${pawnshopId}::uuid LIMIT 1
+    `;
+    if (!rows.length) throw new NotFoundException('Pawnshop not found');
+
+    if (rows[0].status !== 'ARCHIVED') {
+      throw new BadRequestException('Pawnshop is not archived');
+    }
+
+    await this.prisma.$executeRaw`
+      UPDATE public.pawnshops 
+      SET status = 'ACTIVE', is_active = true, updated_at = NOW()
+      WHERE id = ${pawnshopId}::uuid
+    `;
+
+    await this.logAudit({
+      pawnshopId,
+      actorUserId,
+      action: 'PAWNSHOP_RESTORED',
+      metadata: { previousStatus: rows[0].status },
+    });
+
+    return { success: true, message: 'Pawnshop restored successfully' };
   }
 
   async createPawnshopDirect(actorUserId: string, dto: any) {

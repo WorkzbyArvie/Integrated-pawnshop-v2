@@ -426,14 +426,24 @@ export class TenantGovernanceController {
     return this.tenantGovernanceService.updatePawnshopContractTerms(userId, id, body);
   }
 
-  @Post('pawnshops/:id/delete')
+  @Post('pawnshops/:id/archive')
   @RequiresPermission(PERMISSIONS['platform.manage'])
-  async deletePawnshop(
+  async archivePawnshop(
     @Headers('authorization') authHeader: string | undefined,
     @Param('id') id: string,
   ) {
     const userId = await this.authUserService.getUserIdFromAuthHeader(authHeader);
-    return this.tenantGovernanceService.deletePawnshop(userId, id);
+    return this.tenantGovernanceService.archivePawnshop(userId, id);
+  }
+
+  @Post('pawnshops/:id/restore')
+  @RequiresPermission(PERMISSIONS['platform.manage'])
+  async restorePawnshop(
+    @Headers('authorization') authHeader: string | undefined,
+    @Param('id') id: string,
+  ) {
+    const userId = await this.authUserService.getUserIdFromAuthHeader(authHeader);
+    return this.tenantGovernanceService.restorePawnshop(userId, id);
   }
 
   @Get('pawnshops/:id/staff')
