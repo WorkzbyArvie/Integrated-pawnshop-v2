@@ -2,34 +2,32 @@ import { useState, useEffect } from 'react';
 import {
   Building2, Users, Activity,
   Clock, DollarSign, Loader2, RefreshCcw,
-  Plus, UserPlus,
+  TrendingUp, AlertTriangle,
 } from 'lucide-react';
+import {
+  PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip,
+  ResponsiveContainer, Legend,
+} from 'recharts';
 import Swal from 'sweetalert2';
 import api from '../../lib/apiClient';
+
+const GOLD = '#C9A05C';
+const COLORS = ['#C9A05C', '#34D399', '#60A5FA', '#F87171', '#FBBF24', '#A78BFA'];
+
+const CHART_TOOLTIP_STYLE = {
+  contentStyle: {
+    backgroundColor: '#1C1C26',
+    border: `1px solid rgba(201,160,92,0.2)`,
+    borderRadius: '12px',
+    color: '#F5F0E8',
+    fontSize: '13px',
+  },
+  itemStyle: { color: '#F5F0E8' },
+};
 
 export function PlatformAnalytics() {
   const [analytics, setAnalytics] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [creatingPawnshop, setCreatingPawnshop] = useState(false);
-  const [invitingOwner, setInvitingOwner] = useState(false);
-  const [showCreateForm, setShowCreateForm] = useState(false);
-  const [showInviteForm, setShowInviteForm] = useState(false);
-
-  const [createForm, setCreateForm] = useState({
-    name: '',
-    ownerEmail: '',
-    ownerName: '',
-    contactPhone: '',
-    address: '',
-    activateTrial: true,
-  });
-
-  const [inviteForm, setInviteForm] = useState({
-    email: '',
-    ownerName: '',
-    pawnshopName: '',
-    message: '',
-  });
 
   const [subAction, setSubAction] = useState<{
     type: 'extend' | 'upgrade' | 'status';
@@ -73,49 +71,12 @@ export function PlatformAnalytics() {
     }
   };
 
-  const handleCreatePawnshop = async () => {
-    if (!createForm.name || !createForm.ownerEmail) {
-      showNotification('Pawnshop name and owner email are required', 'error');
-      return;
-    }
-    setCreatingPawnshop(true);
-    try {
-      await api.post('/tenant-governance/pawnshops', createForm);
-      showNotification(`Pawnshop "${createForm.name}" created successfully`);
-      setShowCreateForm(false);
-      setCreateForm({ name: '', ownerEmail: '', ownerName: '', contactPhone: '', address: '', activateTrial: true });
-      fetchAnalytics();
-    } catch (err: any) {
-      showNotification(err?.message || 'Failed to create pawnshop', 'error');
-    } finally {
-      setCreatingPawnshop(false);
-    }
-  };
-
-  const handleInviteOwner = async () => {
-    if (!inviteForm.email || !inviteForm.pawnshopName) {
-      showNotification('Email and pawnshop name are required', 'error');
-      return;
-    }
-    setInvitingOwner(true);
-    try {
-      await api.post('/tenant-governance/invitations', inviteForm);
-      showNotification(`Invitation sent to ${inviteForm.email}`);
-      setShowInviteForm(false);
-      setInviteForm({ email: '', ownerName: '', pawnshopName: '', message: '' });
-    } catch (err: any) {
-      showNotification(err?.message || 'Failed to send invitation', 'error');
-    } finally {
-      setInvitingOwner(false);
-    }
-  };
-
   const handleSubAction = async () => {
     if (!subAction) return;
     try {
       if (subAction.type === 'extend') {
         await api.post(`/tenant-governance/subscriptions/${subAction.pawnshopId}/extend-trial`, {
-          additionalDays: subAction.additionalDays,
+          additionalDays: subForm.additionalDays,
           reason: subForm.reason,
         });
         showNotification(`Trial extended by ${subForm.additionalDays} days`);
@@ -153,7 +114,35 @@ export function PlatformAnalytics() {
     { label: 'Total Users', value: analytics?.users?.total || 0, icon: Users, color: 'text-blue-400', bg: 'bg-blue-400/10' },
     { label: 'Active Loans', value: analytics?.loans?.disbursed || 0, icon: DollarSign, color: 'text-purple-400', bg: 'bg-purple-400/10' },
     { label: 'Pending Requests', value: analytics?.pendingRegistrations || 0, icon: Clock, color: 'text-rose-400', bg: 'bg-rose-400/10' },
+    { label: 'Active Subscriptions', value: analytics?.subscriptions?.active || 0, icon: TrendingUp, color: 'text-amber-400', bg: 'bg-amber-400/10' },
   ];
+
+  const pawnshopStatusData = [
+    { name: 'Active', value: analytics?.pawnshops?.active || 0 },
+    { name: 'Frozen', value: analytics?.pawnshops?.frozen || 0 },
+    { name: 'Inactive', value: Math.max(0, (analytics?.pawnshops?.total || 0) - (analytics?.pawnshops?.active || 0) - (analytics?.pawnshops?.frozen || 0)) },
+  ].filter(d => d.value > 0);
+
+  const subscriptionData = [
+    { name: 'Trial', value: analytics?.subscriptions?.trial || 0 },
+    { name: 'Active', value: analytics?.subscriptions?.active || 0 },
+    { name: 'Other', value: Math.max(0, (analytics?.subscriptions?.total || 0) - (analytics?.subscriptions?.trial || 0) - (analytics?.subscriptions?.active || 0)) },
+  ].filter(d => d.value > 0);
+
+  const loansData = [
+    { name: 'Total', value: analytics?.loans?.total || 0 },
+    { name: 'Disbursed', value: analytics?.loans?.disbursed || 0 },
+  ];
+
+  const ticketsData = [
+    { name: 'Total', value: analytics?.tickets?.total || 0 },
+    { name: 'Active', value: analytics?.tickets?.active || 0 },
+  ];
+
+  const userData = [
+    { name: 'Owners', value: analytics?.users?.owners || 0 },
+    { name: 'Other Users', value: Math.max(0, (analytics?.users?.total || 0) - (analytics?.users?.owners || 0)) },
+  ].filter(d => d.value > 0);
 
   return (
     <div className="p-8 space-y-8 animate-in fade-in duration-500">
@@ -165,135 +154,14 @@ export function PlatformAnalytics() {
           </h1>
           <p className="text-[#8A8279] mt-2 font-medium italic">Cross-pawnshop metrics and management</p>
         </div>
-        <div className="flex gap-3">
-          <button
-            onClick={() => setShowCreateForm(!showCreateForm)}
-            className="flex items-center gap-2 px-5 py-2.5 bg-[#C9A05C] text-[#1C1C26] rounded-xl font-semibold text-sm hover:bg-[#C9A05C]/90 transition-all"
-          >
-            <Plus size={16} /> Create Pawnshop
-          </button>
-          <button
-            onClick={() => setShowInviteForm(!showInviteForm)}
-            className="flex items-center gap-2 px-5 py-2.5 border border-[#C9A05C]/30 text-[#C9A05C] rounded-xl font-semibold text-sm hover:bg-[#C9A05C]/10 transition-all"
-          >
-            <UserPlus size={16} /> Invite Owner
-          </button>
-          <button
-            onClick={fetchAnalytics}
-            className="flex items-center gap-2 px-4 py-2.5 border border-[rgba(201,160,92,0.15)] text-[#B8B0A4] rounded-xl text-sm hover:bg-[#1C1C26] transition-all"
-          >
-            <RefreshCcw size={16} />
-          </button>
-        </div>
+        <button
+          onClick={fetchAnalytics}
+          className="flex items-center gap-2 px-4 py-2.5 border border-[rgba(201,160,92,0.15)] text-[#B8B0A4] rounded-xl text-sm hover:bg-[#1C1C26] transition-all"
+        >
+          <RefreshCcw size={16} />
+          Refresh
+        </button>
       </div>
-
-      {/* CREATE PAWNSHOP FORM */}
-      {showCreateForm && (
-        <div className="rounded-xl border border-[#C9A05C]/20 bg-[#1C1C26] p-6 space-y-4">
-          <h3 className="text-lg font-semibold text-[#F5F0E8]">Create New Pawnshop</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <input
-              placeholder="Pawnshop Name *"
-              value={createForm.name}
-              onChange={(e) => setCreateForm({ ...createForm, name: e.target.value })}
-              className="px-4 py-3 bg-[#0D0D14] border border-[rgba(201,160,92,0.15)] rounded-xl text-[#F5F0E8] text-sm focus:outline-none focus:border-[#C9A05C]/50"
-            />
-            <input
-              placeholder="Owner Email *"
-              type="email"
-              value={createForm.ownerEmail}
-              onChange={(e) => setCreateForm({ ...createForm, ownerEmail: e.target.value })}
-              className="px-4 py-3 bg-[#0D0D14] border border-[rgba(201,160,92,0.15)] rounded-xl text-[#F5F0E8] text-sm focus:outline-none focus:border-[#C9A05C]/50"
-            />
-            <input
-              placeholder="Owner Name"
-              value={createForm.ownerName}
-              onChange={(e) => setCreateForm({ ...createForm, ownerName: e.target.value })}
-              className="px-4 py-3 bg-[#0D0D14] border border-[rgba(201,160,92,0.15)] rounded-xl text-[#F5F0E8] text-sm focus:outline-none focus:border-[#C9A05C]/50"
-            />
-            <input
-              placeholder="Contact Phone"
-              value={createForm.contactPhone}
-              onChange={(e) => setCreateForm({ ...createForm, contactPhone: e.target.value })}
-              className="px-4 py-3 bg-[#0D0D14] border border-[rgba(201,160,92,0.15)] rounded-xl text-[#F5F0E8] text-sm focus:outline-none focus:border-[#C9A05C]/50"
-            />
-          </div>
-          <label className="flex items-center gap-2 text-sm text-[#B8B0A4]">
-            <input
-              type="checkbox"
-              checked={createForm.activateTrial}
-              onChange={(e) => setCreateForm({ ...createForm, activateTrial: e.target.checked })}
-              className="rounded"
-            />
-            Activate 15-day trial subscription
-          </label>
-          <div className="flex gap-3">
-            <button
-              onClick={handleCreatePawnshop}
-              disabled={creatingPawnshop}
-              className="px-5 py-2.5 bg-[#C9A05C] text-[#1C1C26] rounded-xl font-semibold text-sm hover:bg-[#C9A05C]/90 transition-all disabled:opacity-50"
-            >
-              {creatingPawnshop ? <Loader2 className="w-4 h-4 animate-spin inline" /> : 'Create Pawnshop'}
-            </button>
-            <button
-              onClick={() => setShowCreateForm(false)}
-              className="px-5 py-2.5 border border-[rgba(201,160,92,0.15)] text-[#B8B0A4] rounded-xl text-sm hover:bg-[#1C1C26] transition-all"
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* INVITE OWNER FORM */}
-      {showInviteForm && (
-        <div className="rounded-xl border border-[#C9A05C]/20 bg-[#1C1C26] p-6 space-y-4">
-          <h3 className="text-lg font-semibold text-[#F5F0E8]">Invite Pawnshop Owner</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <input
-              placeholder="Owner Email *"
-              type="email"
-              value={inviteForm.email}
-              onChange={(e) => setInviteForm({ ...inviteForm, email: e.target.value })}
-              className="px-4 py-3 bg-[#0D0D14] border border-[rgba(201,160,92,0.15)] rounded-xl text-[#F5F0E8] text-sm focus:outline-none focus:border-[#C9A05C]/50"
-            />
-            <input
-              placeholder="Pawnshop Name *"
-              value={inviteForm.pawnshopName}
-              onChange={(e) => setInviteForm({ ...inviteForm, pawnshopName: e.target.value })}
-              className="px-4 py-3 bg-[#0D0D14] border border-[rgba(201,160,92,0.15)] rounded-xl text-[#F5F0E8] text-sm focus:outline-none focus:border-[#C9A05C]/50"
-            />
-            <input
-              placeholder="Owner Name"
-              value={inviteForm.ownerName}
-              onChange={(e) => setInviteForm({ ...inviteForm, ownerName: e.target.value })}
-              className="px-4 py-3 bg-[#0D0D14] border border-[rgba(201,160,92,0.15)] rounded-xl text-[#F5F0E8] text-sm focus:outline-none focus:border-[#C9A05C]/50"
-            />
-            <textarea
-              placeholder="Personal message (optional)"
-              value={inviteForm.message}
-              onChange={(e) => setInviteForm({ ...inviteForm, message: e.target.value })}
-              className="px-4 py-3 bg-[#0D0D14] border border-[rgba(201,160,92,0.15)] rounded-xl text-[#F5F0E8] text-sm focus:outline-none focus:border-[#C9A05C]/50 resize-none"
-              rows={2}
-            />
-          </div>
-          <div className="flex gap-3">
-            <button
-              onClick={handleInviteOwner}
-              disabled={invitingOwner}
-              className="px-5 py-2.5 bg-[#C9A05C] text-[#1C1C26] rounded-xl font-semibold text-sm hover:bg-[#C9A05C]/90 transition-all disabled:opacity-50"
-            >
-              {invitingOwner ? <Loader2 className="w-4 h-4 animate-spin inline" /> : 'Send Invitation'}
-            </button>
-            <button
-              onClick={() => setShowInviteForm(false)}
-              className="px-5 py-2.5 border border-[rgba(201,160,92,0.15)] text-[#B8B0A4] rounded-xl text-sm hover:bg-[#1C1C26] transition-all"
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
-      )}
 
       {/* STAT CARDS */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
@@ -306,6 +174,166 @@ export function PlatformAnalytics() {
             <p className="text-xs text-[#8A8279] mt-1">{stat.label}</p>
           </div>
         ))}
+      </div>
+
+      {/* CHARTS GRID */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Pawnshop Status Distribution */}
+        <div className="rounded-xl border border-[rgba(201,160,92,0.1)] bg-[#1C1C26] p-6">
+          <h3 className="text-sm font-semibold text-[#F5F0E8] mb-4">Pawnshop Status Distribution</h3>
+          {pawnshopStatusData.length > 0 ? (
+            <ResponsiveContainer width="100%" height={260}>
+              <PieChart>
+                <Pie
+                  data={pawnshopStatusData}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={60}
+                  outerRadius={100}
+                  paddingAngle={3}
+                  dataKey="value"
+                >
+                  {pawnshopStatusData.map((_, i) => (
+                    <Cell key={i} fill={COLORS[i % COLORS.length]} />
+                  ))}
+                </Pie>
+                <Tooltip {...CHART_TOOLTIP_STYLE} />
+                <Legend
+                  wrapperStyle={{ color: '#8A8279', fontSize: '12px' }}
+                  formatter={(value: string) => <span style={{ color: '#B8B0A4' }}>{value}</span>}
+                />
+              </PieChart>
+            </ResponsiveContainer>
+          ) : (
+            <p className="text-[#8A8279] text-sm text-center py-10">No pawnshop data</p>
+          )}
+        </div>
+
+        {/* Subscription Tier Breakdown */}
+        <div className="rounded-xl border border-[rgba(201,160,92,0.1)] bg-[#1C1C26] p-6">
+          <h3 className="text-sm font-semibold text-[#F5F0E8] mb-4">Subscription Breakdown</h3>
+          {subscriptionData.length > 0 ? (
+            <ResponsiveContainer width="100%" height={260}>
+              <PieChart>
+                <Pie
+                  data={subscriptionData}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={60}
+                  outerRadius={100}
+                  paddingAngle={3}
+                  dataKey="value"
+                >
+                  {subscriptionData.map((_, i) => (
+                    <Cell key={i} fill={COLORS[(i + 1) % COLORS.length]} />
+                  ))}
+                </Pie>
+                <Tooltip {...CHART_TOOLTIP_STYLE} />
+                <Legend
+                  wrapperStyle={{ color: '#8A8279', fontSize: '12px' }}
+                  formatter={(value: string) => <span style={{ color: '#B8B0A4' }}>{value}</span>}
+                />
+              </PieChart>
+            </ResponsiveContainer>
+          ) : (
+            <p className="text-[#8A8279] text-sm text-center py-10">No subscription data</p>
+          )}
+        </div>
+
+        {/* Loans Overview */}
+        <div className="rounded-xl border border-[rgba(201,160,92,0.1)] bg-[#1C1C26] p-6">
+          <h3 className="text-sm font-semibold text-[#F5F0E8] mb-4">Loans Overview</h3>
+          <ResponsiveContainer width="100%" height={260}>
+            <BarChart data={loansData} barSize={48}>
+              <XAxis
+                dataKey="name"
+                tick={{ fill: '#8A8279', fontSize: 12 }}
+                axisLine={{ stroke: 'rgba(201,160,92,0.15)' }}
+                tickLine={false}
+              />
+              <YAxis
+                tick={{ fill: '#8A8279', fontSize: 12 }}
+                axisLine={false}
+                tickLine={false}
+              />
+              <Tooltip {...CHART_TOOLTIP_STYLE} />
+              <Bar dataKey="value" radius={[6, 6, 0, 0]}>
+                {loansData.map((_, i) => (
+                  <Cell key={i} fill={i === 0 ? '#34D399' : GOLD} />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+
+        {/* Ticket Lifecycle */}
+        <div className="rounded-xl border border-[rgba(201,160,92,0.1)] bg-[#1C1C26] p-6">
+          <h3 className="text-sm font-semibold text-[#F5F0E8] mb-4">Ticket Lifecycle</h3>
+          <ResponsiveContainer width="100%" height={260}>
+            <BarChart data={ticketsData} barSize={48}>
+              <XAxis
+                dataKey="name"
+                tick={{ fill: '#8A8279', fontSize: 12 }}
+                axisLine={{ stroke: 'rgba(201,160,92,0.15)' }}
+                tickLine={false}
+              />
+              <YAxis
+                tick={{ fill: '#8A8279', fontSize: 12 }}
+                axisLine={false}
+                tickLine={false}
+              />
+              <Tooltip {...CHART_TOOLTIP_STYLE} />
+              <Bar dataKey="value" radius={[6, 6, 0, 0]}>
+                {ticketsData.map((_, i) => (
+                  <Cell key={i} fill={i === 0 ? '#60A5FA' : '#FBBF24'} />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+
+        {/* User Distribution */}
+        <div className="rounded-xl border border-[rgba(201,160,92,0.1)] bg-[#1C1C26] p-6">
+          <h3 className="text-sm font-semibold text-[#F5F0E8] mb-4">User Distribution</h3>
+          {userData.length > 0 ? (
+            <ResponsiveContainer width="100%" height={260}>
+              <PieChart>
+                <Pie
+                  data={userData}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={60}
+                  outerRadius={100}
+                  paddingAngle={3}
+                  dataKey="value"
+                >
+                  {userData.map((_, i) => (
+                    <Cell key={i} fill={COLORS[(i + 2) % COLORS.length]} />
+                  ))}
+                </Pie>
+                <Tooltip {...CHART_TOOLTIP_STYLE} />
+                <Legend
+                  wrapperStyle={{ color: '#8A8279', fontSize: '12px' }}
+                  formatter={(value: string) => <span style={{ color: '#B8B0A4' }}>{value}</span>}
+                />
+              </PieChart>
+            </ResponsiveContainer>
+          ) : (
+            <p className="text-[#8A8279] text-sm text-center py-10">No user data</p>
+          )}
+        </div>
+
+        {/* Pending Registrations Alert */}
+        <div className="rounded-xl border border-[rgba(201,160,92,0.1)] bg-[#1C1C26] p-6 flex flex-col justify-center items-center text-center">
+          <div className="w-16 h-16 rounded-full bg-rose-400/10 flex items-center justify-center mb-4">
+            <AlertTriangle className="w-8 h-8 text-rose-400" />
+          </div>
+          <p className="text-3xl font-bold text-[#F5F0E8]">{analytics?.pendingRegistrations || 0}</p>
+          <p className="text-sm text-[#8A8279] mt-1">Pending Registration Requests</p>
+          <p className="text-xs text-[#8A8279] mt-3 max-w-[240px]">
+            Client registrations awaiting approval across all pawnshops
+          </p>
+        </div>
       </div>
 
       {/* SUBSCRIPTION MANAGEMENT MODAL */}
