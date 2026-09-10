@@ -1,6 +1,5 @@
 backend
 mobile
-auction-frontend
 docs
 node_modules
 *.sql
