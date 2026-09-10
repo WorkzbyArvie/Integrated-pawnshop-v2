@@ -2,10 +2,28 @@ import { useEffect, useMemo, useState, useRef, useCallback } from 'react';
 import { useBranding } from '../context/BrandingContext';
 import { Link } from 'react-router-dom';
 import Swal from 'sweetalert2';
+import {
+  ArrowRight,
+  SealCheck,
+  CaretLeft,
+  CaretRight,
+  CreditCard,
+  FileText,
+  Fingerprint,
+  Gavel,
+  IdentificationBadge,
+  LockKey,
+  MagnifyingGlass,
+  Package,
+  Pulse,
+  WifiSlash,
+} from '@phosphor-icons/react';
 import '../App.css';
+import '../home.css';
 import type { AuctionListing } from '../types';
 import { fetchListings } from '../services/auctionApi';
 import { useAuth } from '../context/AuthContext';
+import { getBackendUrl } from '../lib/backendUrl';
 
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat('en-PH', {
@@ -29,82 +47,142 @@ const formatCountdown = (endAt: string | null | undefined, now: number) => {
   };
 };
 
-function useScrollReveal() {
+function useReveal() {
   useEffect(() => {
-    const elements = document.querySelectorAll('.reveal, .reveal-left, .reveal-right, .reveal-scale, .stagger-children');
-    if (!elements.length) return;
+    const elements = Array.from(document.querySelectorAll<HTMLElement>('.home-reveal'));
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches) {
+      elements.forEach((el) => el.classList.add('visible'));
+      return;
+    }
     const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
           if (entry.isIntersecting) {
             entry.target.classList.add('visible');
+            observer.unobserve(entry.target);
           }
         });
       },
-      { threshold: 0.1, rootMargin: '0px 0px -60px 0px' },
+      { threshold: 0.12, rootMargin: '0px 0px -10% 0px' },
     );
     elements.forEach((el) => observer.observe(el));
     return () => observer.disconnect();
   }, []);
 }
 
-function useScrolled(threshold = 40) {
+function useScrolled() {
   const [scrolled, setScrolled] = useState(false);
   useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > threshold);
-    window.addEventListener('scroll', onScroll, { passive: true });
-    return () => window.removeEventListener('scroll', onScroll);
-  }, [threshold]);
+    const sentinel = document.getElementById('home-scroll-sentinel');
+    if (!sentinel) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => setScrolled(!entry.isIntersecting),
+      { threshold: 0 },
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, []);
   return scrolled;
 }
 
-function AnimatedCounter({ target, suffix = '' }: { target: number; suffix?: string }) {
-  const [count, setCount] = useState(0);
-  const ref = useRef<HTMLDivElement>(null);
-  const animated = useRef(false);
-
+function StatNumber({ target, suffix = '' }: { target: number; suffix?: string }) {
+  const spanRef = useRef<HTMLSpanElement>(null);
   useEffect(() => {
-    const el = ref.current;
+    const el = spanRef.current;
     if (!el) return;
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting && !animated.current) {
-          animated.current = true;
-          const duration = 2000;
-          const start = performance.now();
-          const step = (time: number) => {
-            const elapsed = time - start;
-            const progress = Math.min(elapsed / duration, 1);
-            const eased = 1 - Math.pow(1 - progress, 4);
-            setCount(Math.floor(eased * target));
-            if (progress < 1) requestAnimationFrame(step);
-          };
-          requestAnimationFrame(step);
-        }
-      },
-      { threshold: 0.5 },
-    );
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [target]);
-
+    const finalText = `${target.toLocaleString()}${suffix}`;
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches) {
+      el.textContent = finalText;
+      return;
+    }
+    const duration = 1600;
+    const start = performance.now();
+    let raf = 0;
+    const step = (time: number) => {
+      const progress = Math.min((time - start) / duration, 1);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      el.textContent = `${Math.floor(eased * target).toLocaleString()}${suffix}`;
+      if (progress < 1) {
+        raf = requestAnimationFrame(step);
+      } else {
+        el.textContent = finalText;
+      }
+    };
+    raf = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(raf);
+  }, [target, suffix]);
   return (
-    <div ref={ref}>
-      <div className="stat-number">
-        {count.toLocaleString()}{suffix}
-      </div>
-    </div>
+    <span ref={spanRef} className="home-stat-number" aria-label={`${target}${suffix}`}>
+      {`${target.toLocaleString()}${suffix}`}
+    </span>
   );
 }
+
+const HOW_STEPS = [
+  {
+    title: 'Create & verify',
+    icon: <IdentificationBadge size={22} weight="regular" />,
+    body: 'Open a bidder account and pass ID verification so every participant is a real person.',
+  },
+  {
+    title: 'Browse & bid',
+    icon: <Gavel size={22} weight="regular" />,
+    body: 'Explore verified lots and place real-time bids with automatic extensions near the close.',
+  },
+  {
+    title: 'Win & collect',
+    icon: <Package size={22} weight="regular" />,
+    body: 'Pay through escrow, sign your digital contract, and collect your authenticated item.',
+  },
+];
+
+const TRUST_CELLS = [
+  {
+    title: 'Verified items',
+    icon: <SealCheck size={20} weight="regular" />,
+    body: 'Every lot is appraised and authenticated by licensed pawnshops before it goes live.',
+    tone: 'image' as const,
+  },
+  {
+    title: 'Secure escrow',
+    icon: <LockKey size={20} weight="regular" />,
+    body: 'Payments are held in escrow until you receive and verify your item.',
+    tone: 'tint' as const,
+  },
+  {
+    title: 'Real-time bidding',
+    icon: <Pulse size={20} weight="regular" />,
+    body: 'Bids sync across the room with automatic extensions on last-minute offers.',
+    tone: 'plain' as const,
+  },
+  {
+    title: 'Digital contracts',
+    icon: <FileText size={20} weight="regular" />,
+    body: 'Every winning bid generates a signed contract and a receipt you can download.',
+    tone: 'plain' as const,
+  },
+  {
+    title: 'KYC bidders',
+    icon: <Fingerprint size={20} weight="regular" />,
+    body: 'ID verification keeps phantom bidders out of every auction.',
+    tone: 'tint' as const,
+  },
+  {
+    title: 'Secure payments',
+    icon: <CreditCard size={20} weight="regular" />,
+    body: 'PayMongo checkout with full receipts and transaction history.',
+    tone: 'image' as const,
+  },
+];
 
 export default function Home() {
   const { user, signIn, requestAuthCode, signUp, signOut, loading: authLoading, kycStatus } = useAuth();
   const { branding } = useBranding();
   const scrolled = useScrolled();
-  useScrollReveal();
+  useReveal();
 
   const initialPawnshopId = useMemo(
-    () => new URLSearchParams(window.location.search).get('pawnshopId'),
+    () => new URLSearchParams(window.location.search).get('pawnshopId') ?? undefined,
     [],
   );
   const [listings, setListings] = useState<AuctionListing[]>([]);
@@ -112,6 +190,7 @@ export default function Home() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [nextCursor, setNextCursor] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
   const [search, setSearch] = useState('');
   const [pawnshopFilter, setPawnshopFilter] = useState<string>(initialPawnshopId || 'all');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
@@ -130,6 +209,11 @@ export default function Home() {
   });
   const emailCheckTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  const openLogin = (tab: 'login' | 'signup') => {
+    setLoginOpen(true);
+    setAuthTab(tab);
+  };
+
   const checkEmailAvailability = useCallback(async (email: string) => {
     if (!email || !email.includes('@')) {
       setEmailCheck({ checking: false, exists: false, message: '' });
@@ -137,8 +221,7 @@ export default function Home() {
     }
     setEmailCheck((prev) => ({ ...prev, checking: true }));
     try {
-      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000';
-      const res = await fetch(`${backendUrl}/auth/check-email?email=${encodeURIComponent(email)}&role=BIDDER`);
+      const res = await fetch(`${getBackendUrl()}/auth/check-email?email=${encodeURIComponent(email)}&role=BIDDER`);
       const data = await res.json();
       setEmailCheck({ checking: false, exists: data.exists, message: data.exists ? data.message : '' });
     } catch {
@@ -173,12 +256,12 @@ export default function Home() {
   useEffect(() => {
     let mounted = true;
     setLoading(true);
-    fetchListings({ status: 'LIVE', limit: 12, pawnshopId: initialPawnshopId || undefined })
+    setError(null);
+    fetchListings({ status: 'LIVE', limit: 12, pawnshopId: initialPawnshopId })
       .then((data) => {
         if (!mounted) return;
         setListings(data.items || []);
         setNextCursor(data.nextCursor ?? null);
-        setError(null);
       })
       .catch((err: Error) => {
         if (!mounted) return;
@@ -191,13 +274,13 @@ export default function Home() {
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [initialPawnshopId, reloadKey]);
 
   const loadMore = useCallback(async () => {
     if (!nextCursor || loadingMore) return;
     setLoadingMore(true);
     try {
-      const data = await fetchListings({ status: 'LIVE', limit: 12, cursor: nextCursor, pawnshopId: initialPawnshopId || undefined });
+      const data = await fetchListings({ status: 'LIVE', limit: 12, cursor: nextCursor, pawnshopId: initialPawnshopId });
       setListings((prev) => [...prev, ...(data.items || [])]);
       setNextCursor(data.nextCursor ?? null);
     } catch {
@@ -253,6 +336,14 @@ export default function Home() {
     }
   }, [featuredImageIndex, featuredImages.length]);
 
+  const bentoMedia = useMemo(() => {
+    const urls = listings
+      .slice(1, 4)
+      .map((listing) => listing.images[0]?.url)
+      .filter((url): url is string => Boolean(url));
+    return { first: urls[0] ?? null, second: urls[1] ?? null };
+  }, [listings]);
+
   useEffect(() => {
     if (branding) {
       const root = document.documentElement;
@@ -264,6 +355,8 @@ export default function Home() {
 
   return (
     <div className="page">
+      <div id="home-scroll-sentinel" className="home-sentinel" aria-hidden="true" />
+
       {/* ── NAVIGATION ── */}
       <header className={`top-bar ${scrolled ? 'scrolled' : ''}`}>
         <div className="brand">
@@ -306,210 +399,235 @@ export default function Home() {
             </button>
           </div>
         ) : (
-          <button className="primary-button" onClick={() => { setLoginOpen(true); setAuthTab('login'); }}>
+          <button className="primary-button" onClick={() => openLogin('login')}>
             Sign In
           </button>
         )}
       </header>
 
-      {/* ── HERO SECTION ── */}
-      <div className="hero-wrapper" id="home">
-        <section className="hero">
-          <div className="hero-content">
-            <span className="hero-eyebrow">
-              <span className="live-dot" />
-              Live Auction
+      {/* ── HERO ── */}
+      <section className="home-hero" id="home">
+        <div className="home-hero-inner">
+          <div className="home-reveal">
+            <span className="home-eyebrow">
+              <span className="eyebrow-dot" />
+              Live auctions
             </span>
-            <h1 className="hero-title">
-              Premium Pawn<br />
-              <strong>Liquidation</strong>
+            <h1 className="home-headline">
+              Authenticated lots.
+              <strong>Live bidding.</strong>
             </h1>
-            <p className="hero-copy">
-              Bid on authenticated luxury items from verified pawnshops. Every piece
-              authenticated, every auction secured, every bid synced in real time.
+            <p className="home-subtext">
+              Winning bids on verified items from licensed pawnshops, with escrow
+              payments and a digital contract on every win.
             </p>
-            {featured && featuredCountdown ? (
-              <div className="hero-card">
-                <span className="badge">Featured Item</span>
-                <h3>{featured.title}</h3>
-                <div className="price">{formatCurrency(featured.currentBid || featured.startingPrice)}</div>
-                <div className="countdown">
-                  <div>
-                    <span>{featuredCountdown.hours}</span>
-                    Hours
-                  </div>
-                  <div>
-                    <span>{featuredCountdown.minutes}</span>
-                    Minutes
-                  </div>
-                  <div>
-                    <span>{featuredCountdown.seconds}</span>
-                    Seconds
-                  </div>
-                </div>
-                <div className="hero-cta-row">
-                  <Link to={`/listing/${featured.id}`} className="primary-button">
-                    Place Bid Now
-                  </Link>
-                  <a href="#auctions" className="ghost-button">
-                    View All
-                  </a>
-                </div>
-              </div>
-            ) : (
-              <div className="hero-card">
-                <h3>{loading ? 'Loading featured auction...' : 'No live auctions yet'}</h3>
-                <p className="status-muted" style={{ margin: 0 }}>
-                  {loading ? 'Syncing live inventory from pawnshops.' : 'Check back soon — new items are published regularly.'}
-                </p>
-              </div>
-            )}
+            <div className="home-hero-actions">
+              <a href="#auctions" className="primary-button">
+                Browse live auctions
+              </a>
+              <a href="#how-it-works" className="ghost-button">
+                How bidding works
+              </a>
+            </div>
           </div>
-          <div className="hero-media">
-            {featuredImageUrl ? <img src={featuredImageUrl} alt={featured?.title || 'Featured auction item'} className="detail-hero-image" /> : null}
-            {featuredImages.length > 1 ? (
+
+          <div className="home-feature home-reveal" aria-live="polite">
+            {loading ? (
+              <div className="home-feature-skeleton">
+                <div className="skeleton" style={{ height: 18, width: '40%' }} />
+                <div className="skeleton" style={{ height: 26, width: '70%' }} />
+                <div className="skeleton" style={{ height: 20, width: '50%' }} />
+              </div>
+            ) : error || !featured ? (
+              <div className="home-feature-empty" data-tone={error ? 'error' : 'plain'}>
+                <WifiSlash size={34} className="empty-icon" />
+                <h3>{error ? 'Live catalog unavailable' : 'No live lots right now'}</h3>
+                <p>
+                  {error
+                    ? 'We could not reach the auction service. Try again in a moment.'
+                    : 'New lots are published regularly. Check back soon.'}
+                </p>
+                {error ? (
+                  <button className="ghost-button" onClick={() => setReloadKey((key) => key + 1)}>
+                    Retry
+                  </button>
+                ) : null}
+              </div>
+            ) : featured && featuredImageUrl && featuredCountdown ? (
               <>
-                <button
-                  type="button"
-                  className="slider-nav slider-nav-prev"
-                  aria-label="Show previous featured image"
-                  onClick={() => setFeaturedImageIndex((current) => (current - 1 + featuredImages.length) % featuredImages.length)}
-                >
-                  ‹
-                </button>
-                <button
-                  type="button"
-                  className="slider-nav slider-nav-next"
-                  aria-label="Show next featured image"
-                  onClick={() => setFeaturedImageIndex((current) => (current + 1) % featuredImages.length)}
-                >
-                  ›
-                </button>
-                <div className="hero-media-dots" aria-label="Featured image selectors">
-                  {featuredImages.map((image, index) => (
+                <img
+                  src={featuredImageUrl}
+                  alt={featured.title}
+                  className="home-feature-media"
+                  fetchPriority="high"
+                />
+                <div className="home-feature-status">
+                  <span className="badge live">Live</span>
+                </div>
+                {featuredImages.length > 1 ? (
+                  <>
                     <button
-                      key={image.id}
                       type="button"
-                      className={`hero-media-dot ${featuredImageIndex === index ? 'active' : ''}`}
-                      aria-label={`Show featured image ${index + 1}`}
-                      onClick={() => setFeaturedImageIndex(index)}
-                    />
-                  ))}
+                      className="slider-nav slider-nav-prev"
+                      aria-label="Show previous featured image"
+                      onClick={() => setFeaturedImageIndex((current) => (current - 1 + featuredImages.length) % featuredImages.length)}
+                    >
+                      <CaretLeft size={18} weight="bold" />
+                    </button>
+                    <button
+                      type="button"
+                      className="slider-nav slider-nav-next"
+                      aria-label="Show next featured image"
+                      onClick={() => setFeaturedImageIndex((current) => (current + 1) % featuredImages.length)}
+                    >
+                      <CaretRight size={18} weight="bold" />
+                    </button>
+                    <div className="hero-media-dots" aria-label="Featured image selectors">
+                      {featuredImages.map((image, index) => (
+                        <button
+                          key={image.id}
+                          type="button"
+                          className={`hero-media-dot ${featuredImageIndex === index ? 'active' : ''}`}
+                          aria-label={`Show featured image ${index + 1}`}
+                          onClick={() => setFeaturedImageIndex(index)}
+                        />
+                      ))}
+                    </div>
+                  </>
+                ) : null}
+                <div className="home-feature-caption">
+                  <h2 className="home-feature-title">{featured.title}</h2>
+                  <div className="home-feature-bid">
+                    <span className="home-feature-price">
+                      {formatCurrency(featured.currentBid || featured.startingPrice)}
+                    </span>
+                    <div className="home-feature-count" aria-label={featuredCountdown.label}>
+                      <div className="home-feature-count-unit">
+                        <b>{featuredCountdown.hours}</b>
+                        <span>Hours</span>
+                      </div>
+                      <div className="home-feature-count-unit">
+                        <b>{featuredCountdown.minutes}</b>
+                        <span>Min</span>
+                      </div>
+                      <div className="home-feature-count-unit">
+                        <b>{featuredCountdown.seconds}</b>
+                        <span>Sec</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="home-feature-actions">
+                    <Link to={`/listing/${featured.id}`} className="home-feature-link">
+                      View this lot
+                      <ArrowRight size={16} weight="bold" />
+                    </Link>
+                  </div>
                 </div>
               </>
-            ) : null}
-            <span className="badge">Certified Authentic</span>
-          </div>
-        </section>
-      </div>
-
-      {/* ── STATS BAR ── */}
-      <div className="stats-bar reveal">
-        <div className="stat-item">
-          <AnimatedCounter target={listings.length || 0} suffix="+" />
-          <div className="stat-label">Live Auctions</div>
-        </div>
-        <div className="stat-item">
-          <AnimatedCounter target={pawnshops.length || 0} suffix="+" />
-          <div className="stat-label">Verified Pawnshops</div>
-        </div>
-        <div className="stat-item">
-          <AnimatedCounter target={98} suffix="%" />
-          <div className="stat-label">Satisfaction Rate</div>
-        </div>
-        <div className="stat-item">
-          <AnimatedCounter target={24} suffix="/7" />
-          <div className="stat-label">Bidding Support</div>
-        </div>
-      </div>
-
-      {/* ── HOW IT WORKS ── */}
-      <section id="how-it-works" className="section-padding">
-        <div className="reveal" style={{ textAlign: 'center' }}>
-          <div className="section-eyebrow">Simple Process</div>
-          <h2 className="section-title">How It Works</h2>
-          <p className="section-subtitle" style={{ maxWidth: 500, margin: '0.4rem auto 0' }}>
-            Three steps to secure your next treasure from verified pawnshops
-          </p>
-        </div>
-        <div className="how-it-works stagger-children">
-          <div className="how-step">
-            <div className="how-step-number">01</div>
-            <div className="how-step-icon">
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" strokeWidth="1.5"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-            </div>
-            <h3>Create & Verify</h3>
-            <p>Sign up with your email and complete quick ID verification. Our KYC process ensures a trusted marketplace for everyone.</p>
-          </div>
-          <div className="how-step">
-            <div className="how-step-number">02</div>
-            <div className="how-step-icon">
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" strokeWidth="1.5"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
-            </div>
-            <h3>Browse & Bid</h3>
-            <p>Explore curated auctions from authenticated pawnshops. Place real-time bids with automatic last-minute extensions.</p>
-          </div>
-          <div className="how-step">
-            <div className="how-step-number">03</div>
-            <div className="how-step-icon">
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" strokeWidth="1.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-            </div>
-            <h3>Win & Collect</h3>
-            <p>Win an auction and complete secure checkout with escrow protection. Sign your contract and collect your authenticated item.</p>
+            ) : (
+              <div className="home-feature-empty">
+                <MagnifyingGlass size={34} className="empty-icon" />
+                <h3>No live lots right now</h3>
+                <p>New lots are published regularly. Check back soon.</p>
+              </div>
+            )}
           </div>
         </div>
       </section>
 
+      {/* ── STATS (real data only) ── */}
+      <div className="home-stats home-reveal">
+        <div className="home-stat">
+          <StatNumber target={listings.length} suffix="+" />
+          <span className="home-stat-label">Live auctions</span>
+        </div>
+        <div className="home-stat">
+          <StatNumber target={pawnshops.length} />
+          <span className="home-stat-label">Verified pawnshops</span>
+        </div>
+        <div className="home-stat">
+          <StatNumber target={categories.length} />
+          <span className="home-stat-label">Categories</span>
+        </div>
+      </div>
+
+      {/* ── HOW IT WORKS ── */}
+      <section id="how-it-works" className="home-how">
+        <div className="home-how-head home-reveal">
+          <h2 className="home-how-title">From verification to your doorstep.</h2>
+          <p className="home-how-copy">
+            A straight path from your first bid to a collected item, with proof at every step.
+          </p>
+        </div>
+        <div className="home-how-steps">
+          {HOW_STEPS.map((step) => (
+            <div className="home-how-step home-reveal" key={step.title}>
+              <div className="home-how-step-icon" aria-hidden="true">
+                {step.icon}
+              </div>
+              <div>
+                <h3>{step.title}</h3>
+                <p>{step.body}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
       {/* ── LIVE AUCTIONS ── */}
-      <section id="auctions" className="section-padding">
-        <div className="section-header reveal">
-          <div>
-            <div className="section-eyebrow">Live Now</div>
-            <h2 className="section-title">Active Auctions</h2>
-            <p className="section-subtitle">{filteredListings.length} exclusive items available</p>
-          </div>
+      <section id="auctions" className="home-catalog">
+        <div className="home-reveal">
+          <h2 className="home-catalog-title">Active Auctions</h2>
+          <p className="home-catalog-sub">
+            {loading ? 'Loading live lots...' : error ? 'Some live lots are unavailable right now.' : `${filteredListings.length} lots live now`}
+          </p>
+        </div>
+
+        <div className="home-catalog-toolbar home-reveal">
           <input
             className="search-input"
             value={search}
             onChange={(event) => setSearch(event.target.value)}
             placeholder="Search lots, ticket numbers, or designers..."
+            aria-label="Search live lots"
           />
         </div>
 
-        <div className="filters reveal" style={{ marginTop: '0.5rem' }}>
-          <button
-            className={`filter-pill ${pawnshopFilter === 'all' ? 'active' : ''}`}
-            onClick={() => setPawnshopFilter('all')}
-          >
-            All Pawnshops
-          </button>
-          {pawnshops.map((shop) => (
+        <div className="home-catalog-filters home-reveal">
+          <div className="filters">
             <button
-              key={shop.id}
-              className={`filter-pill ${pawnshopFilter === shop.id ? 'active' : ''}`}
-              onClick={() => setPawnshopFilter(shop.id)}
+              className={`filter-pill ${pawnshopFilter === 'all' ? 'active' : ''}`}
+              onClick={() => setPawnshopFilter('all')}
             >
-              {shop.name}
+              All Pawnshops
             </button>
-          ))}
-        </div>
-
-        <div className="filter-row reveal">
-          <button
-            className={`filter-pill ${categoryFilter === 'all' ? 'active' : ''}`}
-            onClick={() => setCategoryFilter('all')}
-          >
-            All Categories
-          </button>
-          {categories.map((category) => (
+            {pawnshops.map((shop) => (
+              <button
+                key={shop.id}
+                className={`filter-pill ${pawnshopFilter === shop.id ? 'active' : ''}`}
+                onClick={() => setPawnshopFilter(shop.id)}
+              >
+                {shop.name}
+              </button>
+            ))}
+          </div>
+          <div className="filter-row">
             <button
-              key={category}
-              className={`filter-pill ${categoryFilter === category ? 'active' : ''}`}
-              onClick={() => setCategoryFilter(category)}
+              className={`filter-pill ${categoryFilter === 'all' ? 'active' : ''}`}
+              onClick={() => setCategoryFilter('all')}
             >
-              {category}
+              All Categories
             </button>
-          ))}
+            {categories.map((category) => (
+              <button
+                key={category}
+                className={`filter-pill ${categoryFilter === category ? 'active' : ''}`}
+                onClick={() => setCategoryFilter(category)}
+              >
+                {category}
+              </button>
+            ))}
+          </div>
         </div>
 
         {loading ? (
@@ -526,21 +644,27 @@ export default function Home() {
             ))}
           </div>
         ) : error ? (
-          <p className="status-error" style={{ marginTop: '2rem' }}>{error}</p>
+          <div className="home-catalog-error">
+            <WifiSlash size={34} className="empty-icon" />
+            <h3>Live catalog unavailable</h3>
+            <p>We could not reach the auction service. Your bids and history are not affected.</p>
+            <button className="ghost-button" style={{ marginTop: '1.2rem' }} onClick={() => setReloadKey((key) => key + 1)}>
+              Retry
+            </button>
+          </div>
         ) : (
           <>
-            <div className="auction-grid stagger-children" style={{ marginTop: '2rem' }}>
-              {filteredListings.map((listing) => (
-                <AuctionCard key={listing.id} listing={listing} now={now} onBid={() => { if (!user) setLoginOpen(true); }} />
-              ))}
-            </div>
-            {filteredListings.length === 0 && !loading && (
-              <div style={{ textAlign: 'center', padding: '4rem 0' }}>
-                <div style={{ fontSize: '3rem', marginBottom: '1rem', opacity: 0.3 }}>
-                  <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--text-dim)" strokeWidth="1"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-                </div>
-                <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem' }}>No auctions match your filters</p>
-                <p style={{ color: 'var(--text-dim)', fontSize: '0.82rem' }}>Try adjusting your search or filter criteria</p>
+            {filteredListings.length === 0 ? (
+              <div className="home-catalog-empty">
+                <MagnifyingGlass size={34} className="empty-icon" />
+                <h3>No auctions match your filters</h3>
+                <p>Try adjusting your search or filter criteria.</p>
+              </div>
+            ) : (
+              <div className="auction-grid" style={{ marginTop: '2rem' }}>
+                {filteredListings.map((listing) => (
+                  <AuctionCard key={listing.id} listing={listing} now={now} onBid={() => { if (!user) openLogin('login'); }} />
+                ))}
               </div>
             )}
             {nextCursor && !search && pawnshopFilter === 'all' && categoryFilter === 'all' && (
@@ -559,100 +683,54 @@ export default function Home() {
         )}
       </section>
 
-      {/* ── TRUST / WHY US ── */}
-      <section id="trust" className="section-padding">
-        <div className="reveal" style={{ textAlign: 'center' }}>
-          <div className="section-eyebrow">Why Choose Us</div>
-          <h2 className="section-title">Trusted by Thousands</h2>
-          <p className="section-subtitle" style={{ maxWidth: 500, margin: '0.4rem auto 0' }}>
-            Every auction backed by verification, security, and transparent processes
+      {/* ── WHY BIDDERS TRUST US ── */}
+      <section id="trust" className="home-guarantees">
+        <div className="home-reveal">
+          <h2 className="home-catalog-title">Built for trust.</h2>
+          <p className="home-catalog-sub">
+            Every auction runs on checks, contracts, and receipts you can trace.
           </p>
         </div>
-        <div className="trust-grid stagger-children">
-          <div className="trust-card">
-            <div className="trust-card-icon">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" strokeWidth="1.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-            </div>
-            <h4>Verified Items</h4>
-            <p>Every item undergoes rigorous authentication by certified pawnshop professionals before listing.</p>
-          </div>
-          <div className="trust-card">
-            <div className="trust-card-icon">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" strokeWidth="1.5"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-            </div>
-            <h4>Secure Escrow</h4>
-            <p>Payments held in escrow until you receive and verify your item. Full buyer protection on every transaction.</p>
-          </div>
-          <div className="trust-card">
-            <div className="trust-card-icon">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" strokeWidth="1.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-            </div>
-            <h4>Real-Time Bidding</h4>
-            <p>Live bid synchronization across all participants with automatic time extensions on last-minute bids.</p>
-          </div>
-          <div className="trust-card">
-            <div className="trust-card-icon">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" strokeWidth="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-            </div>
-            <h4>Digital Contracts</h4>
-            <p>Every winning bid generates a legally binding contract with digital signatures and complete audit trail.</p>
-          </div>
-          <div className="trust-card">
-            <div className="trust-card-icon">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" strokeWidth="1.5"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-            </div>
-            <h4>Verified Network</h4>
-            <p>Bidders complete ID verification (KYC) and bidders agree to auction terms before placing bids.</p>
-          </div>
-          <div className="trust-card">
-            <div className="trust-card-icon">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" strokeWidth="1.5"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
-            </div>
-            <h4>Secure Payments</h4>
-            <p>Integrated PayMongo payment processing with full receipt generation and transaction history.</p>
-          </div>
+        <div className="home-bento" style={{ marginTop: '2rem' }}>
+          {TRUST_CELLS.map((cell, index) => {
+            const mediaUrl = index === 0 ? bentoMedia.first : index === 5 ? bentoMedia.second : null;
+            return (
+              <div
+                key={cell.title}
+                className={`bento-cell home-reveal ${index === 0 || index === 5 ? 'span2' : ''}`}
+                data-tone={cell.tone === 'image' && !mediaUrl ? 'tint' : cell.tone}
+              >
+                {mediaUrl ? (
+                  <>
+                    <img src={mediaUrl} alt="" loading="lazy" className="bento-media" />
+                    <div className="bento-scrim" />
+                  </>
+                ) : null}
+                <div className="bento-icon" aria-hidden="true">
+                  {cell.icon}
+                </div>
+                <h3>{cell.title}</h3>
+                <p>{cell.body}</p>
+              </div>
+            );
+          })}
         </div>
       </section>
 
-      {/* ── CTA BANNER ── */}
-      <section className="section-padding reveal">
-        <div style={{
-          background: 'linear-gradient(135deg, rgba(201, 160, 92, 0.08), rgba(139, 94, 60, 0.05))',
-          border: '1px solid var(--border)',
-          borderRadius: 'var(--radius-xl)',
-          padding: 'clamp(2.5rem, 5vw, 4rem)',
-          textAlign: 'center',
-          position: 'relative',
-          overflow: 'hidden',
-        }}>
-          <div style={{
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            right: 0,
-            height: '1px',
-            background: 'linear-gradient(90deg, transparent, var(--gold), transparent)',
-          }} />
-          <h2 className="section-title" style={{ marginBottom: '0.5rem' }}>
-            Ready to Start Bidding?
-          </h2>
-          <p style={{ color: 'var(--text-secondary)', fontSize: '1rem', maxWidth: 480, margin: '0 auto 1.5rem', lineHeight: 1.7 }}>
-            Join thousands of bidders who trust PawnGold for authenticated luxury auctions. Create your free account today.
-          </p>
-          <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+      {/* ── CTA ── */}
+      <section className="home-cta home-reveal">
+        <div className="home-cta-inner">
+          <h2 className="home-cta-title">Ready to place a bid?</h2>
+          <p className="home-cta-copy">Create a free bidder account and take part in your first live auction.</p>
+          <div className="home-cta-actions">
             {user ? (
-              <a href="#auctions" className="primary-button" style={{ padding: '0.8rem 2rem', fontSize: '0.9rem' }}>
-                Browse Auctions
+              <a href="#auctions" className="primary-button">
+                Browse live auctions
               </a>
             ) : (
-              <>
-                <button className="primary-button" onClick={() => { setLoginOpen(true); setAuthTab('signup'); }} style={{ padding: '0.8rem 2rem', fontSize: '0.9rem' }}>
-                  Create Free Account
-                </button>
-                <button className="ghost-button" onClick={() => { setLoginOpen(true); setAuthTab('login'); }} style={{ padding: '0.8rem 2rem', fontSize: '0.9rem' }}>
-                  Sign In
-                </button>
-              </>
+              <button className="primary-button" onClick={() => openLogin('signup')}>
+                Create free account
+              </button>
             )}
           </div>
         </div>
@@ -931,21 +1009,20 @@ function AuctionCard({
   return (
     <div className="auction-card">
       <div className="card-media">
-        {imageUrl ? <img src={imageUrl} alt={listing.title} loading="lazy" /> : null}
-        <div style={{ position: 'absolute', top: '1rem', left: '1rem', display: 'flex', gap: '0.5rem', zIndex: 2 }}>
-          <span className={`badge ${endingSoon ? 'ending' : 'live'}`}>{endingSoon ? 'Ending Soon' : 'Live'}</span>
-          <span className="badge">Verified</span>
-        </div>
-        <div className="card-overlay">
-          <Link to={`/listing/${listing.id}`} className="primary-button" style={{ width: '100%', textAlign: 'center', padding: '0.6rem', fontSize: '0.8rem' }}>
-            Quick View
+        {imageUrl ? (
+          <Link to={`/listing/${listing.id}`} aria-label={listing.title}>
+            <img src={imageUrl} alt={listing.title} loading="lazy" />
           </Link>
+        ) : null}
+        <div style={{ position: 'absolute', top: '1rem', left: '1rem', zIndex: 2 }}>
+          <span className={`badge ${endingSoon ? 'ending' : 'live'}`}>{endingSoon ? 'Ending Soon' : 'Live'}</span>
         </div>
       </div>
       <div className="card-body">
-        <p className="card-meta">
-          <span>{listing.pawnshop.name}</span> &middot; <span>{listing.ticket.category || 'Luxury'}</span>
-        </p>
+        <div className="home-card-meta">
+          <span className="home-card-meta">{listing.pawnshop.name}</span>
+          <span className="home-card-category">{listing.ticket.category || listing.category?.name || 'Luxury'}</span>
+        </div>
         <h3 className="card-title">{listing.title}</h3>
         <div className="bid-row">
           <div>
