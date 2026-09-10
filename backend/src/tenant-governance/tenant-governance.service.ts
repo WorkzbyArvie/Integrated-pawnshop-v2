@@ -2930,7 +2930,7 @@ export class TenantGovernanceService {
 
     await this.prisma.$executeRaw`
       UPDATE public.pawnshops 
-      SET status = 'ARCHIVED', is_active = false, updated_at = NOW()
+      SET status = 'ARCHIVED', is_active = false
       WHERE id = ${pawnshopId}::uuid
     `;
 
@@ -2959,7 +2959,7 @@ export class TenantGovernanceService {
 
     await this.prisma.$executeRaw`
       UPDATE public.pawnshops 
-      SET status = 'ACTIVE', is_active = true, updated_at = NOW()
+      SET status = 'ACTIVE', is_active = true
       WHERE id = ${pawnshopId}::uuid
     `;
 
