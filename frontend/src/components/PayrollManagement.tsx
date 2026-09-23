@@ -96,6 +96,10 @@ export function PayrollManagement({ branchId: _branchId, activeBranchId }: Payro
   const [allowanceInput, setAllowanceInput] = useState('');
   const [payrollFrequencyDays, setPayrollFrequencyDays] = useState<15 | 30>(30);
   const [lateDeductionInput, setLateDeductionInput] = useState('5');
+  const [sssRateInput, setSssRateInput] = useState('4.5');
+  const [sssMaxInput, setSssMaxInput] = useState('900');
+  const [philhealthRateInput, setPhilhealthRateInput] = useState('2.5');
+  const [pagibigInput, setPagibigInput] = useState('100');
   const [savingSalary, setSavingSalary] = useState(false);
 
   // Summary period
@@ -134,6 +138,10 @@ export function PayrollManagement({ branchId: _branchId, activeBranchId }: Payro
     allowanceByPosition?: Record<string, number>;
     payrollFrequencyDays?: 15 | 30;
     lateDeductionPerMinute?: number;
+    sssRatePercent?: number;
+    sssMax?: number;
+    philhealthRatePercent?: number;
+    pagibigAmount?: number;
   }>(
     '/payroll/settings/positions',
   );
@@ -168,6 +176,22 @@ export function PayrollManagement({ branchId: _branchId, activeBranchId }: Payro
     const rate = salarySettings?.lateDeductionPerMinute;
     if (Number.isFinite(Number(rate))) {
       setLateDeductionInput(String(rate));
+    }
+    const sssRate = salarySettings?.sssRatePercent;
+    if (Number.isFinite(Number(sssRate))) {
+      setSssRateInput(String(sssRate));
+    }
+    const sssMax = salarySettings?.sssMax;
+    if (Number.isFinite(Number(sssMax))) {
+      setSssMaxInput(String(sssMax));
+    }
+    const philhealthRate = salarySettings?.philhealthRatePercent;
+    if (Number.isFinite(Number(philhealthRate))) {
+      setPhilhealthRateInput(String(philhealthRate));
+    }
+    const pagibig = salarySettings?.pagibigAmount;
+    if (Number.isFinite(Number(pagibig))) {
+      setPagibigInput(String(pagibig));
     }
   }, [salarySettings]);
 
@@ -236,14 +260,29 @@ export function PayrollManagement({ branchId: _branchId, activeBranchId }: Payro
       });
 
       const lateDeductionPerMinute = Number(lateDeductionInput);
-      if (
-        !Number.isFinite(lateDeductionPerMinute) ||
-        lateDeductionPerMinute < 0
-      ) {
-        throw new Error('Late deduction per minute must be a non-negative number');
+      const sssRatePercent = Number(sssRateInput);
+      const sssMax = Number(sssMaxInput);
+      const philhealthRatePercent = Number(philhealthRateInput);
+      const pagibigAmount = Number(pagibigInput);
+
+      const deductionFields: { label: string; value: number }[] = [
+        { label: 'Late deduction per minute', value: lateDeductionPerMinute },
+        { label: 'SSS rate', value: sssRatePercent },
+        { label: 'SSS maximum contribution', value: sssMax },
+        { label: 'PhilHealth rate', value: philhealthRatePercent },
+        { label: 'Pag-IBIG amount', value: pagibigAmount },
+      ];
+      for (const field of deductionFields) {
+        if (!Number.isFinite(field.value) || field.value < 0) {
+          throw new Error(`${field.label} must be a non-negative number`);
+        }
       }
-      await api.put('/payroll/settings/late-deduction', {
+      await api.put('/payroll/settings/deductions', {
         lateDeductionPerMinute,
+        sssRatePercent,
+        sssMax,
+        philhealthRatePercent,
+        pagibigAmount,
       });
 
       const baseSalary = Number(baseSalaryInput);
@@ -568,6 +607,65 @@ export function PayrollManagement({ branchId: _branchId, activeBranchId }: Payro
               </div>
             </div>
 
+            <div className="pt-2">
+              <p className="text-xs font-semibold text-[#B8B0A4] uppercase tracking-wide mb-3">
+                Mandatory Deduction Rates
+              </p>
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-start">
+                <div className="flex flex-col">
+                  <label className="text-xs font-semibold text-[#B8B0A4] uppercase tracking-wide whitespace-nowrap">SSS Rate</label>
+                  <Input
+                    type="number"
+                    min={0}
+                    step={0.01}
+                    placeholder="4.5"
+                    value={sssRateInput}
+                    onChange={(e) => setSssRateInput(e.target.value)}
+                  />
+                  <p className="text-[10px] leading-[14px] text-[#8A8279] mt-1">% of base salary</p>
+                </div>
+
+                <div className="flex flex-col">
+                  <label className="text-xs font-semibold text-[#B8B0A4] uppercase tracking-wide whitespace-nowrap">SSS Max</label>
+                  <Input
+                    type="number"
+                    min={0}
+                    step={0.01}
+                    placeholder="900"
+                    value={sssMaxInput}
+                    onChange={(e) => setSssMaxInput(e.target.value)}
+                  />
+                  <p className="text-[10px] leading-[14px] text-[#8A8279] mt-1">Max ₱ contribution</p>
+                </div>
+
+                <div className="flex flex-col">
+                  <label className="text-xs font-semibold text-[#B8B0A4] uppercase tracking-wide whitespace-nowrap">PhilHealth Rate</label>
+                  <Input
+                    type="number"
+                    min={0}
+                    step={0.01}
+                    placeholder="2.5"
+                    value={philhealthRateInput}
+                    onChange={(e) => setPhilhealthRateInput(e.target.value)}
+                  />
+                  <p className="text-[10px] leading-[14px] text-[#8A8279] mt-1">% of base salary</p>
+                </div>
+
+                <div className="flex flex-col">
+                  <label className="text-xs font-semibold text-[#B8B0A4] uppercase tracking-wide whitespace-nowrap">Pag-IBIG</label>
+                  <Input
+                    type="number"
+                    min={0}
+                    step={0.01}
+                    placeholder="100"
+                    value={pagibigInput}
+                    onChange={(e) => setPagibigInput(e.target.value)}
+                  />
+                  <p className="text-[10px] leading-[14px] text-[#8A8279] mt-1">Fixed ₱ contribution</p>
+                </div>
+              </div>
+            </div>
+
             <div className="flex justify-end">
               <Button
                 onClick={handleSavePositionSalarySettings}
@@ -721,8 +819,8 @@ export function PayrollManagement({ branchId: _branchId, activeBranchId }: Payro
               <div className="bg-rose-50 rounded-xl p-4">
                 <h4 className="font-bold text-rose-800 mb-2 text-sm">Deductions</h4>
                 <div className="space-y-1 text-sm">
-                  <div className="flex justify-between"><span>SSS (4.5%)</span><span className="font-mono text-rose-600">{formatCurrency(d.sss)}</span></div>
-                  <div className="flex justify-between"><span>PhilHealth (2.5%)</span><span className="font-mono text-rose-600">{formatCurrency(d.philhealth)}</span></div>
+                  <div className="flex justify-between"><span>SSS</span><span className="font-mono text-rose-600">{formatCurrency(d.sss)}</span></div>
+                  <div className="flex justify-between"><span>PhilHealth</span><span className="font-mono text-rose-600">{formatCurrency(d.philhealth)}</span></div>
                   <div className="flex justify-between"><span>Pag-IBIG</span><span className="font-mono text-rose-600">{formatCurrency(d.pagibig)}</span></div>
                   <div className="flex justify-between"><span>Withholding Tax (TRAIN)</span><span className="font-mono text-rose-600">{formatCurrency(d.withholdingTax)}</span></div>
                   <div className="flex justify-between"><span>Late Deductions</span><span className="font-mono text-rose-600">{formatCurrency(d.late)}</span></div>

@@ -64,6 +64,34 @@ export class PayrollController {
   }
 
   /**
+   * Get configurable payroll deduction rates (SSS, PhilHealth, Pag-IBIG, late)
+   * GET /payroll/settings/deductions
+   */
+  @Get('settings/deductions')
+  async getDeductionSettings(@Headers('pawnshop-id') pawnshopId: string) {
+    return this.payrollService.getDeductionSettings(pawnshopId);
+  }
+
+  /**
+   * Set configurable payroll deduction rates (SSS, PhilHealth, Pag-IBIG, late)
+   * PUT /payroll/settings/deductions
+   */
+  @Put('settings/deductions')
+  async upsertDeductionSettings(
+    @Headers('pawnshop-id') pawnshopId: string,
+    @Body()
+    body: {
+      sssRatePercent?: number;
+      sssMax?: number;
+      philhealthRatePercent?: number;
+      pagibigAmount?: number;
+      lateDeductionPerMinute?: number;
+    },
+  ) {
+    return this.payrollService.upsertDeductionSettings(pawnshopId, body);
+  }
+
+  /**
    * Get per-minute late deduction rate
    * GET /payroll/settings/late-deduction
    */

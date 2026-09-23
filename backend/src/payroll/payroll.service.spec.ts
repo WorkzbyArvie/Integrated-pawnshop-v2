@@ -476,4 +476,117 @@ describe('PayrollService', () => {
       ).rejects.toThrow(BadRequestException);
     });
   });
+
+  describe('getDeductionSettings', () => {
+    it('should return configured SSS/PhilHealth/Pag-IBIG values when set', async () => {
+      prisma.pawnshop.findUnique.mockResolvedValue({
+        settings: {
+          payrollSssRatePercent: 5,
+          payrollSssMax: 1200,
+          payrollPhilhealthRatePercent: 3,
+          payrollPagibigAmount: 200,
+          payrollLateDeductionPerMinute: 7,
+        },
+      });
+
+      const result = await service.getDeductionSettings(PAWNSHOP_ID);
+
+      expect(result.sssRatePercent).toBe(5);
+      expect(result.sssMax).toBe(1200);
+      expect(result.philhealthRatePercent).toBe(3);
+      expect(result.pagibigAmount).toBe(200);
+      expect(result.lateDeductionPerMinute).toBe(7);
+    });
+
+    it('should fall back to government defaults when unset', async () => {
+      prisma.pawnshop.findUnique.mockResolvedValue({ settings: {} });
+
+      const result = await service.getDeductionSettings(PAWNSHOP_ID);
+
+      expect(result.sssRatePercent).toBe(4.5);
+      expect(result.sssMax).toBe(900);
+      expect(result.philhealthRatePercent).toBe(2.5);
+      expect(result.pagibigAmount).toBe(100);
+      expect(result.lateDeductionPerMinute).toBe(5);
+    });
+  });
+
+  describe('upsertDeductionSettings', () => {
+    it('should persist multiple deduction rates in one call', async () => {
+      prisma.pawnshop.findUnique.mockResolvedValue({ settings: {} });
+      prisma.pawnshop.update.mockResolvedValue({});
+      jest.spyOn(service['logger'], 'log').mockImplementation(() => undefined);
+
+      await service.upsertDeductionSettings(PAWNSHOP_ID, {
+        sssRatePercent: 4,
+        sssMax: 800,
+        philhealthRatePercent: 3,
+        pagibigAmount: 200,
+      });
+
+      expect(prisma.pawnshop.update).toHaveBeenCalledWith({
+        where: { id: PAWNSHOP_ID },
+        data: {
+          settings: {
+            payrollSssRatePercent: 4,
+            payrollSssMax: 800,
+            payrollPhilhealthRatePercent: 3,
+            payrollPagibigAmount: 200,
+          },
+        },
+      });
+    });
+
+    it('should reject a negative rate', async () => {
+      await expect(
+        service.upsertDeductionSettings(PAWNSHOP_ID, {
+          sssRatePercent: -5,
+        }),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should reject an empty payload', async () => {
+      await expect(
+        service.upsertDeductionSettings(PAWNSHOP_ID, {}),
+      ).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  describe('generatePayslip with configured deduction rates', () => {
+    it('should use pawnshop-configured SSS/PhilHealth/Pag-IBIG rates', async () => {
+      prisma.payslip.findUnique.mockResolvedValue(null);
+      prisma.attendanceRecord.findMany.mockResolvedValue([
+        {
+          status: AttendanceStatus.PRESENT,
+          isLate: false,
+          workHours: 8,
+          overtimeHours: 0,
+          lateMinutes: 0,
+        },
+      ]);
+      prisma.pawnshop.findUnique.mockResolvedValue({
+        settings: {
+          payrollSssRatePercent: 5,
+          payrollSssMax: 1000,
+          payrollPhilhealthRatePercent: 3,
+          payrollPagibigAmount: 200,
+        },
+      });
+      prisma.payslip.create.mockImplementation(({ data }) => ({
+        id: 'payslip-custom-deductions',
+        ...data,
+      }));
+
+      const result = await service.generatePayslip(PAWNSHOP_ID, {
+        staffId: 'staff-1',
+        periodStart: '2026-02-01',
+        periodEnd: '2026-02-28',
+        baseSalary: 25000,
+      });
+
+      expect(result.sss).toBeCloseTo(Math.min(25000 * 0.05, 1000), 2);
+      expect(result.philhealth).toBeCloseTo(25000 * 0.03, 2);
+      expect(result.pagibig).toBe(200);
+    });
+  });
 });
