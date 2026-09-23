@@ -22,6 +22,7 @@ export class PayrollService {
   private readonly PAYROLL_ALLOWANCE_SETTINGS_KEY =
     'payrollAllowanceByPosition';
   private readonly PAYROLL_FREQUENCY_KEY = 'payrollFrequencyDays';
+  private readonly PAYROLL_LATE_DEDUCTION_KEY = 'payrollLateDeductionPerMinute';
 
   // Philippine government mandatory deductions
   private readonly SSS_RATE = 0.045; // Employee SSS contribution rate
@@ -114,6 +115,8 @@ export class PayrollService {
     salaryByPosition: Record<string, number>;
     allowanceByPosition: Record<string, number>;
     payrollFrequencyDays: 15 | 30;
+    lateDeductionPerMinute: number;
+    defaultLateDeductionPerMinute: number;
   }> {
     const pawnshop = await this.prisma.pawnshop.findUnique({
       where: { id: pawnshopId },
@@ -132,7 +135,19 @@ export class PayrollService {
     const rawFrequency = Number(settings[this.PAYROLL_FREQUENCY_KEY]);
     const payrollFrequencyDays: 15 | 30 = rawFrequency === 15 ? 15 : 30;
 
-    return { salaryByPosition, allowanceByPosition, payrollFrequencyDays };
+    const rawLateRate = Number(settings[this.PAYROLL_LATE_DEDUCTION_KEY]);
+    const lateDeductionPerMinute =
+      Number.isFinite(rawLateRate) && rawLateRate >= 0
+        ? rawLateRate
+        : this.LATE_DEDUCTION_PER_MINUTE;
+
+    return {
+      salaryByPosition,
+      allowanceByPosition,
+      payrollFrequencyDays,
+      lateDeductionPerMinute,
+      defaultLateDeductionPerMinute: this.LATE_DEDUCTION_PER_MINUTE,
+    };
   }
 
   async upsertPayrollFrequency(
@@ -168,6 +183,102 @@ export class PayrollService {
     });
 
     return { payrollFrequencyDays: payrollFrequencyDays as 15 | 30 };
+  }
+
+  /**
+   * Get the per-minute late deduction rate (₱/minute) for a pawnshop.
+   * Falls back to the default when unset/invalid.
+   */
+  async getLateDeductionSettings(pawnshopId: string): Promise<{
+    lateDeductionPerMinute: number;
+    defaultLateDeductionPerMinute: number;
+  }> {
+    const pawnshop = await this.prisma.pawnshop.findUnique({
+      where: { id: pawnshopId },
+      select: { settings: true },
+    });
+
+    if (!pawnshop) {
+      throw new NotFoundException('Pawnshop not found');
+    }
+
+    const settings = (pawnshop.settings as Record<string, unknown> | null) || {};
+    const raw = Number(settings[this.PAYROLL_LATE_DEDUCTION_KEY]);
+    const rate =
+      Number.isFinite(raw) && raw >= 0
+        ? raw
+        : this.LATE_DEDUCTION_PER_MINUTE;
+
+    return {
+      lateDeductionPerMinute: rate,
+      defaultLateDeductionPerMinute: this.LATE_DEDUCTION_PER_MINUTE,
+    };
+  }
+
+  /**
+   * Update the per-minute late deduction rate (₱/minute) for a pawnshop.
+   */
+  async upsertLateDeduction(
+    pawnshopId: string,
+    lateDeductionPerMinute: number,
+  ): Promise<{ lateDeductionPerMinute: number }> {
+    if (
+      !Number.isFinite(lateDeductionPerMinute) ||
+      lateDeductionPerMinute < 0
+    ) {
+      throw new BadRequestException(
+        'Late deduction per minute must be a non-negative number',
+      );
+    }
+
+    const pawnshop = await this.prisma.pawnshop.findUnique({
+      where: { id: pawnshopId },
+      select: { settings: true },
+    });
+
+    if (!pawnshop) {
+      throw new NotFoundException('Pawnshop not found');
+    }
+
+    const settings =
+      (pawnshop.settings as Record<string, unknown> | null) !== null
+        ? ((pawnshop.settings as Record<string, unknown>) ?? {})
+        : {};
+
+    await this.prisma.pawnshop.update({
+      where: { id: pawnshopId },
+      data: {
+        settings: {
+          ...settings,
+          [this.PAYROLL_LATE_DEDUCTION_KEY]: lateDeductionPerMinute,
+        },
+      },
+    });
+
+    this.logger.log(
+      `Late deduction rate set to ₱${lateDeductionPerMinute.toFixed(2)} per minute for pawnshop ${pawnshopId}`,
+    );
+
+    return { lateDeductionPerMinute };
+  }
+
+  private async resolveLateDeductionPerMinute(
+    pawnshopId: string,
+  ): Promise<number> {
+    try {
+      const { lateDeductionPerMinute } = await this.getLateDeductionSettings(
+        pawnshopId,
+      );
+      return lateDeductionPerMinute;
+    } catch (error: any) {
+      if (error instanceof NotFoundException) {
+        this.logger.warn(
+          `Pawnshop ${pawnshopId} not found, using default late deduction rate`,
+        );
+        return this.LATE_DEDUCTION_PER_MINUTE;
+      }
+      throw error;
+    }
   }
 
   async upsertPositionSalary(
@@ -322,7 +433,10 @@ export class PayrollService {
       const sss = Math.min(baseSalary * this.SSS_RATE, 900); // Max SSS employee share
       const philhealth = baseSalary * this.PHILHEALTH_RATE;
       const pagibig = this.PAGIBIG_FIXED;
-      const lateDeductions = totalLateMinutes * this.LATE_DEDUCTION_PER_MINUTE;
+      const lateDeductionPerMinute =
+        await this.resolveLateDeductionPerMinute(pawnshopId);
+      const lateDeductions =
+        totalLateMinutes * lateDeductionPerMinute;
       const otherDeductions = dto.otherDeductions || 0;
       const totalDeductions =
         tax + sss + philhealth + pagibig + lateDeductions + otherDeductions;

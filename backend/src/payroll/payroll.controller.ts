@@ -64,6 +64,30 @@ export class PayrollController {
   }
 
   /**
+   * Get per-minute late deduction rate
+   * GET /payroll/settings/late-deduction
+   */
+  @Get('settings/late-deduction')
+  async getLateDeduction(@Headers('pawnshop-id') pawnshopId: string) {
+    return this.payrollService.getLateDeductionSettings(pawnshopId);
+  }
+
+  /**
+   * Set per-minute late deduction rate
+   * PUT /payroll/settings/late-deduction
+   */
+  @Put('settings/late-deduction')
+  async upsertLateDeduction(
+    @Headers('pawnshop-id') pawnshopId: string,
+    @Body() body: { lateDeductionPerMinute: number },
+  ) {
+    return this.payrollService.upsertLateDeduction(
+      pawnshopId,
+      body.lateDeductionPerMinute,
+    );
+  }
+
+  /**
    * Generate a payslip
    * POST /payroll/payslip
    */

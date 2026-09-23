@@ -95,6 +95,7 @@ export function PayrollManagement({ branchId: _branchId, activeBranchId }: Payro
   const [baseSalaryInput, setBaseSalaryInput] = useState('');
   const [allowanceInput, setAllowanceInput] = useState('');
   const [payrollFrequencyDays, setPayrollFrequencyDays] = useState<15 | 30>(30);
+  const [lateDeductionInput, setLateDeductionInput] = useState('5');
   const [savingSalary, setSavingSalary] = useState(false);
 
   // Summary period
@@ -132,6 +133,7 @@ export function PayrollManagement({ branchId: _branchId, activeBranchId }: Payro
     salaryByPosition: Record<string, number>;
     allowanceByPosition?: Record<string, number>;
     payrollFrequencyDays?: 15 | 30;
+    lateDeductionPerMinute?: number;
   }>(
     '/payroll/settings/positions',
   );
@@ -160,6 +162,13 @@ export function PayrollManagement({ branchId: _branchId, activeBranchId }: Payro
       const nextFrequency = freq === 15 ? 15 : 30;
       return prev === nextFrequency ? prev : nextFrequency;
     });
+  }, [salarySettings]);
+
+  useEffect(() => {
+    const rate = salarySettings?.lateDeductionPerMinute;
+    if (Number.isFinite(Number(rate))) {
+      setLateDeductionInput(String(rate));
+    }
   }, [salarySettings]);
 
   useEffect(() => {
@@ -224,6 +233,17 @@ export function PayrollManagement({ branchId: _branchId, activeBranchId }: Payro
     try {
       await api.put('/payroll/settings/frequency', {
         payrollFrequencyDays,
+      });
+
+      const lateDeductionPerMinute = Number(lateDeductionInput);
+      if (
+        !Number.isFinite(lateDeductionPerMinute) ||
+        lateDeductionPerMinute < 0
+      ) {
+        throw new Error('Late deduction per minute must be a non-negative number');
+      }
+      await api.put('/payroll/settings/late-deduction', {
+        lateDeductionPerMinute,
       });
 
       const baseSalary = Number(baseSalaryInput);
@@ -490,7 +510,7 @@ export function PayrollManagement({ branchId: _branchId, activeBranchId }: Payro
               </Select>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div className="space-y-1">
                 <label className="text-xs font-semibold text-[#B8B0A4] uppercase tracking-wide">Role/Position</label>
                 <Select value={selectedPosition} onValueChange={setSelectedPosition}>
@@ -529,6 +549,19 @@ export function PayrollManagement({ branchId: _branchId, activeBranchId }: Payro
                   value={allowanceInput}
                   onChange={(e) => setAllowanceInput(e.target.value)}
                 />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-[#B8B0A4] uppercase tracking-wide">Late Deduction (₱/min)</label>
+                <Input
+                  type="number"
+                  min={0}
+                  step={0.01}
+                  placeholder="5.00"
+                  value={lateDeductionInput}
+                  onChange={(e) => setLateDeductionInput(e.target.value)}
+                />
+                <p className="text-[10px] text-[#8A8279]">Amount deducted per minute late</p>
               </div>
             </div>
 

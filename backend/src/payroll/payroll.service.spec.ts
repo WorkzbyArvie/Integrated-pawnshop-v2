@@ -137,6 +137,30 @@ describe('PayrollService', () => {
       );
     });
 
+    it('should use pawnshop-configured late deduction rate', async () => {
+      prisma.payslip.findUnique.mockResolvedValue(null);
+      prisma.attendanceRecord.findMany.mockResolvedValue([
+        {
+          status: AttendanceStatus.PRESENT,
+          isLate: true,
+          workHours: 8,
+          overtimeHours: 0,
+          lateMinutes: 30,
+        },
+      ]);
+      prisma.pawnshop.findUnique.mockResolvedValue({
+        settings: { payrollLateDeductionPerMinute: 10 },
+      });
+      prisma.payslip.create.mockImplementation(({ data }) => ({
+        id: 'payslip-late-10',
+        ...data,
+      }));
+
+      const result = await service.generatePayslip(PAWNSHOP_ID, baseDto);
+
+      expect(result.lateDeductions).toBe(30 * 10); // 30 min × ₱10
+    });
+
     it('should throw BadRequestException for duplicate payslip', async () => {
       prisma.payslip.findUnique.mockResolvedValue({ id: 'existing' });
 
@@ -394,6 +418,62 @@ describe('PayrollService', () => {
 
       expect(printable.staffName).toBe('Staff One');
       expect(printable.printable).toBe(true);
+    });
+  });
+
+  // ──────────────────────────────────────────────────────────────────────
+  // Late deduction settings (configurable ₱/minute rate)
+  // ──────────────────────────────────────────────────────────────────────
+  describe('getLateDeductionSettings', () => {
+    it('should return the configured rate when set', async () => {
+      prisma.pawnshop.findUnique.mockResolvedValue({
+        settings: { payrollLateDeductionPerMinute: 8 },
+      });
+
+      const result = await service.getLateDeductionSettings(PAWNSHOP_ID);
+
+      expect(result.lateDeductionPerMinute).toBe(8);
+      expect(result.defaultLateDeductionPerMinute).toBe(5);
+    });
+
+    it('should fall back to the default when unset', async () => {
+      prisma.pawnshop.findUnique.mockResolvedValue({ settings: {} });
+
+      const result = await service.getLateDeductionSettings(PAWNSHOP_ID);
+
+      expect(result.lateDeductionPerMinute).toBe(5);
+    });
+
+    it('should throw NotFoundException when pawnshop is missing', async () => {
+      prisma.pawnshop.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.getLateDeductionSettings(PAWNSHOP_ID),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('upsertLateDeduction', () => {
+    it('should persist the new rate into pawnshop settings', async () => {
+      prisma.pawnshop.findUnique.mockResolvedValue({ settings: {} });
+      prisma.pawnshop.update.mockResolvedValue({});
+      jest.spyOn(service['logger'], 'log').mockImplementation(() => undefined);
+
+      const result = await service.upsertLateDeduction(PAWNSHOP_ID, 12);
+
+      expect(result.lateDeductionPerMinute).toBe(12);
+      expect(prisma.pawnshop.update).toHaveBeenCalledWith({
+        where: { id: PAWNSHOP_ID },
+        data: {
+          settings: { payrollLateDeductionPerMinute: 12 },
+        },
+      });
+    });
+
+    it('should reject negative rates', async () => {
+      await expect(
+        service.upsertLateDeduction(PAWNSHOP_ID, -1),
+      ).rejects.toThrow(BadRequestException);
     });
   });
 });
