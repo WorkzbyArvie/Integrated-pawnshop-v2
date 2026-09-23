@@ -510,9 +510,9 @@ export function PayrollManagement({ branchId: _branchId, activeBranchId }: Payro
               </Select>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-[#B8B0A4] uppercase tracking-wide">Role/Position</label>
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-start">
+              <div className="flex flex-col">
+                <label className="text-xs font-semibold text-[#B8B0A4] uppercase tracking-wide whitespace-nowrap">Role/Position</label>
                 <Select value={selectedPosition} onValueChange={setSelectedPosition}>
                   <SelectTrigger>
                     <SelectValue placeholder="Select role/position" />
@@ -525,10 +525,11 @@ export function PayrollManagement({ branchId: _branchId, activeBranchId }: Payro
                     ))}
                   </SelectContent>
                 </Select>
+                <p className="text-[10px] leading-[14px] text-[#8A8279] mt-1">Select role</p>
               </div>
 
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-[#B8B0A4] uppercase tracking-wide">Base Salary</label>
+              <div className="flex flex-col">
+                <label className="text-xs font-semibold text-[#B8B0A4] uppercase tracking-wide whitespace-nowrap">Base Salary</label>
                 <Input
                   type="number"
                   min={0}
@@ -537,10 +538,11 @@ export function PayrollManagement({ branchId: _branchId, activeBranchId }: Payro
                   value={baseSalaryInput}
                   onChange={(e) => setBaseSalaryInput(e.target.value)}
                 />
+                <p className="text-[10px] leading-[14px] text-[#8A8279] mt-1">Monthly rate</p>
               </div>
 
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-[#B8B0A4] uppercase tracking-wide">Allowance</label>
+              <div className="flex flex-col">
+                <label className="text-xs font-semibold text-[#B8B0A4] uppercase tracking-wide whitespace-nowrap">Allowance</label>
                 <Input
                   type="number"
                   min={0}
@@ -549,10 +551,11 @@ export function PayrollManagement({ branchId: _branchId, activeBranchId }: Payro
                   value={allowanceInput}
                   onChange={(e) => setAllowanceInput(e.target.value)}
                 />
+                <p className="text-[10px] leading-[14px] text-[#8A8279] mt-1">Monthly add-on</p>
               </div>
 
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-[#B8B0A4] uppercase tracking-wide">Late Deduction (₱/min)</label>
+              <div className="flex flex-col">
+                <label className="text-xs font-semibold text-[#B8B0A4] uppercase tracking-wide whitespace-nowrap">Late Deduction</label>
                 <Input
                   type="number"
                   min={0}
@@ -561,7 +564,7 @@ export function PayrollManagement({ branchId: _branchId, activeBranchId }: Payro
                   value={lateDeductionInput}
                   onChange={(e) => setLateDeductionInput(e.target.value)}
                 />
-                <p className="text-[10px] text-[#8A8279]">Amount deducted per minute late</p>
+                <p className="text-[10px] leading-[14px] text-[#8A8279] mt-1">₱ per minute</p>
               </div>
             </div>
 
