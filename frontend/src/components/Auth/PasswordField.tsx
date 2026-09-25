@@ -41,7 +41,7 @@ export function PasswordField({
     helperText ? helperId : null,
     showRequirements ? requirementsId : null,
     error ? errorId : null,
-    errorSummaryId || null,
+    error ? errorSummaryId : null,
   ]
     .filter(Boolean)
     .join(' ');

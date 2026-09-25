@@ -83,7 +83,9 @@ export function getPasswordRuleFailures(value: string): PasswordRuleKey[] {
   if (value.length === 0 || value !== value.trim()) {
     failed.push('noSurroundingWhitespace');
   }
-  if (COMMON_PASSWORDS.has(normalizePasswordVariant(value))) failed.push('common');
+  if (value.length === 0 || COMMON_PASSWORDS.has(normalizePasswordVariant(value))) {
+    failed.push('common');
+  }
   return failed;
 }
 
@@ -133,7 +135,7 @@ const RULE_ROWS: Array<{
     id: 'common',
     keys: ['common'],
     label: PASSWORD_RULE_COPY.common,
-    met: (value) => !COMMON_PASSWORDS.has(normalizePasswordVariant(value)),
+    met: (value) => value.length > 0 && !COMMON_PASSWORDS.has(normalizePasswordVariant(value)),
   },
 ];
 

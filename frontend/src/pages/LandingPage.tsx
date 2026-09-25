@@ -1496,7 +1496,7 @@ export default function LandingPage() {
                         onChange={(value) => setAuthForm((prev) => ({ ...prev, confirmPassword: value }))}
                         error={authFieldError === 'Passwords do not match' ? authFieldError : undefined}
                         errorSummaryId="owner-password-error-summary"
-                        helperText="Passwords do not match"
+                        helperText="Re-enter your password."
                         showRequirements={false}
                         autoComplete="new-password"
                         required
