@@ -322,8 +322,8 @@ describe('credential security schema contract', () => {
     expect(mfaMigrations).not.toMatch(/^\s*GRANT\b/im);
   });
 
-  it('retains the Prisma legacy password field for plan 10.1-17', () => {
-    expect(modelSource('Profile')).toMatch(
+  it('does not expose the Prisma legacy password field after retirement', () => {
+    expect(modelSource('Profile')).not.toMatch(
       /passwordHash\s+String\?\s+@map\("password_hash"\)/,
     );
   });

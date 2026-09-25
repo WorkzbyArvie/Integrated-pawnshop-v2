@@ -12,7 +12,7 @@ import { StateMachineService } from './common/state-machine/state-machine.servic
 import { PawnTicketService } from './loan/pawn-ticket.service';
 
 const mockPrisma = {
-  profile: { findUnique: jest.fn(), findFirst: jest.fn() },
+  profile: { findUnique: jest.fn(), findFirst: jest.fn(), update: jest.fn() },
   customer: { findFirst: jest.fn(), create: jest.fn() },
   ticket: { create: jest.fn() },
 };
@@ -22,7 +22,13 @@ const mockLegalProofService = { createProof: jest.fn().mockResolvedValue({ id: '
 const mockReceiptService = { generateReceipt: jest.fn().mockResolvedValue({ id: 'rcpt-1' }) };
 const mockStateMachine = { transition: jest.fn().mockResolvedValue(true) };
 const mockPawnTicketService = { redeemTicket: jest.fn() };
-const mockSupabaseAdmin = { client: {} };
+const mockSupabaseAdmin = {
+  client: {
+    auth: {
+      signInWithPassword: jest.fn(),
+    },
+  },
+};
 const mockPasswordPolicy = { assert: jest.fn(), evaluate: jest.fn() };
 const mockCredentialState = {
   initializeSelfSelected: jest.fn(),
@@ -153,6 +159,59 @@ describe('AppService', () => {
       expect(result.exists).toBe(true);
       expect(result.emailExists).toBe(true);
       expect(result.role).toBe('OWNER');
+    });
+  });
+
+  describe('native login credential authority', () => {
+    const authProfile = {
+      id: 'user_1',
+      email: 'owner@example.com',
+      fullName: 'Owner One',
+      role: 'OWNER',
+      pawnshopId: 'shop_1',
+    };
+
+    beforeEach(() => {
+      mockSupabaseAdmin.client.auth.signInWithPassword.mockResolvedValue({
+        data: { user: { id: authProfile.id } },
+        error: null,
+      });
+      mockPrisma.profile.findUnique.mockResolvedValue(authProfile);
+    });
+
+    it('authenticates through Supabase without reading or writing a legacy mirror', async () => {
+      const result = await service.loginNative({
+        email: ' OWNER@example.com ',
+        password: 'ValidPassword1!',
+      });
+
+      expect(mockSupabaseAdmin.client.auth.signInWithPassword).toHaveBeenCalledWith({
+        email: 'owner@example.com',
+        password: 'ValidPassword1!',
+      });
+      expect(mockPrisma.profile.findUnique).toHaveBeenCalledWith({
+        where: { id: authProfile.id },
+      });
+      expect(mockPrisma.profile.findFirst).not.toHaveBeenCalled();
+      expect(mockPrisma.profile.update).not.toHaveBeenCalled();
+      expect(result.user.id).toBe(authProfile.id);
+      expect(JSON.stringify(result)).not.toMatch(/passwordHash|password_hash/i);
+    });
+
+    it('does not query a profile when Supabase rejects the credentials', async () => {
+      mockSupabaseAdmin.client.auth.signInWithPassword.mockResolvedValueOnce({
+        data: null,
+        error: { message: 'Invalid login credentials' },
+      });
+
+      await expect(
+        service.loginNative({
+          email: 'owner@example.com',
+          password: 'WrongPassword1!',
+        }),
+      ).rejects.toThrow('Invalid email or password');
+      expect(mockPrisma.profile.findUnique).not.toHaveBeenCalled();
+      expect(mockPrisma.profile.update).not.toHaveBeenCalled();
     });
   });
 });
