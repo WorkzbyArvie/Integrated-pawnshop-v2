@@ -30,6 +30,10 @@ export interface MfaChallengeVerifyInput {
   sessionId?: string | null;
 }
 
+type MfaChallengeVerificationResult =
+  | { challengeId: string }
+  | { error: 'MFA_CHALLENGE_INVALID' | 'MFA_CHALLENGE_LOCKED' };
+
 @Injectable()
 export class MfaChallengeService {
   static readonly CODE_LENGTH = 6;
@@ -122,10 +126,10 @@ export class MfaChallengeService {
       });
 
       if (!challenge || challenge.consumedAt || challenge.expiresAt <= now) {
-        throw this.safeChallengeError('MFA_CHALLENGE_INVALID');
+        return { error: 'MFA_CHALLENGE_INVALID' as const };
       }
       if (challenge.attempts >= challenge.maxAttempts) {
-        throw this.safeChallengeError('MFA_CHALLENGE_LOCKED');
+        return { error: 'MFA_CHALLENGE_LOCKED' as const };
       }
 
       const expected = Buffer.from(challenge.codeHash, 'hex');
@@ -145,9 +149,9 @@ export class MfaChallengeService {
           data: { attempts: { increment: 1 } },
         });
         if (incremented.count === 0) {
-          throw this.safeChallengeError('MFA_CHALLENGE_LOCKED');
+          return { error: 'MFA_CHALLENGE_LOCKED' as const };
         }
-        throw this.safeChallengeError('MFA_CHALLENGE_INVALID');
+        return { error: 'MFA_CHALLENGE_INVALID' as const };
       }
 
       const consumed = await tx.mfaEmailChallenge.updateMany({
@@ -160,12 +164,15 @@ export class MfaChallengeService {
         data: { consumedAt: now },
       });
       if (consumed.count !== 1) {
-        throw this.safeChallengeError('MFA_CHALLENGE_INVALID');
+        return { error: 'MFA_CHALLENGE_INVALID' as const };
       }
 
       return { challengeId: challenge.id };
     });
 
+    if ('error' in result) {
+      throw this.safeChallengeError(result.error);
+    }
     return result;
   }
 
