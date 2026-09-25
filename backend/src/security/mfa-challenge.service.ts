@@ -1,4 +1,8 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { createHmac, randomInt, timingSafeEqual } from 'node:crypto';
 import { PrismaService } from '../prisma.service';
 import { SecurityEmailService } from './security-email.service';
@@ -89,7 +93,11 @@ export class MfaChallengeService {
         where: { id: record.id, consumedAt: null },
         data: { consumedAt: new Date() },
       });
-      throw error;
+      throw new ServiceUnavailableException({
+        success: false,
+        error: 'MFA_EMAIL_DELIVERY_UNAVAILABLE',
+        message: 'Unable to deliver the verification email',
+      });
     }
 
     return this.toSafeView(record, input.email);

@@ -1,4 +1,4 @@
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, ServiceUnavailableException } from '@nestjs/common';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
 import { MfaEnableChallengeDto } from './dto/mfa-enable-challenge.dto';
@@ -95,6 +95,33 @@ describe('MfaChallengeService', () => {
       maskedEmail: expect.stringContaining('@example.com'),
     });
     expect(JSON.stringify(result)).not.toContain('000007');
+  });
+
+  it('does not expose provider error details when delivery fails', async () => {
+    const created = {
+      id: 'challenge-1',
+      expiresAt: new Date(Date.now() + 600000),
+    };
+    tx.mfaEmailChallenge.create.mockResolvedValue(created);
+    emailService.send.mockRejectedValue(new Error('smtp password leaked'));
+
+    await expect(
+      service.issue({
+        profileId: 'profile-1',
+        email: 'person@example.com',
+        purpose: 'MFA_ENABLE',
+      }),
+    ).rejects.toBeInstanceOf(ServiceUnavailableException);
+    await expect(
+      service.issue({
+        profileId: 'profile-1',
+        email: 'person@example.com',
+        purpose: 'MFA_ENABLE',
+      }),
+    ).rejects.toMatchObject({
+      response: { error: 'MFA_EMAIL_DELIVERY_UNAVAILABLE' },
+    });
+    expect(prisma.mfaEmailChallenge.updateMany).toHaveBeenCalled();
   });
 
   it('increments attempts and returns a stable safe invalid error', async () => {
