@@ -23,6 +23,7 @@ import { SubscriptionModule } from './subscription/subscription.module';
 import { LoanModule } from './loan/loan.module';
 import { ProfileModule } from './profile/profile.module';
 import { SecurityModule } from './security/security.module';
+import { AccountSecurityGuard } from './security/guards/account-security.guard';
 import { PaymentMethodsModule } from './payment-methods/payment-methods.module';
 import { TenantGovernanceModule } from './tenant-governance/tenant-governance.module';
 import { BrandingModule } from './branding/branding.module';
@@ -69,6 +70,10 @@ import { CommonModule } from './common/common.module';
     {
       provide: APP_GUARD,
       useClass: RbacGuard,
+    },
+    {
+      provide: APP_GUARD,
+      useClass: AccountSecurityGuard,
     },
     {
       provide: APP_GUARD,

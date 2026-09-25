@@ -3,16 +3,23 @@ import {
   ExecutionContext,
   ForbiddenException,
   Injectable,
+  Logger,
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { IS_PUBLIC_KEY } from '../../common/decorators/public.decorator';
-import { CredentialStateService } from '../credential-state.service';
+import { CREDENTIAL_ERROR_CODES } from '../security.service';
+import {
+  CredentialStateService,
+  CredentialStateUnavailableError,
+} from '../credential-state.service';
 
-const CREDENTIAL_STATE_UNAVAILABLE = 'CREDENTIAL_STATE_UNAVAILABLE';
+const CREDENTIAL_STATE_UNAVAILABLE = CREDENTIAL_ERROR_CODES.STATE_UNAVAILABLE;
 
 @Injectable()
 export class AccountSecurityGuard implements CanActivate {
+  private readonly logger = new Logger(AccountSecurityGuard.name);
+
   private static readonly ALLOWED_ROUTES = new Set([
     'GET /security/credential-status',
     'POST /security/change-password',
@@ -42,17 +49,14 @@ export class AccountSecurityGuard implements CanActivate {
 
     const userId = request.user?.id;
     if (!userId) {
-      throw new ServiceUnavailableException({
-        success: false,
-        error: CREDENTIAL_STATE_UNAVAILABLE,
-        message: 'Credential state is unavailable',
-      });
+      this.logger.warn('Credential state read skipped: request profile is unresolved');
+      throw this.unavailable();
     }
 
     try {
       const state = await this.credentialState.getRequired(userId);
-      if (!state) {
-        throw new Error('Credential state is unavailable');
+      if (!state || typeof state.mustChangePassword !== 'boolean') {
+        throw new CredentialStateUnavailableError('missing');
       }
       if (state.mustChangePassword) {
         throw new ForbiddenException({
@@ -64,12 +68,23 @@ export class AccountSecurityGuard implements CanActivate {
       return true;
     } catch (error) {
       if (error instanceof ForbiddenException) throw error;
-      throw new ServiceUnavailableException({
-        success: false,
-        error: CREDENTIAL_STATE_UNAVAILABLE,
-        message: 'Credential state is unavailable',
-      });
+      const kind =
+        error instanceof CredentialStateUnavailableError
+          ? error.kind
+          : 'dependency';
+      this.logger.warn(
+        `Credential state ${kind} for profile ${userId}; denying request`,
+      );
+      throw this.unavailable();
     }
+  }
+
+  private unavailable(): ServiceUnavailableException {
+    return new ServiceUnavailableException({
+      success: false,
+      error: CREDENTIAL_STATE_UNAVAILABLE,
+      message: 'Credential state is unavailable',
+    });
   }
 
   private getRouteKey(request: {

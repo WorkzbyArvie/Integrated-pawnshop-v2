@@ -7,6 +7,12 @@ import {
   Logger,
 } from '@nestjs/common';
 import { Response, Request } from 'express';
+import { PASSWORD_RULE_KEYS } from '../../security/password-policy.constants';
+
+const SAFE_POLICY_FAILURE_KEYS: ReadonlySet<string> = new Set<string>([
+  ...PASSWORD_RULE_KEYS,
+  'required',
+]);
 
 /**
  * Global exception filter that catches all exceptions and returns a consistent error response.
@@ -45,7 +51,8 @@ export class GlobalExceptionFilter implements ExceptionFilter {
         }
         if (resp.data && typeof resp.data === 'object' && Array.isArray(resp.data.failed)) {
           const failed = resp.data.failed.filter(
-            (key: unknown): key is string => typeof key === 'string',
+            (key: unknown): key is string =>
+              typeof key === 'string' && SAFE_POLICY_FAILURE_KEYS.has(key),
           );
           if (failed.length > 0) safeData = { failed };
         }
