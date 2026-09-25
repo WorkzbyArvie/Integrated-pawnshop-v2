@@ -1,17 +1,19 @@
-import { Injectable, ConflictException } from '@nestjs/common';
+import { Injectable, ConflictException, ServiceUnavailableException } from '@nestjs/common';
 import { PrismaService } from './prisma.service';
 import { FinanceService } from './finance/finance.service';
 import { LegalProofService } from './loan/legal-proof.service';
 import { ReceiptService } from './receipt/receipt.service';
 import { StateMachineService } from './common/state-machine/state-machine.service';
 import { LedgerEntryType, LedgerCategory, KycIdType } from '@prisma/client';
-import { createClient } from '@supabase/supabase-js';
 import { createHash, randomBytes } from 'crypto';
 import { createTransport, type Transporter } from 'nodemailer';
 import { isIP } from 'node:net';
 import { resolve4, resolve6 } from 'node:dns/promises';
 import * as jwt from 'jsonwebtoken';
-import * as bcrypt from 'bcryptjs';
+import { SupabaseAdminService } from './common/supabase-admin.service';
+import { PasswordPolicyService } from './security/password-policy.service';
+import { CredentialStateService, CredentialStateUnavailableError } from './security/credential-state.service';
+import { AccountRegistrationDto } from './security/dto/account-registration.dto';
 import { calculatePawnCharges } from './finance/pawn-charge-calculator';
 import {
   assertValidKycDocumentUrl,
@@ -28,7 +30,6 @@ import { normalizeEmail, normalizeFullName, normalizePhoneNumber, assertEmailNot
 
 @Injectable()
 export class AppService {
-  private supabaseAdmin = this.initializeSupabaseClient();
   private readonly pendingAuthCodes = new Map<
     string,
     {
@@ -50,31 +51,6 @@ export class AppService {
     }
   >();
 
-  private initializeSupabaseClient() {
-    const supabaseUrl = process.env.VITE_SUPABASE_URL;
-    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-    if (!supabaseUrl || !serviceRoleKey) {
-      console.error('❌ [AppService] Missing Supabase configuration');
-      console.error(
-        `   VITE_SUPABASE_URL: ${supabaseUrl ? '✓ Set' : '✗ Missing'}`,
-      );
-      console.error(
-        `   SUPABASE_SERVICE_ROLE_KEY: ${serviceRoleKey ? '✓ Set' : '✗ Missing'}`,
-      );
-
-      // Return a client anyway so the app doesn't crash at startup
-      return createClient(
-        supabaseUrl || 'https://bxayczllpdhrvutubzbg.supabase.co',
-        serviceRoleKey || 'INVALID_KEY',
-      );
-    }
-
-    console.log('✅ [AppService] Initializing Supabase admin client');
-
-    return createClient(supabaseUrl, serviceRoleKey);
-  }
-
   constructor(
     private prisma: PrismaService,
     private financeService: FinanceService,
@@ -82,15 +58,19 @@ export class AppService {
     private receiptService: ReceiptService,
     private stateMachine: StateMachineService,
     private pawnTicketService: PawnTicketService,
+    private supabaseAdminService: SupabaseAdminService,
+    private passwordPolicy: PasswordPolicyService,
+    private credentialState: CredentialStateService,
   ) {
-    // Validate service role key configuration on startup
     if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
       console.warn(
         '⚠️  SUPABASE_SERVICE_ROLE_KEY not configured. Branch admin creation will fail.',
       );
-    } else {
-      console.log('✅ [AppService] Supabase admin client ready');
     }
+  }
+
+  private get supabaseAdmin() {
+    return this.supabaseAdminService.client;
   }
 
   // --- Helper: verify JWT and return user ID ---
@@ -849,18 +829,7 @@ export class AppService {
     newPassword: string,
   ) {
     const password = String(newPassword || '');
-    if (password.length < 8) {
-      throw new Error('Password must be at least 8 characters');
-    }
-
-    const hasUpper = /[A-Z]/.test(password);
-    const hasLower = /[a-z]/.test(password);
-    const hasNumber = /\d/.test(password);
-    if (!hasUpper || !hasLower || !hasNumber) {
-      throw new Error(
-        'Password must include uppercase, lowercase, and number',
-      );
-    }
+    this.passwordPolicy.assert(password);
 
     const actor = await this.prisma.profile.findUnique({
       where: { id: actorUserId },
@@ -1094,38 +1063,26 @@ export class AppService {
       throw new Error('Email and password are required');
     }
 
-    const profile = await this.prisma.profile.findFirst({ where: { email } });
-
-    let passwordValid = false;
-    if (profile?.passwordHash) {
-      passwordValid = await bcrypt.compare(password, profile.passwordHash);
-    } else {
-      try {
-        const { data: authData, error } =
-          await this.supabaseAdmin.auth.signInWithPassword({
-            email,
-            password,
-          });
-        passwordValid = !error && !!authData?.user?.id;
-      } catch {
-        passwordValid = false;
-      }
+    let authData: { user?: { id?: string } } | null = null;
+    try {
+      const result = await this.supabaseAdmin.auth.signInWithPassword({
+        email,
+        password,
+      });
+      if (!result.error) authData = result.data;
+    } catch {
+      authData = null;
     }
 
-    if (!profile || !passwordValid) {
+    if (!authData?.user?.id) {
       throw new Error('Invalid email or password');
     }
 
-    if (!profile.passwordHash) {
-      try {
-        const hash = await bcrypt.hash(password, 10);
-        await this.prisma.profile.update({
-          where: { id: profile.id },
-          data: { passwordHash: hash },
-        });
-      } catch (error: any) {
-        console.warn(`[loginNative] hash backfill skipped: ${error.message}`);
-      }
+    const profile = await this.prisma.profile.findUnique({
+      where: { id: authData.user.id },
+    });
+    if (!profile) {
+      throw new Error('Invalid email or password');
     }
 
     const accessToken = this.signBackendToken({
@@ -1147,6 +1104,28 @@ export class AppService {
         pawnshop_id: profile.pawnshopId,
       },
     };
+  }
+
+  async getCredentialStatus(userId: string) {
+    try {
+      const state = await this.credentialState.getForUser(userId);
+      return {
+        mustChangePassword: state.mustChangePassword,
+        reason: state.reason,
+        markedAt: state.markedAt,
+        resolvedAt: state.resolvedAt,
+        mfaEnabled: state.mfaEnabled,
+      };
+    } catch (error) {
+      if (error instanceof CredentialStateUnavailableError) {
+        throw new ServiceUnavailableException({
+          success: false,
+          error: error.code,
+          message: 'Credential state is unavailable',
+        });
+      }
+      throw error;
+    }
   }
 
   // --- LOCAL AUTH (Development Only) ---
@@ -1192,241 +1171,185 @@ export class AppService {
     }
   }
 
-  // Register a public bidder account (used by Auction House + Mobile App)
-  async registerBidder(data: any) {
-    const email = normalizeEmail(data?.email);
-    const password = String(data?.password || '');
-    const full_name = String(data?.full_name || '').trim();
-    const displayName = full_name ? normalizeFullName(full_name) : email.split('@')[0];
-
-    console.log('📥 [registerBidder] Request received:', { email, full_name });
-
-    if (!password) {
-      throw new Error('Password is required');
-    }
-    if (password.length < 8) {
-      throw new Error('Password must be at least 8 characters');
+  async registerBidder(data: AccountRegistrationDto) {
+    if (data.pawnshop_id || data.branch_id) {
+      throw new Error('Tenant context is not accepted for bidder registration');
     }
 
+    const email = normalizeEmail(data.email);
+    const password = String(data.password || '');
+    const fullNameInput = String(data.full_name || '').trim();
+    const displayName = fullNameInput
+      ? normalizeFullName(fullNameInput)
+      : email.split('@')[0];
+
+    this.passwordPolicy.assert(password);
     await assertEmailNotTaken(this.prisma, email, 'BIDDER');
-
     this.consumeAuthVerification(data, 'BIDDER_REGISTRATION');
 
     const syncBidderProfile = async (userId: string) => {
-      try {
-        const passwordHash = await bcrypt.hash(password, 10);
-        await this.prisma.profile.upsert({
-          where: { id: userId },
-          update: {
-            email,
-            fullName: displayName,
-            pawnshopId: null,
-            passwordHash,
-          },
-          create: {
-            id: userId,
-            email,
-            fullName: displayName,
-            role: 'BIDDER',
-            pawnshopId: null,
-            passwordHash,
-          },
-        });
-        console.log(`✅ [registerBidder] Profile synced for ${email}`);
-      } catch (profileErr: any) {
-        console.warn(
-          `⚠️ [registerBidder] Profile sync failed but auth user exists: ${profileErr.message}`,
-        );
-      }
+      const profile = await this.prisma.profile.upsert({
+        where: { id: userId },
+        update: {
+          email,
+          fullName: displayName,
+          pawnshopId: null,
+        },
+        create: {
+          id: userId,
+          email,
+          fullName: displayName,
+          role: 'BIDDER',
+          pawnshopId: null,
+        },
+      });
+      await this.credentialState.initializeSelfSelected(userId);
+      return profile;
     };
 
-    try {
-      // Step 1: Create user in Supabase Auth
-      const { data: authUser, error: authError } =
-        await this.supabaseAdmin.auth.admin.createUser({
-          email,
-          password,
-          email_confirm: true,
-          user_metadata: {
-            fullName: displayName,
-            role: 'BIDDER',
-          },
-        });
-
-      if (authError) {
-        console.error(
-          '❌ [registerBidder] Supabase auth error:',
-          authError.message,
-        );
-        if (authError.message?.includes('already been registered')) {
-          // Idempotent recovery: if account already exists and password matches,
-          // complete signup by signing in and syncing profile.
-          const { data: signInData, error: signInError } =
-            await this.supabaseAdmin.auth.signInWithPassword({
-              email,
-              password,
-            });
-
-          if (signInError || !signInData?.user?.id) {
-            throw new Error(
-              'An account with this email already exists. Please login instead.',
-            );
-          }
-
-          await syncBidderProfile(signInData.user.id);
-
-          return {
-            success: true,
-            recovered: true,
-            user: {
-              id: signInData.user.id,
-              email: signInData.user.email,
-              full_name: displayName,
-              role: 'BIDDER',
-            },
-          };
-        }
-        throw new Error(`Registration failed: ${authError.message}`);
-      }
-
-      if (!authUser?.user?.id) {
-        throw new Error('User creation succeeded but no user ID returned');
-      }
-
-      console.log(`✅ [registerBidder] Auth user created: ${authUser.user.id}`);
-
-      // Step 2: Create profile record with BIDDER role
-      await syncBidderProfile(authUser.user.id);
-
-      return {
-        success: true,
-        user: {
-          id: authUser.user.id,
-          email: authUser.user.email,
-          full_name: displayName,
+    const { data: authUser, error: authError } =
+      await this.supabaseAdmin.auth.admin.createUser({
+        email,
+        password,
+        email_confirm: true,
+        user_metadata: {
+          fullName: displayName,
           role: 'BIDDER',
         },
-      };
-    } catch (err: any) {
-      console.error('❌ [registerBidder] Error:', err.message);
-      throw err;
+      });
+
+    if (authError) {
+      if (authError.message?.includes('already been registered')) {
+        const { data: signInData, error: signInError } =
+          await this.supabaseAdmin.auth.signInWithPassword({
+            email,
+            password,
+          });
+
+        if (signInError || !signInData?.user?.id) {
+          throw new Error(
+            'An account with this email already exists. Please login instead.',
+          );
+        }
+
+        await syncBidderProfile(signInData.user.id);
+        return {
+          success: true,
+          recovered: true,
+          user: {
+            id: signInData.user.id,
+            email: signInData.user.email,
+            full_name: displayName,
+            role: 'BIDDER',
+          },
+        };
+      }
+      throw new Error(`Registration failed: ${authError.message}`);
     }
+
+    if (!authUser?.user?.id) {
+      throw new Error('User creation succeeded but no user ID returned');
+    }
+
+    await syncBidderProfile(authUser.user.id);
+    return {
+      success: true,
+      user: {
+        id: authUser.user.id,
+        email: authUser.user.email,
+        full_name: displayName,
+        role: 'BIDDER',
+      },
+    };
   }
 
-  async registerOwner(data: any) {
-    const email = normalizeEmail(data?.email);
-    const password = String(data?.password || '');
-    const full_name = String(data?.full_name || '').trim();
-    const displayName = full_name ? normalizeFullName(full_name) : email.split('@')[0];
-
-    console.log('📥 [registerOwner] Request received:', { email, full_name });
-
-    if (!password) {
-      throw new Error('Password is required');
-    }
-    if (password.length < 8) {
-      throw new Error('Password must be at least 8 characters');
+  async registerOwner(data: AccountRegistrationDto) {
+    if (data.pawnshop_id || data.branch_id) {
+      throw new Error('Tenant context is not accepted for owner registration');
     }
 
+    const email = normalizeEmail(data.email);
+    const password = String(data.password || '');
+    const fullNameInput = String(data.full_name || '').trim();
+    const displayName = fullNameInput
+      ? normalizeFullName(fullNameInput)
+      : email.split('@')[0];
+
+    this.passwordPolicy.assert(password);
     await assertEmailNotTaken(this.prisma, email, 'OWNER');
-
     this.consumeAuthVerification(data, 'OWNER_REGISTRATION');
 
     const syncOwnerProfile = async (userId: string) => {
-      try {
-        await this.prisma.profile.upsert({
-          where: { id: userId },
-          update: {
-            email,
-            fullName: displayName,
-          },
-          create: {
-            id: userId,
-            email,
-            fullName: displayName,
-            role: 'OWNER',
-          },
-        });
-        console.log(`✅ [registerOwner] Profile synced for ${email}`);
-      } catch (profileErr: any) {
-        console.warn(
-          `⚠️ [registerOwner] Profile sync failed but auth user exists: ${profileErr.message}`,
-        );
-      }
+      const profile = await this.prisma.profile.upsert({
+        where: { id: userId },
+        update: {
+          email,
+          fullName: displayName,
+        },
+        create: {
+          id: userId,
+          email,
+          fullName: displayName,
+          role: 'OWNER',
+        },
+      });
+      await this.credentialState.initializeSelfSelected(userId);
+      return profile;
     };
 
-    try {
-      const { data: authUser, error: authError } =
-        await this.supabaseAdmin.auth.admin.createUser({
-          email,
-          password,
-          email_confirm: true,
-          user_metadata: {
-            fullName: displayName,
-            role: 'OWNER',
-          },
-        });
+    const { data: authUser, error: authError } =
+      await this.supabaseAdmin.auth.admin.createUser({
+        email,
+        password,
+        email_confirm: true,
+        user_metadata: {
+          fullName: displayName,
+          role: 'OWNER',
+        },
+      });
 
-      if (authError) {
-        console.error(
-          '❌ [registerOwner] Supabase auth error:',
-          authError.message,
-        );
-        if (authError.message?.includes('already been registered')) {
-          const { data: signInData, error: signInError } =
-            await this.supabaseAdmin.auth.signInWithPassword({
-              email,
-              password,
-            });
+    if (authError) {
+      if (authError.message?.includes('already been registered')) {
+        const { data: signInData, error: signInError } =
+          await this.supabaseAdmin.auth.signInWithPassword({
+            email,
+            password,
+          });
 
-          if (signInError || !signInData?.user?.id) {
-            throw new Error(
-              'An account with this email already exists. Please login instead.',
-            );
-          }
-
-          await syncOwnerProfile(signInData.user.id);
-
-          return {
-            success: true,
-            recovered: true,
-            user: {
-              id: signInData.user.id,
-              email: signInData.user.email,
-              full_name: displayName,
-              role: 'OWNER',
-            },
-          };
+        if (signInError || !signInData?.user?.id) {
+          throw new Error(
+            'An account with this email already exists. Please login instead.',
+          );
         }
-        throw new Error(`Registration failed: ${authError.message}`);
-      }
 
-      if (!authUser?.user?.id) {
-        throw new Error('User creation succeeded but no user ID returned');
-      }
-
-      console.log(`✅ [registerOwner] Auth user created: ${authUser.user.id}`);
-
-      await syncOwnerProfile(authUser.user.id);
-
-      const { data: signInResult, error: signInErr } =
-        await this.supabaseAdmin.auth.signInWithPassword({
-          email,
-          password,
-        });
-
-      if (signInErr || !signInResult?.session) {
+        await syncOwnerProfile(signInData.user.id);
         return {
           success: true,
+          recovered: true,
           user: {
-            id: authUser.user.id,
-            email: authUser.user.email,
+            id: signInData.user.id,
+            email: signInData.user.email,
             full_name: displayName,
             role: 'OWNER',
           },
         };
       }
+      throw new Error(`Registration failed: ${authError.message}`);
+    }
 
+    if (!authUser?.user?.id) {
+      throw new Error('User creation succeeded but no user ID returned');
+    }
+
+    await syncOwnerProfile(authUser.user.id);
+
+    const { data: signInResult, error: signInErr } =
+      await this.supabaseAdmin.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+    if (signInErr || !signInResult?.session) {
       return {
         success: true,
         user: {
@@ -1435,19 +1358,26 @@ export class AppService {
           full_name: displayName,
           role: 'OWNER',
         },
-        session: {
-          access_token: signInResult.session.access_token,
-          refresh_token: signInResult.session.refresh_token,
-        },
       };
-    } catch (err: any) {
-      console.error('❌ [registerOwner] Error:', err.message);
-      throw err;
     }
+
+    return {
+      success: true,
+      user: {
+        id: authUser.user.id,
+        email: authUser.user.email,
+        full_name: displayName,
+        role: 'OWNER',
+      },
+      session: {
+        access_token: signInResult.session.access_token,
+        refresh_token: signInResult.session.refresh_token,
+      },
+    };
   }
 
   // Create a new tenant user in Supabase Auth + profile
-  async createBranchAdmin(actorUserId: string, data: any) {
+  async createBranchAdmin(actorUserId: string, data: AccountRegistrationDto) {
     const { email, password, role, pawnshop_id, full_name, branch_id, staff_type } = data;
 
     const { role: canonicalRole, staffType: normalizedStaffType } =
@@ -1505,11 +1435,7 @@ export class AppService {
       throw new Error(msg);
     }
 
-    if (password.length < 8) {
-      const msg = 'Password must be at least 8 characters';
-      console.error('❌ [createBranchAdmin]', msg);
-      throw new Error(msg);
-    }
+    this.passwordPolicy.assert(password);
 
     if (!email.includes('@')) {
       const msg = 'Invalid email format';
@@ -1620,6 +1546,8 @@ export class AppService {
           role: profile.role,
         });
 
+        await this.credentialState.initializeProvisioned(profile.id);
+
         return {
           success: true,
           user: {
@@ -1646,18 +1574,7 @@ export class AppService {
           `⚠️  Supabase user exists but profile sync failed. Auth ID: ${authUser.user.id}`,
         );
 
-        return {
-          success: true,
-          warning: 'User created in Supabase but profile sync failed',
-          user: {
-            id: authUser.user.id,
-            email: authUser.user.email,
-            role: canonicalRole,
-            staffType: normalizedStaffType,
-            verified: true,
-            message: 'Auth user created, profile pending sync',
-          },
-        };
+        throw profileErr;
       }
     } catch (err: any) {
       console.error('❌ [createBranchAdmin] Fatal error:', {

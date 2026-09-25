@@ -23,6 +23,13 @@ import {
 } from 'lucide-react';
 import api from '../lib/apiClient';
 import { supabase } from '../lib/supabaseClient';
+import {
+  getPasswordRuleFailures,
+} from '../components/Auth/PasswordRequirements';
+import {
+  PasswordErrorSummary,
+  PasswordField,
+} from '../components/Auth/PasswordField';
 
 type BackendPlan = {
   tier: 'FREE' | 'BASIC' | 'PROFESSIONAL' | 'ENTERPRISE';
@@ -204,7 +211,9 @@ export default function LandingPage() {
   const [authStep, setAuthStep] = useState<'form' | 'otp'>('form');
   const [authSubmitting, setAuthSubmitting] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
+  const [authFieldError, setAuthFieldError] = useState<string | null>(null);
   const [authMessage, setAuthMessage] = useState<string | null>(null);
+  const authErrorSummaryRef = useRef<HTMLDivElement>(null);
   const [ownerUserId, setOwnerUserId] = useState<string | null>(null);
   const [otpCode, setOtpCode] = useState('');
   const [otpSentTo, setOtpSentTo] = useState('');
@@ -467,6 +476,7 @@ export default function LandingPage() {
 
   const openModal = () => {
     setAuthError(null);
+    setAuthFieldError(null);
     setAuthMessage(null);
     setAuthStep('form');
     setOtpCode('');
@@ -481,6 +491,7 @@ export default function LandingPage() {
   const handleAuthSubmit = async (event: FormEvent) => {
     event.preventDefault();
     setAuthError(null);
+    setAuthFieldError(null);
     setAuthMessage(null);
 
     if (authMode === 'signin') {
@@ -509,12 +520,15 @@ export default function LandingPage() {
       setAuthError('All fields are required.');
       return;
     }
-    if (authForm.password.length < 8) {
-      setAuthError('Password must be at least 8 characters.');
+    const passwordFailures = getPasswordRuleFailures(authForm.password);
+    if (passwordFailures.length > 0) {
+      setAuthError('Password does not meet the required policy.');
+      setAuthFieldError('Password requirements are not met.');
       return;
     }
     if (authForm.password !== authForm.confirmPassword) {
       setAuthError('Passwords do not match.');
+      setAuthFieldError('Passwords do not match');
       return;
     }
     if (!acceptedTerms) {
@@ -552,6 +566,7 @@ export default function LandingPage() {
   const handleVerifyOtp = async (event: FormEvent) => {
     event.preventDefault();
     setAuthError(null);
+    setAuthFieldError(null);
     setAuthMessage(null);
 
     if (!otpCode || otpCode.length !== 6) {
@@ -591,13 +606,12 @@ export default function LandingPage() {
         }),
       });
       const registerData = await registerRes.json();
-      if (!registerRes.ok) throw new Error(registerData.message || 'Registration failed');
-
-      const regPayload = registerData.data || registerData;
-
-      if (regPayload.session?.access_token) {
-        localStorage.setItem('auth_token', regPayload.session.access_token);
-        localStorage.setItem('auth_refresh_token', regPayload.session.refresh_token);
+      if (!registerRes.ok) {
+        const registerPayload = registerData.data || registerData;
+        if (registerPayload.error === 'PASSWORD_POLICY_FAILED') {
+          setAuthFieldError('Password requirements are not met.');
+        }
+        throw new Error(registerData.message || 'Registration failed');
       }
 
       await supabase.auth.signInWithPassword({
@@ -605,6 +619,11 @@ export default function LandingPage() {
         password: authForm.password,
       });
 
+      setAuthForm((previous) => ({
+        ...previous,
+        password: '',
+        confirmPassword: '',
+      }));
       setAuthMessage('Account created successfully. Continue to submit your trial request.');
       await syncOwnerSessionContext();
       setAuthStep('form');
@@ -618,6 +637,7 @@ export default function LandingPage() {
   const resendCode = async () => {
     if (resendTimer > 0) return;
     setAuthError(null);
+    setAuthFieldError(null);
     setAuthMessage(null);
     try {
       const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000';
@@ -637,6 +657,11 @@ export default function LandingPage() {
 
   const handleOwnerSignOut = async () => {
     await supabase.auth.signOut();
+    setAuthForm((previous) => ({
+      ...previous,
+      password: '',
+      confirmPassword: '',
+    }));
     setOwnerUserId(null);
     setAuthMessage('Signed out. Sign in with the owner account to continue.');
   };
@@ -1400,28 +1425,40 @@ export default function LandingPage() {
 
                 <form onSubmit={handleAuthSubmit} className="mt-4 space-y-3">
                   {authMode === 'signup' && (
+                    <div className="space-y-2">
+                      <label htmlFor="ownerFullName" className="block text-[12px] font-semibold" style={{ color: 'var(--text-secondary)' }}>
+                        Full name
+                      </label>
+                      <input
+                        id="ownerFullName"
+                        name="ownerFullName"
+                        value={authForm.fullName}
+                        onChange={(e) => setAuthForm((prev) => ({ ...prev, fullName: e.target.value }))}
+                        autoComplete="name"
+                        placeholder="Enter your full name"
+                        className="h-11 w-full rounded-[12px] border border-[#C9A05C]/30 bg-white/[0.05] px-3.5 text-[13px] text-white outline-none focus-visible:ring-2 focus-visible:ring-[#C9A05C]"
+                        style={{ background: 'rgba(255,255,255,0.05)', borderColor: 'rgba(201,160,92,0.3)', color: 'var(--text-primary)' }}
+                        required
+                      />
+                    </div>
+                  )}
+                  <div className="space-y-2">
+                    <label htmlFor="ownerEmail" className="block text-[12px] font-semibold" style={{ color: 'var(--text-secondary)' }}>
+                      Email address
+                    </label>
                     <input
-                      value={authForm.fullName}
-                      onChange={(e) => setAuthForm((prev) => ({ ...prev, fullName: e.target.value }))}
-                      placeholder="Enter your full name"
-                      aria-label="Full name"
-                      className="w-full rounded-[12px] px-3.5 py-2.5 text-[13px] outline-none"
-                      style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(201,160,92,0.15)', color: 'var(--text-primary)' }}
+                      id="ownerEmail"
+                      value={authForm.email}
+                      onChange={(e) => setAuthForm((prev) => ({ ...prev, email: e.target.value }))}
+                      type="email"
+                      name="ownerEmail"
+                      autoComplete="email"
+                      placeholder="Type your email address"
+                      className="h-11 w-full rounded-[12px] border border-[#C9A05C]/30 bg-white/[0.05] px-3.5 text-[13px] text-white outline-none focus-visible:ring-2 focus-visible:ring-[#C9A05C]"
+                      style={{ background: 'rgba(255,255,255,0.05)', borderColor: 'rgba(201,160,92,0.3)', color: 'var(--text-primary)' }}
                       required
                     />
-                  )}
-                  <input
-                    value={authForm.email}
-                    onChange={(e) => setAuthForm((prev) => ({ ...prev, email: e.target.value }))}
-                    type="email"
-                    name="ownerEmail"
-                    autoComplete="off"
-                    placeholder="Type your email address"
-                    aria-label="Email address"
-                    className="w-full rounded-[12px] px-3.5 py-2.5 text-[13px] outline-none"
-                    style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(201,160,92,0.15)', color: 'var(--text-primary)' }}
-                    required
-                  />
+                  </div>
                   {emailCheck.checking && (
                     <p className="text-[11px] px-1" style={{ color: 'var(--text-muted)' }}>Checking email...</p>
                   )}
@@ -1431,29 +1468,31 @@ export default function LandingPage() {
                     </p>
                   )}
                   <div className="grid gap-3 md:grid-cols-2">
-                    <input
-                      value={authForm.password}
-                      onChange={(e) => setAuthForm((prev) => ({ ...prev, password: e.target.value }))}
-                      type="password"
+                    <PasswordField
+                      id="ownerPassword"
                       name="ownerPassword"
-                      autoComplete="new-password"
-                      placeholder="Enter your password"
-                      aria-label="Password"
-                      className="rounded-[12px] px-3.5 py-2.5 text-[13px] outline-none"
-                      style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(201,160,92,0.15)', color: 'var(--text-primary)' }}
+                      label={authMode === 'signup' ? 'New password' : 'Password'}
+                      value={authForm.password}
+                      onChange={(value) => setAuthForm((prev) => ({ ...prev, password: value }))}
+                      error={authFieldError === 'Passwords do not match' ? undefined : authFieldError || undefined}
+                      errorSummaryId="owner-password-error-summary"
+                      helperText={authMode === 'signup' ? 'Use a private password you do not use elsewhere.' : undefined}
+                      showRequirements={authMode === 'signup'}
+                      autoComplete={authMode === 'signup' ? 'new-password' : 'current-password'}
                       required
                     />
                     {authMode === 'signup' && (
-                      <input
-                        value={authForm.confirmPassword}
-                        onChange={(e) => setAuthForm((prev) => ({ ...prev, confirmPassword: e.target.value }))}
-                        type="password"
+                      <PasswordField
+                        id="ownerConfirmPassword"
                         name="ownerConfirmPassword"
+                        label="Confirm password"
+                        value={authForm.confirmPassword}
+                        onChange={(value) => setAuthForm((prev) => ({ ...prev, confirmPassword: value }))}
+                        error={authFieldError === 'Passwords do not match' ? authFieldError : undefined}
+                        errorSummaryId="owner-password-error-summary"
+                        helperText="Passwords do not match"
+                        showRequirements={false}
                         autoComplete="new-password"
-                        placeholder="Re-enter your password"
-                        aria-label="Confirm password"
-                        className="rounded-[12px] px-3.5 py-2.5 text-[13px] outline-none"
-                        style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(201,160,92,0.15)', color: 'var(--text-primary)' }}
                         required
                       />
                     )}
@@ -1481,7 +1520,15 @@ export default function LandingPage() {
                   {authMessage && (
                     <p className="rounded-[10px] px-3 py-2 text-[12px]" style={{ background: 'rgba(61,168,108,0.1)', color: 'var(--green)', border: '1px solid rgba(61,168,108,0.2)' }}>{authMessage}</p>
                   )}
-                  {authError && (
+                  {authError && authStep === 'form' && (
+                    <PasswordErrorSummary
+                      id="owner-password-error-summary"
+                      message={authError}
+                      fieldId="ownerPassword"
+                      summaryRef={authErrorSummaryRef}
+                    />
+                  )}
+                  {authError && authStep !== 'form' && (
                     <p className="rounded-[10px] px-3 py-2 text-[12px]" style={{ background: 'rgba(212,69,69,0.1)', color: 'var(--red)', border: '1px solid rgba(212,69,69,0.2)' }}>{authError}</p>
                   )}
 
@@ -1492,11 +1539,11 @@ export default function LandingPage() {
                       className="rounded-[12px] px-4 py-2.5 text-[13px] font-semibold transition-all active:scale-[0.97] disabled:opacity-50"
                       style={{ background: 'linear-gradient(135deg, #C9A05C 0%, #A07D40 100%)', color: '#0A0A0F', border: '1px solid rgba(201,160,92,0.4)' }}
                     >
-                      {authSubmitting ? 'Please wait...' : authMode === 'signup' ? 'Create Owner Account' : 'Sign In as Owner'}
+                      {authSubmitting ? 'Please wait...' : authMode === 'signup' ? 'Create owner account' : 'Sign in as owner'}
                     </button>
                     <button
                       type="button"
-                      onClick={() => { setAuthError(null); setAuthMessage(null); setAcceptedTerms(false); setAuthMode((prev) => (prev === 'signup' ? 'signin' : 'signup')); }}
+                      onClick={() => { setAuthError(null); setAuthFieldError(null); setAuthMessage(null); setAcceptedTerms(false); setAuthMode((prev) => (prev === 'signup' ? 'signin' : 'signup')); }}
                       className="rounded-[12px] px-4 py-2.5 text-[13px] font-medium transition-all"
                       style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: 'var(--text-secondary)' }}
                     >
@@ -1516,11 +1563,14 @@ export default function LandingPage() {
 
                 <form onSubmit={handleVerifyOtp} className="mt-4 space-y-3">
                   <input
+                    id="ownerOtp"
+                    name="verificationToken"
                     value={otpCode}
                     onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
                     type="text"
                     inputMode="numeric"
                     maxLength={6}
+                    autoComplete="one-time-code"
                     placeholder="000000"
                     aria-label="6-digit verification code"
                     className="w-full rounded-[12px] px-3.5 py-3 text-[20px] text-center tracking-[0.4em] font-mono outline-none"
@@ -1553,7 +1603,7 @@ export default function LandingPage() {
                       className="rounded-[12px] px-4 py-2.5 text-[13px] font-semibold transition-all active:scale-[0.97] disabled:opacity-50"
                       style={{ background: 'linear-gradient(135deg, #C9A05C 0%, #A07D40 100%)', color: '#0A0A0F', border: '1px solid rgba(201,160,92,0.4)' }}
                     >
-                      {authSubmitting ? 'Verifying...' : 'Verify & Create Account'}
+                      {authSubmitting ? 'Verifying...' : 'Verify code'}
                     </button>
                     <button
                       type="button"

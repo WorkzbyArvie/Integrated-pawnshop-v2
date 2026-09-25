@@ -1,6 +1,9 @@
 import { Test } from '@nestjs/testing';
 import { ConflictException } from '@nestjs/common';
 import { AppService } from './app.service';
+import { SupabaseAdminService } from './common/supabase-admin.service';
+import { PasswordPolicyService } from './security/password-policy.service';
+import { CredentialStateService } from './security/credential-state.service';
 import { PrismaService } from './prisma.service';
 import { FinanceService } from './finance/finance.service';
 import { LegalProofService } from './loan/legal-proof.service';
@@ -19,6 +22,13 @@ const mockLegalProofService = { createProof: jest.fn().mockResolvedValue({ id: '
 const mockReceiptService = { generateReceipt: jest.fn().mockResolvedValue({ id: 'rcpt-1' }) };
 const mockStateMachine = { transition: jest.fn().mockResolvedValue(true) };
 const mockPawnTicketService = { redeemTicket: jest.fn() };
+const mockSupabaseAdmin = { client: {} };
+const mockPasswordPolicy = { assert: jest.fn(), evaluate: jest.fn() };
+const mockCredentialState = {
+  initializeSelfSelected: jest.fn(),
+  initializeProvisioned: jest.fn(),
+  getForUser: jest.fn(),
+};
 
 describe('AppService', () => {
   let service: AppService;
@@ -35,6 +45,9 @@ describe('AppService', () => {
         { provide: ReceiptService, useValue: mockReceiptService },
         { provide: StateMachineService, useValue: mockStateMachine },
         { provide: PawnTicketService, useValue: mockPawnTicketService },
+        { provide: SupabaseAdminService, useValue: mockSupabaseAdmin },
+        { provide: PasswordPolicyService, useValue: mockPasswordPolicy },
+        { provide: CredentialStateService, useValue: mockCredentialState },
       ],
     }).compile();
 

@@ -23,6 +23,7 @@ import { RequiresPermission } from './common/decorators/requires-permission.deco
 import { PERMISSIONS } from './common/permissions/permissions.const';
 import { Throttle } from './common/decorators/throttle.decorator';
 import { AppService } from './app.service';
+import { AccountRegistrationDto } from './security/dto/account-registration.dto';
 import { StorageService } from './common/storage/storage.service';
 import type { Request, Response } from 'express';
 import type { File } from 'multer';
@@ -152,13 +153,14 @@ export class AppController {
 
   @Public()
   @Post('auth/register-bidder')
-  async registerBidder(@Body() body: any) {
+  async registerBidder(@Body() body: AccountRegistrationDto) {
     try {
       console.log('[Controller] registerBidder called for:', body.email);
       const result = await this.appService.registerBidder(body);
       console.log('[Controller] ÃƒÆ’Ã‚Â¢Ãƒâ€¦Ã¢â‚¬Å“ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ registerBidder succeeded');
       return result;
     } catch (error: any) {
+      if (error instanceof HttpException) throw error;
       console.error('[Controller] ÃƒÆ’Ã‚Â¢Ãƒâ€šÃ‚ÂÃƒâ€¦Ã¢â‚¬â„¢ registerBidder failed:', error.message);
       throw new HttpException(
         {
@@ -173,13 +175,14 @@ export class AppController {
 
   @Public()
   @Post('auth/register-owner')
-  async registerOwner(@Body() body: any) {
+  async registerOwner(@Body() body: AccountRegistrationDto) {
     try {
       console.log('[Controller] registerOwner called for:', body.email);
       const result = await this.appService.registerOwner(body);
       console.log('[Controller] ÃƒÆ’Ã‚Â¢Ãƒâ€¦Ã¢â‚¬Å“ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ registerOwner succeeded');
       return result;
     } catch (error: any) {
+      if (error instanceof HttpException) throw error;
       console.error('[Controller] ÃƒÆ’Ã‚Â¢Ãƒâ€šÃ‚ÂÃƒâ€¦Ã¢â‚¬â„¢ registerOwner failed:', error.message);
       throw new HttpException(
         {
@@ -192,10 +195,18 @@ export class AppController {
     }
   }
 
+  @Get('auth/credential-status')
+  async getCredentialStatus(
+    @Headers('authorization') authHeader: string | undefined,
+  ) {
+    const userId = await this.extractUserId(authHeader);
+    return this.appService.getCredentialStatus(userId);
+  }
+
   @Post('auth/create-branch-admin')
   async createBranchAdmin(
     @Headers('authorization') authHeader: string | undefined,
-    @Body() body: any,
+    @Body() body: AccountRegistrationDto,
   ) {
     try {
       // Require authenticated admin
@@ -213,6 +224,7 @@ export class AppController {
       console.log('[Controller] ÃƒÆ’Ã‚Â¢Ãƒâ€¦Ã¢â‚¬Å“ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ createBranchAdmin succeeded');
       return result;
     } catch (error: any) {
+      if (error instanceof HttpException) throw error;
       console.error('[Controller] ÃƒÆ’Ã‚Â¢Ãƒâ€šÃ‚ÂÃƒâ€¦Ã¢â‚¬â„¢ createBranchAdmin failed:', {
         message: error.message,
         code: error.code,

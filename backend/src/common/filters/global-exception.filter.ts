@@ -24,6 +24,8 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     let status: number;
     let message: string;
     let errors: any = undefined;
+    let errorCode: string | undefined;
+    let safeData: Record<string, unknown> | undefined;
 
     if (exception instanceof HttpException) {
       status = exception.getStatus();
@@ -37,6 +39,15 @@ export class GlobalExceptionFilter implements ExceptionFilter {
         if (Array.isArray(resp.message)) {
           message = 'Validation failed';
           errors = resp.message;
+        }
+        if (typeof resp.error === 'string') {
+          errorCode = resp.error;
+        }
+        if (resp.data && typeof resp.data === 'object' && Array.isArray(resp.data.failed)) {
+          const failed = resp.data.failed.filter(
+            (key: unknown): key is string => typeof key === 'string',
+          );
+          if (failed.length > 0) safeData = { failed };
         }
       } else {
         message = exception.message;
@@ -59,7 +70,9 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       success: false,
       statusCode: status,
       message,
+      ...(errorCode && { error: errorCode }),
       ...(errors && { errors }),
+      ...(safeData && { data: safeData }),
       timestamp: new Date().toISOString(),
       path: request.url,
     };

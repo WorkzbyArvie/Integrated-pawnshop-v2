@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 import { SupabaseAdminService } from '../common/supabase-admin.service';
+import { PasswordPolicyService } from './password-policy.service';
 
 @Injectable()
 export class SecurityService {
@@ -8,20 +9,12 @@ export class SecurityService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly supabaseAdmin: SupabaseAdminService,
+    private readonly passwordPolicy: PasswordPolicyService,
   ) {}
 
   async changeMyPassword(userId: string, data: { newPassword: string }) {
     const password = data?.newPassword || '';
-    if (password.length < 8) {
-      throw new Error('Password must be at least 8 characters');
-    }
-
-    const hasUpper = /[A-Z]/.test(password);
-    const hasLower = /[a-z]/.test(password);
-    const hasNumber = /\d/.test(password);
-    if (!hasUpper || !hasLower || !hasNumber) {
-      throw new Error('Password must include uppercase, lowercase, and number');
-    }
+    this.passwordPolicy.assert(password);
 
     const { error } = await this.supabaseAdmin.client.auth.admin.updateUserById(
       userId,
