@@ -19,6 +19,7 @@ export class AccountSecurityGuard implements CanActivate {
     'POST /security/recovery/complete',
     'GET /security/activity',
     'GET /security/activity-log',
+    'GET /auth/credential-status',
     'POST /auth/logout',
     'POST /auth/sign-out',
   ]);
