@@ -14,10 +14,15 @@ export interface CredentialStateView {
   updatedAt: Date;
 }
 
+export type CredentialStateUnavailableKind = 'missing' | 'dependency';
+
 export class CredentialStateUnavailableError extends Error {
   readonly code = 'CREDENTIAL_STATE_UNAVAILABLE' as const;
 
-  constructor(readonly reason?: unknown) {
+  constructor(
+    readonly kind: CredentialStateUnavailableKind = 'dependency',
+    readonly reason?: unknown,
+  ) {
     super('Credential state is unavailable');
     this.name = 'CredentialStateUnavailableError';
   }
@@ -66,16 +71,28 @@ export class CredentialStateService {
       const state = await this.prisma.credentialState.findUnique({
         where: { profileId },
       });
-      if (!state) throw new CredentialStateUnavailableError();
+      if (!state) throw new CredentialStateUnavailableError('missing');
       return state as CredentialStateView;
     } catch (error) {
       if (error instanceof CredentialStateUnavailableError) throw error;
-      throw new CredentialStateUnavailableError(error);
+      throw new CredentialStateUnavailableError('dependency', error);
     }
   }
 
   async getRequired(profileId: string): Promise<CredentialStateView> {
     return this.getForUser(profileId);
+  }
+
+  async resolveForcedChange(profileId: string): Promise<CredentialStateView> {
+    this.assertProfileId(profileId);
+    try {
+      return (await this.prisma.credentialState.update({
+        where: { profileId },
+        data: { mustChangePassword: false, resolvedAt: new Date() },
+      })) as CredentialStateView;
+    } catch (error) {
+      throw new CredentialStateUnavailableError('missing', error);
+    }
   }
 
   private assertProfileId(profileId: string): void {
