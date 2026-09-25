@@ -85,4 +85,11 @@ describe('CredentialStateService', () => {
       code: 'CREDENTIAL_STATE_UNAVAILABLE',
     });
   });
+
+  it('exposes the same required-state read for the guard', async () => {
+    const state = { profileId: 'profile-1', mustChangePassword: true };
+    credentialState.findUnique.mockResolvedValue(state);
+
+    await expect(service.getRequired('profile-1')).resolves.toBe(state);
+  });
 });
