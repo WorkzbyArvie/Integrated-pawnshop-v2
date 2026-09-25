@@ -12,15 +12,24 @@ import { SecurityModule } from '../security.module';
 import { AccountSecurityGuard } from './account-security.guard';
 import { CredentialStateService } from '../credential-state.service';
 
+const COMPLIANT = { mustChangePassword: false, mfaEnabled: false };
+const FORCED = { mustChangePassword: true, mfaEnabled: false };
+const MFA_ENABLED = { mustChangePassword: false, mfaEnabled: true };
+const FORCED_AND_MFA = { mustChangePassword: true, mfaEnabled: true };
+const CURRENT_SESSION = { userId: 'profile-1', sessionId: 'session-current' };
+
 describe('AccountSecurityGuard', () => {
   let request: {
     method: string;
     path: string;
     originalUrl?: string;
     user?: { id: string };
+    headers?: Record<string, string | string[]>;
   };
   let metadata: Record<string, unknown>;
   let credentialState: { getRequired: jest.Mock };
+  let authUser: { getAuthContextFromAuthHeader: jest.Mock };
+  let assertions: { validate: jest.Mock };
   const reflector = {
     getAllAndOverride: jest.fn((key: string) => metadata[key]),
   } as unknown as Reflector;
@@ -31,13 +40,32 @@ describe('AccountSecurityGuard', () => {
   };
 
   beforeEach(() => {
-    request = { method: 'GET', path: '/analytics/summary', user: { id: 'profile-1' } };
+    request = {
+      method: 'GET',
+      path: '/analytics/summary',
+      user: { id: 'profile-1' },
+      headers: { authorization: 'Bearer session-token' },
+    };
     metadata = {};
     credentialState = { getRequired: jest.fn() };
+    authUser = { getAuthContextFromAuthHeader: jest.fn() };
+    assertions = { validate: jest.fn() };
+    authUser.getAuthContextFromAuthHeader.mockResolvedValue(CURRENT_SESSION);
+    assertions.validate.mockResolvedValue(true);
   });
 
   const buildGuard = () =>
-    new AccountSecurityGuard(reflector, credentialState as unknown as CredentialStateService);
+    new (AccountSecurityGuard as never as new (
+      reflector: unknown,
+      credentialState: unknown,
+      authUser: unknown,
+      assertions: unknown,
+    ) => { canActivate: (context: unknown) => Promise<boolean> })(
+      reflector,
+      credentialState as unknown as CredentialStateService,
+      authUser,
+      assertions,
+    );
 
   it('allows public routes without reading state', async () => {
     metadata[IS_PUBLIC_KEY] = true;
@@ -54,14 +82,14 @@ describe('AccountSecurityGuard', () => {
   ])('allows the exact %s %s escape path while forced', async (method, path) => {
     request.method = method;
     request.path = path;
-    credentialState.getRequired.mockResolvedValue({ mustChangePassword: true });
+    credentialState.getRequired.mockResolvedValue(FORCED);
 
     await expect(buildGuard().canActivate(context as never)).resolves.toBe(true);
     expect(credentialState.getRequired).not.toHaveBeenCalled();
   });
 
   it('denies a protected route with PASSWORD_CHANGE_REQUIRED', async () => {
-    credentialState.getRequired.mockResolvedValue({ mustChangePassword: true });
+    credentialState.getRequired.mockResolvedValue(FORCED);
 
     await expect(buildGuard().canActivate(context as never)).rejects.toMatchObject({
       response: expect.objectContaining({ error: 'PASSWORD_CHANGE_REQUIRED' }),
@@ -94,8 +122,8 @@ describe('AccountSecurityGuard', () => {
 
   it('does not allow a non-allowlisted security write', async () => {
     request.method = 'POST';
-    request.path = '/security/mfa/enable-challenge';
-    credentialState.getRequired.mockResolvedValue({ mustChangePassword: true });
+    request.path = '/security/mfa/enable';
+    credentialState.getRequired.mockResolvedValue(FORCED);
 
     await expect(buildGuard().canActivate(context as never)).rejects.toBeInstanceOf(
       ForbiddenException,
@@ -108,12 +136,13 @@ describe('AccountSecurityGuard', () => {
       ['DELETE', '/security/credential-status'],
       ['PUT', '/security/change-password'],
       ['GET', '/security/mfa/verify'],
+      ['PUT', '/security/mfa/disable'],
       ['GET', '/security/credential-status/extra'],
       ['GET', '/analytics/summary'],
     ])('denies %s %s because the method and path must both match', async (method, path) => {
       request.method = method;
       request.path = path;
-      credentialState.getRequired.mockResolvedValue({ mustChangePassword: true });
+      credentialState.getRequired.mockResolvedValue(FORCED);
 
       await expect(buildGuard().canActivate(context as never)).rejects.toBeInstanceOf(
         ForbiddenException,
@@ -123,7 +152,7 @@ describe('AccountSecurityGuard', () => {
     it('tolerates a trailing slash on an allowlisted read', async () => {
       request.method = 'GET';
       request.path = '/security/credential-status/';
-      credentialState.getRequired.mockResolvedValue({ mustChangePassword: true });
+      credentialState.getRequired.mockResolvedValue(FORCED);
 
       await expect(buildGuard().canActivate(context as never)).resolves.toBe(true);
     });
@@ -131,7 +160,7 @@ describe('AccountSecurityGuard', () => {
     it('ignores the query string when matching the path', async () => {
       request.method = 'GET';
       request.path = '/security/activity?page=2';
-      credentialState.getRequired.mockResolvedValue({ mustChangePassword: true });
+      credentialState.getRequired.mockResolvedValue(FORCED);
 
       await expect(buildGuard().canActivate(context as never)).resolves.toBe(true);
     });
@@ -140,7 +169,7 @@ describe('AccountSecurityGuard', () => {
       request.method = 'GET';
       request.path = '';
       request.originalUrl = '/security/activity?page=2';
-      credentialState.getRequired.mockResolvedValue({ mustChangePassword: true });
+      credentialState.getRequired.mockResolvedValue(FORCED);
 
       await expect(buildGuard().canActivate(context as never)).resolves.toBe(true);
     });
@@ -152,7 +181,7 @@ describe('AccountSecurityGuard', () => {
     ])('keeps the sign-out and status infrastructure path %s %s reachable', async (method, path) => {
       request.method = method;
       request.path = path;
-      credentialState.getRequired.mockResolvedValue({ mustChangePassword: true });
+      credentialState.getRequired.mockResolvedValue(FORCED);
 
       await expect(buildGuard().canActivate(context as never)).resolves.toBe(true);
     });
@@ -171,6 +200,23 @@ describe('AccountSecurityGuard', () => {
       });
     });
 
+    it.each([
+      ['a state row without the MFA flag', { mustChangePassword: false }],
+      ['a state row with a non-boolean MFA flag', {
+        mustChangePassword: false,
+        mfaEnabled: 'false',
+      }],
+      ['a state row with a null MFA flag', { mustChangePassword: false, mfaEnabled: null }],
+    ])('denies %s rather than guessing that MFA is off', async (_label, state) => {
+      credentialState.getRequired.mockResolvedValue(state);
+
+      await expect(buildGuard().canActivate(context as never)).rejects.toMatchObject({
+        response: expect.objectContaining({ error: 'CREDENTIAL_STATE_UNAVAILABLE' }),
+      });
+      expect(authUser.getAuthContextFromAuthHeader).not.toHaveBeenCalled();
+      expect(assertions.validate).not.toHaveBeenCalled();
+    });
+
     it('denies a state read that times out', async () => {
       credentialState.getRequired.mockRejectedValue(new Error('query timeout'));
 
@@ -180,10 +226,177 @@ describe('AccountSecurityGuard', () => {
     });
 
     it('allows a compliant state through', async () => {
-      credentialState.getRequired.mockResolvedValue({ mustChangePassword: false });
+      credentialState.getRequired.mockResolvedValue(COMPLIANT);
 
       await expect(buildGuard().canActivate(context as never)).resolves.toBe(true);
       expect(credentialState.getRequired).toHaveBeenCalledWith('profile-1');
+      expect(assertions.validate).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('session-bound MFA enforcement', () => {
+    it('allows a protected operation with a valid current-session assertion', async () => {
+      credentialState.getRequired.mockResolvedValue(MFA_ENABLED);
+      request.headers = {
+        authorization: 'Bearer session-token',
+        'x-mfa-assertion': 'valid-assertion',
+      };
+      assertions.validate.mockResolvedValue(true);
+
+      await expect(buildGuard().canActivate(context as never)).resolves.toBe(true);
+      expect(authUser.getAuthContextFromAuthHeader).toHaveBeenCalledWith(
+        'Bearer session-token',
+      );
+      expect(assertions.validate).toHaveBeenCalledWith(
+        'profile-1',
+        'session-current',
+        'valid-assertion',
+      );
+    });
+
+    it('denies an MFA-enabled account with no assertion header', async () => {
+      credentialState.getRequired.mockResolvedValue(MFA_ENABLED);
+
+      await expect(buildGuard().canActivate(context as never)).rejects.toMatchObject({
+        response: expect.objectContaining({ error: 'MFA_VERIFICATION_REQUIRED' }),
+      });
+      expect(assertions.validate).toHaveBeenCalledWith(
+        'profile-1',
+        'session-current',
+        undefined,
+      );
+    });
+
+    it('denies an assertion that was issued for another session', async () => {
+      credentialState.getRequired.mockResolvedValue(MFA_ENABLED);
+      request.headers = {
+        authorization: 'Bearer session-token',
+        'x-mfa-assertion': 'replayed-assertion',
+      };
+      assertions.validate.mockResolvedValue(false);
+
+      await expect(buildGuard().canActivate(context as never)).rejects.toMatchObject({
+        response: expect.objectContaining({ error: 'MFA_VERIFICATION_REQUIRED' }),
+      });
+      expect(assertions.validate).toHaveBeenCalledWith(
+        'profile-1',
+        'session-current',
+        'replayed-assertion',
+      );
+    });
+
+    it('denies an expired assertion', async () => {
+      credentialState.getRequired.mockResolvedValue(MFA_ENABLED);
+      request.headers = {
+        authorization: 'Bearer session-token',
+        'x-mfa-assertion': 'expired-assertion',
+      };
+      assertions.validate.mockResolvedValue(false);
+
+      await expect(buildGuard().canActivate(context as never)).rejects.toMatchObject({
+        response: expect.objectContaining({ error: 'MFA_VERIFICATION_REQUIRED' }),
+      });
+    });
+
+    it('reads the assertion header case-insensitively', async () => {
+      credentialState.getRequired.mockResolvedValue(MFA_ENABLED);
+      request.headers = {
+        authorization: 'Bearer session-token',
+        'X-MFA-Assertion': 'valid-assertion',
+      };
+
+      await expect(buildGuard().canActivate(context as never)).resolves.toBe(true);
+      expect(assertions.validate).toHaveBeenCalledWith(
+        'profile-1',
+        'session-current',
+        'valid-assertion',
+      );
+    });
+
+    it('denies a repeated assertion header instead of guessing', async () => {
+      credentialState.getRequired.mockResolvedValue(MFA_ENABLED);
+      request.headers = {
+        authorization: 'Bearer session-token',
+        'x-mfa-assertion': ['first', 'second'],
+      };
+
+      await expect(buildGuard().canActivate(context as never)).rejects.toMatchObject({
+        response: expect.objectContaining({ error: 'MFA_VERIFICATION_REQUIRED' }),
+      });
+    });
+
+    it('denies when the session context cannot be validated', async () => {
+      credentialState.getRequired.mockResolvedValue(MFA_ENABLED);
+      request.headers = {
+        authorization: 'Bearer session-token',
+        'x-mfa-assertion': 'valid-assertion',
+      };
+      authUser.getAuthContextFromAuthHeader.mockRejectedValue(
+        new Error('Token is not bound to an active session'),
+      );
+
+      await expect(buildGuard().canActivate(context as never)).rejects.toMatchObject({
+        response: expect.objectContaining({ error: 'MFA_VERIFICATION_REQUIRED' }),
+      });
+      expect(assertions.validate).not.toHaveBeenCalled();
+    });
+
+    it('fails closed when assertion validation throws', async () => {
+      credentialState.getRequired.mockResolvedValue(MFA_ENABLED);
+      request.headers = {
+        authorization: 'Bearer session-token',
+        'x-mfa-assertion': 'valid-assertion',
+      };
+      assertions.validate.mockRejectedValue(new Error('database unavailable'));
+
+      await expect(buildGuard().canActivate(context as never)).rejects.toMatchObject({
+        response: expect.objectContaining({ error: 'MFA_VERIFICATION_REQUIRED' }),
+      });
+    });
+
+    it('keeps forced-change precedence ahead of the MFA decision', async () => {
+      credentialState.getRequired.mockResolvedValue(FORCED_AND_MFA);
+      request.headers = {
+        authorization: 'Bearer session-token',
+        'x-mfa-assertion': 'valid-assertion',
+      };
+
+      await expect(buildGuard().canActivate(context as never)).rejects.toMatchObject({
+        response: expect.objectContaining({ error: 'PASSWORD_CHANGE_REQUIRED' }),
+      });
+      expect(authUser.getAuthContextFromAuthHeader).not.toHaveBeenCalled();
+      expect(assertions.validate).not.toHaveBeenCalled();
+    });
+
+    it('never puts the presented assertion in the denial payload', async () => {
+      credentialState.getRequired.mockResolvedValue(MFA_ENABLED);
+      request.headers = {
+        authorization: 'Bearer session-token',
+        'x-mfa-assertion': 'secret-assertion-value',
+      };
+      assertions.validate.mockResolvedValue(false);
+
+      const denial = await buildGuard()
+        .canActivate(context as never)
+        .then(() => null)
+        .catch((error: { response: unknown }) => error.response);
+
+      expect(JSON.stringify(denial)).not.toContain('secret-assertion-value');
+    });
+
+    it.each([
+      ['POST', '/security/mfa/enable-challenge'],
+      ['POST', '/security/mfa/verify'],
+      ['POST', '/security/mfa/login-challenge'],
+      ['POST', '/security/mfa/disable'],
+    ])('keeps the MFA recovery path %s %s reachable while MFA is on', async (method, path) => {
+      request.method = method;
+      request.path = path;
+      credentialState.getRequired.mockResolvedValue(MFA_ENABLED);
+
+      await expect(buildGuard().canActivate(context as never)).resolves.toBe(true);
+      expect(credentialState.getRequired).not.toHaveBeenCalled();
+      expect(assertions.validate).not.toHaveBeenCalled();
     });
   });
 
