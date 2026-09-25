@@ -21,6 +21,7 @@ describe('SecurityController', () => {
     changeMyPassword: jest.Mock;
     completeRecovery: jest.Mock;
     getMyActivity: jest.Mock;
+    getMyActivityLog: jest.Mock;
   };
   let authUserService: { getUserIdFromAuthHeader: jest.Mock };
   let controller: SecurityController;
@@ -38,6 +39,7 @@ describe('SecurityController', () => {
       changeMyPassword: jest.fn().mockResolvedValue({ changed: true, mustChangePassword: false }),
       completeRecovery: jest.fn().mockResolvedValue({ changed: true, mustChangePassword: false }),
       getMyActivity: jest.fn().mockResolvedValue({ events: [] }),
+      getMyActivityLog: jest.fn().mockResolvedValue([]),
     };
     authUserService = { getUserIdFromAuthHeader: jest.fn().mockResolvedValue('profile-1') };
     controller = new SecurityController(securityService as never, authUserService as never);
@@ -104,12 +106,24 @@ describe('SecurityController', () => {
       expect(securityService.getMyActivity).toHaveBeenCalledWith('profile-1');
     });
 
-    it('serves activity-log as a compatibility alias of activity', async () => {
-      securityService.getMyActivity.mockResolvedValue({ events: [{ id: 'log-1' }] });
+    it('serves activity-log as a legacy-shape alias for the existing mobile client', async () => {
+      const events = [{ id: 'log-1', action: 'PASSWORD_CHANGED', success: true, createdAt: '2026-09-10T08:00:00.000Z' }];
+      securityService.getMyActivityLog.mockResolvedValue(events);
+
       const viaAlias = await controller.getMyActivityLog(bearer);
-      const viaRoute = await controller.getMyActivity(bearer);
-      expect(viaAlias).toEqual(viaRoute);
-      expect((securityService as unknown as Record<string, unknown>).getMySecurityLogs).toBeUndefined();
+
+      expect(viaAlias).toEqual(events);
+      expect(securityService.getMyActivity).not.toHaveBeenCalled();
+      expect(securityService.getMyActivityLog).toHaveBeenCalledWith('profile-1');
+    });
+
+    it('serves the canonical activity route in the success/data envelope', async () => {
+      securityService.getMyActivity.mockResolvedValue({ events: [{ id: 'log-1' }] });
+
+      await expect(controller.getMyActivity(bearer)).resolves.toEqual({
+        success: true,
+        data: { events: [{ id: 'log-1' }] },
+      });
     });
   });
 

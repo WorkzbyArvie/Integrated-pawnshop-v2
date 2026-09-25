@@ -62,6 +62,8 @@ export class SecurityController {
   async getMyActivityLog(
     @Headers('authorization') authHeader: string | undefined,
   ) {
-    return this.getMyActivity(authHeader);
+    const profileId =
+      await this.authUserService.getUserIdFromAuthHeader(authHeader);
+    return this.securityService.getMyActivityLog(profileId);
   }
 }

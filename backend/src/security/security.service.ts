@@ -89,14 +89,23 @@ export class SecurityService {
   }
 
   async getMyActivity(profileId: string): Promise<CredentialActivityView> {
-    const events = await this.prisma.securityLog.findMany({
+    const events = await this.readActivity(profileId);
+    return { events };
+  }
+
+  async getMyActivityLog(profileId: string): Promise<CredentialActivityEvent[]> {
+    return this.readActivity(profileId);
+  }
+
+  private async readActivity(
+    profileId: string,
+  ): Promise<CredentialActivityEvent[]> {
+    return this.prisma.securityLog.findMany({
       where: { profileId },
       orderBy: { createdAt: 'desc' },
       take: CREDENTIAL_ACTIVITY_LIMIT,
       select: { id: true, action: true, success: true, createdAt: true },
     });
-
-    return { events };
   }
 
   async changeMyPassword(

@@ -212,6 +212,27 @@ describe('SecurityService', () => {
     });
   });
 
+  describe('getMyActivityLog', () => {
+    it('serves the legacy bare array the existing mobile client still parses', async () => {
+      prisma.securityLog.findMany.mockResolvedValue([
+        { id: 'log-1', action: SECURITY_LOG_ACTIONS.PASSWORD_CHANGED, success: true, createdAt: new Date() },
+      ]);
+
+      const events = await service.getMyActivityLog('profile-1');
+
+      expect(Array.isArray(events)).toBe(true);
+      expect(events[0]).toEqual({
+        id: 'log-1',
+        action: SECURITY_LOG_ACTIONS.PASSWORD_CHANGED,
+        success: true,
+        createdAt: expect.any(Date),
+      });
+      expect(prisma.securityLog.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { profileId: 'profile-1' } }),
+      );
+    });
+  });
+
   describe('changeMyPassword', () => {
     beforeEach(() => {
       credentialState.findUnique.mockResolvedValue(STATE);
