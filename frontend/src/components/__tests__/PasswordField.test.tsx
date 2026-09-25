@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it, beforeEach } from 'vitest';
 import { PasswordErrorSummary, PasswordField } from '../Auth/PasswordField';
+import { ApiError } from '../../lib/apiClient';
 
 function ControlledPasswordField({ error }: { error?: string }) {
   const [value, setValue] = useState('');
@@ -41,6 +42,17 @@ describe('PasswordField', () => {
     expect(input).toHaveAttribute('aria-describedby');
     expect(localStorage.length).toBe(0);
     expect(sessionStorage.length).toBe(0);
+  });
+
+  it('exposes safe machine error and failed-rule data without request secrets', () => {
+    const error = new ApiError('Password policy failed', 400, {
+      error: 'PASSWORD_POLICY_FAILED',
+      data: { failed: ['minLength', 'symbol'] },
+    });
+
+    expect((error as any).code).toBe('PASSWORD_POLICY_FAILED');
+    expect((error as any).failedRules).toEqual(['minLength', 'symbol']);
+    expect(JSON.stringify(error)).not.toContain('password');
   });
 
   it('toggles visibility with a real accessible button', () => {

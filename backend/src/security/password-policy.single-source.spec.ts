@@ -63,6 +63,11 @@ describe('password policy and credential authority source contract', () => {
     expect(appService).not.toMatch(/passwordHash/);
     expect(appService).not.toMatch(/password_hash/);
 
+    for (const file of files) {
+      const source = fs.readFileSync(file, 'utf8');
+      expect(source).not.toMatch(/bcrypt\.compare|passwordHash|password_hash/);
+    }
+
     const loginNative = methodSource(appService, 'async loginNative', '// --- LOCAL AUTH');
     expect(loginNative).toContain('signInWithPassword');
     expect(loginNative).not.toContain('passwordHash');

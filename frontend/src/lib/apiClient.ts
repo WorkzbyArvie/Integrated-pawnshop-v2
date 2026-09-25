@@ -14,17 +14,61 @@ import { supabase } from './supabaseClient';
 import { getBackendUrl } from './backendUrl';
 
 const BACKEND_URL = getBackendUrl();
+const SAFE_RULE_KEYS = new Set([
+  'required',
+  'minLength',
+  'maxLength',
+  'uppercase',
+  'lowercase',
+  'number',
+  'symbol',
+  'noSurroundingWhitespace',
+  'common',
+]);
+
+function safeRuleKeys(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter(
+    (key): key is string => typeof key === 'string' && SAFE_RULE_KEYS.has(key),
+  );
+}
+
+function errorDetails(body: unknown): { code?: string; failedRules: string[] } {
+  if (!body || typeof body !== 'object') return { failedRules: [] };
+  const payload = body as Record<string, unknown>;
+  const code = typeof payload.error === 'string' ? payload.error : undefined;
+  const data =
+    payload.data && typeof payload.data === 'object'
+      ? (payload.data as Record<string, unknown>)
+      : undefined;
+  return { code, failedRules: safeRuleKeys(data?.failed) };
+}
 
 export class ApiError extends Error {
   status: number;
   body: unknown;
+  code?: string;
+  failedRules: string[];
 
   constructor(message: string, status: number, body?: unknown) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
     this.body = body;
+    const details = errorDetails(body);
+    this.code = details.code;
+    this.failedRules = details.failedRules;
   }
+}
+
+export function getApiErrorDetails(error: unknown): {
+  code?: string;
+  failedRules: string[];
+} {
+  if (error instanceof ApiError) {
+    return { code: error.code, failedRules: [...error.failedRules] };
+  }
+  return errorDetails(error);
 }
 
 async function getHeaders(): Promise<Record<string, string>> {

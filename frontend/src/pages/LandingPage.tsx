@@ -21,7 +21,7 @@ import {
   Wallet,
   X,
 } from 'lucide-react';
-import api from '../lib/apiClient';
+import api, { ApiError, getApiErrorDetails } from '../lib/apiClient';
 import { supabase } from '../lib/supabaseClient';
 import {
   getPasswordRuleFailures,
@@ -607,11 +607,11 @@ export default function LandingPage() {
       });
       const registerData = await registerRes.json();
       if (!registerRes.ok) {
-        const registerPayload = registerData.data || registerData;
-        if (registerPayload.error === 'PASSWORD_POLICY_FAILED') {
-          setAuthFieldError('Password requirements are not met.');
-        }
-        throw new Error(registerData.message || 'Registration failed');
+        throw new ApiError(
+          registerData.message || 'Registration failed',
+          registerRes.status,
+          registerData,
+        );
       }
 
       await supabase.auth.signInWithPassword({
@@ -628,7 +628,13 @@ export default function LandingPage() {
       await syncOwnerSessionContext();
       setAuthStep('form');
     } catch (err: unknown) {
-      setAuthError((err instanceof Error ? err.message : String(err)) || 'Verification failed.');
+      const details = getApiErrorDetails(err);
+      if (details.code === 'PASSWORD_POLICY_FAILED') {
+        setAuthFieldError('Password requirements are not met.');
+        setAuthError('Password does not meet the required policy.');
+      } else {
+        setAuthError((err instanceof Error ? err.message : String(err)) || 'Verification failed.');
+      }
     } finally {
       setAuthSubmitting(false);
     }
