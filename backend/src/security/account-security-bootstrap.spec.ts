@@ -15,8 +15,10 @@ import {
 } from '../common/config/cors.config';
 import { SecurityModule } from './security.module';
 import { AccountSecurityGuard } from './guards/account-security.guard';
-import { MFA_ASSERTION_HEADER } from './mfa-assertion.service';
-import { MfaAssertionService } from './mfa-assertion.service';
+import {
+  MFA_ASSERTION_HEADER,
+  MfaAssertionService,
+} from './mfa-assertion.service';
 
 const MAIN_TS = readFileSync(
   path.resolve(__dirname, '..', 'main.ts'),
@@ -68,10 +70,9 @@ describe('account security bootstrap configuration', () => {
         buildCorsOptions(process.env).allowedHeaders,
       );
 
-      expect(allowedHeaders)
-        .toContain(MFA_ASSERTION_HEADER)
-        .toContain('Authorization')
-        .toContain('pawnshop-id');
+      expect(allowedHeaders).toContain(MFA_ASSERTION_HEADER);
+      expect(allowedHeaders).toContain('Authorization');
+      expect(allowedHeaders).toContain('pawnshop-id');
     });
 
     it('names the assertion header exactly once so drift stays visible', () => {

@@ -15,6 +15,10 @@ import compression from 'compression';
 import { SubscriptionStatus } from '@prisma/client';
 import * as dns from 'node:dns';
 import * as jwt from 'jsonwebtoken';
+import {
+  buildCorsOptions,
+  resolveAllowedOrigins,
+} from './common/config/cors.config';
 
 // Load .env file explicitly — try multiple paths for dev vs compiled
 dotenv.config({ path: path.resolve(__dirname, '..', '.env') });
@@ -40,65 +44,9 @@ async function bootstrap() {
 
   app.use(compression());
 
-  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
-  const auctionFrontendUrl =
-    process.env.AUCTION_FRONTEND_URL || 'https://pawngold-auctionhouse-v2.vercel.app';
-  const mobileWebUrl = process.env.MOBILE_WEB_URL || 'http://localhost:7357';
-  const corsOriginsEnv = process.env.CORS_ALLOWED_ORIGINS || '';
-  const corsOriginsFromEnv = corsOriginsEnv
-    .split(',')
-    .map((v) => v.trim())
-    .filter(Boolean);
+  const allowedOrigins = resolveAllowedOrigins(process.env);
 
-  const allowedOrigins = new Set<string>([
-    'http://localhost:5173',
-    'http://127.0.0.1:5173',
-    'http://localhost:3000',
-    'http://localhost:7357',
-    'http://127.0.0.1:7357',
-    'https://pawngold-auction-house-production.up.railway.app',
-    'https://pawngold-auctionhouse-v2.vercel.app',
-    'https://pawngold-production.up.railway.app',
-    frontendUrl,
-    auctionFrontendUrl,
-    mobileWebUrl,
-    ...corsOriginsFromEnv,
-  ]);
-
-  const localhostDevPattern = /^http:\/\/(localhost|127\.0\.0\.1):\d+$/;
-  const railwayFrontendPatterns = [
-    /^https:\/\/pawngold-production(?:-[a-z0-9]+)?\.up\.railway\.app$/i,
-    /^https:\/\/pawngold-auction-house-production(?:-[a-z0-9]+)?\.up\.railway\.app$/i,
-  ];
-  const vercelFrontendPatterns = [
-    /^https:\/\/integrated-pawnshop-v2(?:-[a-z0-9]+)?\.vercel\.app$/i,
-    /^https:\/\/pawngold-auctionhouse-v2(?:-[a-z0-9]+)?\.vercel\.app$/i,
-  ];
-
-  app.enableCors({
-    origin: (origin, callback) => {
-      if (!origin) return callback(null, true);
-      const matchesRailwayFrontend = railwayFrontendPatterns.some((pattern) =>
-        pattern.test(origin),
-      );
-      const matchesVercelFrontend = vercelFrontendPatterns.some((pattern) =>
-        pattern.test(origin),
-      );
-
-      if (
-        allowedOrigins.has(origin) ||
-        localhostDevPattern.test(origin) ||
-        matchesRailwayFrontend ||
-        matchesVercelFrontend
-      ) {
-        return callback(null, true);
-      }
-      return callback(new Error(`CORS blocked for origin: ${origin}`), false);
-    },
-    credentials: true,
-    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
-    allowedHeaders: 'Content-Type,Authorization,pawnshop-id,branch-id,user-id',
-  });
+  app.enableCors(buildCorsOptions(process.env));
 
   app.use(
     helmet({

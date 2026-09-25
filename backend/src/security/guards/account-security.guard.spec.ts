@@ -11,6 +11,8 @@ import { RbacGuard } from '../../common/guards/rbac.guard';
 import { SecurityModule } from '../security.module';
 import { AccountSecurityGuard } from './account-security.guard';
 import { CredentialStateService } from '../credential-state.service';
+import { AuthUserService } from '../../common/auth-user.service';
+import { MfaAssertionService } from '../mfa-assertion.service';
 
 const COMPLIANT = { mustChangePassword: false, mfaEnabled: false };
 const FORCED = { mustChangePassword: true, mfaEnabled: false };
@@ -51,20 +53,15 @@ describe('AccountSecurityGuard', () => {
     authUser = { getAuthContextFromAuthHeader: jest.fn() };
     assertions = { validate: jest.fn() };
     authUser.getAuthContextFromAuthHeader.mockResolvedValue(CURRENT_SESSION);
-    assertions.validate.mockResolvedValue(true);
+    assertions.validate.mockResolvedValue(false);
   });
 
   const buildGuard = () =>
-    new (AccountSecurityGuard as never as new (
-      reflector: unknown,
-      credentialState: unknown,
-      authUser: unknown,
-      assertions: unknown,
-    ) => { canActivate: (context: unknown) => Promise<boolean> })(
+    new AccountSecurityGuard(
       reflector,
       credentialState as unknown as CredentialStateService,
-      authUser,
-      assertions,
+      authUser as unknown as AuthUserService,
+      assertions as unknown as MfaAssertionService,
     );
 
   it('allows public routes without reading state', async () => {
@@ -304,6 +301,7 @@ describe('AccountSecurityGuard', () => {
         authorization: 'Bearer session-token',
         'X-MFA-Assertion': 'valid-assertion',
       };
+      assertions.validate.mockResolvedValue(true);
 
       await expect(buildGuard().canActivate(context as never)).resolves.toBe(true);
       expect(assertions.validate).toHaveBeenCalledWith(

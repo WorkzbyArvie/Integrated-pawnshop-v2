@@ -8,11 +8,18 @@ import {
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { IS_PUBLIC_KEY } from '../../common/decorators/public.decorator';
+import { AuthUserService } from '../../common/auth-user.service';
 import { CREDENTIAL_ERROR_CODES } from '../security.service';
 import {
   CredentialStateService,
   CredentialStateUnavailableError,
+  CredentialStateView,
 } from '../credential-state.service';
+import {
+  MFA_ASSERTION_ERROR_CODES,
+  MFA_ASSERTION_HEADER,
+  MfaAssertionService,
+} from '../mfa-assertion.service';
 
 const CREDENTIAL_STATE_UNAVAILABLE = CREDENTIAL_ERROR_CODES.STATE_UNAVAILABLE;
 
@@ -29,11 +36,17 @@ export class AccountSecurityGuard implements CanActivate {
     'GET /auth/credential-status',
     'POST /auth/logout',
     'POST /auth/sign-out',
+    'POST /security/mfa/enable-challenge',
+    'POST /security/mfa/verify',
+    'POST /security/mfa/login-challenge',
+    'POST /security/mfa/disable',
   ]);
 
   constructor(
     private readonly reflector: Reflector,
     private readonly credentialState: CredentialStateService,
+    private readonly authUser: AuthUserService,
+    private readonly mfaAssertions: MfaAssertionService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -53,21 +66,35 @@ export class AccountSecurityGuard implements CanActivate {
       throw this.unavailable();
     }
 
+    const state = await this.readRequiredState(userId);
+
+    if (state.mustChangePassword) {
+      throw new ForbiddenException({
+        success: false,
+        error: 'PASSWORD_CHANGE_REQUIRED',
+        message: 'You must set a new password before continuing.',
+      });
+    }
+
+    if (state.mfaEnabled) {
+      await this.requireSessionAssertion(request, userId);
+    }
+
+    return true;
+  }
+
+  private async readRequiredState(userId: string): Promise<CredentialStateView> {
     try {
       const state = await this.credentialState.getRequired(userId);
-      if (!state || typeof state.mustChangePassword !== 'boolean') {
+      if (
+        !state ||
+        typeof state.mustChangePassword !== 'boolean' ||
+        typeof state.mfaEnabled !== 'boolean'
+      ) {
         throw new CredentialStateUnavailableError('missing');
       }
-      if (state.mustChangePassword) {
-        throw new ForbiddenException({
-          success: false,
-          error: 'PASSWORD_CHANGE_REQUIRED',
-          message: 'You must set a new password before continuing.',
-        });
-      }
-      return true;
+      return state;
     } catch (error) {
-      if (error instanceof ForbiddenException) throw error;
       const kind =
         error instanceof CredentialStateUnavailableError
           ? error.kind
@@ -77,6 +104,61 @@ export class AccountSecurityGuard implements CanActivate {
       );
       throw this.unavailable();
     }
+  }
+
+  private async requireSessionAssertion(
+    request: {
+      headers?: Record<string, string | string[] | undefined>;
+    },
+    userId: string,
+  ): Promise<void> {
+    const presented = this.readAssertionHeader(request);
+
+    let sessionId = '';
+    try {
+      const context = await this.authUser.getAuthContextFromAuthHeader(
+        request.headers?.authorization as string | undefined,
+      );
+      sessionId = context.sessionId;
+    } catch {
+      this.logger.warn(
+        `MFA session context unavailable for profile ${userId}; denying request`,
+      );
+      throw this.mfaRequired();
+    }
+
+    let valid = false;
+    try {
+      valid = await this.mfaAssertions.validate(userId, sessionId, presented);
+    } catch {
+      valid = false;
+    }
+
+    if (!valid) {
+      this.logger.warn(
+        `MFA assertion rejected for profile ${userId}; denying request`,
+      );
+      throw this.mfaRequired();
+    }
+  }
+
+  private readAssertionHeader(request: {
+    headers?: Record<string, string | string[] | undefined>;
+  }): string | undefined {
+    const headers = request.headers || {};
+    const entry = Object.entries(headers).find(
+      ([name]) => name.toLowerCase() === MFA_ASSERTION_HEADER,
+    );
+    const value = entry?.[1];
+    return typeof value === 'string' && value.trim() ? value : undefined;
+  }
+
+  private mfaRequired(): ForbiddenException {
+    return new ForbiddenException({
+      success: false,
+      error: MFA_ASSERTION_ERROR_CODES.VERIFICATION_REQUIRED,
+      message: 'Email verification is required for this account.',
+    });
   }
 
   private unavailable(): ServiceUnavailableException {
