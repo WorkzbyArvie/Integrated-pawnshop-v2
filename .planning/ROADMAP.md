@@ -123,6 +123,42 @@ Plans:
 - [x] 10-03-PLAN.md — ONB-03 aggregated onboarding status API (backend)
 - [x] 10-04-PLAN.md — ONB-02/03/04 review modal view-before-approve + owner status banner (frontend)
 
+### Phase 10.1: Credential Security: Password Policy, Legacy Password Changes, and Email MFA (INSERTED)
+
+**Goal:** Enforce one strong password contract for every account, force pre-rollout profiles through a secure password change, provide universal account security settings, and add optional server-enforced email-code MFA.
+**Requirements**: SEC-01, SEC-02, SEC-03, SEC-04, SEC-05, SEC-06
+**Depends on:** Phase 10
+**Success Criteria** (what must be TRUE):
+
+  1. New owner, bidder, staff/admin, recovery, and password-change flows reject passwords that fail the shared 10–128 character mixed-case/number/symbol policy and expose the same requirement guidance in the UI.
+  2. Existing profiles are safely marked for forced password change, see a non-dismissible tenant-scoped warning, and cannot reach operational/pawnshop features until the backend clears the state.
+  3. Every authenticated role can reach a responsive Account Security page to change its password, review credential state, and inspect recent security activity.
+  4. A user can enroll optional email MFA, receives a bounded emailed code, and must verify a code on later logins when MFA is enabled; the backend rejects unverified protected API access.
+  5. Password, MFA, recovery, and administrative credential actions are tenant-safe, audited, and never expose secrets in responses or logs.
+
+**Plans:** 17 plans
+**UI hint**: yes
+
+Plans:
+
+- [ ] 10.1-01-PLAN.md — Tracer: shared password policy, owner signup, credential-state initialization
+- [ ] 10.1-02-PLAN.md — Additive CredentialState/MFA schema, RLS/revokes, blocking live migration checkpoint
+- [ ] 10.1-03-PLAN.md — Persistent CSPRNG/HMAC email challenge and safe delivery/DTO boundary
+- [ ] 10.1-04-PLAN.md — Fail-safe administrative staff reset with forced-state failure injection tests
+- [ ] 10.1-05-PLAN.md — Dashboard password-form migration and tracked-source per-surface usage proof
+- [ ] 10.1-06-PLAN.md — Auction auth context, centralized assertion headers, and pre-Routes gates
+- [ ] 10.1-07-PLAN.md — Flutter credential data, storage, and BLoC foundation
+- [ ] 10.1-08-PLAN.md — Verified credential status/change/recovery and forced-change guard
+- [ ] 10.1-09-PLAN.md — Dashboard tracer UI, blocking forced gate, and Account Security slice
+- [ ] 10.1-10-PLAN.md — Session-bound MFA assertion, CORS, and real bootstrap guard-order assertion
+- [ ] 10.1-11-PLAN.md — Email-MFA endpoints, two-phase disablement, and audit completion
+- [ ] 10.1-12-PLAN.md — Permission catalog, tracked-source authority, and safe audit regressions
+- [ ] 10.1-13-PLAN.md — Dashboard Account Security MFA/OTP UX
+- [ ] 10.1-14-PLAN.md — Dashboard non-dismissible login challenge and universal navigation
+- [ ] 10.1-15-PLAN.md — Auction signup/recovery/Account Security/MFA surfaces
+- [ ] 10.1-16-PLAN.md — Flutter native credential surfaces, gate, and per-surface tests
+- [ ] 10.1-17-PLAN.md — Ordered legacy password-mirror retirement and live cleanup checkpoint
+
 ### Phase 11: Contract Management Upgrade
 
 **Goal**: Contract signing supports digital signature image upload alongside canvas/typed paths, and generated loan contracts carry item-specific redemption terms plus pawnshop responsibilities & liability clauses.
