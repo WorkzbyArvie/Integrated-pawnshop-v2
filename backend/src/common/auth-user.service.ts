@@ -2,9 +2,19 @@ import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { SupabaseAdminService } from './supabase-admin.service';
 import * as jwt from 'jsonwebtoken';
 
+export interface AuthContext {
+  userId: string;
+  sessionId: string;
+}
+
 @Injectable()
 export class AuthUserService {
   constructor(private readonly supabaseAdmin: SupabaseAdminService) {}
+
+  async getAuthContextFromAuthHeader(authHeader?: string): Promise<AuthContext> {
+    void authHeader;
+    return { userId: '', sessionId: '' };
+  }
 
   async getUserIdFromAuthHeader(authHeader?: string): Promise<string> {
     if (!authHeader)
