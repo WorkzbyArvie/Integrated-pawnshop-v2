@@ -55,7 +55,28 @@ export class MfaChallengeService {
     this.pepper = pepper;
   }
 
-  async issue(input: MfaChallengeIssueInput): Promise<MfaChallengeSafeView> {
+  async issue(input: MfaChallengeIssueInput): Promise<MfaChallengeSafeView>;
+  async issue(
+    profileId: string,
+    purpose: MfaChallengePurpose,
+    email: string,
+    sessionId?: string | null,
+  ): Promise<MfaChallengeSafeView>;
+  async issue(
+    inputOrProfileId: MfaChallengeIssueInput | string,
+    purpose?: MfaChallengePurpose,
+    email?: string,
+    sessionId?: string | null,
+  ): Promise<MfaChallengeSafeView> {
+    const input: MfaChallengeIssueInput =
+      typeof inputOrProfileId === 'string'
+        ? {
+            profileId: inputOrProfileId,
+            purpose: purpose || '',
+            email: email || '',
+            sessionId,
+          }
+        : inputOrProfileId;
     this.assertIssueInput(input);
     const code = this.generateCode();
     const now = new Date();
@@ -107,11 +128,49 @@ export class MfaChallengeService {
     return this.toSafeView(record, input.email);
   }
 
-  async resend(input: MfaChallengeIssueInput): Promise<MfaChallengeSafeView> {
-    return this.issue(input);
+  async resend(input: MfaChallengeIssueInput): Promise<MfaChallengeSafeView>;
+  async resend(
+    profileId: string,
+    purpose: MfaChallengePurpose,
+    email: string,
+    sessionId?: string | null,
+  ): Promise<MfaChallengeSafeView>;
+  async resend(
+    inputOrProfileId: MfaChallengeIssueInput | string,
+    purpose?: MfaChallengePurpose,
+    email?: string,
+    sessionId?: string | null,
+  ): Promise<MfaChallengeSafeView> {
+    return typeof inputOrProfileId === 'string'
+      ? this.issue(inputOrProfileId, purpose || '', email || '', sessionId)
+      : this.issue(inputOrProfileId);
   }
 
-  async verify(input: MfaChallengeVerifyInput): Promise<{ challengeId: string }> {
+  async verify(input: MfaChallengeVerifyInput): Promise<{ challengeId: string }>;
+  async verify(
+    profileId: string,
+    challengeId: string,
+    code: string,
+    purpose: MfaChallengePurpose,
+    sessionId?: string | null,
+  ): Promise<{ challengeId: string }>;
+  async verify(
+    inputOrProfileId: MfaChallengeVerifyInput | string,
+    challengeId?: string,
+    code?: string,
+    purpose?: MfaChallengePurpose,
+    sessionId?: string | null,
+  ): Promise<{ challengeId: string }> {
+    const input: MfaChallengeVerifyInput =
+      typeof inputOrProfileId === 'string'
+        ? {
+            profileId: inputOrProfileId,
+            challengeId: challengeId || '',
+            code: code || '',
+            purpose: purpose || '',
+            sessionId,
+          }
+        : inputOrProfileId;
     this.assertVerifyInput(input);
     const candidateHash = this.hashCode(input.profileId, input.code);
     const now = new Date();
