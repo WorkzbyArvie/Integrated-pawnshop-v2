@@ -27,6 +27,7 @@ import {
   getPasswordRuleFailures,
 } from '../components/Auth/PasswordRequirements';
 import {
+  PasswordConfirmField,
   PasswordErrorSummary,
   PasswordField,
 } from '../components/Auth/PasswordField';
@@ -1488,17 +1489,13 @@ export default function LandingPage() {
                       required
                     />
                     {authMode === 'signup' && (
-                      <PasswordField
+                      <PasswordConfirmField
                         id="ownerConfirmPassword"
                         name="ownerConfirmPassword"
-                        label="Confirm password"
                         value={authForm.confirmPassword}
                         onChange={(value) => setAuthForm((prev) => ({ ...prev, confirmPassword: value }))}
                         error={authFieldError === 'Passwords do not match' ? authFieldError : undefined}
                         errorSummaryId="owner-password-error-summary"
-                        helperText="Re-enter your password."
-                        showRequirements={false}
-                        autoComplete="new-password"
                         required
                       />
                     )}

@@ -1,7 +1,11 @@
 import { useEffect, useRef, useState, type InputHTMLAttributes, type RefObject } from 'react';
 import { Eye, EyeOff } from 'lucide-react';
 import { Input } from '../ui/input';
-import { PasswordRequirements } from './PasswordRequirements';
+import { PASSWORD_RULE_COPY, PasswordRequirements } from './PasswordRequirements';
+
+export const PASSWORD_CONFIRMATION_MISMATCH = PASSWORD_RULE_COPY.mismatch;
+const VISIBILITY_SHOW_LABEL = PASSWORD_RULE_COPY.show;
+const VISIBILITY_HIDE_LABEL = PASSWORD_RULE_COPY.hide;
 
 export interface PasswordFieldProps
   extends Omit<
@@ -77,7 +81,7 @@ export function PasswordField({
         <button
           type="button"
           onClick={() => setVisible((current) => !current)}
-          aria-label={visible ? 'Hide password' : 'Show password'}
+          aria-label={visible ? VISIBILITY_HIDE_LABEL : VISIBILITY_SHOW_LABEL}
           aria-pressed={visible}
           className="absolute right-0 top-0 flex h-11 w-11 items-center justify-center rounded-[12px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C9A05C]"
           style={{ color: 'var(--text-secondary)' }}
@@ -97,6 +101,37 @@ export function PasswordField({
         </p>
       )}
     </div>
+  );
+}
+
+export function PasswordConfirmField({
+  id,
+  name,
+  label = 'Confirm password',
+  value,
+  onChange,
+  error,
+  helperText = 'Re-enter your password.',
+  errorSummaryId,
+  required,
+}: Omit<PasswordFieldProps, 'showRequirements' | 'autoComplete' | 'label' | 'helperText'> & {
+  label?: string;
+  helperText?: string;
+}) {
+  return (
+    <PasswordField
+      id={id}
+      name={name}
+      label={label}
+      value={value}
+      onChange={onChange}
+      error={error}
+      helperText={helperText}
+      showRequirements={false}
+      autoComplete="new-password"
+      errorSummaryId={errorSummaryId}
+      required={required}
+    />
   );
 }
 

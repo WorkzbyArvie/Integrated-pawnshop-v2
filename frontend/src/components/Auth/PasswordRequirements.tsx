@@ -19,6 +19,10 @@ export const PASSWORD_RULE_COPY = {
   whitespace: 'No leading or trailing spaces',
   common: 'Not a common password or obvious variant',
   complete: 'All password requirements met',
+  mismatch: 'Passwords do not match',
+  show: 'Show password',
+  hide: 'Hide password',
+  heading: 'Password requirements',
 } as const;
 
 const COMMON_PASSWORDS = new Set([
@@ -151,7 +155,7 @@ export function PasswordRequirements({
   return (
     <div className="space-y-2" aria-live="polite">
       <p id={`${id}-heading`} className="text-[12px] font-semibold" style={{ color: 'var(--text-secondary)' }}>
-        Password requirements
+        {PASSWORD_RULE_COPY.heading}
       </p>
       <ul
         id={id}
