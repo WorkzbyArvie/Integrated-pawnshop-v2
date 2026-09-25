@@ -354,9 +354,12 @@ model Profile {
   pawnshop        Pawnshop?                @relation(fields: [pawnshopId], references: [id])
   approvals       LoanApproval[]
   kyc             BidderKyc?
-  paymentMethods  CustomerPaymentMethod[]
-  securityLogs    SecurityLog[]
-  tosAcceptances  TOSAcceptance[]
+  paymentMethods     CustomerPaymentMethod[]
+  securityLogs       SecurityLog[]
+  credentialState    CredentialState?
+  mfaEmailChallenges MfaEmailChallenge[]
+  mfaSessionAssertions MfaSessionAssertion[]
+  tosAcceptances     TOSAcceptance[]
   systemReviews   SystemReview[]
   approvalRequests  ApprovalRecord[]       @relation("ApprovalRequestedBy")
   approvalDecisions ApprovalRecord[]       @relation("ApprovalDecidedBy")
@@ -387,16 +390,74 @@ model CustomerPaymentMethod {
 }
 
 model SecurityLog {
-  id          String   @id @default(uuid()) @db.Uuid
-  profileId   String   @map("profile_id") @db.Uuid
-  action      String
-  ipAddress   String?  @map("ip_address")
-  userAgent   String?  @map("user_agent")
-  success     Boolean  @default(true)
-  createdAt   DateTime @default(now()) @map("created_at")
-  profile     Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  id              String   @id @default(uuid()) @db.Uuid
+  profileId       String   @map("profile_id") @db.Uuid
+  actorProfileId  String?  @map("actor_profile_id") @db.Uuid
+  targetProfileId String?  @map("target_profile_id") @db.Uuid
+  pawnshopId      String?  @map("pawnshop_id") @db.Uuid
+  action          String
+  ipAddress       String?  @map("ip_address")
+  userAgent       String?  @map("user_agent")
+  metadata        Json?    @db.Json
+  success         Boolean  @default(true)
+  createdAt       DateTime @default(now()) @map("created_at")
+  profile         Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
   @@index([profileId, createdAt])
+  @@index([pawnshopId, createdAt])
+  @@index([actorProfileId, createdAt])
   @@map("security_logs")
+  @@schema("public")
+}
+
+model CredentialState {
+  id                 String   @id @default(uuid()) @db.Uuid
+  profileId          String   @unique @map("profile_id") @db.Uuid
+  mustChangePassword Boolean  @default(false) @map("must_change_password")
+  reason             String?
+  mfaEnabled         Boolean  @default(false) @map("mfa_enabled")
+  mfaEmail           String?  @map("mfa_email")
+  markedAt           DateTime? @map("marked_at")
+  resolvedAt         DateTime? @map("resolved_at")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+  profile            Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([mustChangePassword])
+  @@map("credential_states")
+  @@schema("public")
+}
+
+model MfaEmailChallenge {
+  id         String    @id @default(uuid()) @db.Uuid
+  profileId  String    @map("profile_id") @db.Uuid
+  sessionId  String?   @map("session_id")
+  purpose    String
+  codeHash   String    @map("code_hash")
+  attempts   Int       @default(0)
+  maxAttempts Int      @default(5) @map("max_attempts")
+  expiresAt  DateTime  @map("expires_at")
+  consumedAt DateTime? @map("consumed_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  profile    Profile   @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([profileId, purpose])
+  @@index([expiresAt])
+  @@map("mfa_email_challenges")
+  @@schema("public")
+}
+
+model MfaSessionAssertion {
+  id        String   @id @default(uuid()) @db.Uuid
+  profileId String   @map("profile_id") @db.Uuid
+  sessionId String   @map("session_id")
+  tokenHash String   @map("token_hash")
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  profile   Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([profileId, sessionId])
+  @@index([expiresAt])
+  @@map("mfa_session_assertions")
   @@schema("public")
 }
 
