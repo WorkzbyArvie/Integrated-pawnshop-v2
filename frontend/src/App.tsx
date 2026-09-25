@@ -31,15 +31,26 @@ import {
   BarChart3,
   Shield,
   MessageSquareQuote,
+  KeyRound,
 } from 'lucide-react';
 
 // Import Libs
 import { supabase } from './lib/supabaseClient';
 import api from './lib/apiClient';
+import {
+  fetchCredentialStatus,
+  resolveCredentialAccess,
+  type CredentialStatus,
+} from './lib/accountSecurity';
 
 // --- AUTH IMPORT (eager — small, shown immediately) ---
 import Login from './components/Auth/Login'; 
 import ResetPassword from './components/Auth/ResetPassword';
+import {
+  CredentialStatusLoading,
+  CredentialStatusUnavailable,
+  ForcedPasswordChangeGate,
+} from './components/Auth/ForcedPasswordChangeGate';
 
 // --- Eager imports (small, always visible) ---
 import { PendingAccessDashboard } from './components/PendingAccessDashboard';
@@ -74,6 +85,7 @@ const TransactionHistory = lazy(() => import('./pages/loans/TransactionHistory')
 const LandingPage = lazy(() => import('./pages/LandingPage'));
 const ReviewsFeedback = lazy(() => import('./components/ReviewsFeedback').then(m => ({ default: m.ReviewsFeedback })));
 const LegalDocPage = lazy(() => import('./pages/LegalDocPage'));
+const AccountSecurityPage = lazy(() => import('./pages/AccountSecurityPage'));
 
 // Standardized Roles
 export type Role =
@@ -166,6 +178,7 @@ const TAB_TO_PATH: Record<string, string> = {
   'compliance': '/compliance',
   'subscription': '/subscription',
   'support-chat': '/support-chat',
+  'account-security': '/account-security',
 };
 
 const PATH_TO_TAB = Object.entries(TAB_TO_PATH).reduce<Record<string, string>>((acc, [tab, path]) => {
@@ -220,8 +233,20 @@ const STATIC_NAV_ITEMS = [
     { id: 'reviews', label: 'Reviews & Feedback', icon: MessageSquareQuote, roles: ['Owner'], type: 'OPERATIONAL' },
 ];
 
-const FREE_ALLOWED_NAV_IDS = new Set([
-    'branch-system-settings',
+/**
+ * Universal own-account security entry. It is intentionally outside
+ * STATIC_NAV_ITEMS so no role filter, subscription freeze, or pending-owner
+ * mode can hide or redirect it (UI-SPEC "Universal Account Security Page").
+ */
+const ACCOUNT_SECURITY_NAV_ITEM = {
+  id: 'account-security',
+  label: 'Account Security',
+  icon: KeyRound,
+  roles: [] as string[],
+  type: 'ACCOUNT',
+};
+
+const FREE_ALLOWED_NAV_IDS = new Set([    'branch-system-settings',
     'multi-branches',
     'dashboard',
     'sales',
@@ -309,6 +334,39 @@ function App() {
   });
   const [isImpersonating, setIsImpersonating] = useState<boolean>(() => {
     return localStorage.getItem('app_perspective') === 'SHOP';
+  });
+
+  // ── Server-owned credential preflight (SEC-03 / fail-closed) ──
+  const [credentialState, setCredentialState] = useState<'loading' | 'ready' | 'unavailable'>('loading');
+  const [credentialStatus, setCredentialStatus] = useState<CredentialStatus | null>(null);
+
+  const loadCredentialStatus = useCallback(
+    async (options?: { keepGate?: boolean }): Promise<CredentialStatus | null> => {
+      if (!options?.keepGate) setCredentialState('loading');
+      try {
+        const next = await fetchCredentialStatus();
+        setCredentialStatus(next);
+        setCredentialState(next ? 'ready' : 'unavailable');
+        return next;
+      } catch {
+        setCredentialStatus(null);
+        setCredentialState('unavailable');
+        return null;
+      }
+    },
+    [],
+  );
+
+  const credentialPreflightRequired = Boolean(session) && !isLegalDocRoute && !isResetPasswordRoute;
+
+  useEffect(() => {
+    if (!credentialPreflightRequired) return;
+    void loadCredentialStatus();
+  }, [credentialPreflightRequired, session?.user?.id, loadCredentialStatus]);
+
+  const credentialAccess = resolveCredentialAccess({
+    state: credentialPreflightRequired ? credentialState : 'ready',
+    status: credentialPreflightRequired ? credentialStatus : null,
   });
 
   // In live branch view, only owners can impersonate/select operational branch snapshots.
@@ -1280,8 +1338,8 @@ function App() {
   };
 
   // --- NAVIGATION CONFIG ---
-  const filteredNavItems = useMemo(() =>
-    STATIC_NAV_ITEMS.filter(item => {
+  const filteredNavItems = useMemo(() => {
+    const roleFiltered = STATIC_NAV_ITEMS.filter(item => {
     if (isSubscriptionFrozen) {
       if (effectiveUserRole === 'Owner') {
         return item.id === 'subscription' || item.id === 'frozen-access';
@@ -1325,12 +1383,18 @@ function App() {
       ? (subscriptionTier !== 'FREE' || FREE_ALLOWED_NAV_IDS.has(item.id))
       : true;
     return item.type === 'OPERATIONAL' && roleMatch && featureEnabled && subscriptionAllowed && trialAllowed;
-    }),
+    });
+    // Account Security is universal: never role-filtered, never frozen out.
+    return [ACCOUNT_SECURITY_NAV_ITEM, ...roleFiltered];
+    },
     [isSubscriptionFrozen, effectiveUserRole, isPendingLimitedMode, ownerRegistrationChecked,
      userRole, isImpersonating, subscriptionTier, globalOverrides, systemConfig]
   );
 
   const getSidebarCategory = (item: { id: string; type: string }) => {
+    if (item.id === 'account-security') {
+      return 'Access';
+    }
     if (item.id === 'pending-access' || item.id === 'frozen-access' || item.id === 'subscription' || item.id === 'compliance') {
       return 'Access';
     }
@@ -1376,7 +1440,7 @@ function App() {
     if (loading || !session) return;
     if (userRole === 'Super Admin') return;
     if (lockImpersonationPanels) {
-      setActiveTab('dashboard');
+      if (activeTab !== 'account-security') setActiveTab('dashboard');
       return;
     }
     const canAccessActiveTab = filteredNavItems.some((item) => item.id === activeTab);
@@ -1405,6 +1469,10 @@ function App() {
       return;
     }
 
+    if (activeTab === 'account-security') {
+      return;
+    }
+
     if (effectiveUserRole === 'Owner') {
       setActiveTab('subscription');
       return;
@@ -1415,7 +1483,68 @@ function App() {
 
   const isSubscriptionReady = !session || userRole === 'Super Admin' || (subscriptionAccessChecked && subscriptionTierLoaded);
 
-  if (loading || !isSubscriptionReady) {
+  if (loading) {
+    return (
+      <div className="h-screen w-screen bg-[#0A0A0F] flex flex-col items-center justify-center gap-6">
+        <div className="relative">
+          <div className="w-16 h-16 rounded-2xl bg-[#C9A05C]/10 border border-[#C9A05C]/20 flex items-center justify-center">
+            <ShieldCheck className="w-8 h-8 text-[#C9A05C]" />
+          </div>
+          <div className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-[#C9A05C] animate-pulse" />
+        </div>
+        <div className="flex flex-col items-center gap-2">
+          <p className="text-[#F5F0E8] text-sm font-medium" style={{ fontFamily: "'DM Sans', sans-serif" }}>Loading your vault</p>
+          <div className="flex gap-1.5">
+            <div className="w-2 h-2 rounded-full bg-[#C9A05C] animate-bounce" style={{ animationDelay: '0ms' }} />
+            <div className="w-2 h-2 rounded-full bg-[#C9A05C]/70 animate-bounce" style={{ animationDelay: '150ms' }} />
+            <div className="w-2 h-2 rounded-full bg-[#C9A05C]/40 animate-bounce" style={{ animationDelay: '300ms' }} />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Fail-closed credential preflight. Nothing below this point may mount while
+  // the server-owned credential state is loading, unavailable, or forced.
+  if (credentialAccess === 'loading') {
+    return <CredentialStatusLoading onSignOut={handleSignOut} />;
+  }
+
+  if (credentialAccess === 'unavailable') {
+    return (
+      <CredentialStatusUnavailable
+        onRetry={() => void loadCredentialStatus()}
+        onSignOut={handleSignOut}
+        onUseRecovery={() => navigate('/reset-password')}
+      />
+    );
+  }
+
+  if (credentialAccess === 'forced' && credentialStatus) {
+    const isPlatformAccount = userRole === 'Super Admin' && !isImpersonating;
+    return (
+      <ForcedPasswordChangeGate
+        status={credentialStatus}
+        displayName={
+          (session?.user?.user_metadata?.full_name as string | undefined) ||
+          (session?.user?.user_metadata?.name as string | undefined) ||
+          null
+        }
+        accountEmail={session?.user?.email ?? null}
+        isPlatformAccount={isPlatformAccount}
+        tenantName={
+          isPlatformAccount
+            ? null
+            : sidebarBranding.pawnshopName || sidebarBranding.displayName || null
+        }
+        onStatusChanged={() => loadCredentialStatus({ keepGate: true })}
+        onSignOut={handleSignOut}
+        onUseRecovery={() => navigate('/reset-password')}
+      />
+    );
+  }
+
+  if (!isSubscriptionReady) {
     return (
       <div className="h-screen w-screen bg-[#0A0A0F] flex flex-col items-center justify-center gap-6">
         <div className="relative">
@@ -1437,6 +1566,25 @@ function App() {
   }
 
   if (!loading && isPendingLimitedMode && ownerRegistrationChecked) {
+    // Universal own-account security stays reachable in pending-owner mode.
+    if (activeTab === 'account-security') {
+      return (
+        <div className="min-h-screen w-full overflow-y-auto">
+          <AccountSecurityPage
+            displayName={
+              (session?.user?.user_metadata?.full_name as string | undefined) ||
+              (session?.user?.user_metadata?.name as string | undefined) ||
+              null
+            }
+            accountEmail={session?.user?.email ?? null}
+            tenantName={sidebarBranding.pawnshopName || null}
+            role={effectiveUserRole}
+            onSignOut={handleSignOut}
+          />
+        </div>
+      );
+    }
+
     return (
       <div className="h-screen w-screen bg-[#0A0A0F] overflow-y-auto custom-scrollbar">
         <div className="p-6 lg:p-8 max-w-[1600px] mx-auto">
@@ -1533,7 +1681,8 @@ function App() {
                     <button
                       key={item.id}
                       onClick={() => handleSidebarNavigation(item.id)}
-                      className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-sm font-medium transition-all duration-200 ${
+                      aria-current={isActive ? 'page' : undefined}
+                      className={`w-full flex min-h-11 items-center justify-between px-3.5 py-3 rounded-xl text-sm font-medium transition-all duration-200 ${
                         isActive
                           ? 'bg-[#C9A05C]/10 text-[#E5C88C] border border-[rgba(201,160,92,0.15)]'
                           : 'text-[#8A8279] hover:text-[#F5F0E8] hover:bg-white/[0.04]'
@@ -1587,6 +1736,24 @@ function App() {
           )}
 
           <div className="p-6 lg:p-8 max-w-[1600px] mx-auto min-h-full animate-fade-in">
+            <div className="mb-4 flex items-center justify-between gap-3 lg:hidden">
+              <p className="text-[14px] font-semibold text-[#F5F0E8]" style={{ fontFamily: "'Syne', sans-serif" }}>
+                {sidebarBrandName}
+              </p>
+              <button
+                type="button"
+                onClick={() => handleSidebarNavigation('account-security')}
+                aria-current={activeTab === 'account-security' ? 'page' : undefined}
+                className={`inline-flex min-h-11 items-center gap-2 rounded-xl border px-3 text-[13px] font-medium ${
+                  activeTab === 'account-security'
+                    ? 'bg-[#C9A05C]/10 text-[#E5C88C] border-[rgba(201,160,92,0.15)]'
+                    : 'text-[#8A8279] border-[rgba(201,160,92,0.1)]'
+                }`}
+              >
+                <KeyRound className={`w-[18px] h-[18px] ${activeTab === 'account-security' ? 'text-[#C9A05C]' : ''}`} aria-hidden="true" />
+                Account Security
+              </button>
+            </div>
             {userRole !== 'Super Admin' && userRole !== 'Owner' && !isPendingLimitedMode && !isSubscriptionFrozen && clockStatus !== 'loading' && (
               <div className={`mb-5 rounded-xl border px-5 py-3.5 flex items-center justify-between transition-all ${
                 clockStatus === 'not_clocked'
@@ -1676,6 +1843,23 @@ function App() {
               </div>
             )}
             <Suspense fallback={<div className="flex items-center justify-center h-64"><Loader2 className="animate-spin h-8 w-8 text-[#C9A05C]" /></div>}>
+            {activeTab === 'account-security' && (
+              <AccountSecurityPage
+                displayName={
+                  (session?.user?.user_metadata?.full_name as string | undefined) ||
+                  (session?.user?.user_metadata?.name as string | undefined) ||
+                  null
+                }
+                accountEmail={session?.user?.email ?? null}
+                tenantName={
+                  userRole === 'Super Admin' && !isImpersonating
+                    ? null
+                    : sidebarBranding.pawnshopName || null
+                }
+                role={effectiveUserRole}
+                onSignOut={handleSignOut}
+              />
+            )}
             {activeTab === 'dashboard' && (
               <Dashboard 
                 branchId={currentBranchId} 
