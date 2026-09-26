@@ -52,7 +52,7 @@ export function PasswordField({
 
   return (
     <div className="space-y-2">
-      <label htmlFor={id} className="block text-[12px] font-semibold" style={{ color: 'var(--text-secondary)' }}>
+      <label htmlFor={id} className="block text-[14px] font-semibold" style={{ color: 'var(--text-secondary)' }}>
         {label}
       </label>
       <div className="relative">
@@ -71,7 +71,7 @@ export function PasswordField({
           autoCorrect="off"
           aria-invalid={Boolean(error)}
           aria-describedby={describedBy || undefined}
-          className="h-11 rounded-[12px] border-[#C9A05C]/30 bg-white/[0.05] px-3.5 pr-12 text-[13px] text-white outline-none focus-visible:ring-2 focus-visible:ring-[#C9A05C]"
+          className="h-11 rounded-[12px] border-[#C9A05C]/30 bg-white/[0.05] px-3.5 pr-12 text-[14px] text-white outline-none focus-visible:ring-2 focus-visible:ring-[#C9A05C]"
           style={{
             background: 'rgba(255,255,255,0.05)',
             borderColor: 'rgba(201,160,92,0.3)',
@@ -90,13 +90,13 @@ export function PasswordField({
         </button>
       </div>
       {helperText && (
-        <p id={helperId} className="text-[12px]" style={{ color: 'var(--text-muted)' }}>
+        <p id={helperId} className="text-[14px]" style={{ color: 'var(--text-muted)' }}>
           {helperText}
         </p>
       )}
       {showRequirements && <PasswordRequirements id={requirementsId} value={value} />}
       {error && (
-        <p id={errorId} className="text-[12px]" style={{ color: 'var(--red)' }}>
+        <p id={errorId} className="text-[14px]" style={{ color: 'var(--red)' }}>
           {error}
         </p>
       )}
@@ -159,7 +159,7 @@ export function PasswordErrorSummary({
       ref={activeRef}
       role="alert"
       tabIndex={-1}
-      className="rounded-[10px] border px-3 py-2 text-[12px]"
+      className="rounded-[10px] border px-3 py-2 text-[14px]"
       style={{ background: 'rgba(212,69,69,0.1)', borderColor: 'rgba(212,69,69,0.2)', color: 'var(--red)' }}
     >
       <p>{message}</p>

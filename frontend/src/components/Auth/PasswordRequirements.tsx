@@ -154,7 +154,7 @@ export function PasswordRequirements({
 
   return (
     <div className="space-y-2" aria-live="polite">
-      <p id={`${id}-heading`} className="text-[12px] font-semibold" style={{ color: 'var(--text-secondary)' }}>
+      <p id={`${id}-heading`} className="text-[14px] font-semibold" style={{ color: 'var(--text-secondary)' }}>
         {PASSWORD_RULE_COPY.heading}
       </p>
       <ul
@@ -170,7 +170,7 @@ export function PasswordRequirements({
               data-rule={rule.id}
               data-rule-keys={rule.keys.join(' ')}
               data-state={met ? 'met' : 'not-met'}
-              className="flex min-h-5 items-center gap-1.5 text-[12px]"
+              className="flex min-h-5 items-center gap-1.5 text-[14px]"
               style={{ color: met ? 'var(--text-secondary)' : 'var(--text-muted)' }}
             >
               {met ? (
@@ -185,7 +185,7 @@ export function PasswordRequirements({
         })}
       </ul>
       {allMet && (
-        <p role="status" className="text-[12px] font-medium" style={{ color: 'var(--green)' }}>
+        <p role="status" className="text-[14px] font-medium" style={{ color: 'var(--green)' }}>
           {PASSWORD_RULE_COPY.complete}
         </p>
       )}
