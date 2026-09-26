@@ -1,4 +1,8 @@
-import { CredentialStateService, CredentialStateUnavailableError } from './credential-state.service';
+import {
+  CREDENTIAL_STATE_REASONS,
+  CredentialStateService,
+  CredentialStateUnavailableError,
+} from './credential-state.service';
 
 describe('CredentialStateService', () => {
   const credentialState = {
@@ -92,6 +96,133 @@ describe('CredentialStateService', () => {
     credentialState.findUnique.mockResolvedValue(state);
 
     await expect(service.getRequired('profile-1')).resolves.toBe(state);
+  });
+
+  describe('forced state reservation for an administrative reset', () => {
+    const RESET_PENDING = CREDENTIAL_STATE_REASONS.ADMIN_RESET_PENDING;
+    const RESET_CONFIRMED = CREDENTIAL_STATE_REASONS.ADMIN_RESET;
+    const RESET_FAILED = CREDENTIAL_STATE_REASONS.ADMIN_RESET_FAILED;
+
+    it('reserves mustChangePassword on the create branch before a password exists', async () => {
+      credentialState.upsert.mockResolvedValue({
+        profileId: 'profile-3',
+        mustChangePassword: true,
+        reason: RESET_PENDING,
+      });
+
+      await service.reserveForcedChange('profile-3');
+
+      expect(credentialState.upsert).toHaveBeenCalledWith({
+        where: { profileId: 'profile-3' },
+        create: {
+          profileId: 'profile-3',
+          mustChangePassword: true,
+          reason: RESET_PENDING,
+          markedAt: expect.any(Date),
+          resolvedAt: null,
+        },
+        update: {
+          mustChangePassword: true,
+          reason: RESET_PENDING,
+          markedAt: expect.any(Date),
+          resolvedAt: null,
+        },
+      });
+    });
+
+    it('forces an existing resolved row back to true on the update branch', async () => {
+      credentialState.upsert.mockResolvedValue({
+        profileId: 'profile-3',
+        mustChangePassword: true,
+        reason: RESET_PENDING,
+      });
+
+      await service.reserveForcedChange('profile-3', RESET_PENDING);
+
+      const [args] = credentialState.upsert.mock.calls[0];
+      expect(args.update.mustChangePassword).toBe(true);
+      expect(args.update.resolvedAt).toBeNull();
+    });
+
+    it('surfaces a rejected reservation as a typed dependency failure', async () => {
+      credentialState.upsert.mockRejectedValue(new Error('prisma write rejected'));
+
+      await expect(service.reserveForcedChange('profile-3')).rejects.toBeInstanceOf(
+        CredentialStateUnavailableError,
+      );
+      await expect(service.reserveForcedChange('profile-3')).rejects.toMatchObject({
+        code: 'CREDENTIAL_STATE_UNAVAILABLE',
+        kind: 'dependency',
+      });
+    });
+
+    it('refuses a blank profile instead of writing an unscoped reservation', async () => {
+      await expect(service.reserveForcedChange('  ')).rejects.toThrow(
+        /Profile id is required/i,
+      );
+      expect(credentialState.upsert).not.toHaveBeenCalled();
+    });
+
+    it('confirms the administrative reason while keeping the forced state true', async () => {
+      credentialState.update.mockResolvedValue({
+        profileId: 'profile-3',
+        mustChangePassword: true,
+        reason: RESET_CONFIRMED,
+      });
+
+      await expect(service.confirmForcedChange('profile-3')).resolves.toMatchObject({
+        mustChangePassword: true,
+        reason: RESET_CONFIRMED,
+      });
+
+      expect(credentialState.update).toHaveBeenCalledWith({
+        where: { profileId: 'profile-3' },
+        data: {
+          mustChangePassword: true,
+          reason: RESET_CONFIRMED,
+          markedAt: expect.any(Date),
+          resolvedAt: null,
+        },
+      });
+    });
+
+    it('never clears the forced state when a later step fails', async () => {
+      credentialState.update.mockResolvedValue({
+        profileId: 'profile-3',
+        mustChangePassword: true,
+        reason: RESET_FAILED,
+      });
+
+      await service.recordForcedChangeFailure('profile-3');
+
+      expect(credentialState.update).toHaveBeenCalledWith({
+        where: { profileId: 'profile-3' },
+        data: { mustChangePassword: true, reason: RESET_FAILED },
+      });
+      const serialized = JSON.stringify(credentialState.update.mock.calls);
+      expect(serialized).not.toContain('"mustChangePassword":false');
+    });
+
+    it('wraps a rejected confirmation and failure marker with the typed error', async () => {
+      credentialState.update.mockRejectedValue(new Error('write rejected'));
+
+      await expect(service.confirmForcedChange('profile-3')).rejects.toMatchObject({
+        code: 'CREDENTIAL_STATE_UNAVAILABLE',
+      });
+      await expect(
+        service.recordForcedChangeFailure('profile-3'),
+      ).rejects.toBeInstanceOf(CredentialStateUnavailableError);
+    });
+
+    it('refuses a blank profile for confirmation and failure marking', async () => {
+      await expect(service.confirmForcedChange('')).rejects.toThrow(
+        /Profile id is required/i,
+      );
+      await expect(service.recordForcedChangeFailure(' ')).rejects.toThrow(
+        /Profile id is required/i,
+      );
+      expect(credentialState.update).not.toHaveBeenCalled();
+    });
   });
 
   describe('profile-scoped MFA transitions', () => {
