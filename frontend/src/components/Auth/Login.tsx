@@ -1,17 +1,25 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabaseClient';
-import { getSiteUrl, getBackendUrl } from '../../lib/backendUrl';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Loader2, Lock, Mail, AlertTriangle, ChevronLeft } from "lucide-react";
+import { PasswordField } from './PasswordField';
+
+const LOGIN_COPY = {
+  email: 'Email address',
+  password: 'Password',
+  submit: 'Authenticate Access',
+  submitting: 'Verifying',
+  failure: "We couldn't sign you in. Check your email and password and try again.",
+  recoveryEntry: 'Forgot Password?',
+  recoveryRoute: '/reset-password',
+} as const;
 
 export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
-  const [isForgotPasswordMode, setIsForgotPasswordMode] = useState(false);
   const navigate = useNavigate();
 
   const handleBack = () => {
@@ -28,26 +36,18 @@ export default function Login() {
     e.preventDefault();
     setLoading(true);
     setError(null);
-    setSuccessMessage(null);
 
     try {
-      // 1. Supabase Auth
-      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({ 
-        email, 
-        password 
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+        email,
+        password
       });
-      
-      if (authError) {
-        console.error('[LOGIN] Supabase auth failed:', authError.message);
-        throw new Error(`Auth failed: ${authError.message}`);
+
+      if (authError || !authData?.user) {
+        console.warn('[LOGIN] Supabase auth rejected the sign-in attempt');
+        throw new Error(LOGIN_COPY.failure);
       }
 
-      if (!authData?.user) {
-        console.error('[LOGIN] No user returned from Supabase');
-        throw new Error('Authentication returned no user');
-      }
-
-      // 2. Fetch profile
       let { data: profileData, error: profileError } = await supabase
         .from('profiles')
         .select('role, pawnshop_id, branch_id, full_name')
@@ -55,8 +55,7 @@ export default function Login() {
         .maybeSingle();
 
       if (profileError) {
-        console.error('[LOGIN] Profile fetch error:', profileError);
-        throw new Error(`Profile fetch failed: ${profileError.message}`);
+        console.warn('[LOGIN] Profile fetch failed:', profileError.message);
       }
 
       if (!profileData) {
@@ -69,12 +68,12 @@ export default function Login() {
           .maybeSingle();
 
         if (profileByEmailError) {
-          console.error('[LOGIN] Profile-by-email fetch error:', profileByEmailError);
+          console.warn('[LOGIN] Profile-by-email fetch failed:', profileByEmailError.message);
         }
 
         if (profileByEmail) {
           profileData = profileByEmail;
-          console.warn('[LOGIN] Profile resolved by email fallback:', profileData);
+          console.warn('[LOGIN] Profile resolved by email fallback');
         }
       }
 
@@ -88,7 +87,6 @@ export default function Login() {
           pawnshop_id: fallbackPawnshopId,
           branch_id: authData.user?.user_metadata?.branch_id || authData.user?.app_metadata?.branch_id || null,
         };
-      } else {
       }
 
       // 3. Normalize role
@@ -134,59 +132,15 @@ export default function Login() {
       }
       
       // 5. Navigate
+      setPassword('');
       if (userRole === 'Super Admin') {
         navigate("/platform-control", { replace: true });
       } else {
         navigate("/", { replace: true });
       }
-      
-    } catch (err: unknown) {
-      console.error('[LOGIN_ERROR]', err);
-      setError(err instanceof Error ? err.message : String(err) || 'Authentication failed');
-    } finally {
-      setLoading(false);
-    }
-  };
 
-  const handleResetPasswordEmail = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setError(null);
-    setSuccessMessage(null);
-
-    const trimmedEmail = email.trim();
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
-      setError('Please enter a valid email address.');
-      setLoading(false);
-      return;
-    }
-
-    try {
-      const backendUrl = getBackendUrl();
-      const res = await fetch(
-        `${backendUrl}/auth/check-email?email=${encodeURIComponent(trimmedEmail)}&role=OWNER`,
-      );
-      const data = await res.json();
-
-      if (!data.emailExists) {
-        setError('This email is not associated with an account.');
-        return;
-      }
-      if (!data.exists) {
-        setError('This email is not associated with an owner account.');
-        return;
-      }
-
-      const redirectTo = `${getSiteUrl()}/reset-password?type=recovery`;
-      const { error: resetError } = await supabase.auth.resetPasswordForEmail(trimmedEmail, { redirectTo });
-
-      if (resetError) {
-        throw new Error(resetError.message);
-      }
-
-      setSuccessMessage('Password reset email sent. Please check your inbox.');
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : String(err) || 'Failed to send reset password email');
+    } catch {
+      setError(LOGIN_COPY.failure);
     } finally {
       setLoading(false);
     }
@@ -223,13 +177,18 @@ export default function Login() {
         </CardHeader>
 
         <CardContent className="p-8 space-y-6">
-          <form onSubmit={isForgotPasswordMode ? handleResetPasswordEmail : handleLogin} className="space-y-4">
+          <form onSubmit={handleLogin} className="space-y-4">
             <div className="space-y-2 text-left">
-              <label className="text-[10px] font-semibold text-[#8A8279] uppercase tracking-widest ml-1">Email</label>
+              <label htmlFor="loginEmail" className="block text-[14px] font-semibold text-[#8A8279] ml-1">
+                {LOGIN_COPY.email}
+              </label>
               <div className="relative">
-                <Mail className="absolute left-3.5 top-3 h-4 w-4 text-[#8A8279]" />
-                <input 
-                  type="email" 
+                <Mail className="absolute left-3.5 top-3 h-4 w-4 text-[#8A8279]" aria-hidden="true" />
+                <input
+                  id="loginEmail"
+                  name="loginEmail"
+                  type="email"
+                  autoComplete="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="w-full pl-10 pr-4 py-3 bg-[#1C1C26] border border-[rgba(201,160,92,0.1)] rounded-xl focus:ring-2 focus:ring-[#C9A05C]/30 focus:border-[#C9A05C]/30 outline-none font-medium text-[#F5F0E8] placeholder:text-[#6B655C] transition-all"
@@ -239,48 +198,39 @@ export default function Login() {
               </div>
             </div>
 
-            {!isForgotPasswordMode && (
-              <div className="space-y-2 text-left">
-                <label className="text-[10px] font-semibold text-[#8A8279] uppercase tracking-widest ml-1">Password</label>
-                <div className="relative">
-                  <Lock className="absolute left-3.5 top-3 h-4 w-4 text-[#8A8279]" />
-                  <input 
-                    type="password" 
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="w-full pl-10 pr-4 py-3 bg-[#1C1C26] border border-[rgba(201,160,92,0.1)] rounded-xl focus:ring-2 focus:ring-[#C9A05C]/30 focus:border-[#C9A05C]/30 outline-none font-medium text-[#F5F0E8] placeholder:text-[#6B655C] transition-all"
-                    placeholder="Enter your password"
-                    required
-                  />
-                </div>
-              </div>
-            )}
-
-            {successMessage && (
-              <div className="p-4 bg-[#3DA86C]/10 text-[#3DA86C] text-[11px] font-medium rounded-xl border border-[#3DA86C]/20 text-left">
-                {successMessage}
-              </div>
-            )}
+            <PasswordField
+              id="loginPassword"
+              name="loginPassword"
+              label={LOGIN_COPY.password}
+              value={password}
+              onChange={setPassword}
+              autoComplete="current-password"
+              showRequirements={false}
+              required
+            />
 
             {error && (
-              <div className="p-4 bg-[#D44545]/10 text-[#D44545] text-[11px] font-medium rounded-xl border border-[#D44545]/20 text-left flex items-start gap-2">
-                <AlertTriangle size={14} className="mt-0.5 shrink-0" />
+              <div
+                role="alert"
+                className="p-4 bg-[#D44545]/10 text-[#D44545] text-[14px] font-medium rounded-xl border border-[#D44545]/20 text-left flex items-start gap-2"
+              >
+                <AlertTriangle size={14} className="mt-0.5 shrink-0" aria-hidden="true" />
                 <span>{error}</span>
               </div>
             )}
 
-            <button 
-              type="submit" 
+            <button
+              type="submit"
               disabled={loading}
               className="w-full py-3.5 bg-[#C9A05C] text-[#0A0A0F] rounded-xl font-semibold uppercase tracking-wider hover:bg-[#E5C88C] transition-all flex items-center justify-center gap-2 mt-2 disabled:opacity-50 active:scale-[0.98]"
             >
               {loading ? (
                 <>
                   <Loader2 className="animate-spin" size={16} />
-                  <span>{isForgotPasswordMode ? 'Sending...' : 'Verifying'}</span>
+                  <span>{LOGIN_COPY.submitting}</span>
                 </>
               ) : (
-                isForgotPasswordMode ? 'Send Reset Email' : 'Authenticate Access'
+                LOGIN_COPY.submit
               )}
             </button>
 
@@ -289,12 +239,11 @@ export default function Login() {
               disabled={loading}
               onClick={() => {
                 setError(null);
-                setSuccessMessage(null);
-                setIsForgotPasswordMode((prev) => !prev);
+                navigate(LOGIN_COPY.recoveryRoute, { replace: true });
               }}
-              className="w-full text-[10px] font-semibold text-[#8A8279] uppercase tracking-[0.16em] hover:text-[#C9A05C] transition-colors disabled:opacity-50"
+              className="w-full text-[14px] font-semibold text-[#8A8279] hover:text-[#C9A05C] transition-colors disabled:opacity-50"
             >
-              {isForgotPasswordMode ? 'Back to Login' : 'Forgot Password?'}
+              {LOGIN_COPY.recoveryEntry}
             </button>
           </form>
           
