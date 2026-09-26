@@ -81,12 +81,11 @@ describe('MfaAssertionService', () => {
     });
 
     it('expires the assertion after fifteen minutes', async () => {
-      const before = Date.now();
       const issued = await service.issue(PROFILE_ID, 'session-current');
-      const ttl = issued.expiresAt.getTime() - before;
+      const ttl = issued.expiresAt.getTime() - Date.now();
 
       expect(ttl).toBeGreaterThan(14 * 60 * 1000);
-      expect(ttl).toBeLessThanOrEqual(15 * 60 * 1000);
+      expect(ttl).toBeLessThanOrEqual(MfaAssertionService.TTL_MS);
       expect(MfaAssertionService.TTL_MS).toBe(15 * 60 * 1000);
     });
 

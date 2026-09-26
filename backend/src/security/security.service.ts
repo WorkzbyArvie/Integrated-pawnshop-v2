@@ -65,9 +65,7 @@ export interface MfaDisablementResult {
   disabled: true;
 }
 
-export interface MfaDisablementView
-  extends MfaChallengeSafeView,
-    Partial<MfaDisablementResult> {}
+export type MfaDisablementView = MfaChallengeSafeView | MfaDisablementResult;
 
 export interface CredentialStatusView {
   mustChangePassword: boolean;
@@ -532,7 +530,76 @@ export class SecurityService {
     sessionId: string | null,
     data: { currentPassword: string; challengeId?: string; code?: string },
   ): Promise<MfaDisablementView> {
-    throw new Error('SecurityService.disableMfa is not implemented');
+    const challengeId = String(data?.challengeId ?? '').trim();
+    const code = String(data?.code ?? '').trim();
+
+    if (Boolean(challengeId) !== Boolean(code)) {
+      throw new BadRequestException({
+        success: false,
+        error: MFA_CHALLENGE_ERROR_CODES.INVALID,
+        message: 'A challenge id and code must be supplied together',
+      });
+    }
+
+    const state = await this.requireCredentialState(profileId);
+    const authEmail = await this.reauthenticateForMfa(
+      profileId,
+      data?.currentPassword,
+      challengeId || null,
+    );
+
+    if (!challengeId) {
+      return this.mfaChallenges.issue({
+        profileId,
+        email: state.mfaEmail?.trim() || authEmail,
+        purpose: MFA_CHALLENGE_PURPOSES.DISABLE,
+        sessionId: sessionId ?? null,
+      });
+    }
+
+    try {
+      await this.mfaChallenges.verify({
+        profileId,
+        challengeId,
+        code,
+        purpose: MFA_CHALLENGE_PURPOSES.DISABLE,
+      });
+    } catch (error) {
+      await this.recordSecurityEvent(
+        profileId,
+        this.challengeFailureAction(error),
+        false,
+        { challengeId },
+      );
+      throw error;
+    }
+
+    try {
+      await this.credentialState.disableMfa(profileId);
+    } catch (error) {
+      this.logger.warn(
+        `MFA disable state update failed for profile ${profileId}`,
+      );
+      await this.recordSecurityEvent(
+        profileId,
+        SECURITY_LOG_ACTIONS.MFA_DISABLED,
+        false,
+        { challengeId },
+      );
+      throw new ServiceUnavailableException({
+        success: false,
+        error: MFA_ERROR_CODES.STATE_UPDATE_FAILED,
+        message: 'Email verification could not be turned off.',
+      });
+    }
+
+    await this.recordSecurityEvent(
+      profileId,
+      SECURITY_LOG_ACTIONS.MFA_DISABLED,
+      true,
+      { challengeId },
+    );
+    return { disabled: true };
   }
 
   private async commitMfaEnrollment(
