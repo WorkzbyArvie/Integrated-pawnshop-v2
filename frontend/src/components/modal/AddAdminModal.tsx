@@ -9,9 +9,11 @@ import {
   DialogTitle, 
   DialogTrigger 
 } from "@/components/ui/dialog";
-import { UserPlus, Loader2, Mail, Lock, ShieldCheck } from "lucide-react";
+import { UserPlus, Loader2, Mail, ShieldCheck } from "lucide-react";
 import { toast } from '@/lib/toast';
 import { getBackendUrl } from '../../lib/backendUrl';
+import { PasswordErrorSummary, PasswordField } from '../Auth/PasswordField';
+import { getPasswordRuleFailures } from '../Auth/PasswordRequirements';
 
 interface AddAdminModalProps {
   branchId: string;
@@ -20,35 +22,47 @@ interface AddAdminModalProps {
 
 const API_BASE_URL = getBackendUrl();
 
+const MODAL_COPY = {
+  email: 'Email address',
+  authCode: 'Authentication code',
+  getCode: 'Get Code',
+  grantAdminAccess: 'Grant admin access',
+  creating: 'Creating Account...',
+  policyNotMet: 'Password requirements are not met.',
+  emailRequired: 'Email address is required',
+  emailInvalid: 'Please enter a valid email address',
+  createFailed: "We couldn't create the admin account. Check the fields below and try again.",
+  codeRequestFailed: "We couldn't send the authentication code. Check your connection and try again.",
+  branchMissing: 'Branch context not found. Please refresh and try again.',
+} as const;
+
 export function AddAdminModal({ branchId, branchName }: AddAdminModalProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [authCode, setAuthCode] = useState('');
+  const [passwordError, setPasswordError] = useState<string | null>(null);
   const [validationError, setValidationError] = useState('');
 
   const validateInputs = (): boolean => {
     setValidationError('');
+    setPasswordError(null);
 
     if (!email.trim()) {
-      setValidationError('Email address is required');
+      setValidationError(MODAL_COPY.emailRequired);
       return false;
     }
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
-      setValidationError('Please enter a valid email address');
+      setValidationError(MODAL_COPY.emailInvalid);
       return false;
     }
 
-    if (!password.trim()) {
-      setValidationError('Password is required');
-      return false;
-    }
-
-    if (password.length < 8) {
-      setValidationError('Password must be at least 8 characters');
+    if (getPasswordRuleFailures(password).length > 0) {
+      setPasswordError(MODAL_COPY.policyNotMet);
+      setValidationError(MODAL_COPY.policyNotMet);
       return false;
     }
 
@@ -80,32 +94,33 @@ export function AddAdminModal({ branchId, branchName }: AddAdminModalProps) {
 
       const data = await response.json();
       if (!response.ok) {
-        throw new Error(data?.error || data?.message || 'Failed to request authentication code');
+        console.warn('[AddAdminModal] Auth code request rejected', response.status, data?.error);
+        toast.error(MODAL_COPY.codeRequestFailed);
+        return;
       }
 
       toast.success('Authentication code sent to your email.');
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : String(err));
+      console.warn('[AddAdminModal] Auth code request failed', err);
+      toast.error(MODAL_COPY.codeRequestFailed);
     }
   };
 
   const handleCreateAdmin = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!validateInputs()) {
       return;
     }
 
     if (!branchId) {
-      toast.error('Branch context not found. Please refresh and try again.');
+      toast.error(MODAL_COPY.branchMissing);
       return;
     }
 
     setLoading(true);
-    
+
     try {
-
-
       const { data: { session: authSession } } = await supabase.auth.getSession();
       const response = await fetch(`${API_BASE_URL}/auth/create-branch-admin`, {
         method: 'POST',
@@ -126,35 +141,23 @@ export function AddAdminModal({ branchId, branchName }: AddAdminModalProps) {
 
       const data = await response.json();
 
-      if (!response.ok) {
-        console.error('[AddAdminModal] API Error Response:', { status: response.status, data });
-        const errorMsg = data.error || data.message || `Server error (HTTP ${response.status})`;
-        toast.error(errorMsg, { duration: 5000 });
+      if (!response.ok || !data.success) {
+        console.warn('[AddAdminModal] Admin provisioning rejected', response.status, data?.error);
+        toast.error(MODAL_COPY.createFailed, { duration: 5000 });
         return;
       }
 
-      if (!data.success) {
-        console.error('[AddAdminModal] Success=false Response:', data);
-        const errorMsg = data.error || data.message || 'Failed to create admin account';
-        toast.error(errorMsg, { duration: 5000 });
-        return;
-      }
+      toast.success(`Admin account created successfully for ${branchName}`, { duration: 5000 });
 
-      toast.success(`âœ“ Admin account created successfully for ${branchName}`, { duration: 5000 });
-
-
-      // Clear form and close dialog
       setIsOpen(false);
       setEmail('');
       setPassword('');
       setAuthCode('');
+      setPasswordError(null);
       setValidationError('');
-
-      // Optional: Reload users list or trigger a callback
     } catch (err: unknown) {
-      console.error('[AddAdminModal] Network/Fatal Error:', err);
-      const errorMsg = err instanceof Error ? err.message : String(err);
-      toast.error(errorMsg, { duration: 6000 });
+      console.warn('[AddAdminModal] Admin provisioning failed', err);
+      toast.error(MODAL_COPY.createFailed, { duration: 6000 });
     } finally {
       setLoading(false);
     }
@@ -167,8 +170,8 @@ export function AddAdminModal({ branchId, branchName }: AddAdminModalProps) {
           <UserPlus size={18} /> Add Admin
         </Button>
       </DialogTrigger>
-      
-      <DialogContent className="sm:max-w-[450px] rounded-[32px] p-8 border-none shadow-2xl bg-[#14141B]">
+       
+      <DialogContent className="sm:max-w-[450px] rounded-[32px] p-8 border-none shadow-2xl bg-[#14141B] max-h-[90vh] overflow-y-auto">
         <DialogHeader className="mb-6">
           <div className="w-12 h-12 bg-[#C9A05C]/10 text-[#C9A05C] rounded-2xl flex items-center justify-center mb-4">
             <ShieldCheck size={28} />
@@ -190,12 +193,15 @@ export function AddAdminModal({ branchId, branchName }: AddAdminModalProps) {
           )}
 
           <div className="space-y-2">
-            <label className="text-[10px] font-black uppercase tracking-widest text-[#8A8279] flex items-center gap-2">
-              <Mail size={12} className="text-[#C9A05C]" /> Email Address
+            <label htmlFor="branchAdminModalEmail" className="text-[10px] font-black uppercase tracking-widest text-[#8A8279] flex items-center gap-2">
+              <Mail size={12} className="text-[#C9A05C]" aria-hidden="true" /> {MODAL_COPY.email}
             </label>
-            <Input 
-              type="email" 
-              placeholder="admin@branch.com" 
+            <Input
+              id="branchAdminModalEmail"
+              name="branchAdminModalEmail"
+              type="email"
+              autoComplete="off"
+              placeholder="admin@branch.com"
               value={email}
               onChange={(e) => {
                 setEmail(e.target.value);
@@ -206,30 +212,33 @@ export function AddAdminModal({ branchId, branchName }: AddAdminModalProps) {
             />
           </div>
 
-          <div className="space-y-2">
-            <label className="text-[10px] font-black uppercase tracking-widest text-[#8A8279] flex items-center gap-2">
-              <Lock size={12} className="text-[#C9A05C]" /> Password (Min. 8 characters)
-            </label>
-            <Input 
-              type="password" 
-              placeholder="••••••••••••" 
-              value={password}
-              onChange={(e) => {
-                setPassword(e.target.value);
-                setValidationError('');
-              }}
-              disabled={loading}
-              className="p-4 h-auto rounded-xl border-[rgba(201,160,92,0.08)] bg-[#1C1C26] font-medium focus:bg-[#14141B] transition-colors disabled:opacity-50"
-            />
-          </div>
+          <PasswordField
+            id="branchAdminModalPassword"
+            name="branchAdminModalPassword"
+            label="New password"
+            value={password}
+            onChange={(value) => {
+              setPassword(value);
+              setValidationError('');
+            }}
+            helperText="Use a private password you do not use elsewhere."
+            error={passwordError ?? undefined}
+            errorSummaryId="branch-admin-modal-error-summary"
+            autoComplete="new-password"
+            disabled={loading}
+            required
+          />
 
           <div className="space-y-2">
-            <label className="text-[10px] font-black uppercase tracking-widest text-[#8A8279] flex items-center gap-2">
-              Authentication Code
+            <label htmlFor="branchAdminModalAuthCode" className="text-[10px] font-black uppercase tracking-widest text-[#8A8279] flex items-center gap-2">
+              {MODAL_COPY.authCode}
             </label>
             <div className="flex gap-2">
               <Input
+                id="branchAdminModalAuthCode"
+                name="branchAdminModalAuthCode"
                 type="text"
+                autoComplete="one-time-code"
                 placeholder="Enter code"
                 value={authCode}
                 onChange={(e) => {
@@ -245,10 +254,18 @@ export function AddAdminModal({ branchId, branchName }: AddAdminModalProps) {
                 disabled={loading}
                 className="bg-[#222228] hover:bg-slate-300 text-[#F5F0E8] font-black uppercase tracking-widest px-4 rounded-xl"
               >
-                Get Code
+                {MODAL_COPY.getCode}
               </Button>
             </div>
           </div>
+
+          {validationError && (
+            <PasswordErrorSummary
+              id="branch-admin-modal-error-summary"
+              message={validationError}
+              fieldId={passwordError ? 'branchAdminModalPassword' : 'branchAdminModalEmail'}
+            />
+          )}
 
           <div className="pt-2">
             <Button 
@@ -259,12 +276,12 @@ export function AddAdminModal({ branchId, branchName }: AddAdminModalProps) {
               {loading ? (
                 <span className="flex items-center justify-center gap-2">
                   <Loader2 className="animate-spin" size={18} /> 
-                  Creating Account...
+                  {MODAL_COPY.creating}
                 </span>
               ) : (
                 <span className="flex items-center justify-center gap-2">
                   <ShieldCheck size={18} />
-                  Grant Admin Privileges
+                  {MODAL_COPY.grantAdminAccess}
                 </span>
               )}
             </Button>

@@ -4,6 +4,18 @@ import api from '../lib/apiClient';
 import { useToast } from '../App';
 import { formatCurrency } from '../lib/formatters';
 import { LocationPicker } from './LocationPicker';
+import { PasswordErrorSummary, PasswordField } from './Auth/PasswordField';
+import { getPasswordRuleFailures } from './Auth/PasswordRequirements';
+
+const BRANCH_ADMIN_COPY = {
+  adminEmail: 'Admin email address',
+  newPassword: 'New password',
+  authCode: 'Authentication code',
+  requestCode: 'Request code',
+  policyNotMet: 'Password requirements are not met.',
+  requiredFields: 'Admin email, password, and authentication code are required to assign a branch admin.',
+  createFailed: "We couldn't create the branch admin. Check the fields below and try again.",
+} as const;
 
 type BranchRow = {
   id: number;
@@ -66,6 +78,8 @@ export function MultiBranchManagement({
   const [editForm, setEditForm] = useState({ name: '', location: '', managerName: '', isActive: true });
   const [editLat, setEditLat] = useState<number | null>(null);
   const [editLng, setEditLng] = useState<number | null>(null);
+  const [adminPasswordError, setAdminPasswordError] = useState<string | null>(null);
+  const [adminFormError, setAdminFormError] = useState<string | null>(null);
 
   const normalizedRole = (userRole || '').toUpperCase().replace(/[_\s]/g, '');
   const canManage = ['OWNER'].includes(normalizedRole);
@@ -131,6 +145,8 @@ export function MultiBranchManagement({
     });
     setFormLat(null);
     setFormLng(null);
+    setAdminPasswordError(null);
+    setAdminFormError(null);
   };
 
   const requestAdminAuthCode = async () => {
@@ -150,7 +166,8 @@ export function MultiBranchManagement({
 
       showToast('Authentication code sent to your email.', 'success');
     } catch (error: any) {
-      showToast(error?.message || 'Failed to request authentication code', 'error');
+      console.warn('[MultiBranchManagement] Auth code request failed', error?.message);
+      showToast("We couldn't send the authentication code. Check your connection and try again.", 'error');
     }
   };
 
@@ -175,8 +192,18 @@ export function MultiBranchManagement({
       });
 
       if (form.assignAdmin) {
+        setAdminFormError(null);
+        setAdminPasswordError(null);
+
         if (!form.adminEmail.trim() || !form.adminPassword || !form.adminAuthCode.trim()) {
-          throw new Error('Admin email, password, and auth code are required to assign branch admin');
+          setAdminFormError(BRANCH_ADMIN_COPY.requiredFields);
+          throw new Error(BRANCH_ADMIN_COPY.requiredFields);
+        }
+
+        if (getPasswordRuleFailures(form.adminPassword).length > 0) {
+          setAdminPasswordError(BRANCH_ADMIN_COPY.policyNotMet);
+          setAdminFormError(BRANCH_ADMIN_COPY.policyNotMet);
+          throw new Error(BRANCH_ADMIN_COPY.policyNotMet);
         }
 
         await api.post('/auth/create-branch-admin', {
@@ -195,7 +222,13 @@ export function MultiBranchManagement({
       resetCreateForm();
       await fetchBranches();
     } catch (error: any) {
-      showToast(error?.message || 'Failed to create branch', 'error');
+      console.warn('[MultiBranchManagement] Branch create failed', error?.message);
+      if (form.assignAdmin) {
+        setAdminFormError(BRANCH_ADMIN_COPY.createFailed);
+        showToast(BRANCH_ADMIN_COPY.createFailed, 'error');
+      } else {
+        showToast("We couldn't create the branch. Check the fields below and try again.", 'error');
+      }
     } finally {
       setSaving(false);
     }
@@ -344,38 +377,70 @@ export function MultiBranchManagement({
                 </label>
 
                 {form.assignAdmin && (
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                    <input
-                      value={form.adminEmail}
-                      onChange={(e) => setForm((prev) => ({ ...prev, adminEmail: e.target.value }))}
-                      placeholder="Admin email"
-                      className="w-full px-4 py-3 rounded-2xl border border-[rgba(201,160,92,0.12)] focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                      type="email"
-                      required={form.assignAdmin}
-                    />
-                    <input
-                      value={form.adminPassword}
-                      onChange={(e) => setForm((prev) => ({ ...prev, adminPassword: e.target.value }))}
-                      placeholder="Admin password"
-                      className="w-full px-4 py-3 rounded-2xl border border-[rgba(201,160,92,0.12)] focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                      type="password"
-                      minLength={8}
-                      required={form.assignAdmin}
-                    />
-                    <input
-                      value={form.adminAuthCode}
-                      onChange={(e) => setForm((prev) => ({ ...prev, adminAuthCode: e.target.value }))}
-                      placeholder="Auth code"
-                      className="w-full px-4 py-3 rounded-2xl border border-[rgba(201,160,92,0.12)] focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                      required={form.assignAdmin}
-                    />
-                    <button
-                      type="button"
-                      onClick={requestAdminAuthCode}
-                      className="px-4 py-3 rounded-2xl border border-emerald-200 text-emerald-700 text-xs font-black uppercase tracking-wider hover:bg-emerald-50"
-                    >
-                      Request Code
-                    </button>
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <div className="space-y-1.5">
+                        <label htmlFor="branchAdminEmail" className="block text-sm font-bold text-[#8A8279]">
+                          {BRANCH_ADMIN_COPY.adminEmail}
+                        </label>
+                        <input
+                          id="branchAdminEmail"
+                          name="branchAdminEmail"
+                          value={form.adminEmail}
+                          onChange={(e) => setForm((prev) => ({ ...prev, adminEmail: e.target.value }))}
+                          placeholder="Admin email"
+                          className="w-full px-4 py-3 rounded-2xl border border-[rgba(201,160,92,0.12)] focus:outline-none focus:ring-2 focus:ring-[#C9A05C]"
+                          type="email"
+                          autoComplete="off"
+                          required={form.assignAdmin}
+                        />
+                      </div>
+                      <PasswordField
+                        id="branchAdminPassword"
+                        name="branchAdminPassword"
+                        label={BRANCH_ADMIN_COPY.newPassword}
+                        value={form.adminPassword}
+                        onChange={(value) => setForm((prev) => ({ ...prev, adminPassword: value }))}
+                        helperText="Use a private password you do not use elsewhere."
+                        error={adminPasswordError ?? undefined}
+                        errorSummaryId="branch-admin-error-summary"
+                        autoComplete="new-password"
+                        required={form.assignAdmin}
+                      />
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <div className="space-y-1.5">
+                        <label htmlFor="branchAdminAuthCode" className="block text-sm font-bold text-[#8A8279]">
+                          {BRANCH_ADMIN_COPY.authCode}
+                        </label>
+                        <input
+                          id="branchAdminAuthCode"
+                          name="branchAdminAuthCode"
+                          value={form.adminAuthCode}
+                          onChange={(e) => setForm((prev) => ({ ...prev, adminAuthCode: e.target.value }))}
+                          placeholder="Auth code"
+                          autoComplete="one-time-code"
+                          className="w-full px-4 py-3 rounded-2xl border border-[rgba(201,160,92,0.12)] focus:outline-none focus:ring-2 focus:ring-[#C9A05C]"
+                          required={form.assignAdmin}
+                        />
+                      </div>
+                      <div className="flex items-end">
+                        <button
+                          type="button"
+                          onClick={requestAdminAuthCode}
+                          className="h-11 w-full px-4 rounded-2xl border border-[#C9A05C]/40 text-[#C9A05C] text-xs font-black uppercase tracking-wider hover:bg-[#C9A05C]/10"
+                        >
+                          {BRANCH_ADMIN_COPY.requestCode}
+                        </button>
+                      </div>
+                    </div>
+                    {adminFormError && (
+                      <PasswordErrorSummary
+                        id="branch-admin-error-summary"
+                        message={adminFormError}
+                        fieldId={adminPasswordError ? 'branchAdminPassword' : 'branchAdminEmail'}
+                      />
+                    )}
                   </div>
                 )}
               </div>

@@ -8,6 +8,16 @@ import {
 import { supabase } from '../lib/supabaseClient';
 import { getBackendUrl } from '../lib/backendUrl';
 import { formatCurrency } from '../lib/formatters';
+import { PasswordErrorSummary, PasswordField } from './Auth/PasswordField';
+import { getPasswordRuleFailures } from './Auth/PasswordRequirements';
+
+const ADMIN_COPY = {
+  newPassword: 'New password',
+  authCode: 'Authentication code',
+  grantAdminAccess: 'Grant admin access',
+  policyNotMet: 'Password requirements are not met.',
+  createFailed: "We couldn't create the admin account. Check the fields below and try again.",
+} as const;
 
 
 export interface DashboardProps {
@@ -47,8 +57,9 @@ export function Dashboard({
   const [adminRole, setAdminRole] = useState('BRANCH_ADMIN');
   const [adminSubmitting, setAdminSubmitting] = useState(false);
   const [adminError, setAdminError] = useState<string | null>(null);
-  const [successData, setSuccessData] = useState<{ email: string; password: string; role: string; pawnshop: string } | null>(null);
+  const [successData, setSuccessData] = useState<{ email: string; role: string; pawnshop: string } | null>(null);
   const [copiedField, setCopiedField] = useState<string | null>(null);
+  const [adminPasswordError, setAdminPasswordError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [activeBranchName, setActiveBranchName] = useState<string>("Loading...");
   const [loading, setLoading] = useState(false);
@@ -68,8 +79,6 @@ export function Dashboard({
         if (parsed && typeof parsed === 'object') {
           if (parsed.open) setShowAddAdminModal(true);
           if (typeof parsed.email === 'string') setAdminEmail(parsed.email);
-          if (typeof parsed.password === 'string') setAdminPassword(parsed.password);
-          if (typeof parsed.authCode === 'string') setAdminAuthCode(parsed.authCode);
           if (typeof parsed.role === 'string') setAdminRole(parsed.role);
         }
       }
@@ -85,13 +94,17 @@ export function Dashboard({
     }
     sessionStorage.setItem(
       ADMIN_DRAFT_KEY,
-      JSON.stringify({ open: true, email: adminEmail, password: adminPassword, authCode: adminAuthCode, role: adminRole })
+      JSON.stringify({ open: true, email: adminEmail, role: adminRole })
     );
-  }, [showAddAdminModal, adminEmail, adminPassword, adminAuthCode, adminRole]);
+  }, [showAddAdminModal, adminEmail, adminRole]);
 
   const closeAddAdminModal = () => {
     setShowAddAdminModal(false);
     setInAppCodeInfo(null);
+    setAdminPassword('');
+    setAdminAuthCode('');
+    setAdminPasswordError(null);
+    setAdminError(null);
   };
 
   // Determine targetUuid: priority is query param > localStorage > prop > null
@@ -388,12 +401,17 @@ export function Dashboard({
         throw new Error('Please enter a valid email address');
       }
 
-      if (!adminPassword || adminPassword.length < 8) {
-        throw new Error('Password must be at least 8 characters');
+      if (!adminPassword) {
+        throw new Error('Enter a new password to continue.');
+      }
+
+      if (getPasswordRuleFailures(adminPassword).length > 0) {
+        setAdminPasswordError(ADMIN_COPY.policyNotMet);
+        throw new Error(ADMIN_COPY.policyNotMet);
       }
 
       if (!adminAuthCode.trim()) {
-        throw new Error('Authentication code is required');
+        throw new Error('Enter the authentication code sent to this email address.');
       }
 
       if (!isImpersonating) {
@@ -443,14 +461,13 @@ export function Dashboard({
       const result = await res.json();
 
       if (!res.ok) {
-        const errorMsg = result.message || result.error || `Failed to create admin: ${res.statusText}`;
-        console.error('âŒ [Dashboard] Backend error:', result);
-        throw new Error(errorMsg);
+        console.warn('[Dashboard] Admin provisioning rejected', res.status, result?.error);
+        throw new Error(ADMIN_COPY.createFailed);
       }
 
 
       
-      // Store credentials for success modal before clearing form
+      // Success state carries only non-secret provisioning context
       const roleLabels: Record<string, string> = {
         BRANCH_ADMIN: 'Branch Admin',
         MANAGER: 'Manager',
@@ -460,7 +477,7 @@ export function Dashboard({
         INVENTORY_CUSTODIAN: 'Inventory Custodian',
         AUDITOR: 'Auditor',
       };
-      setSuccessData({ email: adminEmail, password: adminPassword, role: roleLabels[requestedRole] || requestedRole, pawnshop: activeBranchName });
+      setSuccessData({ email: adminEmail, role: roleLabels[requestedRole] || requestedRole, pawnshop: activeBranchName });
 
       // Clear form
       setAdminEmail('');
@@ -472,8 +489,8 @@ export function Dashboard({
       // Reload data
       loadDashboardData();
     } catch (err: unknown) {
-      console.error('âŒ [Dashboard] Error adding admin:', err);
-      setAdminError(err instanceof Error ? err.message : String(err));
+      console.error('[Dashboard] Admin provisioning failed:', err);
+      setAdminError(err instanceof Error ? err.message : ADMIN_COPY.createFailed);
     } finally {
       setAdminSubmitting(false);
     }
@@ -777,7 +794,6 @@ export function Dashboard({
               <div className="p-8 space-y-5">
                 {[
                   { label: 'Email', value: successData.email, key: 'email' },
-                  { label: 'Password', value: successData.password, key: 'password' },
                 ].map(({ label, value, key }) => (
                   <div key={key} className="flex items-center justify-between bg-[#1C1C26] rounded-2xl px-5 py-3.5 border border-[rgba(201,160,92,0.08)]">
                     <div className="min-w-0">
@@ -811,7 +827,7 @@ export function Dashboard({
                 </div>
                 <div className="flex items-center gap-2 bg-emerald-400/10 rounded-xl px-4 py-3 border border-emerald-400/20">
                   <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                  <p className="text-[10px] font-bold text-emerald-400">Auto-verified — can login immediately</p>
+                  <p className="text-[10px] font-bold text-emerald-400">No temporary password is issued or shown. The account holder chooses their own password at first sign-in.</p>
                 </div>
                 <button
                   onClick={() => { setSuccessData(null); setCopiedField(null); }}
@@ -851,9 +867,12 @@ export function Dashboard({
                 </div>
 
                 <div>
-                  <label className="text-[10px] font-black text-[#8A8279] uppercase tracking-[0.2em] block mb-2">Email Address</label>
+                  <label htmlFor="adminCreateEmail" className="text-[10px] font-black text-[#8A8279] uppercase tracking-[0.2em] block mb-2">Email Address</label>
                   <input
+                    id="adminCreateEmail"
+                    name="adminCreateEmail"
                     type="email"
+                    autoComplete="off"
                     value={adminEmail}
                     onChange={(e) => setAdminEmail(e.target.value)}
                     placeholder="admin@branch.com"
@@ -862,23 +881,27 @@ export function Dashboard({
                   />
                 </div>
 
-                <div>
-                  <label className="text-[10px] font-black text-[#8A8279] uppercase tracking-[0.2em] block mb-2">Password (Min 8 characters)</label>
-                  <input
-                    type="password"
-                    value={adminPassword}
-                    onChange={(e) => setAdminPassword(e.target.value)}
-                    placeholder="Enter secure password"
-                    className="w-full px-4 py-3 bg-[#1C1C26] border border-[rgba(201,160,92,0.08)] rounded-2xl focus:ring-2 focus:ring-[#C9A05C] outline-none font-bold text-[#F5F0E8] placeholder:text-[#8A8279]/50"
-                    required
-                  />
-                </div>
+                <PasswordField
+                  id="adminCreatePassword"
+                  name="adminCreatePassword"
+                  label={ADMIN_COPY.newPassword}
+                  value={adminPassword}
+                  onChange={setAdminPassword}
+                  helperText="Use a private password you do not use elsewhere."
+                  error={adminPasswordError ?? undefined}
+                  errorSummaryId="admin-create-error-summary"
+                  autoComplete="new-password"
+                  required
+                />
 
                 <div>
-                  <label className="text-[10px] font-black text-[#8A8279] uppercase tracking-[0.2em] block mb-2">Authentication Code</label>
+                  <label htmlFor="adminCreateAuthCode" className="text-[10px] font-black text-[#8A8279] uppercase tracking-[0.2em] block mb-2">{ADMIN_COPY.authCode}</label>
                   <div className="flex gap-2">
                     <input
+                      id="adminCreateAuthCode"
+                      name="adminCreateAuthCode"
                       type="text"
+                      autoComplete="one-time-code"
                       value={adminAuthCode}
                       onChange={(e) => setAdminAuthCode(e.target.value)}
                       placeholder="Enter auth code"
@@ -901,8 +924,10 @@ export function Dashboard({
                 </div>
 
                 <div>
-                  <label className="text-[10px] font-black text-[#8A8279] uppercase tracking-[0.2em] block mb-2">Role for this Pawnshop</label>
+                  <label htmlFor="adminCreateRole" className="text-[10px] font-black text-[#8A8279] uppercase tracking-[0.2em] block mb-2">Role for this Pawnshop</label>
                   <select
+                    id="adminCreateRole"
+                    name="adminCreateRole"
                     value={adminRole}
                     onChange={(e) => setAdminRole(e.target.value)}
                     className="w-full px-4 py-3 bg-[#1C1C26] border border-[rgba(201,160,92,0.08)] rounded-2xl focus:ring-2 focus:ring-[#C9A05C] outline-none font-bold text-[#F5F0E8]"
@@ -918,9 +943,11 @@ export function Dashboard({
                 </div>
 
                 {adminError && (
-                  <div className="p-3 bg-rose-500/10 text-rose-400 text-[11px] font-bold rounded-xl border border-rose-500/20">
-                    ❌ {adminError}
-                  </div>
+                  <PasswordErrorSummary
+                    id="admin-create-error-summary"
+                    message={adminError}
+                    fieldId={adminPasswordError ? 'adminCreatePassword' : 'adminCreateEmail'}
+                  />
                 )}
 
                 <div className="flex gap-2 pt-4">
@@ -929,7 +956,7 @@ export function Dashboard({
                     disabled={adminSubmitting}
                     className="flex-1 py-3 bg-[#C9A05C] text-[#0A0A0F] rounded-full font-bold uppercase tracking-wider text-[10px] active:scale-[0.98] transition-all duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] hover:bg-[#D4B06A] disabled:opacity-50"
                   >
-                    {adminSubmitting ? 'Adding...' : 'Add Admin'}
+                    {adminSubmitting ? 'Adding...' : ADMIN_COPY.grantAdminAccess}
                   </button>
                   <button
                     type="button"

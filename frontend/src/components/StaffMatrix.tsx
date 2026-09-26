@@ -4,6 +4,8 @@ import { supabase } from '../lib/supabaseClient';
 import { useToast } from '../App';
 import { getBackendUrl } from '../lib/backendUrl';
 import api from '../lib/apiClient';
+import { PasswordErrorSummary, PasswordField } from './Auth/PasswordField';
+import { getPasswordRuleFailures } from './Auth/PasswordRequirements';
 
 interface StaffMatrixProps {
   branchId: string | null;
@@ -25,6 +27,25 @@ interface StaffMember {
 }
 
 const STAFF_DRAFT_KEY = 'staffmatrix_add_staff_draft';
+
+const STAFF_COPY = {
+  addStaffHeading: 'Add Staff Account',
+  fullName: 'Full name',
+  email: 'Email address',
+  authCode: 'Authentication code',
+  role: 'Role',
+  newPassword: 'New password',
+  createStaffAccount: 'Create staff account',
+  resetHeading: 'Reset staff password',
+  resetExplainer: 'The staff member will be required to choose a private password at their next sign-in.',
+  updatePassword: 'Update password',
+  cancel: 'Cancel',
+  policyNotMet: 'Password requirements are not met.',
+  requiredFields: 'Enter a name, email address, and password to create the account.',
+  authCodeRequired: 'Enter the authentication code sent to the staff email address.',
+  createFailed: "We couldn't create the staff account. Check the fields below and try again.",
+  resetFailed: "We couldn't update the staff password. Check the fields below and try again.",
+} as const;
 
 export function StaffMatrix({ branchId, userRole: propUserRole, activeBranchId = null }: StaffMatrixProps) {
   const normalizeRole = (rawRole: string | null | undefined): string => {
@@ -50,7 +71,12 @@ export function StaffMatrix({ branchId, userRole: propUserRole, activeBranchId =
     authCode: '',
     role: 'CASHIER_TELLER'
   });
-  const [changePasswordData, setChangePasswordData] = useState<{ staffId: string; newPassword: string } | null>(null);
+  const [changePasswordData, setChangePasswordData] = useState<{ staffId: string } | null>(null);
+  const [changePasswordValue, setChangePasswordValue] = useState('');
+  const [changePasswordError, setChangePasswordError] = useState<string | null>(null);
+  const [changePasswordSummary, setChangePasswordSummary] = useState<string | null>(null);
+  const [createError, setCreateError] = useState<string | null>(null);
+  const [createPasswordError, setCreatePasswordError] = useState<string | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [changeRoleData, setChangeRoleData] = useState<{ staffId: string; staffName: string; currentRole: string; currentRoleCode: string } | null>(null);
   const [manageMenuId, setManageMenuId] = useState<string | null>(null);
@@ -64,7 +90,13 @@ export function StaffMatrix({ branchId, userRole: propUserRole, activeBranchId =
       if (raw) {
         const parsed = JSON.parse(raw);
         if (parsed && typeof parsed === 'object') {
-          setNewStaffData((prev) => ({ ...prev, ...parsed }));
+          setNewStaffData((prev) => ({
+            name: typeof parsed.name === 'string' ? parsed.name : prev.name,
+            email: typeof parsed.email === 'string' ? parsed.email : prev.email,
+            role: typeof parsed.role === 'string' ? parsed.role : prev.role,
+            password: '',
+            authCode: '',
+          }));
           setShowAddStaffModal(true);
         }
       }
@@ -78,14 +110,20 @@ export function StaffMatrix({ branchId, userRole: propUserRole, activeBranchId =
       sessionStorage.removeItem(STAFF_DRAFT_KEY);
       return;
     }
-    sessionStorage.setItem(STAFF_DRAFT_KEY, JSON.stringify(newStaffData));
-  }, [showAddStaffModal, newStaffData]);
+    sessionStorage.setItem(
+      STAFF_DRAFT_KEY,
+      JSON.stringify({ name: newStaffData.name, email: newStaffData.email, role: newStaffData.role }),
+    );
+  }, [showAddStaffModal, newStaffData.name, newStaffData.email, newStaffData.role]);
 
   const closeAddStaffModal = () => {
     setShowAddStaffModal(false);
     setInAppCodeInfo(null);
     setAuthCodeCooldown(0);
     setAuthCodeRequested(false);
+    setNewStaffData({ name: '', email: '', password: '', authCode: '', role: 'CASHIER_TELLER' });
+    setCreateError(null);
+    setCreatePasswordError(null);
   };
 
   useEffect(() => {
@@ -226,24 +264,27 @@ export function StaffMatrix({ branchId, userRole: propUserRole, activeBranchId =
 
   const handleAddStaff = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+    setCreateError(null);
+    setCreatePasswordError(null);
+
     if (!newStaffData.name || !newStaffData.email || !newStaffData.password) {
-      showToast("Please fill all required fields", "error");
+      setCreateError(STAFF_COPY.requiredFields);
       return;
     }
 
     if (!newStaffData.authCode.trim()) {
-      showToast("Authentication code is required", "error");
+      setCreateError(STAFF_COPY.authCodeRequired);
       return;
     }
 
-    if (newStaffData.password.length < 8) {
-      showToast("Password must be at least 8 characters", "error");
+    if (getPasswordRuleFailures(newStaffData.password).length > 0) {
+      setCreatePasswordError(STAFF_COPY.policyNotMet);
+      setCreateError(STAFF_COPY.policyNotMet);
       return;
     }
 
     if (!branchId) {
-      showToast("No pawnshop context detected. Cannot create account without a branch.", "error");
+      setCreateError("We couldn't create the staff account. No pawnshop context is available for this branch.");
       return;
     }
 
@@ -251,7 +292,7 @@ export function StaffMatrix({ branchId, userRole: propUserRole, activeBranchId =
       const activePawnshopId = branchId;
       const backendUrl = getBackendUrl();
       const rolePayload = toRolePayload(newStaffData.role);
-      
+
       // Use the working Supabase Auth endpoint (same as AddAdminModal)
       const { data: { session: authSession } } = await supabase.auth.getSession();
       const response = await fetch(`${backendUrl}/auth/create-branch-admin`, {
@@ -276,8 +317,8 @@ export function StaffMatrix({ branchId, userRole: propUserRole, activeBranchId =
       const result = await response.json();
 
       if (!response.ok || !result.success) {
-        const errorMsg = result.error || result.message || `Server error (HTTP ${response.status})`;
-        throw new Error(errorMsg);
+        console.warn('[StaffMatrix] Staff creation rejected', response.status, result?.error);
+        throw new Error(STAFF_COPY.createFailed);
       }
 
       showToast(`Account "${newStaffData.name}" (${roleLabelFromCode(newStaffData.role)}) created successfully`, "success");
@@ -286,7 +327,7 @@ export function StaffMatrix({ branchId, userRole: propUserRole, activeBranchId =
       fetchStaffData();
     } catch (err: unknown) {
       console.error("Error creating staff:", err);
-      showToast(`Failed to create account: ${err instanceof Error ? err.message : String(err)}`, "error");
+      setCreateError(err instanceof Error ? err.message : STAFF_COPY.createFailed);
     }
   };
 
@@ -332,25 +373,40 @@ export function StaffMatrix({ branchId, userRole: propUserRole, activeBranchId =
     }
   };
 
-  const handleChangePassword = async (staffId: string, newPassword: string) => {
-    if (!newPassword) {
-      showToast("Please enter a new password", "error");
-      return;
-    }
+  const openChangePassword = (staffId: string) => {
+    setChangePasswordValue('');
+    setChangePasswordError(null);
+    setChangePasswordSummary(null);
+    setChangePasswordData({ staffId });
+    setManageMenuId(null);
+  };
 
-    if (newPassword.length < 8) {
-      showToast("Password must be at least 8 characters", "error");
+  const closeChangePassword = () => {
+    setChangePasswordValue('');
+    setChangePasswordError(null);
+    setChangePasswordSummary(null);
+    setChangePasswordData(null);
+  };
+
+  const handleChangePassword = async (staffId: string, newPassword: string) => {
+    setChangePasswordError(null);
+    setChangePasswordSummary(null);
+
+    if (getPasswordRuleFailures(newPassword).length > 0) {
+      setChangePasswordError(STAFF_COPY.policyNotMet);
+      setChangePasswordSummary(STAFF_COPY.policyNotMet);
       return;
     }
 
     try {
       await api.post(`/staff/${staffId}/password`, { newPassword });
 
-      showToast("Password changed successfully", "success");
-      setChangePasswordData(null);
+      showToast("Password updated successfully", "success");
+      closeChangePassword();
     } catch (err: unknown) {
       console.error("Error changing password:", err);
-      showToast((err instanceof Error ? err.message : String(err)) || "Failed to change password", "error");
+      setChangePasswordError(STAFF_COPY.resetFailed);
+      setChangePasswordSummary(STAFF_COPY.resetFailed);
     }
   };
 
@@ -433,47 +489,83 @@ export function StaffMatrix({ branchId, userRole: propUserRole, activeBranchId =
       </div>
 
       {showAddStaffModal && canManageStaff && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={closeAddStaffModal}>
-          <div className="bg-[#14141B] rounded-2xl p-6 w-96 shadow-2xl" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-xl font-black text-[#F5F0E8] mb-4">Add Staff Account</h3>
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 overflow-y-auto" onClick={closeAddStaffModal}>
+          <div className="bg-[#14141B] rounded-2xl p-6 w-full max-w-md my-8 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-xl font-black text-[#F5F0E8] mb-4">{STAFF_COPY.addStaffHeading}</h3>
             <form onSubmit={handleAddStaff} className="space-y-4">
-              <input 
-                type="text" 
-                placeholder="Full Name"
-                value={newStaffData.name}
-                onChange={(e) => setNewStaffData({...newStaffData, name: e.target.value})}
-                className="w-full px-3 py-2 border border-[rgba(201,160,92,0.12)] rounded-lg text-sm"
-              />
-              <input 
-                type="email" 
-                placeholder="Email"
-                value={newStaffData.email}
-                onChange={(e) => setNewStaffData({...newStaffData, email: e.target.value})}
-                className="w-full px-3 py-2 border border-[rgba(201,160,92,0.12)] rounded-lg text-sm"
-              />
-              <input 
-                type="password" 
-                placeholder="Password"
-                value={newStaffData.password}
-                onChange={(e) => setNewStaffData({...newStaffData, password: e.target.value})}
-                className="w-full px-3 py-2 border border-[rgba(201,160,92,0.12)] rounded-lg text-sm"
-              />
-              <div className="flex gap-2">
+              <div className="space-y-1.5">
+                <label htmlFor="staffCreateName" className="block text-[14px] font-semibold text-[#8A8279]">
+                  {STAFF_COPY.fullName}
+                </label>
                 <input
+                  id="staffCreateName"
+                  name="staffCreateName"
                   type="text"
-                  placeholder="Authentication code"
-                  value={newStaffData.authCode}
-                  onChange={(e) => setNewStaffData({...newStaffData, authCode: e.target.value})}
+                  autoComplete="name"
+                  placeholder="Full Name"
+                  value={newStaffData.name}
+                  onChange={(e) => setNewStaffData({...newStaffData, name: e.target.value})}
                   className="w-full px-3 py-2 border border-[rgba(201,160,92,0.12)] rounded-lg text-sm"
                 />
-                <button
-                  type="button"
-                  onClick={handleRequestAuthCode}
-                  disabled={authCodeCooldown > 0}
-                  className="px-3 py-2 bg-[#222228] text-[#F5F0E8] rounded-lg font-bold text-[10px] uppercase tracking-wide hover:bg-slate-300 disabled:opacity-40 disabled:cursor-not-allowed"
-                >
-                  {authCodeCooldown > 0 ? `${authCodeCooldown}s` : 'Get Code'}
-                </button>
+              </div>
+              <div className="space-y-1.5">
+                <label htmlFor="staffCreateEmail" className="block text-[14px] font-semibold text-[#8A8279]">
+                  {STAFF_COPY.email}
+                </label>
+                <input
+                  id="staffCreateEmail"
+                  name="staffCreateEmail"
+                  type="email"
+                  autoComplete="email"
+                  placeholder="Email"
+                  value={newStaffData.email}
+                  onChange={(e) => setNewStaffData({...newStaffData, email: e.target.value})}
+                  className="w-full px-3 py-2 border border-[rgba(201,160,92,0.12)] rounded-lg text-sm"
+                />
+              </div>
+              <PasswordField
+                id="staffCreatePassword"
+                name="staffCreatePassword"
+                label={STAFF_COPY.newPassword}
+                value={newStaffData.password}
+                onChange={(value) => setNewStaffData({ ...newStaffData, password: value })}
+                helperText="Use a private password you do not use elsewhere."
+                error={createPasswordError ?? undefined}
+                errorSummaryId="staff-create-error-summary"
+                autoComplete="new-password"
+                required
+              />
+              {createError && (
+                <PasswordErrorSummary
+                  id="staff-create-error-summary"
+                  message={createError}
+                  fieldId={createPasswordError ? 'staffCreatePassword' : 'staffCreateEmail'}
+                />
+              )}
+              <div className="space-y-1.5">
+                <label htmlFor="staffCreateAuthCode" className="block text-[14px] font-semibold text-[#8A8279]">
+                  {STAFF_COPY.authCode}
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    id="staffCreateAuthCode"
+                    name="staffCreateAuthCode"
+                    type="text"
+                    autoComplete="one-time-code"
+                    placeholder="Authentication code"
+                    value={newStaffData.authCode}
+                    onChange={(e) => setNewStaffData({...newStaffData, authCode: e.target.value})}
+                    className="w-full px-3 py-2 border border-[rgba(201,160,92,0.12)] rounded-lg text-sm"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleRequestAuthCode}
+                    disabled={authCodeCooldown > 0}
+                    className="px-3 py-2 bg-[#222228] text-[#F5F0E8] rounded-lg font-bold text-[10px] uppercase tracking-wide hover:bg-slate-300 disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    {authCodeCooldown > 0 ? `${authCodeCooldown}s` : 'Get Code'}
+                  </button>
+                </div>
               </div>
               {authCodeRequested && (
                 <div className="text-[10px] font-semibold text-[#8A8279]">
@@ -499,28 +591,35 @@ export function StaffMatrix({ branchId, userRole: propUserRole, activeBranchId =
                   ⚠️ {inAppCodeInfo}
                 </div>
               )}
-              <select 
-                value={newStaffData.role}
-                onChange={(e) => setNewStaffData({...newStaffData, role: e.target.value})}
-                className="w-full px-3 py-2 border border-[rgba(201,160,92,0.12)] rounded-lg text-sm"
-              >
-                {getSelectableRoleOptions().map((option) => (
-                  <option key={option.value} value={option.value}>{option.label}</option>
-                ))}
-              </select>
+              <div className="space-y-1.5">
+                <label htmlFor="staffCreateRole" className="block text-[14px] font-semibold text-[#8A8279]">
+                  {STAFF_COPY.role}
+                </label>
+                <select
+                  id="staffCreateRole"
+                  name="staffCreateRole"
+                  value={newStaffData.role}
+                  onChange={(e) => setNewStaffData({...newStaffData, role: e.target.value})}
+                  className="w-full px-3 py-2 border border-[rgba(201,160,92,0.12)] rounded-lg text-sm"
+                >
+                  {getSelectableRoleOptions().map((option) => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
+                  ))}
+                </select>
+              </div>
               <div className="flex gap-2">
-                <button 
+                <button
                   type="submit"
                   className="flex-1 bg-blue-600 text-white py-2 rounded-lg font-bold text-sm hover:bg-blue-700"
                 >
-                  Create Account
+                  {STAFF_COPY.createStaffAccount}
                 </button>
                 <button
                   type="button"
                   onClick={closeAddStaffModal}
                   className="flex-1 bg-[#222228] text-[#F5F0E8] py-2 rounded-lg font-bold text-sm hover:bg-slate-300"
                 >
-                  Cancel
+                  {STAFF_COPY.cancel}
                 </button>
               </div>
             </form>
@@ -530,30 +629,45 @@ export function StaffMatrix({ branchId, userRole: propUserRole, activeBranchId =
 
       {/* Hidden Password Change Modal */}
       {changePasswordData && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setChangePasswordData(null)}>
-          <div className="bg-[#14141B] rounded-2xl p-6 w-80 shadow-2xl" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-lg font-black text-[#F5F0E8] mb-4">Change Password</h3>
-            <input 
-              type="password" 
-              placeholder="New Password"
-              id="new-password-input"
-              className="w-full px-3 py-2 border border-[rgba(201,160,92,0.12)] rounded-lg text-sm mb-4"
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 overflow-y-auto" onClick={closeChangePassword}>
+          <div className="bg-[#14141B] rounded-2xl p-6 w-full max-w-md my-8 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-lg font-black text-[#F5F0E8] mb-2">{STAFF_COPY.resetHeading}</h3>
+            <p className="text-[14px] text-[#8A8279] mb-4">{STAFF_COPY.resetExplainer}</p>
+            <PasswordField
+              id="staffResetPassword"
+              name="staffResetPassword"
+              label={STAFF_COPY.newPassword}
+              value={changePasswordValue}
+              onChange={setChangePasswordValue}
+              helperText="Use a private password you do not use elsewhere."
+              error={changePasswordError ?? undefined}
+              errorSummaryId="staff-reset-error-summary"
+              autoComplete="new-password"
+              required
             />
-            <div className="flex gap-2">
-              <button 
-                onClick={() => {
-                  const newPassword = (document.getElementById('new-password-input') as HTMLInputElement)?.value;
-                  handleChangePassword(changePasswordData.staffId, newPassword);
-                }}
+            {changePasswordSummary && (
+              <div className="mt-3">
+                <PasswordErrorSummary
+                  id="staff-reset-error-summary"
+                  message={changePasswordSummary}
+                  fieldId="staffResetPassword"
+                />
+              </div>
+            )}
+            <div className="flex gap-2 mt-4">
+              <button
+                type="button"
+                onClick={() => handleChangePassword(changePasswordData.staffId, changePasswordValue)}
                 className="flex-1 bg-blue-600 text-white py-2 rounded-lg font-bold text-sm hover:bg-blue-700"
               >
-                Update
+                {STAFF_COPY.updatePassword}
               </button>
-              <button 
-                onClick={() => setChangePasswordData(null)}
+              <button
+                type="button"
+                onClick={closeChangePassword}
                 className="flex-1 bg-[#222228] text-[#F5F0E8] py-2 rounded-lg font-bold text-sm hover:bg-slate-300"
               >
-                Cancel
+                {STAFF_COPY.cancel}
               </button>
             </div>
           </div>
@@ -689,7 +803,7 @@ export function StaffMatrix({ branchId, userRole: propUserRole, activeBranchId =
                             <UserCog className="w-4 h-4" /> Change Role
                           </button>
                           <button
-                            onClick={() => { setChangePasswordData({ staffId: person.id, newPassword: '' }); setManageMenuId(null); }}
+                            onClick={() => openChangePassword(person.id)}
                             className="w-full text-left px-4 py-3 text-sm font-bold text-[#8A8279] hover:bg-amber-50 hover:text-amber-600 flex items-center gap-3 transition-colors"
                           >
                             <KeyRound className="w-4 h-4" /> Change Password
