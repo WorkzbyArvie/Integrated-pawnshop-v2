@@ -24,6 +24,8 @@ import { PERMISSIONS } from './common/permissions/permissions.const';
 import { Throttle } from './common/decorators/throttle.decorator';
 import { AppService } from './app.service';
 import { AccountRegistrationDto } from './security/dto/account-registration.dto';
+import { StaffPasswordDto } from './security/dto/staff-password.dto';
+import { CredentialStateUnavailableError } from './security/credential-state.service';
 import { StorageService } from './common/storage/storage.service';
 import type { Request, Response } from 'express';
 import type { File } from 'multer';
@@ -244,10 +246,12 @@ export class AppController {
   }
 
   @Post('staff/:id/password')
+  @Throttle({ ttl: 60_000, limit: 10 })
+  @RequiresPermission(PERMISSIONS['user.manage_staff'])
   async changeStaffPassword(
     @Param('id') staffId: string,
     @Headers('authorization') authHeader: string | undefined,
-    @Body() body: { newPassword: string },
+    @Body() body: StaffPasswordDto,
   ) {
     try {
       const userId = await this.extractUserId(authHeader);
@@ -257,12 +261,17 @@ export class AppController {
         body?.newPassword,
       );
     } catch (error: any) {
+      if (error instanceof HttpException) throw error;
+      const status =
+        error instanceof CredentialStateUnavailableError
+          ? HttpStatus.SERVICE_UNAVAILABLE
+          : error.status || HttpStatus.BAD_REQUEST;
       throw new HttpException(
         {
           success: false,
-          message: error.message || 'Failed to change staff password',
+          message: 'Failed to reset staff password',
         },
-        error.status || HttpStatus.BAD_REQUEST,
+        status,
       );
     }
   }

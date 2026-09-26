@@ -16,6 +16,16 @@ export interface CredentialStateView {
 
 export type CredentialStateUnavailableKind = 'missing' | 'dependency';
 
+export const CREDENTIAL_STATE_REASONS = {
+  ADMIN_RESET_PENDING: 'ADMIN_PASSWORD_RESET_PENDING',
+  ADMIN_RESET: 'ADMIN_PASSWORD_RESET',
+  ADMIN_RESET_FAILED: 'ADMIN_PASSWORD_RESET_FAILED',
+  ADMINISTRATIVE_PROVISIONING: 'ADMINISTRATIVE_PROVISIONING',
+} as const;
+
+export type CredentialStateReason =
+  (typeof CREDENTIAL_STATE_REASONS)[keyof typeof CREDENTIAL_STATE_REASONS];
+
 export class CredentialStateUnavailableError extends Error {
   readonly code = 'CREDENTIAL_STATE_UNAVAILABLE' as const;
 
@@ -49,7 +59,7 @@ export class CredentialStateService {
 
   async initializeProvisioned(
     profileId: string,
-    reason = 'ADMINISTRATIVE_PROVISIONING',
+    reason: string = CREDENTIAL_STATE_REASONS.ADMINISTRATIVE_PROVISIONING,
   ): Promise<CredentialStateView> {
     this.assertProfileId(profileId);
     return this.prisma.credentialState.upsert({
@@ -63,6 +73,69 @@ export class CredentialStateService {
       },
       update: {},
     }) as Promise<CredentialStateView>;
+  }
+
+  async reserveForcedChange(
+    profileId: string,
+    reason: string = CREDENTIAL_STATE_REASONS.ADMIN_RESET_PENDING,
+  ): Promise<CredentialStateView> {
+    this.assertProfileId(profileId);
+    const markedAt = new Date();
+    try {
+      return (await this.prisma.credentialState.upsert({
+        where: { profileId },
+        create: {
+          profileId,
+          mustChangePassword: true,
+          reason,
+          markedAt,
+          resolvedAt: null,
+        },
+        update: {
+          mustChangePassword: true,
+          reason,
+          markedAt,
+          resolvedAt: null,
+        },
+      })) as CredentialStateView;
+    } catch (error) {
+      throw new CredentialStateUnavailableError('dependency', error);
+    }
+  }
+
+  async confirmForcedChange(
+    profileId: string,
+    reason: string = CREDENTIAL_STATE_REASONS.ADMIN_RESET,
+  ): Promise<CredentialStateView> {
+    this.assertProfileId(profileId);
+    try {
+      return (await this.prisma.credentialState.update({
+        where: { profileId },
+        data: {
+          mustChangePassword: true,
+          reason,
+          markedAt: new Date(),
+          resolvedAt: null,
+        },
+      })) as CredentialStateView;
+    } catch (error) {
+      throw new CredentialStateUnavailableError('dependency', error);
+    }
+  }
+
+  async recordForcedChangeFailure(
+    profileId: string,
+    reason: string = CREDENTIAL_STATE_REASONS.ADMIN_RESET_FAILED,
+  ): Promise<CredentialStateView> {
+    this.assertProfileId(profileId);
+    try {
+      return (await this.prisma.credentialState.update({
+        where: { profileId },
+        data: { mustChangePassword: true, reason },
+      })) as CredentialStateView;
+    } catch (error) {
+      throw new CredentialStateUnavailableError('dependency', error);
+    }
   }
 
   async getForUser(profileId: string): Promise<CredentialStateView> {

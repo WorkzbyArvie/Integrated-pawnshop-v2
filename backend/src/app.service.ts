@@ -1,4 +1,9 @@
-import { Injectable, ConflictException, ServiceUnavailableException } from '@nestjs/common';
+import {
+  Injectable,
+  ConflictException,
+  ServiceUnavailableException,
+  BadRequestException,
+} from '@nestjs/common';
 import { PrismaService } from './prisma.service';
 import { FinanceService } from './finance/finance.service';
 import { LegalProofService } from './loan/legal-proof.service';
@@ -12,7 +17,11 @@ import { resolve4, resolve6 } from 'node:dns/promises';
 import * as jwt from 'jsonwebtoken';
 import { SupabaseAdminService } from './common/supabase-admin.service';
 import { PasswordPolicyService } from './security/password-policy.service';
-import { CredentialStateService, CredentialStateUnavailableError } from './security/credential-state.service';
+import {
+  CredentialStateService,
+  CredentialStateUnavailableError,
+  CREDENTIAL_STATE_REASONS,
+} from './security/credential-state.service';
 import { AccountRegistrationDto } from './security/dto/account-registration.dto';
 import { calculatePawnCharges } from './finance/pawn-charge-calculator';
 import {
@@ -828,6 +837,11 @@ export class AppService {
     staffId: string,
     newPassword: string,
   ) {
+    const targetId = String(staffId || '').trim();
+    if (!targetId) {
+      throw new BadRequestException('A staff target is required');
+    }
+
     const password = String(newPassword || '');
     this.passwordPolicy.assert(password);
 
@@ -837,7 +851,7 @@ export class AppService {
     });
 
     const target = await this.prisma.profile.findUnique({
-      where: { id: staffId },
+      where: { id: targetId },
       select: { id: true, role: true, pawnshopId: true },
     });
 
@@ -860,16 +874,118 @@ export class AppService {
       throw new Error('Cannot change password for super admin account');
     }
 
+    const auditId = await this.beginStaffPasswordResetAudit({
+      actorProfileId: actor.id,
+      targetProfileId: target.id,
+      targetRole,
+      pawnshopId: target.pawnshopId ?? null,
+    });
+
+    try {
+      await this.credentialState.reserveForcedChange(
+        target.id,
+        CREDENTIAL_STATE_REASONS.ADMIN_RESET_PENDING,
+      );
+    } catch (error) {
+      await this.completeStaffPasswordResetAudit(auditId, false, 'forced_state_reservation');
+      throw new ServiceUnavailableException({
+        success: false,
+        error: 'CREDENTIAL_STATE_UNAVAILABLE',
+        message: 'Credential state is unavailable',
+      });
+    }
+
     const { error } = await this.supabaseAdmin.auth.admin.updateUserById(
-      staffId,
+      target.id,
       { password },
     );
 
     if (error) {
-      throw new Error(error.message || 'Failed to update staff password');
+      await this.recordStaffPasswordResetFailure(target.id);
+      await this.completeStaffPasswordResetAudit(auditId, false, 'supabase_update');
+      throw new BadRequestException({
+        success: false,
+        error: 'ADMIN_PASSWORD_RESET_FAILED',
+        message: 'Failed to reset staff password',
+      });
     }
 
-    return { success: true, message: 'Password changed successfully' };
+    await this.credentialState.confirmForcedChange(
+      target.id,
+      CREDENTIAL_STATE_REASONS.ADMIN_RESET,
+    );
+    await this.completeStaffPasswordResetAudit(auditId, true);
+
+    return { changed: true, mustChangePassword: true };
+  }
+
+  private async recordStaffPasswordResetFailure(profileId: string): Promise<void> {
+    try {
+      await this.credentialState.recordForcedChangeFailure(
+        profileId,
+        CREDENTIAL_STATE_REASONS.ADMIN_RESET_FAILED,
+      );
+    } catch (error) {
+      console.error('[changeStaffPassword] failed to mark forced-change failure', {
+        profileId,
+        code: (error as { code?: string })?.code,
+      });
+    }
+  }
+
+  private async beginStaffPasswordResetAudit(params: {
+    actorProfileId: string;
+    targetProfileId: string;
+    targetRole: string;
+    pawnshopId: string | null;
+  }): Promise<string | null> {
+    try {
+      const row = await this.prisma.securityLog.create({
+        data: {
+          profileId: params.targetProfileId,
+          actorProfileId: params.actorProfileId,
+          targetProfileId: params.targetProfileId,
+          ...(params.pawnshopId ? { pawnshopId: params.pawnshopId } : {}),
+          action: 'ADMIN_PASSWORD_RESET',
+          success: false,
+          metadata: { targetRole: params.targetRole },
+        },
+        select: { id: true },
+      });
+      return row?.id ?? null;
+    } catch (error) {
+      console.error('[changeStaffPassword] failed to open audit event', {
+        actorProfileId: params.actorProfileId,
+        targetProfileId: params.targetProfileId,
+        message: (error as Error)?.message,
+      });
+      return null;
+    }
+  }
+
+  private async completeStaffPasswordResetAudit(
+    auditId: string | null,
+    success: boolean,
+    failureStage?: 'forced_state_reservation' | 'supabase_update',
+  ): Promise<void> {
+    if (!auditId) return;
+    try {
+      await this.prisma.securityLog.update({
+        where: { id: auditId },
+        data: {
+          success,
+          ...(failureStage
+            ? { metadata: { failureStage } }
+            : {}),
+        },
+      });
+    } catch (error) {
+      console.error('[changeStaffPassword] failed to close audit event', {
+        auditId,
+        success,
+        message: (error as Error)?.message,
+      });
+    }
   }
 
   async changeStaffRole(
