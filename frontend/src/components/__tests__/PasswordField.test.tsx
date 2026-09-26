@@ -1,13 +1,40 @@
 import { useState } from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { describe, expect, it, beforeEach } from 'vitest';
+import { describe, expect, it, beforeEach, vi } from 'vitest';
 import {
   PASSWORD_CONFIRMATION_MISMATCH,
   PasswordConfirmField,
   PasswordErrorSummary,
   PasswordField,
 } from '../Auth/PasswordField';
+import Login from '../Auth/Login';
 import { ApiError } from '../../lib/apiClient';
+
+const signInWithPassword = vi.fn();
+const profileMaybeSingle = vi.fn();
+const navigate = vi.fn();
+
+vi.mock('../../lib/supabaseClient', () => {
+  const profileChain = {
+    select: () => profileChain,
+    eq: () => profileChain,
+    limit: () => profileChain,
+    maybeSingle: () => profileMaybeSingle(),
+  };
+  return {
+    supabase: {
+      auth: {
+        signInWithPassword: (...args: unknown[]) => signInWithPassword(...args),
+        resetPasswordForEmail: vi.fn(),
+      },
+      from: () => profileChain,
+    },
+  };
+});
+
+vi.mock('react-router-dom', () => ({
+  useNavigate: () => navigate,
+}));
 
 function ControlledPasswordField({ error }: { error?: string }) {
   const [value, setValue] = useState('');
@@ -161,5 +188,70 @@ describe('PasswordField', () => {
 
     const summary = screen.getByRole('alert');
     await waitFor(() => expect(summary).toHaveFocus());
+  });
+});
+
+describe('Login password surface', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    sessionStorage.clear();
+    signInWithPassword.mockReset();
+    profileMaybeSingle.mockReset();
+    navigate.mockReset();
+    signInWithPassword.mockResolvedValue({
+      data: { user: { id: 'user-1', user_metadata: {}, app_metadata: {} } },
+      error: null,
+    });
+    profileMaybeSingle.mockResolvedValue({
+      data: { role: 'OWNER', pawnshop_id: 'shop-1', branch_id: null, full_name: 'Owner' },
+      error: null,
+    });
+  });
+
+  it('uses current-password semantics with visibility support and no new-password checklist', () => {
+    render(<Login />);
+
+    const password = screen.getByLabelText('Password') as HTMLInputElement;
+    expect(password).toHaveAttribute('type', 'password');
+    expect(password).toHaveAttribute('autocomplete', 'current-password');
+    expect(password).not.toHaveAttribute('readonly');
+
+    const toggle = screen.getByRole('button', { name: 'Show password' });
+    expect(toggle).toHaveAttribute('aria-pressed', 'false');
+    fireEvent.click(toggle);
+    expect(screen.getByLabelText('Password')).toHaveAttribute('type', 'text');
+    expect(screen.getByRole('button', { name: 'Hide password' })).toHaveAttribute('aria-pressed', 'true');
+
+    expect(screen.queryByText('Password requirements')).not.toBeInTheDocument();
+    expect(localStorage.length).toBe(0);
+    expect(sessionStorage.length).toBe(0);
+  });
+
+  it('labels the account email field and never persists the submitted password', async () => {
+    render(<Login />);
+
+    const email = screen.getByLabelText('Email address') as HTMLInputElement;
+    expect(email).toHaveAttribute('autocomplete', 'email');
+
+    fireEvent.change(email, { target: { value: 'owner@example.com' } });
+    fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'S9!riverstone' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Authenticate Access' }));
+
+    await waitFor(() => expect(signInWithPassword).toHaveBeenCalled());
+    expect(signInWithPassword).toHaveBeenCalledWith({
+      email: 'owner@example.com',
+      password: 'S9!riverstone',
+    });
+
+    const persisted = JSON.stringify({ local: { ...localStorage }, session: { ...sessionStorage } });
+    expect(persisted).not.toContain('S9!riverstone');
+  });
+
+  it('routes recovery entry to the canonical request surface', () => {
+    render(<Login />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Forgot Password?' }));
+
+    expect(navigate).toHaveBeenCalledWith('/reset-password', { replace: true });
   });
 });
