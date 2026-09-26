@@ -1,4 +1,6 @@
 import 'reflect-metadata';
+import { readFileSync } from 'node:fs';
+import * as path from 'node:path';
 import { RequestMethod } from '@nestjs/common';
 import { METHOD_METADATA, PATH_METADATA } from '@nestjs/common/constants';
 import { plainToInstance } from 'class-transformer';
@@ -7,9 +9,12 @@ import {
   THROTTLE_LIMIT_KEY,
   THROTTLE_TTL_KEY,
 } from '../common/decorators/throttle.decorator';
+import { IS_PUBLIC_KEY } from '../common/decorators/public.decorator';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { SecurityController } from './security.controller';
+
+const MAIN_TS = readFileSync(path.resolve(__dirname, '..', 'main.ts'), 'utf8');
 
 type Handler = (...args: any[]) => unknown;
 
@@ -22,11 +27,27 @@ describe('SecurityController', () => {
     completeRecovery: jest.Mock;
     getMyActivity: jest.Mock;
     getMyActivityLog: jest.Mock;
+    startMfaEnrollment: jest.Mock;
+    startMfaLoginChallenge: jest.Mock;
+    verifyMfaChallenge: jest.Mock;
+    disableMfa: jest.Mock;
   };
-  let authUserService: { getUserIdFromAuthHeader: jest.Mock };
+  let authUserService: {
+    getUserIdFromAuthHeader: jest.Mock;
+    getAuthContextFromAuthHeader: jest.Mock;
+  };
   let controller: SecurityController;
 
   const bearer = 'Bearer profile-token';
+  const challengeView = {
+    challengeId: '11111111-2222-4333-8444-555555555555',
+    expiresAt: new Date('2026-09-10T08:10:00.000Z'),
+    maskedEmail: 'ju••••@example.com',
+  };
+  const assertionView = {
+    assertion: 'issued-assertion-value',
+    expiresAt: new Date('2026-09-10T08:15:00.000Z'),
+  };
   const changeBody = {
     currentPassword: 'Legacy!Passw0rd',
     newPassword: 'Str0ng!Passw0rd',
@@ -40,8 +61,18 @@ describe('SecurityController', () => {
       completeRecovery: jest.fn().mockResolvedValue({ changed: true, mustChangePassword: false }),
       getMyActivity: jest.fn().mockResolvedValue({ events: [] }),
       getMyActivityLog: jest.fn().mockResolvedValue([]),
+      startMfaEnrollment: jest.fn().mockResolvedValue(challengeView),
+      startMfaLoginChallenge: jest.fn().mockResolvedValue(challengeView),
+      verifyMfaChallenge: jest.fn().mockResolvedValue(assertionView),
+      disableMfa: jest.fn().mockResolvedValue({ disabled: true }),
     };
-    authUserService = { getUserIdFromAuthHeader: jest.fn().mockResolvedValue('profile-1') };
+    authUserService = {
+      getUserIdFromAuthHeader: jest.fn().mockResolvedValue('profile-1'),
+      getAuthContextFromAuthHeader: jest.fn().mockResolvedValue({
+        userId: 'profile-1',
+        sessionId: 'session-1',
+      }),
+    };
     controller = new SecurityController(securityService as never, authUserService as never);
   });
 
@@ -52,6 +83,10 @@ describe('SecurityController', () => {
       ['completeRecovery', 'recovery/complete', RequestMethod.POST],
       ['getMyActivity', 'activity', RequestMethod.GET],
       ['getMyActivityLog', 'activity-log', RequestMethod.GET],
+      ['startMfaEnrollment', 'mfa/enable-challenge', RequestMethod.POST],
+      ['startMfaLoginChallenge', 'mfa/login-challenge', RequestMethod.POST],
+      ['verifyMfaChallenge', 'mfa/verify', RequestMethod.POST],
+      ['disableMfa', 'mfa/disable', RequestMethod.POST],
     ])('exposes %s at %s %s', (handler, path, method) => {
       const fn = (SecurityController.prototype as never as Record<string, Handler>)[handler];
       expect(read(PATH_METADATA, fn)).toBe(path);
@@ -67,6 +102,10 @@ describe('SecurityController', () => {
     it.each([
       ['changeMyPassword', 60_000, 5],
       ['completeRecovery', 60_000, 5],
+      ['startMfaEnrollment', 60_000, 3],
+      ['verifyMfaChallenge', 60_000, 10],
+      ['startMfaLoginChallenge', 60_000, 5],
+      ['disableMfa', 60_000, 5],
     ])('throttles %s to %i per %i ms', (handler, ttl, limit) => {
       const fn = (SecurityController.prototype as never as Record<string, Handler>)[handler];
       expect(read(THROTTLE_TTL_KEY, fn)).toBe(ttl);
@@ -212,6 +251,164 @@ describe('SecurityController', () => {
       });
       expect(validateSync(dto, { whitelist: true })).toHaveLength(0);
       expect(Object.keys(dto)).toEqual(['newPassword', 'confirmPassword']);
+    });
+  });
+
+  describe('MFA route auth contract', () => {
+    const handlerFor = (name: string) =>
+      (SecurityController.prototype as never as Record<string, Handler>)[name];
+
+    it('marks only the pre-session login challenge route public', () => {
+      expect(read(IS_PUBLIC_KEY, handlerFor('startMfaLoginChallenge'))).toBe(true);
+      for (const handler of [
+        'startMfaEnrollment',
+        'verifyMfaChallenge',
+        'disableMfa',
+      ]) {
+        expect(read(IS_PUBLIC_KEY, handlerFor(handler))).toBeUndefined();
+      }
+    });
+
+    it('leaves the global limiter deferring to the decorator for the public login route', () => {
+      expect(MAIN_TS).toMatch(/\/security\/mfa\/login-challenge/);
+    });
+
+    it('never reads the authorization header on the public login challenge', async () => {
+      await controller.startMfaLoginChallenge({ email: 'juan@example.com' });
+
+      expect(authUserService.getAuthContextFromAuthHeader).not.toHaveBeenCalled();
+      expect(authUserService.getUserIdFromAuthHeader).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ['startMfaEnrollment', { currentPassword: changeBody.currentPassword }],
+      ['verifyMfaChallenge', { challengeId: 'challenge-1', code: '123456' }],
+      ['disableMfa', { currentPassword: changeBody.currentPassword }],
+    ])('resolves the validated profile and session for %s', async (handler, body) => {
+      const loose = controller[handler as 'startMfaEnrollment'] as unknown as (
+        ...args: unknown[]
+      ) => Promise<unknown>;
+      await loose.call(controller, bearer, body);
+
+      expect(authUserService.getAuthContextFromAuthHeader).toHaveBeenCalledWith(bearer);
+    });
+
+    it('forwards the enrollment body to the profile the token resolves to', async () => {
+      const body = { currentPassword: changeBody.currentPassword };
+      await controller.startMfaEnrollment(bearer, body);
+
+      expect(securityService.startMfaEnrollment).toHaveBeenCalledWith(
+        'profile-1',
+        'session-1',
+        body,
+      );
+    });
+
+    it('ignores a client-supplied profile on the verify route', async () => {
+      const loose = controller.verifyMfaChallenge as unknown as (
+        ...args: unknown[]
+      ) => Promise<unknown>;
+      await loose.call(controller, bearer, {
+        challengeId: 'challenge-1',
+        code: '123456',
+        profileId: 'profile-2',
+      });
+
+      expect(securityService.verifyMfaChallenge).toHaveBeenCalledWith(
+        'profile-1',
+        'session-1',
+        expect.objectContaining({ challengeId: 'challenge-1' }),
+      );
+    });
+
+    it('forwards only the typed email on the public login challenge', async () => {
+      await controller.startMfaLoginChallenge({
+        email: 'juan@example.com',
+        purpose: 'MFA_DISABLE',
+      });
+
+      expect(securityService.startMfaLoginChallenge).toHaveBeenCalledWith(
+        'juan@example.com',
+      );
+    });
+  });
+
+  describe('MFA response projections', () => {
+    it('wraps the enrollment challenge in the success/data envelope', async () => {
+      await expect(
+        controller.startMfaEnrollment(bearer, {
+          currentPassword: changeBody.currentPassword,
+        }),
+      ).resolves.toEqual({ success: true, data: challengeView });
+    });
+
+    it('wraps the login challenge in the success/data envelope', async () => {
+      await expect(
+        controller.startMfaLoginChallenge({ email: 'juan@example.com' }),
+      ).resolves.toEqual({ success: true, data: challengeView });
+    });
+
+    it('returns only the freshly issued assertion and expiry on verify', async () => {
+      const response = (await controller.verifyMfaChallenge(bearer, {
+        challengeId: 'challenge-1',
+        code: '123456',
+      })) as { success: boolean; data: Record<string, unknown> };
+
+      expect(response.success).toBe(true);
+      expect(Object.keys(response.data).sort()).toEqual([
+        'assertion',
+        'expiresAt',
+      ]);
+    });
+
+    it('forwards both disable phases through the same service entry point', async () => {
+      securityService.disableMfa.mockResolvedValueOnce({ disabled: true });
+
+      await expect(
+        controller.disableMfa(bearer, { currentPassword: changeBody.currentPassword }),
+      ).resolves.toEqual({ success: true, data: { disabled: true } });
+
+      expect(securityService.disableMfa).toHaveBeenCalledWith(
+        'profile-1',
+        'session-1',
+        { currentPassword: changeBody.currentPassword },
+      );
+    });
+
+    it.each([
+      [
+        'startMfaEnrollment',
+        () =>
+          controller.startMfaEnrollment(bearer, {
+            currentPassword: changeBody.currentPassword,
+          }),
+      ],
+      [
+        'startMfaLoginChallenge',
+        () => controller.startMfaLoginChallenge({ email: 'juan@example.com' }),
+      ],
+      [
+        'verifyMfaChallenge',
+        () =>
+          controller.verifyMfaChallenge(bearer, {
+            challengeId: 'challenge-1',
+            code: '123456',
+          }),
+      ],
+      [
+        'disableMfa',
+        () =>
+          controller.disableMfa(bearer, {
+            currentPassword: changeBody.currentPassword,
+          }),
+      ],
+    ])('%s never serializes a password, a code, or the bearer token', async (_label, call) => {
+      const serialized = JSON.stringify(await call());
+
+      expect(serialized).not.toContain(changeBody.currentPassword);
+      expect(serialized).not.toContain('profile-token');
+      expect(serialized).not.toContain('juan@example.com');
+      expect(serialized).not.toMatch(/\b\d{6}\b/);
     });
   });
 });

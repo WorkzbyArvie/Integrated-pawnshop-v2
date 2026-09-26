@@ -3,11 +3,35 @@ import {
   Injectable,
   ServiceUnavailableException,
 } from '@nestjs/common';
-import { createHmac, randomInt, timingSafeEqual } from 'node:crypto';
+import { createHmac, randomInt, randomUUID, timingSafeEqual } from 'node:crypto';
 import { PrismaService } from '../prisma.service';
 import { SecurityEmailService } from './security-email.service';
 
-export type MfaChallengePurpose = 'ENABLE' | 'LOGIN' | 'DISABLE' | string;
+export const MFA_CHALLENGE_PURPOSES = {
+  ENABLE: 'MFA_ENABLE',
+  LOGIN: 'MFA_LOGIN',
+  DISABLE: 'MFA_DISABLE',
+} as const;
+
+export type MfaChallengePurposeKey =
+  (typeof MFA_CHALLENGE_PURPOSES)[keyof typeof MFA_CHALLENGE_PURPOSES];
+
+export type MfaChallengePurpose = MfaChallengePurposeKey | string;
+
+export const MFA_CHALLENGE_ERROR_CODES = {
+  INVALID: 'MFA_CHALLENGE_INVALID',
+  LOCKED: 'MFA_CHALLENGE_LOCKED',
+} as const;
+
+export function isKnownMfaChallengePurpose(
+  value: string,
+): value is MfaChallengePurposeKey {
+  return (
+    value === MFA_CHALLENGE_PURPOSES.ENABLE ||
+    value === MFA_CHALLENGE_PURPOSES.LOGIN ||
+    value === MFA_CHALLENGE_PURPOSES.DISABLE
+  );
+}
 
 export interface MfaChallengeIssueInput {
   profileId: string;
@@ -265,6 +289,17 @@ export class MfaChallengeService {
       data: { consumedAt: new Date() },
     });
     return result.count === 1;
+  }
+
+  async resolvePurpose(
+    profileId: string,
+    challengeId: string,
+  ): Promise<MfaChallengePurpose | null> {
+    throw new Error('MfaChallengeService.resolvePurpose is not implemented');
+  }
+
+  buildUndeliveredView(email: string): MfaChallengeSafeView {
+    throw new Error('MfaChallengeService.buildUndeliveredView is not implemented');
   }
 
   private generateCode(): string {

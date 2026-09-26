@@ -13,10 +13,24 @@ import {
   CredentialStateUnavailableError,
   CredentialStateView,
 } from './credential-state.service';
+import { MfaAssertionService } from './mfa-assertion.service';
+import {
+  MFA_CHALLENGE_ERROR_CODES,
+  MFA_CHALLENGE_PURPOSES,
+  MfaChallengeSafeView,
+  MfaChallengeService,
+  isKnownMfaChallengePurpose,
+} from './mfa-challenge.service';
 
 export const SECURITY_LOG_ACTIONS = {
   PASSWORD_CHANGED: 'PASSWORD_CHANGED',
   PASSWORD_CHANGED_VIA_RECOVERY: 'PASSWORD_CHANGED_VIA_RECOVERY',
+  MFA_ENROLLMENT_STARTED: 'MFA_ENROLLMENT_STARTED',
+  MFA_ENABLED: 'MFA_ENABLED',
+  MFA_VERIFICATION_FAILED: 'MFA_VERIFICATION_FAILED',
+  MFA_LOGIN_VERIFIED: 'MFA_LOGIN_VERIFIED',
+  MFA_DISABLED: 'MFA_DISABLED',
+  MFA_LOCKED: 'MFA_LOCKED',
 } as const;
 
 export type SecurityLogAction =
@@ -30,7 +44,30 @@ export const CREDENTIAL_ERROR_CODES = {
   VERIFICATION_UNAVAILABLE: 'CREDENTIAL_VERIFICATION_UNAVAILABLE',
 } as const;
 
+export const MFA_ERROR_CODES = {
+  CHALLENGE_UNAVAILABLE: 'MFA_CHALLENGE_UNAVAILABLE',
+  DISABLE_ROUTE_REQUIRED: 'MFA_DISABLE_ROUTE_REQUIRED',
+  STATE_UPDATE_FAILED: 'MFA_STATE_UPDATE_FAILED',
+} as const;
+
 export const CREDENTIAL_ACTIVITY_LIMIT = 50;
+
+export interface MfaAuditMetadata {
+  challengeId?: string | null;
+}
+
+export interface MfaAssertionView {
+  assertion: string;
+  expiresAt: Date;
+}
+
+export interface MfaDisablementResult {
+  disabled: true;
+}
+
+export interface MfaDisablementView
+  extends MfaChallengeSafeView,
+    Partial<MfaDisablementResult> {}
 
 export interface CredentialStatusView {
   mustChangePassword: boolean;
@@ -61,6 +98,9 @@ export function maskEmailAddress(value: string | null | undefined): string | nul
   return `${local.charAt(0)}${'•'.repeat(Math.max(local.length - 1, 1))}${domain}`;
 }
 
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 @Injectable()
 export class SecurityService {
   private readonly logger = new Logger(SecurityService.name);
@@ -70,6 +110,8 @@ export class SecurityService {
     private readonly supabaseAdmin: SupabaseAdminService,
     private readonly passwordPolicy: PasswordPolicyService,
     private readonly credentialState: CredentialStateService,
+    private readonly mfaChallenges: MfaChallengeService,
+    private readonly mfaAssertions: MfaAssertionService,
   ) {}
 
   async getCredentialStatus(
@@ -289,8 +331,10 @@ export class SecurityService {
     profileId: string,
     action: SecurityLogAction,
     success: boolean,
+    metadata?: MfaAuditMetadata,
   ) {
     const pawnshopId = await this.readTenantId(profileId);
+    const safeChallengeId = this.safeChallengeId(metadata?.challengeId);
     return {
       profileId,
       actorProfileId: profileId,
@@ -298,7 +342,13 @@ export class SecurityService {
       ...(pawnshopId ? { pawnshopId } : {}),
       action,
       success,
+      ...(safeChallengeId ? { metadata: { challengeId: safeChallengeId } } : {}),
     };
+  }
+
+  private safeChallengeId(challengeId: string | null | undefined): string | null {
+    const value = typeof challengeId === 'string' ? challengeId.trim() : '';
+    return UUID_PATTERN.test(value) ? value : null;
   }
 
   private async beginSecurityEvent(
@@ -320,9 +370,10 @@ export class SecurityService {
     profileId: string,
     action: SecurityLogAction,
     success: boolean,
+    metadata?: MfaAuditMetadata,
   ): Promise<void> {
     try {
-      const data = await this.buildAuditData(profileId, action, success);
+      const data = await this.buildAuditData(profileId, action, success, metadata);
       await this.prisma.securityLog.create({ data });
     } catch (error) {
       this.logger.error(
@@ -330,5 +381,33 @@ export class SecurityService {
         (error as Error).stack,
       );
     }
+  }
+
+  async startMfaEnrollment(
+    profileId: string,
+    sessionId: string | null,
+    data: { currentPassword: string },
+  ): Promise<MfaChallengeSafeView> {
+    throw new Error('SecurityService.startMfaEnrollment is not implemented');
+  }
+
+  async verifyMfaChallenge(
+    profileId: string,
+    sessionId: string,
+    data: { challengeId: string; code: string },
+  ): Promise<MfaAssertionView> {
+    throw new Error('SecurityService.verifyMfaChallenge is not implemented');
+  }
+
+  async startMfaLoginChallenge(email: string): Promise<MfaChallengeSafeView> {
+    throw new Error('SecurityService.startMfaLoginChallenge is not implemented');
+  }
+
+  async disableMfa(
+    profileId: string,
+    sessionId: string | null,
+    data: { currentPassword: string; challengeId?: string; code?: string },
+  ): Promise<MfaDisablementView> {
+    throw new Error('SecurityService.disableMfa is not implemented');
   }
 }

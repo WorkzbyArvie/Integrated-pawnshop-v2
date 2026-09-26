@@ -4,17 +4,28 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { CredentialStateService } from './credential-state.service';
+import { CredentialStateUnavailableError } from './credential-state.service';
 import { PasswordPolicyService } from './password-policy.service';
 import {
   CREDENTIAL_ACTIVITY_LIMIT,
   CREDENTIAL_ERROR_CODES,
+  MFA_ERROR_CODES,
   SECURITY_LOG_ACTIONS,
   SecurityService,
   maskEmailAddress,
 } from './security.service';
+import { MfaAssertionService } from './mfa-assertion.service';
+import {
+  MFA_CHALLENGE_PURPOSES,
+  MfaChallengeService,
+} from './mfa-challenge.service';
 
 const VALID_PASSWORD = 'Str0ng!Passw0rd';
 const CURRENT_PASSWORD = 'Legacy!Passw0rd';
+const CHALLENGE_ID = '11111111-2222-4333-8444-555555555555';
+const CHALLENGE_EXPIRY = new Date('2026-09-10T08:10:00.000Z');
+const ASSERTION_EXPIRY = new Date('2026-09-10T08:15:00.000Z');
+const ASSERTION_VALUE = 'issued-assertion-value';
 
 const STATE = {
   id: 'state-1',
@@ -29,16 +40,27 @@ const STATE = {
   updatedAt: new Date('2026-09-01T00:00:00.000Z'),
 };
 
+const MFA_OFF_STATE = { ...STATE, mustChangePassword: false, mfaEnabled: false, mfaEmail: null };
+
 describe('SecurityService', () => {
   let order: string[];
   let credentialState: {
     findUnique: jest.Mock;
     update: jest.Mock;
     getRequired: jest.Mock;
+    enableMfa: jest.Mock;
+    disableMfa: jest.Mock;
   };
   let prisma: any;
   let supabaseClient: any;
   let supabaseAdmin: any;
+  let mfaChallenges: {
+    issue: jest.Mock;
+    verify: jest.Mock;
+    resolvePurpose: jest.Mock;
+    buildUndeliveredView: jest.Mock;
+  };
+  let mfaAssertions: { issue: jest.Mock; validate: jest.Mock };
   let service: SecurityService;
 
   const pushAuditCreate = (action: string, success: boolean) =>
@@ -50,6 +72,14 @@ describe('SecurityService', () => {
       findUnique: jest.fn(),
       update: jest.fn(),
       getRequired: jest.fn(),
+      enableMfa: jest.fn(() => {
+        order.push('state:enableMfa');
+        return Promise.resolve({ ...MFA_OFF_STATE, mfaEnabled: true });
+      }),
+      disableMfa: jest.fn(() => {
+        order.push('state:disableMfa');
+        return Promise.resolve({ ...STATE, mfaEnabled: false, mfaEmail: null });
+      }),
     };
     prisma = {
       credentialState,
@@ -69,6 +99,7 @@ describe('SecurityService', () => {
         findUnique: jest.fn(() =>
           Promise.resolve({ pawnshopId: 'tenant-1' }),
         ),
+        findFirst: jest.fn(),
       },
     };
     supabaseClient = {
@@ -100,12 +131,46 @@ describe('SecurityService', () => {
       },
     };
     supabaseAdmin = { client: supabaseClient };
+    mfaChallenges = {
+      issue: jest.fn((input: any) => {
+        order.push(`challenge:issue:${input.purpose}`);
+        return Promise.resolve({
+          challengeId: CHALLENGE_ID,
+          expiresAt: CHALLENGE_EXPIRY,
+          maskedEmail: 'ju••••@example.com',
+        });
+      }),
+      verify: jest.fn((input: any) => {
+        order.push(`challenge:verify:${input.purpose}`);
+        return Promise.resolve({ challengeId: input.challengeId });
+      }),
+      resolvePurpose: jest.fn(() =>
+        Promise.resolve(MFA_CHALLENGE_PURPOSES.ENABLE),
+      ),
+      buildUndeliveredView: jest.fn(() => ({
+        challengeId: '99999999-8888-4777-8666-555555555555',
+        expiresAt: CHALLENGE_EXPIRY,
+        maskedEmail: 'un••••@example.com',
+      })),
+    };
+    mfaAssertions = {
+      issue: jest.fn(() => {
+        order.push('assertion:issue');
+        return Promise.resolve({
+          assertion: ASSERTION_VALUE,
+          expiresAt: ASSERTION_EXPIRY,
+        });
+      }),
+      validate: jest.fn(),
+    };
 
     service = new SecurityService(
       prisma,
       supabaseAdmin,
       new PasswordPolicyService(),
       new CredentialStateService(prisma),
+      mfaChallenges as unknown as MfaChallengeService,
+      mfaAssertions as unknown as MfaAssertionService,
     );
   });
 
@@ -524,6 +589,420 @@ describe('SecurityService', () => {
       });
 
       expect(supabaseClient.auth.admin.updateUserById).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('startMfaEnrollment', () => {
+    beforeEach(() => {
+      credentialState.findUnique.mockResolvedValue(MFA_OFF_STATE);
+    });
+
+    it('reauthenticates before it sends a code and then issues an enrollment challenge', async () => {
+      const view = await service.startMfaEnrollment('profile-1', 'session-1', {
+        currentPassword: CURRENT_PASSWORD,
+      });
+
+      expect(order).toEqual([
+        'supabase:getUserById',
+        'supabase:signInWithPassword',
+        'supabase:signOut',
+        `challenge:issue:${MFA_CHALLENGE_PURPOSES.ENABLE}`,
+        `audit-create:${SECURITY_LOG_ACTIONS.MFA_ENROLLMENT_STARTED}:true`,
+      ]);
+      expect(view).toEqual({
+        challengeId: CHALLENGE_ID,
+        expiresAt: CHALLENGE_EXPIRY,
+        maskedEmail: 'ju••••@example.com',
+      });
+    });
+
+    it('binds the challenge to the profile, the enrollment purpose and the current session', async () => {
+      await service.startMfaEnrollment('profile-1', 'session-1', {
+        currentPassword: CURRENT_PASSWORD,
+      });
+
+      expect(mfaChallenges.issue).toHaveBeenCalledWith({
+        profileId: 'profile-1',
+        email: 'juan@example.com',
+        purpose: MFA_CHALLENGE_PURPOSES.ENABLE,
+        sessionId: 'session-1',
+      });
+    });
+
+    it('prefers an already recorded MFA destination over the auth address', async () => {
+      credentialState.findUnique.mockResolvedValue({
+        ...MFA_OFF_STATE,
+        mfaEmail: 'recorded@example.com',
+      });
+
+      await service.startMfaEnrollment('profile-1', 'session-1', {
+        currentPassword: CURRENT_PASSWORD,
+      });
+
+      expect(mfaChallenges.issue).toHaveBeenCalledWith(
+        expect.objectContaining({ email: 'recorded@example.com' }),
+      );
+    });
+
+    it('never enables MFA while only issuing the challenge', async () => {
+      await service.startMfaEnrollment('profile-1', 'session-1', {
+        currentPassword: CURRENT_PASSWORD,
+      });
+
+      expect(credentialState.enableMfa).not.toHaveBeenCalled();
+      expect(credentialState.disableMfa).not.toHaveBeenCalled();
+    });
+
+    it('rejects a wrong current password without issuing a challenge', async () => {
+      supabaseClient.auth.signInWithPassword.mockResolvedValue({
+        data: { user: null, session: null },
+        error: { message: 'Invalid login credentials' },
+      });
+
+      await expect(
+        service.startMfaEnrollment('profile-1', 'session-1', {
+          currentPassword: 'wrong-password',
+        }),
+      ).rejects.toMatchObject({
+        response: expect.objectContaining({
+          error: CREDENTIAL_ERROR_CODES.CURRENT_PASSWORD_INVALID,
+        }),
+      });
+
+      expect(mfaChallenges.issue).not.toHaveBeenCalled();
+      expect(credentialState.enableMfa).not.toHaveBeenCalled();
+    });
+
+    it('fails closed before any reauthentication when the state row is unavailable', async () => {
+      credentialState.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.startMfaEnrollment('profile-1', 'session-1', {
+          currentPassword: CURRENT_PASSWORD,
+        }),
+      ).rejects.toMatchObject({
+        response: expect.objectContaining({
+          error: CREDENTIAL_ERROR_CODES.STATE_UNAVAILABLE,
+        }),
+      });
+
+      expect(supabaseClient.auth.signInWithPassword).not.toHaveBeenCalled();
+      expect(mfaChallenges.issue).not.toHaveBeenCalled();
+    });
+
+    it('returns no code, hash, or full destination', async () => {
+      const view = await service.startMfaEnrollment('profile-1', 'session-1', {
+        currentPassword: CURRENT_PASSWORD,
+      });
+
+      expect(Object.keys(view).sort()).toEqual([
+        'challengeId',
+        'expiresAt',
+        'maskedEmail',
+      ]);
+      expect(JSON.stringify(view)).not.toContain('juan@example.com');
+      expect(JSON.stringify(view)).not.toMatch(/\b\d{6}\b/);
+    });
+  });
+
+  describe('startMfaLoginChallenge', () => {
+    const loginProfile = {
+      id: 'profile-1',
+      email: 'juan@example.com',
+      credentialState: { mfaEnabled: true, mfaEmail: 'juan@example.com' },
+    };
+
+    it('issues a login-purpose challenge for an MFA-enabled account', async () => {
+      prisma.profile.findFirst.mockResolvedValue(loginProfile);
+
+      const view = await service.startMfaLoginChallenge('  Juan@Example.com ');
+
+      expect(prisma.profile.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            email: { equals: 'juan@example.com', mode: 'insensitive' },
+          },
+        }),
+      );
+      expect(mfaChallenges.issue).toHaveBeenCalledWith({
+        profileId: 'profile-1',
+        email: 'juan@example.com',
+        purpose: MFA_CHALLENGE_PURPOSES.LOGIN,
+        sessionId: null,
+      });
+      expect(Object.keys(view).sort()).toEqual([
+        'challengeId',
+        'expiresAt',
+        'maskedEmail',
+      ]);
+    });
+
+    it('returns the identical safe shape without issuing anything for an unknown address', async () => {
+      prisma.profile.findFirst.mockResolvedValue(null);
+
+      const view = await service.startMfaLoginChallenge('nobody@example.com');
+
+      expect(mfaChallenges.issue).not.toHaveBeenCalled();
+      expect(mfaChallenges.buildUndeliveredView).toHaveBeenCalledWith(
+        'nobody@example.com',
+      );
+      expect(Object.keys(view).sort()).toEqual([
+        'challengeId',
+        'expiresAt',
+        'maskedEmail',
+      ]);
+    });
+
+    it('returns the identical safe shape for an account whose MFA is off', async () => {
+      prisma.profile.findFirst.mockResolvedValue({
+        ...loginProfile,
+        credentialState: { mfaEnabled: false, mfaEmail: null },
+      });
+
+      await service.startMfaLoginChallenge('juan@example.com');
+
+      expect(mfaChallenges.issue).not.toHaveBeenCalled();
+      expect(mfaChallenges.buildUndeliveredView).toHaveBeenCalledTimes(1);
+    });
+
+    it('fails closed rather than silently skipping MFA when the lookup breaks', async () => {
+      prisma.profile.findFirst.mockRejectedValue(
+        new Error('database unavailable'),
+      );
+
+      await expect(
+        service.startMfaLoginChallenge('juan@example.com'),
+      ).rejects.toBeInstanceOf(ServiceUnavailableException);
+      expect(mfaChallenges.buildUndeliveredView).not.toHaveBeenCalled();
+    });
+
+    it('returns no code and no full destination', async () => {
+      prisma.profile.findFirst.mockResolvedValue(loginProfile);
+
+      const view = await service.startMfaLoginChallenge('juan@example.com');
+
+      expect(JSON.stringify(view)).not.toContain('juan@example.com');
+      expect(JSON.stringify(view)).not.toMatch(/\b\d{6}\b/);
+    });
+  });
+
+  describe('verifyMfaChallenge', () => {
+    beforeEach(() => {
+      credentialState.findUnique.mockResolvedValue(MFA_OFF_STATE);
+    });
+
+    it('enables MFA and issues an assertion only after the enrollment challenge verifies', async () => {
+      const result = await service.verifyMfaChallenge(
+        'profile-1',
+        'session-1',
+        { challengeId: CHALLENGE_ID, code: '123456' },
+      );
+
+      expect(order).toEqual([
+        `challenge:verify:${MFA_CHALLENGE_PURPOSES.ENABLE}`,
+        'state:enableMfa',
+        `audit-create:${SECURITY_LOG_ACTIONS.MFA_ENABLED}:true`,
+        'assertion:issue',
+      ]);
+      expect(result).toEqual({
+        assertion: ASSERTION_VALUE,
+        expiresAt: ASSERTION_EXPIRY,
+      });
+    });
+
+    it('scopes the enrollment mutation to the authenticated profile and its destination', async () => {
+      await service.verifyMfaChallenge('profile-1', 'session-1', {
+        challengeId: CHALLENGE_ID,
+        code: '123456',
+      });
+
+      expect(credentialState.enableMfa).toHaveBeenCalledWith(
+        'profile-1',
+        'juan@example.com',
+      );
+    });
+
+    it('issues an assertion for a login challenge without touching MFA state', async () => {
+      mfaChallenges.resolvePurpose.mockResolvedValue(
+        MFA_CHALLENGE_PURPOSES.LOGIN,
+      );
+
+      const result = await service.verifyMfaChallenge(
+        'profile-1',
+        'session-1',
+        { challengeId: CHALLENGE_ID, code: '123456' },
+      );
+
+      expect(credentialState.enableMfa).not.toHaveBeenCalled();
+      expect(credentialState.disableMfa).not.toHaveBeenCalled();
+      expect(result.assertion).toBe(ASSERTION_VALUE);
+    });
+
+    it('refuses to let the generic verify route complete a disablement', async () => {
+      mfaChallenges.resolvePurpose.mockResolvedValue(
+        MFA_CHALLENGE_PURPOSES.DISABLE,
+      );
+
+      await expect(
+        service.verifyMfaChallenge('profile-1', 'session-1', {
+          challengeId: CHALLENGE_ID,
+          code: '123456',
+        }),
+      ).rejects.toMatchObject({
+        response: expect.objectContaining({
+          error: MFA_ERROR_CODES.DISABLE_ROUTE_REQUIRED,
+        }),
+      });
+
+      expect(mfaChallenges.verify).not.toHaveBeenCalled();
+      expect(credentialState.disableMfa).not.toHaveBeenCalled();
+      expect(mfaAssertions.issue).not.toHaveBeenCalled();
+    });
+
+    it('rejects an unknown challenge id before any state change or assertion', async () => {
+      mfaChallenges.resolvePurpose.mockResolvedValue(null);
+
+      await expect(
+        service.verifyMfaChallenge('profile-1', 'session-1', {
+          challengeId: CHALLENGE_ID,
+          code: '123456',
+        }),
+      ).rejects.toMatchObject({
+        response: expect.objectContaining({ error: 'MFA_CHALLENGE_INVALID' }),
+      });
+
+      expect(credentialState.enableMfa).not.toHaveBeenCalled();
+      expect(mfaAssertions.issue).not.toHaveBeenCalled();
+    });
+
+    it('never enables MFA when the code check fails', async () => {
+      mfaChallenges.verify.mockRejectedValue(
+        new BadRequestException({
+          success: false,
+          error: 'MFA_CHALLENGE_INVALID',
+          message: 'The verification challenge is invalid or no longer available',
+        }),
+      );
+
+      await expect(
+        service.verifyMfaChallenge('profile-1', 'session-1', {
+          challengeId: CHALLENGE_ID,
+          code: '000000',
+        }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+
+      expect(credentialState.enableMfa).not.toHaveBeenCalled();
+      expect(mfaAssertions.issue).not.toHaveBeenCalled();
+    });
+
+    it('audits a locked challenge as MFA_LOCKED and a wrong code as MFA_VERIFICATION_FAILED', async () => {
+      mfaChallenges.verify.mockRejectedValueOnce(
+        new BadRequestException({
+          success: false,
+          error: 'MFA_CHALLENGE_LOCKED',
+          message: 'The verification challenge is invalid or no longer available',
+        }),
+      );
+
+      await expect(
+        service.verifyMfaChallenge('profile-1', 'session-1', {
+          challengeId: CHALLENGE_ID,
+          code: '000000',
+        }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+
+      expect(order).toContain(
+        `audit-create:${SECURITY_LOG_ACTIONS.MFA_LOCKED}:false`,
+      );
+
+      mfaChallenges.verify.mockRejectedValueOnce(
+        new BadRequestException({
+          success: false,
+          error: 'MFA_CHALLENGE_INVALID',
+          message: 'The verification challenge is invalid or no longer available',
+        }),
+      );
+
+      await expect(
+        service.verifyMfaChallenge('profile-1', 'session-1', {
+          challengeId: CHALLENGE_ID,
+          code: '000000',
+        }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+
+      expect(order).toContain(
+        `audit-create:${SECURITY_LOG_ACTIONS.MFA_VERIFICATION_FAILED}:false`,
+      );
+    });
+
+    it('writes the actor, target, tenant and outcome envelope for the verification', async () => {
+      await service.verifyMfaChallenge('profile-1', 'session-1', {
+        challengeId: CHALLENGE_ID,
+        code: '123456',
+      });
+
+      const call = prisma.securityLog.create.mock.calls.find(
+        ([args]: any) => args.data.action === SECURITY_LOG_ACTIONS.MFA_ENABLED,
+      );
+      expect(call[0].data).toEqual({
+        profileId: 'profile-1',
+        actorProfileId: 'profile-1',
+        targetProfileId: 'profile-1',
+        pawnshopId: 'tenant-1',
+        action: SECURITY_LOG_ACTIONS.MFA_ENABLED,
+        success: true,
+        metadata: { challengeId: CHALLENGE_ID },
+      });
+    });
+
+    it('keeps a non-UUID challenge id out of the audit metadata', async () => {
+      mfaChallenges.resolvePurpose.mockResolvedValue(null);
+
+      await expect(
+        service.verifyMfaChallenge('profile-1', 'session-1', {
+          challengeId: 'code-is-123456-not-a-uuid',
+          code: '123456',
+        }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+
+      const call = prisma.securityLog.create.mock.calls.at(-1);
+      expect(call[0].data.action).toBe(
+        SECURITY_LOG_ACTIONS.MFA_VERIFICATION_FAILED,
+      );
+      expect(call[0].data).not.toHaveProperty('metadata');
+      expect(JSON.stringify(call[0].data)).not.toContain('123456');
+    });
+
+    it('fails closed without enabling MFA when the state mutation is rejected', async () => {
+      credentialState.enableMfa.mockRejectedValue(
+        new CredentialStateUnavailableError(
+          'dependency',
+          new Error('write rejected'),
+        ),
+      );
+
+      await expect(
+        service.verifyMfaChallenge('profile-1', 'session-1', {
+          challengeId: CHALLENGE_ID,
+          code: '123456',
+        }),
+      ).rejects.toBeInstanceOf(ServiceUnavailableException);
+
+      expect(mfaAssertions.issue).not.toHaveBeenCalled();
+      expect(order).toContain(
+        `audit-create:${SECURITY_LOG_ACTIONS.MFA_ENABLED}:false`,
+      );
+    });
+
+    it('returns only the freshly issued assertion and its expiry', async () => {
+      const result = await service.verifyMfaChallenge(
+        'profile-1',
+        'session-1',
+        { challengeId: CHALLENGE_ID, code: '123456' },
+      );
+
+      expect(Object.keys(result).sort()).toEqual(['assertion', 'expiresAt']);
+      expect(JSON.stringify(result)).not.toContain('123456');
     });
   });
 });

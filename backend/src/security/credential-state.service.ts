@@ -95,6 +95,17 @@ export class CredentialStateService {
     }
   }
 
+  async enableMfa(
+    profileId: string,
+    mfaEmail: string,
+  ): Promise<CredentialStateView> {
+    throw new Error('CredentialStateService.enableMfa is not implemented');
+  }
+
+  async disableMfa(profileId: string): Promise<CredentialStateView> {
+    throw new Error('CredentialStateService.disableMfa is not implemented');
+  }
+
   private assertProfileId(profileId: string): void {
     if (!profileId || !profileId.trim()) {
       throw new Error('Profile id is required for credential state');

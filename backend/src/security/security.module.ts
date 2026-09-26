@@ -5,6 +5,8 @@ import { AuthUserService } from '../common/auth-user.service';
 import { PasswordPolicyService } from './password-policy.service';
 import { CredentialStateService } from './credential-state.service';
 import { MfaAssertionService } from './mfa-assertion.service';
+import { MfaChallengeService } from './mfa-challenge.service';
+import { SecurityEmailService } from './security-email.service';
 import { AccountSecurityGuard } from './guards/account-security.guard';
 
 @Module({
@@ -15,6 +17,8 @@ import { AccountSecurityGuard } from './guards/account-security.guard';
     PasswordPolicyService,
     CredentialStateService,
     MfaAssertionService,
+    MfaChallengeService,
+    SecurityEmailService,
     AccountSecurityGuard,
   ],
   exports: [
@@ -22,6 +26,8 @@ import { AccountSecurityGuard } from './guards/account-security.guard';
     PasswordPolicyService,
     CredentialStateService,
     MfaAssertionService,
+    MfaChallengeService,
+    SecurityEmailService,
     AccountSecurityGuard,
   ],
 })
