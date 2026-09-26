@@ -133,7 +133,12 @@ describe('AccountSecurityGuard', () => {
       ['DELETE', '/security/credential-status'],
       ['PUT', '/security/change-password'],
       ['GET', '/security/mfa/verify'],
+      ['GET', '/security/mfa/enable-challenge'],
+      ['GET', '/security/mfa/login-challenge'],
       ['PUT', '/security/mfa/disable'],
+      ['DELETE', '/security/mfa/verify'],
+      ['POST', '/security/mfa/verify/extra'],
+      ['POST', '/security/mfa/enable'],
       ['GET', '/security/credential-status/extra'],
       ['GET', '/analytics/summary'],
     ])('denies %s %s because the method and path must both match', async (method, path) => {
@@ -395,6 +400,47 @@ describe('AccountSecurityGuard', () => {
       await expect(buildGuard().canActivate(context as never)).resolves.toBe(true);
       expect(credentialState.getRequired).not.toHaveBeenCalled();
       expect(assertions.validate).not.toHaveBeenCalled();
+    });
+
+    it('keeps the whole MFA lifecycle reachable while forced and MFA-enabled', async () => {
+      credentialState.getRequired.mockResolvedValue(FORCED_AND_MFA);
+
+      for (const [method, path] of [
+        ['POST', '/security/mfa/enable-challenge'],
+        ['POST', '/security/mfa/verify'],
+        ['POST', '/security/mfa/login-challenge'],
+        ['POST', '/security/mfa/disable'],
+      ] as const) {
+        request.method = method;
+        request.path = path;
+
+        await expect(buildGuard().canActivate(context as never)).resolves.toBe(true);
+      }
+
+      expect(credentialState.getRequired).not.toHaveBeenCalled();
+      expect(assertions.validate).not.toHaveBeenCalled();
+    });
+
+    it('still denies every other route with the forced error before the MFA error', async () => {
+      credentialState.getRequired.mockResolvedValue(FORCED_AND_MFA);
+
+      await expect(buildGuard().canActivate(context as never)).rejects.toMatchObject({
+        response: expect.objectContaining({ error: 'PASSWORD_CHANGE_REQUIRED' }),
+      });
+      expect(assertions.validate).not.toHaveBeenCalled();
+    });
+
+    it('reports credential state unavailability ahead of both credential errors', async () => {
+      request.user = undefined;
+
+      const denial = await buildGuard()
+        .canActivate(context as never)
+        .then(() => null)
+        .catch((error: { response: unknown }) => error.response);
+
+      expect(denial).toMatchObject({
+        error: 'CREDENTIAL_STATE_UNAVAILABLE',
+      });
     });
   });
 

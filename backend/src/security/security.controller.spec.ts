@@ -378,6 +378,31 @@ describe('SecurityController', () => {
       );
     });
 
+    it('returns the masked challenge when the first disable phase completes', async () => {
+      securityService.disableMfa.mockResolvedValueOnce(challengeView);
+
+      await expect(
+        controller.disableMfa(bearer, { currentPassword: changeBody.currentPassword }),
+      ).resolves.toEqual({ success: true, data: challengeView });
+    });
+
+    it('forwards the second disable phase with the challenge id and code intact', async () => {
+      const body = {
+        currentPassword: changeBody.currentPassword,
+        challengeId: '11111111-2222-4333-8444-555555555555',
+        code: '123456',
+      };
+      securityService.disableMfa.mockResolvedValueOnce({ disabled: true });
+
+      await controller.disableMfa(bearer, body);
+
+      expect(securityService.disableMfa).toHaveBeenCalledWith(
+        'profile-1',
+        'session-1',
+        body,
+      );
+    });
+
     it.each([
       [
         'startMfaEnrollment',

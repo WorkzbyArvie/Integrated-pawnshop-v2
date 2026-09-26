@@ -4,6 +4,7 @@ describe('CredentialStateService', () => {
   const credentialState = {
     upsert: jest.fn(),
     findUnique: jest.fn(),
+    update: jest.fn(),
   };
   const prisma = { credentialState } as any;
   let service: CredentialStateService;
@@ -91,5 +92,71 @@ describe('CredentialStateService', () => {
     credentialState.findUnique.mockResolvedValue(state);
 
     await expect(service.getRequired('profile-1')).resolves.toBe(state);
+  });
+
+  describe('profile-scoped MFA transitions', () => {
+    it('turns MFA on for the profile and records its destination', async () => {
+      credentialState.update.mockResolvedValue({
+        profileId: 'profile-1',
+        mfaEnabled: true,
+        mfaEmail: 'juan@example.com',
+      });
+
+      await expect(
+        service.enableMfa('profile-1', '  juan@example.com  '),
+      ).resolves.toEqual(
+        expect.objectContaining({
+          mfaEnabled: true,
+          mfaEmail: 'juan@example.com',
+        }),
+      );
+      expect(credentialState.update).toHaveBeenCalledWith({
+        where: { profileId: 'profile-1' },
+        data: { mfaEnabled: true, mfaEmail: 'juan@example.com' },
+      });
+    });
+
+    it('turns MFA off for the profile and clears the stored destination', async () => {
+      credentialState.update.mockResolvedValue({
+        profileId: 'profile-1',
+        mfaEnabled: false,
+        mfaEmail: null,
+      });
+
+      await service.disableMfa('profile-1');
+
+      expect(credentialState.update).toHaveBeenCalledWith({
+        where: { profileId: 'profile-1' },
+        data: { mfaEnabled: false, mfaEmail: null },
+      });
+    });
+
+    it('refuses to enable MFA without a usable destination', async () => {
+      await expect(service.enableMfa('profile-1', '   ')).rejects.toThrow(
+        /destination address is required/i,
+      );
+      expect(credentialState.update).not.toHaveBeenCalled();
+    });
+
+    it('refuses a blank profile rather than writing an unscoped row', async () => {
+      await expect(service.enableMfa('', 'juan@example.com')).rejects.toThrow(
+        /Profile id is required/i,
+      );
+      await expect(service.disableMfa('  ')).rejects.toThrow(
+        /Profile id is required/i,
+      );
+      expect(credentialState.update).not.toHaveBeenCalled();
+    });
+
+    it('wraps a rejected transition with the typed unavailable error', async () => {
+      credentialState.update.mockRejectedValue(new Error('write rejected'));
+
+      await expect(
+        service.enableMfa('profile-1', 'juan@example.com'),
+      ).rejects.toMatchObject({ code: 'CREDENTIAL_STATE_UNAVAILABLE' });
+      await expect(service.disableMfa('profile-1')).rejects.toBeInstanceOf(
+        CredentialStateUnavailableError,
+      );
+    });
   });
 });

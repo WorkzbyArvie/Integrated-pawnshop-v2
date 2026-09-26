@@ -5,7 +5,11 @@ import { MfaEnableChallengeDto } from './dto/mfa-enable-challenge.dto';
 import { MfaLoginChallengeDto } from './dto/mfa-login-challenge.dto';
 import { MfaVerifyDto } from './dto/mfa-verify.dto';
 import { MfaDisableDto } from './dto/mfa-disable.dto';
-import { MfaChallengeService } from './mfa-challenge.service';
+import {
+  MFA_CHALLENGE_PURPOSES,
+  MfaChallengeService,
+  isKnownMfaChallengePurpose,
+} from './mfa-challenge.service';
 import { SecurityEmailService } from './security-email.service';
 
 const TEST_PEPPER = 'test-pepper-with-more-than-32-characters-123456';
@@ -40,6 +44,7 @@ describe('MfaChallengeService', () => {
       $transaction: jest.fn(async (callback: (value: any) => unknown) => callback(tx)),
       mfaEmailChallenge: {
         updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+        findFirst: jest.fn(),
       },
     };
     emailService = { send: jest.fn().mockResolvedValue(undefined) };
@@ -261,5 +266,116 @@ describe('MfaChallengeService', () => {
         expect.objectContaining({ property: 'code' }),
       ]),
     );
+  });
+
+  describe('purpose vocabulary', () => {
+    it('names exactly the three purposes the MFA lifecycle issues', () => {
+      expect(Object.values(MFA_CHALLENGE_PURPOSES)).toEqual([
+        'MFA_ENABLE',
+        'MFA_LOGIN',
+        'MFA_DISABLE',
+      ]);
+    });
+
+    it.each([
+      ['MFA_ENABLE', true],
+      ['MFA_LOGIN', true],
+      ['MFA_DISABLE', true],
+      ['enable', false],
+      ['MFA_RECOVERY', false],
+      ['', false],
+    ])('classifies %s as a known purpose: %s', (purpose, expected) => {
+      expect(isKnownMfaChallengePurpose(purpose)).toBe(expected);
+    });
+  });
+
+  describe('resolvePurpose', () => {
+    it('scopes the lookup to the profile that owns the challenge', async () => {
+      prisma.mfaEmailChallenge.findFirst.mockResolvedValue({
+        purpose: MFA_CHALLENGE_PURPOSES.DISABLE,
+      });
+
+      await expect(
+        service.resolvePurpose('profile-1', 'challenge-1'),
+      ).resolves.toBe(MFA_CHALLENGE_PURPOSES.DISABLE);
+      expect(prisma.mfaEmailChallenge.findFirst).toHaveBeenCalledWith({
+        where: { id: 'challenge-1', profileId: 'profile-1' },
+        select: { purpose: true },
+      });
+    });
+
+    it('returns null for a missing challenge instead of throwing', async () => {
+      prisma.mfaEmailChallenge.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.resolvePurpose('profile-1', 'challenge-1'),
+      ).resolves.toBeNull();
+    });
+
+    it.each([
+      ['a blank profile', '', 'challenge-1'],
+      ['a blank challenge id', 'profile-1', '  '],
+    ])('never queries for %s', async (_label, profileId, challengeId) => {
+      await expect(service.resolvePurpose(profileId, challengeId)).resolves.toBeNull();
+      expect(prisma.mfaEmailChallenge.findFirst).not.toHaveBeenCalled();
+    });
+
+    it('selects only the purpose so no hash or code crosses the seam', async () => {
+      prisma.mfaEmailChallenge.findFirst.mockResolvedValue({
+        purpose: MFA_CHALLENGE_PURPOSES.LOGIN,
+      });
+
+      await service.resolvePurpose('profile-1', 'challenge-1');
+
+      const [args] = prisma.mfaEmailChallenge.findFirst.mock.calls[0];
+      expect(Object.keys(args.select)).toEqual(['purpose']);
+      expect(JSON.stringify(args)).not.toContain('codeHash');
+    });
+  });
+
+  describe('buildUndeliveredView', () => {
+    it('answers with the same three safe keys a real challenge would return', () => {
+      const view = service.buildUndeliveredView('juan.delacruz@example.com');
+
+      expect(Object.keys(view).sort()).toEqual([
+        'challengeId',
+        'expiresAt',
+        'maskedEmail',
+      ]);
+      expect(view.challengeId).toMatch(
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
+      );
+      expect(view.maskedEmail).toContain('@example.com');
+      expect(view.maskedEmail).not.toContain('juan.delacruz');
+    });
+
+    it('delivers nothing and persists nothing', () => {
+      const view = service.buildUndeliveredView('juan@example.com');
+
+      expect(emailService.send).not.toHaveBeenCalled();
+      expect(prisma.$transaction).not.toHaveBeenCalled();
+      expect(prisma.mfaEmailChallenge.findFirst).not.toHaveBeenCalled();
+      expect(JSON.stringify(view)).not.toMatch(/\b\d{6}\b/);
+    });
+
+    it('expires on the same ten-minute window as a delivered challenge', () => {
+      const ttl =
+        service.buildUndeliveredView('juan@example.com').expiresAt.getTime() -
+        Date.now();
+
+      expect(ttl).toBeGreaterThan(9 * 60 * 1000);
+      expect(ttl).toBeLessThanOrEqual(MfaChallengeService.EXPIRY_MS);
+    });
+
+    it('never repeats a challenge id', () => {
+      const ids = new Set(
+        Array.from(
+          { length: 5 },
+          () => service.buildUndeliveredView('juan@example.com').challengeId,
+        ),
+      );
+
+      expect(ids.size).toBe(5);
+    });
   });
 });

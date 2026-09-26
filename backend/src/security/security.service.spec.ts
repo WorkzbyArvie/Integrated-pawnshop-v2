@@ -1,3 +1,6 @@
+import 'reflect-metadata';
+import { readFileSync } from 'node:fs';
+import * as nodePath from 'node:path';
 import {
   BadRequestException,
   ServiceUnavailableException,
@@ -18,6 +21,11 @@ import {
   MFA_CHALLENGE_PURPOSES,
   MfaChallengeService,
 } from './mfa-challenge.service';
+
+const SCHEMA_PRISMA = readFileSync(
+  nodePath.resolve(__dirname, '..', '..', 'prisma', 'schema.prisma'),
+  'utf8',
+);
 
 const VALID_PASSWORD = 'Str0ng!Passw0rd';
 const CURRENT_PASSWORD = 'Legacy!Passw0rd';
@@ -1000,6 +1008,243 @@ describe('SecurityService', () => {
 
       expect(Object.keys(result).sort()).toEqual(['assertion', 'expiresAt']);
       expect(JSON.stringify(result)).not.toContain('123456');
+    });
+  });
+
+  describe('disableMfa phase one', () => {
+    beforeEach(() => {
+      credentialState.findUnique.mockResolvedValue(STATE);
+    });
+
+    it('verifies the current password before it sends a disable challenge', async () => {
+      const view = await service.disableMfa('profile-1', 'session-1', {
+        currentPassword: CURRENT_PASSWORD,
+      });
+
+      expect(order).toEqual([
+        'supabase:getUserById',
+        'supabase:signInWithPassword',
+        'supabase:signOut',
+        `challenge:issue:${MFA_CHALLENGE_PURPOSES.DISABLE}`,
+      ]);
+      expect(view).toEqual({
+        challengeId: CHALLENGE_ID,
+        expiresAt: CHALLENGE_EXPIRY,
+        maskedEmail: 'ju••••@example.com',
+      });
+    });
+
+    it('binds the challenge to the disable purpose, the profile, and the session', async () => {
+      await service.disableMfa('profile-1', 'session-1', {
+        currentPassword: CURRENT_PASSWORD,
+      });
+
+      expect(mfaChallenges.issue).toHaveBeenCalledWith({
+        profileId: 'profile-1',
+        email: 'juan.delacruz@example.com',
+        purpose: MFA_CHALLENGE_PURPOSES.DISABLE,
+        sessionId: 'session-1',
+      });
+    });
+
+    it('leaves MFA enabled and observable when the user cancels after phase one', async () => {
+      await service.disableMfa('profile-1', 'session-1', {
+        currentPassword: CURRENT_PASSWORD,
+      });
+
+      expect(credentialState.update).not.toHaveBeenCalled();
+      expect(credentialState.findUnique).toHaveBeenCalledWith({
+        where: { profileId: 'profile-1' },
+      });
+    });
+
+    it('rejects a wrong current password without issuing a challenge', async () => {
+      supabaseClient.auth.signInWithPassword.mockResolvedValue({
+        data: { user: null, session: null },
+        error: { message: 'Invalid login credentials' },
+      });
+
+      await expect(
+        service.disableMfa('profile-1', 'session-1', {
+          currentPassword: 'wrong-password',
+        }),
+      ).rejects.toBeInstanceOf(UnauthorizedException);
+
+      expect(mfaChallenges.issue).not.toHaveBeenCalled();
+      expect(credentialState.update).not.toHaveBeenCalled();
+      expect(order).toContain(
+        `audit-create:${SECURITY_LOG_ACTIONS.MFA_VERIFICATION_FAILED}:false`,
+      );
+    });
+  });
+
+  describe('disableMfa phase two', () => {
+    const phaseTwo = {
+      currentPassword: CURRENT_PASSWORD,
+      challengeId: CHALLENGE_ID,
+      code: '123456',
+    };
+
+    beforeEach(() => {
+      credentialState.findUnique.mockResolvedValue(STATE);
+    });
+
+    it('turns MFA off only after the password and the purpose-bound code both check out', async () => {
+      const result = await service.disableMfa('profile-1', 'session-1', phaseTwo);
+
+      expect(order).toEqual([
+        'supabase:getUserById',
+        'supabase:signInWithPassword',
+        'supabase:signOut',
+        `challenge:verify:${MFA_CHALLENGE_PURPOSES.DISABLE}`,
+        'state:disableMfa',
+        `audit-create:${SECURITY_LOG_ACTIONS.MFA_DISABLED}:true`,
+      ]);
+      expect(result).toEqual({ disabled: true });
+    });
+
+    it('performs the disablement as one profile-scoped credential-state write', async () => {
+      await service.disableMfa('profile-1', 'session-1', phaseTwo);
+
+      expect(credentialState.update).toHaveBeenCalledTimes(1);
+      expect(credentialState.update).toHaveBeenCalledWith({
+        where: { profileId: 'profile-1' },
+        data: { mfaEnabled: false, mfaEmail: null },
+      });
+    });
+
+    it('audits the disablement with actor, target, tenant, outcome, and a safe challenge id', async () => {
+      await service.disableMfa('profile-1', 'session-1', phaseTwo);
+
+      const call = prisma.securityLog.create.mock.calls.at(-1);
+      expect(call[0].data).toEqual({
+        profileId: 'profile-1',
+        actorProfileId: 'profile-1',
+        targetProfileId: 'profile-1',
+        pawnshopId: 'tenant-1',
+        action: SECURITY_LOG_ACTIONS.MFA_DISABLED,
+        success: true,
+        metadata: { challengeId: CHALLENGE_ID },
+      });
+      expect(JSON.stringify(call[0].data)).not.toContain('123456');
+      expect(JSON.stringify(call[0].data)).not.toContain(CURRENT_PASSWORD);
+    });
+
+    it.each([
+      ['a challenge id with no code', { challengeId: CHALLENGE_ID }],
+      ['a code with no challenge id', { code: '123456' }],
+    ])('refuses half a second phase: %s', async (_label, partial) => {
+      await expect(
+        service.disableMfa('profile-1', 'session-1', {
+          currentPassword: CURRENT_PASSWORD,
+          ...partial,
+        }),
+      ).rejects.toMatchObject({
+        response: expect.objectContaining({ error: 'MFA_CHALLENGE_INVALID' }),
+      });
+
+      expect(mfaChallenges.verify).not.toHaveBeenCalled();
+      expect(credentialState.update).not.toHaveBeenCalled();
+    });
+
+    it('leaves MFA enabled when the current password is wrong', async () => {
+      supabaseClient.auth.signInWithPassword.mockResolvedValue({
+        data: { user: null, session: null },
+        error: { message: 'Invalid login credentials' },
+      });
+
+      await expect(
+        service.disableMfa('profile-1', 'session-1', phaseTwo),
+      ).rejects.toBeInstanceOf(UnauthorizedException);
+
+      expect(mfaChallenges.verify).not.toHaveBeenCalled();
+      expect(credentialState.update).not.toHaveBeenCalled();
+      expect(order).toContain(
+        `audit-create:${SECURITY_LOG_ACTIONS.MFA_VERIFICATION_FAILED}:false`,
+      );
+    });
+
+    it.each([
+      ['an invalid code', 'MFA_CHALLENGE_INVALID', SECURITY_LOG_ACTIONS.MFA_VERIFICATION_FAILED],
+      ['an expired or consumed code', 'MFA_CHALLENGE_INVALID', SECURITY_LOG_ACTIONS.MFA_VERIFICATION_FAILED],
+      ['an exhausted challenge', 'MFA_CHALLENGE_LOCKED', SECURITY_LOG_ACTIONS.MFA_LOCKED],
+    ])(
+      'leaves MFA enabled for %s and records the failure',
+      async (_label, errorCode, expectedAction) => {
+        mfaChallenges.verify.mockRejectedValue(
+          new BadRequestException({
+            success: false,
+            error: errorCode,
+            message: 'The verification challenge is invalid or no longer available',
+          }),
+        );
+
+        await expect(
+          service.disableMfa('profile-1', 'session-1', phaseTwo),
+        ).rejects.toBeInstanceOf(BadRequestException);
+
+        expect(credentialState.update).not.toHaveBeenCalled();
+        expect(order).toContain(`audit-create:${expectedAction}:false`);
+        expect(order).not.toContain(
+          `audit-create:${SECURITY_LOG_ACTIONS.MFA_DISABLED}:true`,
+        );
+      },
+    );
+
+    it('leaves MFA enabled and fails closed when the state write is rejected', async () => {
+      credentialState.update.mockRejectedValue(new Error('write rejected'));
+
+      await expect(
+        service.disableMfa('profile-1', 'session-1', phaseTwo),
+      ).rejects.toBeInstanceOf(ServiceUnavailableException);
+
+      expect(order).toContain(
+        `audit-create:${SECURITY_LOG_ACTIONS.MFA_DISABLED}:false`,
+      );
+      expect(order).not.toContain(
+        `audit-create:${SECURITY_LOG_ACTIONS.MFA_DISABLED}:true`,
+      );
+    });
+
+    it('fails closed before reauthentication when the state row is unavailable', async () => {
+      credentialState.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.disableMfa('profile-1', 'session-1', phaseTwo),
+      ).rejects.toMatchObject({
+        response: expect.objectContaining({
+          error: CREDENTIAL_ERROR_CODES.STATE_UNAVAILABLE,
+        }),
+      });
+
+      expect(mfaChallenges.verify).not.toHaveBeenCalled();
+      expect(credentialState.update).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('MFA audit vocabulary', () => {
+    it('defines the six stable action names the phase reports', () => {
+      expect(Object.values(SECURITY_LOG_ACTIONS)).toEqual(
+        expect.arrayContaining([
+          'PASSWORD_CHANGED',
+          'PASSWORD_CHANGED_VIA_RECOVERY',
+          'MFA_ENROLLMENT_STARTED',
+          'MFA_ENABLED',
+          'MFA_VERIFICATION_FAILED',
+          'MFA_LOGIN_VERIFIED',
+          'MFA_DISABLED',
+          'MFA_LOCKED',
+        ]),
+      );
+    });
+
+    it('keeps the Prisma action column free text rather than an enum', () => {
+      const securityLogModel =
+        SCHEMA_PRISMA.match(/model SecurityLog \{[\s\S]*?\n\}/)?.[0] ?? '';
+
+      expect(securityLogModel).toMatch(/^\s+action\s+String$/m);
+      expect(SCHEMA_PRISMA).not.toMatch(/enum\s+SecurityLogAction/);
+      expect(SCHEMA_PRISMA).not.toMatch(/action\s+SecurityLogAction/);
     });
   });
 });

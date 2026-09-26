@@ -1,5 +1,9 @@
 import { createHmac } from 'node:crypto';
-import { MfaAssertionService } from './mfa-assertion.service';
+import {
+  MFA_ASSERTION_ERROR_CODES,
+  MFA_ASSERTION_HEADER,
+  MfaAssertionService,
+} from './mfa-assertion.service';
 
 const TEST_PEPPER = 'test-only-mfa-assertion-pepper-00000000000000000000';
 const PROFILE_ID = '5b8e1a70-6d34-4c2f-9a15-3f7c8d9e0b1a';
@@ -213,6 +217,32 @@ describe('MfaAssertionService', () => {
       await expect(
         service.validate(PROFILE_ID, 'session-current', 'i'.repeat(43)),
       ).resolves.toBe(false);
+    });
+  });
+
+  describe('cross-client assertion contract', () => {
+    it('names the assertion header and denial code the clients branch on', () => {
+      expect(MFA_ASSERTION_HEADER).toBe('x-mfa-assertion');
+      expect(MFA_ASSERTION_ERROR_CODES.VERIFICATION_REQUIRED).toBe(
+        'MFA_VERIFICATION_REQUIRED',
+      );
+    });
+
+    it('issues one opaque assertion per verified challenge so the raw value is single-use', async () => {
+      const issued = await service.issue(PROFILE_ID, 'session-current');
+
+      expect(issued.assertion).toMatch(/^[A-Za-z0-9_-]{43}$/);
+      expect(mfaSessionAssertion.create).toHaveBeenCalledTimes(1);
+    });
+
+    it('never returns the stored hash, the code, or the pepper alongside the assertion', async () => {
+      const issued = await service.issue(PROFILE_ID, 'session-current');
+      const data = mfaSessionAssertion.create.mock.calls[0][0].data;
+
+      expect(Object.keys(issued).sort()).toEqual(['assertion', 'expiresAt']);
+      expect(JSON.stringify(issued)).not.toContain(TEST_PEPPER);
+      expect(JSON.stringify(issued)).not.toContain(data.tokenHash);
+      expect(JSON.stringify(issued)).not.toMatch(/\b\d{6}\b/);
     });
   });
 
