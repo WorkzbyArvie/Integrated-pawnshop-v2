@@ -228,7 +228,7 @@ export class SecurityService {
   private async verifyCurrentPassword(
     profileId: string,
     currentPassword: string,
-  ): Promise<void> {
+  ): Promise<string> {
     const { data, error } =
       await this.supabaseAdmin.client.auth.admin.getUserById(profileId);
     const email = data?.user?.email;
@@ -256,6 +256,8 @@ export class SecurityService {
         message: 'Current password is incorrect.',
       });
     }
+
+    return email;
   }
 
   private async discardVerificationSession(): Promise<void> {
@@ -388,7 +390,25 @@ export class SecurityService {
     sessionId: string | null,
     data: { currentPassword: string },
   ): Promise<MfaChallengeSafeView> {
-    throw new Error('SecurityService.startMfaEnrollment is not implemented');
+    const state = await this.requireCredentialState(profileId);
+    const authEmail = await this.reauthenticateForMfa(
+      profileId,
+      data?.currentPassword,
+    );
+    const destination = state.mfaEmail?.trim() || authEmail;
+    const view = await this.mfaChallenges.issue({
+      profileId,
+      email: destination,
+      purpose: MFA_CHALLENGE_PURPOSES.ENABLE,
+      sessionId: sessionId ?? null,
+    });
+    await this.recordSecurityEvent(
+      profileId,
+      SECURITY_LOG_ACTIONS.MFA_ENROLLMENT_STARTED,
+      true,
+      { challengeId: view.challengeId },
+    );
+    return view;
   }
 
   async verifyMfaChallenge(
@@ -396,11 +416,115 @@ export class SecurityService {
     sessionId: string,
     data: { challengeId: string; code: string },
   ): Promise<MfaAssertionView> {
-    throw new Error('SecurityService.verifyMfaChallenge is not implemented');
+    const state = await this.requireCredentialState(profileId);
+    const challengeId = String(data?.challengeId ?? '').trim();
+    const code = String(data?.code ?? '').trim();
+
+    const purpose = await this.mfaChallenges.resolvePurpose(profileId, challengeId);
+
+    if (purpose === MFA_CHALLENGE_PURPOSES.DISABLE) {
+      await this.recordSecurityEvent(
+        profileId,
+        SECURITY_LOG_ACTIONS.MFA_VERIFICATION_FAILED,
+        false,
+        { challengeId },
+      );
+      throw new BadRequestException({
+        success: false,
+        error: MFA_ERROR_CODES.DISABLE_ROUTE_REQUIRED,
+        message: 'Email MFA must be turned off through the disable route.',
+      });
+    }
+
+    if (!purpose || !isKnownMfaChallengePurpose(purpose)) {
+      await this.recordSecurityEvent(
+        profileId,
+        SECURITY_LOG_ACTIONS.MFA_VERIFICATION_FAILED,
+        false,
+        { challengeId },
+      );
+      throw this.invalidChallenge();
+    }
+
+    try {
+      await this.mfaChallenges.verify({ profileId, challengeId, code, purpose });
+    } catch (error) {
+      await this.recordSecurityEvent(
+        profileId,
+        this.challengeFailureAction(error),
+        false,
+        { challengeId },
+      );
+      throw error;
+    }
+
+    if (purpose === MFA_CHALLENGE_PURPOSES.ENABLE) {
+      await this.commitMfaEnrollment(profileId, state, challengeId);
+      await this.recordSecurityEvent(
+        profileId,
+        SECURITY_LOG_ACTIONS.MFA_ENABLED,
+        true,
+        { challengeId },
+      );
+    } else {
+      await this.recordSecurityEvent(
+        profileId,
+        SECURITY_LOG_ACTIONS.MFA_LOGIN_VERIFIED,
+        true,
+        { challengeId },
+      );
+    }
+
+    const issued = await this.mfaAssertions.issue(profileId, sessionId);
+    return { assertion: issued.assertion, expiresAt: issued.expiresAt };
   }
 
   async startMfaLoginChallenge(email: string): Promise<MfaChallengeSafeView> {
-    throw new Error('SecurityService.startMfaLoginChallenge is not implemented');
+    const normalized = String(email ?? '').trim().toLowerCase();
+    if (!normalized) {
+      throw new BadRequestException({
+        success: false,
+        error: MFA_ERROR_CODES.CHALLENGE_UNAVAILABLE,
+        message: 'A valid email address is required',
+      });
+    }
+
+    let account: {
+      id: string;
+      email: string | null;
+      credentialState: { mfaEnabled: boolean; mfaEmail: string | null } | null;
+    } | null = null;
+    try {
+      account = await this.prisma.profile.findFirst({
+        where: { email: { equals: normalized, mode: 'insensitive' } },
+        select: {
+          id: true,
+          email: true,
+          credentialState: { select: { mfaEnabled: true, mfaEmail: true } },
+        },
+      });
+    } catch (error) {
+      this.logger.warn(
+        `MFA login challenge lookup unavailable: ${(error as Error).message}`,
+      );
+      throw new ServiceUnavailableException({
+        success: false,
+        error: MFA_ERROR_CODES.CHALLENGE_UNAVAILABLE,
+        message: 'Email verification is unavailable',
+      });
+    }
+
+    const state = account?.credentialState;
+    if (!account || state?.mfaEnabled !== true) {
+      return this.mfaChallenges.buildUndeliveredView(normalized);
+    }
+
+    return this.mfaChallenges.issue({
+      profileId: account.id,
+      email: state.mfaEmail?.trim() || account.email?.trim() || normalized,
+      purpose: MFA_CHALLENGE_PURPOSES.LOGIN,
+      sessionId: null,
+    });
   }
 
   async disableMfa(
@@ -409,5 +533,83 @@ export class SecurityService {
     data: { currentPassword: string; challengeId?: string; code?: string },
   ): Promise<MfaDisablementView> {
     throw new Error('SecurityService.disableMfa is not implemented');
+  }
+
+  private async commitMfaEnrollment(
+    profileId: string,
+    state: CredentialStateView,
+    challengeId: string,
+  ): Promise<void> {
+    const destination = await this.resolveEnrollmentEmail(profileId, state);
+    try {
+      await this.credentialState.enableMfa(profileId, destination);
+    } catch (error) {
+      this.logger.warn(`MFA enable state update failed for profile ${profileId}`);
+      await this.recordSecurityEvent(
+        profileId,
+        SECURITY_LOG_ACTIONS.MFA_ENABLED,
+        false,
+        { challengeId },
+      );
+      throw new ServiceUnavailableException({
+        success: false,
+        error: MFA_ERROR_CODES.STATE_UPDATE_FAILED,
+        message: 'Email verification could not be enabled.',
+      });
+    }
+  }
+
+  private async resolveEnrollmentEmail(
+    profileId: string,
+    state: CredentialStateView,
+  ): Promise<string> {
+    const recorded = state.mfaEmail?.trim();
+    if (recorded) return recorded;
+
+    const { data, error } =
+      await this.supabaseAdmin.client.auth.admin.getUserById(profileId);
+    const email = data?.user?.email?.trim();
+    if (error || !email) {
+      this.logger.warn(`MFA destination unavailable for profile ${profileId}`);
+      throw new ServiceUnavailableException({
+        success: false,
+        error: MFA_ERROR_CODES.CHALLENGE_UNAVAILABLE,
+        message: 'A verification destination is unavailable',
+      });
+    }
+    return email;
+  }
+
+  private async reauthenticateForMfa(
+    profileId: string,
+    currentPassword: string,
+    challengeId: string | null = null,
+  ): Promise<string> {
+    try {
+      return await this.verifyCurrentPassword(profileId, currentPassword);
+    } catch (error) {
+      await this.recordSecurityEvent(
+        profileId,
+        SECURITY_LOG_ACTIONS.MFA_VERIFICATION_FAILED,
+        false,
+        { challengeId },
+      );
+      throw error;
+    }
+  }
+
+  private challengeFailureAction(error: unknown): SecurityLogAction {
+    const code = (error as { response?: { error?: string } })?.response?.error;
+    return code === MFA_CHALLENGE_ERROR_CODES.LOCKED
+      ? SECURITY_LOG_ACTIONS.MFA_LOCKED
+      : SECURITY_LOG_ACTIONS.MFA_VERIFICATION_FAILED;
+  }
+
+  private invalidChallenge(): BadRequestException {
+    return new BadRequestException({
+      success: false,
+      error: MFA_CHALLENGE_ERROR_CODES.INVALID,
+      message: 'The verification challenge is invalid or no longer available',
+    });
   }
 }

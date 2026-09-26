@@ -66,6 +66,7 @@ async function bootstrap() {
         if (req.path.startsWith('/auth/request-auth-code')) return true;
         if (req.path.startsWith('/auth/verify-auth-code')) return true;
         if (req.path.startsWith('/auth/register-bidder')) return true;
+        if (req.path.startsWith('/security/mfa/login-challenge')) return true;
         if (req.path.startsWith('/tenant-governance/client-registrations'))
           return true;
         if (/^\/notifications\/user\/[^/]+$/.test(req.path) && req.method === 'GET')

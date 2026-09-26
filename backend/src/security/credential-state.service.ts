@@ -99,11 +99,31 @@ export class CredentialStateService {
     profileId: string,
     mfaEmail: string,
   ): Promise<CredentialStateView> {
-    throw new Error('CredentialStateService.enableMfa is not implemented');
+    this.assertProfileId(profileId);
+    const destination = typeof mfaEmail === 'string' ? mfaEmail.trim() : '';
+    if (!destination) {
+      throw new Error('A destination address is required to enable MFA');
+    }
+    try {
+      return (await this.prisma.credentialState.update({
+        where: { profileId },
+        data: { mfaEnabled: true, mfaEmail: destination },
+      })) as CredentialStateView;
+    } catch (error) {
+      throw new CredentialStateUnavailableError('dependency', error);
+    }
   }
 
   async disableMfa(profileId: string): Promise<CredentialStateView> {
-    throw new Error('CredentialStateService.disableMfa is not implemented');
+    this.assertProfileId(profileId);
+    try {
+      return (await this.prisma.credentialState.update({
+        where: { profileId },
+        data: { mfaEnabled: false, mfaEmail: null },
+      })) as CredentialStateView;
+    } catch (error) {
+      throw new CredentialStateUnavailableError('dependency', error);
+    }
   }
 
   private assertProfileId(profileId: string): void {

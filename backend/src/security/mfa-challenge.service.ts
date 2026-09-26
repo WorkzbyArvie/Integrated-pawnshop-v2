@@ -295,11 +295,23 @@ export class MfaChallengeService {
     profileId: string,
     challengeId: string,
   ): Promise<MfaChallengePurpose | null> {
-    throw new Error('MfaChallengeService.resolvePurpose is not implemented');
+    const profile = typeof profileId === 'string' ? profileId.trim() : '';
+    const challenge = typeof challengeId === 'string' ? challengeId.trim() : '';
+    if (!profile || !challenge) return null;
+
+    const record = await this.prisma.mfaEmailChallenge.findFirst({
+      where: { id: challenge, profileId: profile },
+      select: { purpose: true },
+    });
+    return record?.purpose ?? null;
   }
 
   buildUndeliveredView(email: string): MfaChallengeSafeView {
-    throw new Error('MfaChallengeService.buildUndeliveredView is not implemented');
+    return {
+      challengeId: randomUUID(),
+      expiresAt: new Date(Date.now() + MfaChallengeService.EXPIRY_MS),
+      maskedEmail: this.maskEmail(email),
+    };
   }
 
   private generateCode(): string {

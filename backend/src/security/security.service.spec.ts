@@ -4,7 +4,6 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { CredentialStateService } from './credential-state.service';
-import { CredentialStateUnavailableError } from './credential-state.service';
 import { PasswordPolicyService } from './password-policy.service';
 import {
   CREDENTIAL_ACTIVITY_LIMIT,
@@ -48,8 +47,6 @@ describe('SecurityService', () => {
     findUnique: jest.Mock;
     update: jest.Mock;
     getRequired: jest.Mock;
-    enableMfa: jest.Mock;
-    disableMfa: jest.Mock;
   };
   let prisma: any;
   let supabaseClient: any;
@@ -70,15 +67,21 @@ describe('SecurityService', () => {
     order = [];
     credentialState = {
       findUnique: jest.fn(),
-      update: jest.fn(),
       getRequired: jest.fn(),
-      enableMfa: jest.fn(() => {
-        order.push('state:enableMfa');
-        return Promise.resolve({ ...MFA_OFF_STATE, mfaEnabled: true });
-      }),
-      disableMfa: jest.fn(() => {
-        order.push('state:disableMfa');
-        return Promise.resolve({ ...STATE, mfaEnabled: false, mfaEmail: null });
+      update: jest.fn((args: any) => {
+        if (typeof args?.data?.mfaEnabled === 'boolean') {
+          order.push(args.data.mfaEnabled ? 'state:enableMfa' : 'state:disableMfa');
+          return Promise.resolve({
+            ...STATE,
+            mfaEnabled: args.data.mfaEnabled,
+            mfaEmail: args.data.mfaEmail ?? null,
+          });
+        }
+        return Promise.resolve({
+          ...STATE,
+          mustChangePassword: false,
+          resolvedAt: new Date(),
+        });
       }),
     };
     prisma = {
@@ -649,8 +652,7 @@ describe('SecurityService', () => {
         currentPassword: CURRENT_PASSWORD,
       });
 
-      expect(credentialState.enableMfa).not.toHaveBeenCalled();
-      expect(credentialState.disableMfa).not.toHaveBeenCalled();
+      expect(credentialState.update).not.toHaveBeenCalled();
     });
 
     it('rejects a wrong current password without issuing a challenge', async () => {
@@ -670,7 +672,7 @@ describe('SecurityService', () => {
       });
 
       expect(mfaChallenges.issue).not.toHaveBeenCalled();
-      expect(credentialState.enableMfa).not.toHaveBeenCalled();
+      expect(credentialState.update).not.toHaveBeenCalled();
     });
 
     it('fails closed before any reauthentication when the state row is unavailable', async () => {
@@ -800,6 +802,7 @@ describe('SecurityService', () => {
 
       expect(order).toEqual([
         `challenge:verify:${MFA_CHALLENGE_PURPOSES.ENABLE}`,
+        'supabase:getUserById',
         'state:enableMfa',
         `audit-create:${SECURITY_LOG_ACTIONS.MFA_ENABLED}:true`,
         'assertion:issue',
@@ -816,10 +819,10 @@ describe('SecurityService', () => {
         code: '123456',
       });
 
-      expect(credentialState.enableMfa).toHaveBeenCalledWith(
-        'profile-1',
-        'juan@example.com',
-      );
+      expect(credentialState.update).toHaveBeenCalledWith({
+        where: { profileId: 'profile-1' },
+        data: { mfaEnabled: true, mfaEmail: 'juan@example.com' },
+      });
     });
 
     it('issues an assertion for a login challenge without touching MFA state', async () => {
@@ -833,8 +836,7 @@ describe('SecurityService', () => {
         { challengeId: CHALLENGE_ID, code: '123456' },
       );
 
-      expect(credentialState.enableMfa).not.toHaveBeenCalled();
-      expect(credentialState.disableMfa).not.toHaveBeenCalled();
+      expect(credentialState.update).not.toHaveBeenCalled();
       expect(result.assertion).toBe(ASSERTION_VALUE);
     });
 
@@ -855,7 +857,7 @@ describe('SecurityService', () => {
       });
 
       expect(mfaChallenges.verify).not.toHaveBeenCalled();
-      expect(credentialState.disableMfa).not.toHaveBeenCalled();
+      expect(credentialState.update).not.toHaveBeenCalled();
       expect(mfaAssertions.issue).not.toHaveBeenCalled();
     });
 
@@ -871,7 +873,7 @@ describe('SecurityService', () => {
         response: expect.objectContaining({ error: 'MFA_CHALLENGE_INVALID' }),
       });
 
-      expect(credentialState.enableMfa).not.toHaveBeenCalled();
+      expect(credentialState.update).not.toHaveBeenCalled();
       expect(mfaAssertions.issue).not.toHaveBeenCalled();
     });
 
@@ -891,7 +893,7 @@ describe('SecurityService', () => {
         }),
       ).rejects.toBeInstanceOf(BadRequestException);
 
-      expect(credentialState.enableMfa).not.toHaveBeenCalled();
+      expect(credentialState.update).not.toHaveBeenCalled();
       expect(mfaAssertions.issue).not.toHaveBeenCalled();
     });
 
@@ -974,12 +976,7 @@ describe('SecurityService', () => {
     });
 
     it('fails closed without enabling MFA when the state mutation is rejected', async () => {
-      credentialState.enableMfa.mockRejectedValue(
-        new CredentialStateUnavailableError(
-          'dependency',
-          new Error('write rejected'),
-        ),
-      );
+      credentialState.update.mockRejectedValue(new Error('write rejected'));
 
       await expect(
         service.verifyMfaChallenge('profile-1', 'session-1', {

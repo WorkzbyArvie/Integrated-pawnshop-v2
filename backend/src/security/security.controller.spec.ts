@@ -322,7 +322,10 @@ describe('SecurityController', () => {
     });
 
     it('forwards only the typed email on the public login challenge', async () => {
-      await controller.startMfaLoginChallenge({
+      const loose = controller.startMfaLoginChallenge as unknown as (
+        ...args: unknown[]
+      ) => Promise<unknown>;
+      await loose.call(controller, {
         email: 'juan@example.com',
         purpose: 'MFA_DISABLE',
       });
@@ -352,7 +355,7 @@ describe('SecurityController', () => {
       const response = (await controller.verifyMfaChallenge(bearer, {
         challengeId: 'challenge-1',
         code: '123456',
-      })) as { success: boolean; data: Record<string, unknown> };
+      })) as unknown as { success: boolean; data: Record<string, unknown> };
 
       expect(response.success).toBe(true);
       expect(Object.keys(response.data).sort()).toEqual([
