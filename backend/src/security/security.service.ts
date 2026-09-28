@@ -25,6 +25,7 @@ import {
 export const SECURITY_LOG_ACTIONS = {
   PASSWORD_CHANGED: 'PASSWORD_CHANGED',
   PASSWORD_CHANGED_VIA_RECOVERY: 'PASSWORD_CHANGED_VIA_RECOVERY',
+  ADMIN_PASSWORD_RESET: 'ADMIN_PASSWORD_RESET',
   MFA_ENROLLMENT_STARTED: 'MFA_ENROLLMENT_STARTED',
   MFA_ENABLED: 'MFA_ENABLED',
   MFA_VERIFICATION_FAILED: 'MFA_VERIFICATION_FAILED',
@@ -99,6 +100,57 @@ export function maskEmailAddress(value: string | null | undefined): string | nul
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+export const CREDENTIAL_AUDIT_METADATA_KEYS = [
+  'challengeId',
+  'targetRole',
+  'failureStage',
+] as const;
+
+export type CredentialAuditMetadataKey =
+  (typeof CREDENTIAL_AUDIT_METADATA_KEYS)[number];
+
+export function sanitizeCredentialAuditMetadata(
+  metadata?: Record<string, unknown> | null,
+): Record<string, string> | undefined {
+  if (!metadata) return undefined;
+
+  const safe: Record<string, string> = {};
+  for (const key of CREDENTIAL_AUDIT_METADATA_KEYS) {
+    const value = metadata[key];
+    if (typeof value !== 'string') continue;
+    const trimmed = value.trim();
+    if (!trimmed) continue;
+    if (key === 'challengeId' && !UUID_PATTERN.test(trimmed)) continue;
+    safe[key] = trimmed;
+  }
+
+  return Object.keys(safe).length > 0 ? safe : undefined;
+}
+
+export interface CredentialAuditEnvelopeInput {
+  profileId: string;
+  actorProfileId: string;
+  targetProfileId: string;
+  pawnshopId?: string | null;
+  action: SecurityLogAction;
+  success: boolean;
+  metadata?: Record<string, unknown> | null;
+}
+
+export function buildCredentialAuditEnvelope(input: CredentialAuditEnvelopeInput) {
+  const metadata = sanitizeCredentialAuditMetadata(input.metadata);
+
+  return {
+    profileId: input.profileId,
+    actorProfileId: input.actorProfileId,
+    targetProfileId: input.targetProfileId,
+    ...(input.pawnshopId ? { pawnshopId: input.pawnshopId } : {}),
+    action: input.action,
+    success: input.success,
+    ...(metadata ? { metadata } : {}),
+  };
+}
+
 @Injectable()
 export class SecurityService {
   private readonly logger = new Logger(SecurityService.name);
@@ -165,7 +217,7 @@ export class SecurityService {
 
     await this.assertSupabasePasswordUpdate(profileId, data.newPassword);
     await this.credentialState.resolveForcedChange(profileId);
-    await this.completeSecurityEvent(audit.id);
+    await this.completeSecurityEvent(audit);
 
     return { changed: true, mustChangePassword: false };
   }
@@ -179,23 +231,14 @@ export class SecurityService {
     this.assertConfirmation(data.newPassword, data.confirmPassword);
     this.passwordPolicy.assert(data.newPassword);
 
-    try {
-      await this.assertSupabasePasswordUpdate(profileId, data.newPassword);
-    } catch (error) {
-      await this.recordSecurityEvent(
-        profileId,
-        SECURITY_LOG_ACTIONS.PASSWORD_CHANGED_VIA_RECOVERY,
-        false,
-      );
-      throw error;
-    }
-
-    await this.credentialState.resolveForcedChange(profileId);
-    await this.recordSecurityEvent(
+    const audit = await this.beginSecurityEvent(
       profileId,
       SECURITY_LOG_ACTIONS.PASSWORD_CHANGED_VIA_RECOVERY,
-      true,
     );
+
+    await this.assertSupabasePasswordUpdate(profileId, data.newPassword);
+    await this.credentialState.resolveForcedChange(profileId);
+    await this.completeSecurityEvent(audit);
 
     return { changed: true, mustChangePassword: false };
   }
@@ -262,9 +305,7 @@ export class SecurityService {
     try {
       await this.supabaseAdmin.client.auth.signOut({ scope: 'local' });
     } catch (error) {
-      this.logger.warn(
-        `Failed to discard password verification session: ${(error as Error).message}`,
-      );
+      this.logger.warn('Failed to discard the password verification session');
     }
   }
 
@@ -279,7 +320,9 @@ export class SecurityService {
     if (!error) return;
 
     this.logger.warn(
-      `Password update rejected for profile ${profileId}: ${error.message}`,
+      `Password update rejected for profile ${profileId} (status ${
+        (error as { status?: number }).status ?? 'unknown'
+      })`,
     );
     throw new ServiceUnavailableException({
       success: false,
@@ -334,36 +377,43 @@ export class SecurityService {
     metadata?: MfaAuditMetadata,
   ) {
     const pawnshopId = await this.readTenantId(profileId);
-    const safeChallengeId = this.safeChallengeId(metadata?.challengeId);
-    return {
+    return buildCredentialAuditEnvelope({
       profileId,
       actorProfileId: profileId,
       targetProfileId: profileId,
-      ...(pawnshopId ? { pawnshopId } : {}),
+      pawnshopId,
       action,
       success,
-      ...(safeChallengeId ? { metadata: { challengeId: safeChallengeId } } : {}),
-    };
-  }
-
-  private safeChallengeId(challengeId: string | null | undefined): string | null {
-    const value = typeof challengeId === 'string' ? challengeId.trim() : '';
-    return UUID_PATTERN.test(value) ? value : null;
+      metadata: metadata ? { ...metadata } : undefined,
+    });
   }
 
   private async beginSecurityEvent(
     profileId: string,
     action: SecurityLogAction,
-  ): Promise<{ id: string }> {
-    const data = await this.buildAuditData(profileId, action, false);
-    return this.prisma.securityLog.create({ data, select: { id: true } });
+  ): Promise<string | null> {
+    try {
+      const data = await this.buildAuditData(profileId, action, false);
+      const row = await this.prisma.securityLog.create({ data, select: { id: true } });
+      return row?.id ?? null;
+    } catch (error) {
+      this.logger.error(
+        `Failed to open credential audit: action=${action} profileId=${profileId}`,
+      );
+      return null;
+    }
   }
 
-  private async completeSecurityEvent(id: string): Promise<void> {
-    await this.prisma.securityLog.update({
-      where: { id },
-      data: { success: true },
-    });
+  private async completeSecurityEvent(id: string | null): Promise<void> {
+    if (!id) return;
+    try {
+      await this.prisma.securityLog.update({
+        where: { id },
+        data: { success: true },
+      });
+    } catch (error) {
+      this.logger.error(`Failed to close credential audit: id=${id}`);
+    }
   }
 
   private async recordSecurityEvent(
@@ -373,12 +423,13 @@ export class SecurityService {
     metadata?: MfaAuditMetadata,
   ): Promise<void> {
     try {
-      const data = await this.buildAuditData(profileId, action, success, metadata);
+      const data = await this.buildAuditData(profileId, action, success, {
+        ...metadata,
+      });
       await this.prisma.securityLog.create({ data });
     } catch (error) {
       this.logger.error(
         `Failed to write security log: action=${action} profileId=${profileId}`,
-        (error as Error).stack,
       );
     }
   }
@@ -502,9 +553,7 @@ export class SecurityService {
         },
       });
     } catch (error) {
-      this.logger.warn(
-        `MFA login challenge lookup unavailable: ${(error as Error).message}`,
-      );
+      this.logger.warn('MFA login challenge lookup unavailable');
       throw new ServiceUnavailableException({
         success: false,
         error: MFA_ERROR_CODES.CHALLENGE_UNAVAILABLE,

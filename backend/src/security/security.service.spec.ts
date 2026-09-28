@@ -10,11 +10,14 @@ import { CredentialStateService } from './credential-state.service';
 import { PasswordPolicyService } from './password-policy.service';
 import {
   CREDENTIAL_ACTIVITY_LIMIT,
+  CREDENTIAL_AUDIT_METADATA_KEYS,
   CREDENTIAL_ERROR_CODES,
   MFA_ERROR_CODES,
   SECURITY_LOG_ACTIONS,
   SecurityService,
+  buildCredentialAuditEnvelope,
   maskEmailAddress,
+  sanitizeCredentialAuditMetadata,
 } from './security.service';
 import { MfaAssertionService } from './mfa-assertion.service';
 import {
@@ -516,16 +519,17 @@ describe('SecurityService', () => {
       });
     });
 
-    it('updates Supabase, clears state, then records the recovery audit as one boundary', async () => {
+    it('opens the recovery audit first, updates Supabase, clears state, then marks success', async () => {
       const result = await service.completeRecovery('profile-1', {
         newPassword: VALID_PASSWORD,
         confirmPassword: VALID_PASSWORD,
       });
 
       expect(order).toEqual([
+        `audit-create:${SECURITY_LOG_ACTIONS.PASSWORD_CHANGED_VIA_RECOVERY}:false`,
         'supabase:updateUserById',
         'state:resolve',
-        `audit-create:${SECURITY_LOG_ACTIONS.PASSWORD_CHANGED_VIA_RECOVERY}:true`,
+        'audit-update:true',
       ]);
       expect(result).toEqual({ changed: true, mustChangePassword: false });
     });
@@ -1245,6 +1249,278 @@ describe('SecurityService', () => {
       expect(securityLogModel).toMatch(/^\s+action\s+String$/m);
       expect(SCHEMA_PRISMA).not.toMatch(/enum\s+SecurityLogAction/);
       expect(SCHEMA_PRISMA).not.toMatch(/action\s+SecurityLogAction/);
+    });
+  });
+
+  describe('shared credential audit envelope', () => {
+    it('publishes an administrative reset action in the same vocabulary', () => {
+      expect(SECURITY_LOG_ACTIONS.ADMIN_PASSWORD_RESET).toBe('ADMIN_PASSWORD_RESET');
+    });
+
+    it('allowlists only non-secret metadata keys', () => {
+      expect(CREDENTIAL_AUDIT_METADATA_KEYS).toEqual([
+        'challengeId',
+        'targetRole',
+        'failureStage',
+      ]);
+      for (const key of CREDENTIAL_AUDIT_METADATA_KEYS) {
+        expect(key).not.toMatch(
+          /password|passphrase|otp|code|token|assertion|secret|hash/i,
+        );
+      }
+    });
+
+    it('strips every secret-bearing and unknown metadata key', () => {
+      const envelope = buildCredentialAuditEnvelope({
+        profileId: 'profile-1',
+        actorProfileId: 'actor-1',
+        targetProfileId: 'target-1',
+        pawnshopId: 'tenant-1',
+        action: SECURITY_LOG_ACTIONS.ADMIN_PASSWORD_RESET,
+        success: false,
+        metadata: {
+          targetRole: 'STAFF',
+          failureStage: 'supabase_update',
+          password: VALID_PASSWORD,
+          newPassword: VALID_PASSWORD,
+          code: '123456',
+          authCode: '123456',
+          assertion: ASSERTION_VALUE,
+          refresh_token: 'refresh-secret',
+          serviceRoleToken: 'service-secret',
+        },
+      });
+
+      expect(envelope).toEqual({
+        profileId: 'profile-1',
+        actorProfileId: 'actor-1',
+        targetProfileId: 'target-1',
+        pawnshopId: 'tenant-1',
+        action: SECURITY_LOG_ACTIONS.ADMIN_PASSWORD_RESET,
+        success: false,
+        metadata: { targetRole: 'STAFF', failureStage: 'supabase_update' },
+      });
+      const serialized = JSON.stringify(envelope);
+      for (const secret of [
+        VALID_PASSWORD,
+        '123456',
+        ASSERTION_VALUE,
+        'refresh-secret',
+        'service-secret',
+      ]) {
+        expect(serialized).not.toContain(secret);
+      }
+    });
+
+    it('omits the tenant column and the metadata column when they are absent', () => {
+      const envelope = buildCredentialAuditEnvelope({
+        profileId: 'profile-1',
+        actorProfileId: 'profile-1',
+        targetProfileId: 'profile-1',
+        pawnshopId: null,
+        action: SECURITY_LOG_ACTIONS.PASSWORD_CHANGED,
+        success: false,
+      });
+
+      expect(envelope).not.toHaveProperty('pawnshopId');
+      expect(envelope).not.toHaveProperty('metadata');
+    });
+
+    it('drops a malformed challenge id, a blank value, and a non-string value', () => {
+      expect(sanitizeCredentialAuditMetadata({ challengeId: 'not-a-uuid' })).toBeUndefined();
+      expect(sanitizeCredentialAuditMetadata({ challengeId: CHALLENGE_ID })).toEqual({
+        challengeId: CHALLENGE_ID,
+      });
+      expect(sanitizeCredentialAuditMetadata({ targetRole: '   ' })).toBeUndefined();
+      expect(sanitizeCredentialAuditMetadata({ targetRole: 42 })).toBeUndefined();
+      expect(sanitizeCredentialAuditMetadata(null)).toBeUndefined();
+      expect(sanitizeCredentialAuditMetadata({})).toBeUndefined();
+    });
+  });
+
+  describe('failure-first credential audit durability', () => {
+    beforeEach(() => {
+      credentialState.findUnique.mockResolvedValue(STATE);
+    });
+
+    it('opens the recovery audit before the Supabase write and closes it after', async () => {
+      credentialState.update.mockImplementation(() => {
+        order.push('state:resolve');
+        return Promise.resolve({ ...STATE, mustChangePassword: false, resolvedAt: new Date() });
+      });
+
+      await service.completeRecovery('profile-1', {
+        newPassword: VALID_PASSWORD,
+        confirmPassword: VALID_PASSWORD,
+      });
+
+      expect(order).toEqual([
+        `audit-create:${SECURITY_LOG_ACTIONS.PASSWORD_CHANGED_VIA_RECOVERY}:false`,
+        'supabase:updateUserById',
+        'state:resolve',
+        'audit-update:true',
+      ]);
+    });
+
+    it('keeps the recovery row at success=false when the password changed but the forced state did not clear', async () => {
+      credentialState.update.mockImplementation(() => {
+        order.push('state:resolve');
+        return Promise.reject(new Error('write rejected'));
+      });
+
+      await expect(
+        service.completeRecovery('profile-1', {
+          newPassword: VALID_PASSWORD,
+          confirmPassword: VALID_PASSWORD,
+        }),
+      ).rejects.toBeTruthy();
+
+      const [openArgs] = prisma.securityLog.create.mock.calls[0];
+      expect(openArgs.data).toEqual({
+        profileId: 'profile-1',
+        actorProfileId: 'profile-1',
+        targetProfileId: 'profile-1',
+        pawnshopId: 'tenant-1',
+        action: SECURITY_LOG_ACTIONS.PASSWORD_CHANGED_VIA_RECOVERY,
+        success: false,
+      });
+      expect(prisma.securityLog.update).not.toHaveBeenCalled();
+    });
+
+    it('keeps the password-change row durable when the forced state fails after the Supabase write', async () => {
+      credentialState.update.mockImplementation(() => {
+        order.push('state:resolve');
+        return Promise.reject(new Error('write rejected'));
+      });
+
+      await expect(
+        service.changeMyPassword('profile-1', {
+          currentPassword: CURRENT_PASSWORD,
+          newPassword: VALID_PASSWORD,
+          confirmPassword: VALID_PASSWORD,
+        }),
+      ).rejects.toBeTruthy();
+
+      const [openArgs] = prisma.securityLog.create.mock.calls[0];
+      expect(openArgs.data.success).toBe(false);
+      expect(prisma.securityLog.update).not.toHaveBeenCalled();
+    });
+
+    it('completes the credential change even when the audit sink is unavailable', async () => {
+      prisma.securityLog.create.mockRejectedValue(new Error('audit down'));
+      prisma.securityLog.update.mockRejectedValue(new Error('audit down'));
+      credentialState.update.mockImplementation(() =>
+        Promise.resolve({ ...STATE, mustChangePassword: false, resolvedAt: new Date() }),
+      );
+
+      await expect(
+        service.changeMyPassword('profile-1', {
+          currentPassword: CURRENT_PASSWORD,
+          newPassword: VALID_PASSWORD,
+          confirmPassword: VALID_PASSWORD,
+        }),
+      ).resolves.toEqual({ changed: true, mustChangePassword: false });
+
+      await expect(
+        service.completeRecovery('profile-1', {
+          newPassword: VALID_PASSWORD,
+          confirmPassword: VALID_PASSWORD,
+        }),
+      ).resolves.toEqual({ changed: true, mustChangePassword: false });
+    });
+  });
+
+  describe('credential log redaction', () => {
+    beforeEach(() => {
+      credentialState.findUnique.mockResolvedValue(STATE);
+      credentialState.update.mockImplementation(() =>
+        Promise.resolve({ ...STATE, mustChangePassword: false, resolvedAt: new Date() }),
+      );
+    });
+
+    const collectLoggerOutput = async (
+      run: () => Promise<unknown>,
+      level: 'warn' | 'error',
+    ): Promise<string> => {
+      const logger = (
+        service as unknown as {
+          logger: {
+            warn: (...args: unknown[]) => void;
+            error: (...args: unknown[]) => void;
+          };
+        }
+      ).logger;
+      const calls: unknown[][] = [];
+      const spy = jest
+        .spyOn(logger, level)
+        .mockImplementation((...args: unknown[]) => {
+          calls.push(args);
+        });
+      try {
+        await run();
+      } catch {
+        /* the caller asserts the rejection */
+      } finally {
+        spy.mockRestore();
+      }
+      return JSON.stringify(calls.flat(Infinity));
+    };
+
+    it('never interpolates a Supabase rejection that echoes the new password', async () => {
+      supabaseClient.auth.admin.updateUserById.mockResolvedValue({
+        data: null,
+        error: { message: `Supabase rejected ${VALID_PASSWORD}`, status: 422 },
+      });
+
+      const output = await collectLoggerOutput(
+        () =>
+          service.changeMyPassword('profile-1', {
+            currentPassword: CURRENT_PASSWORD,
+            newPassword: VALID_PASSWORD,
+            confirmPassword: VALID_PASSWORD,
+          }),
+        'warn',
+      );
+
+      expect(output).not.toContain(VALID_PASSWORD);
+      expect(output).not.toContain('Supabase rejected');
+    });
+
+    it('never interpolates a discarded-session failure that echoes a session token', async () => {
+      supabaseClient.auth.signOut.mockRejectedValue(
+        new Error('refresh_token=refresh-secret rejected'),
+      );
+
+      const output = await collectLoggerOutput(
+        () =>
+          service.changeMyPassword('profile-1', {
+            currentPassword: CURRENT_PASSWORD,
+            newPassword: VALID_PASSWORD,
+            confirmPassword: VALID_PASSWORD,
+          }),
+        'warn',
+      );
+
+      expect(output).not.toContain('refresh-secret');
+      expect(output).not.toContain('refresh_token');
+    });
+
+    it('never interpolates an audit-sink error that echoes a secret', async () => {
+      prisma.securityLog.create.mockRejectedValue(
+        new Error(`audit insert rejected for ${VALID_PASSWORD}`),
+      );
+
+      const output = await collectLoggerOutput(
+        () =>
+          service.changeMyPassword('profile-1', {
+            currentPassword: CURRENT_PASSWORD,
+            newPassword: VALID_PASSWORD,
+            confirmPassword: VALID_PASSWORD,
+          }),
+        'error',
+      );
+
+      expect(output).not.toContain(VALID_PASSWORD);
     });
   });
 });

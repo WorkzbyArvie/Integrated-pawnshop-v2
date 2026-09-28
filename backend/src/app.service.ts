@@ -22,6 +22,11 @@ import {
   CredentialStateUnavailableError,
   CREDENTIAL_STATE_REASONS,
 } from './security/credential-state.service';
+import {
+  SECURITY_LOG_ACTIONS,
+  buildCredentialAuditEnvelope,
+  sanitizeCredentialAuditMetadata,
+} from './security/security.service';
 import { AccountRegistrationDto } from './security/dto/account-registration.dto';
 import { calculatePawnCharges } from './finance/pawn-charge-calculator';
 import {
@@ -663,8 +668,10 @@ export class AppService {
       }
 
       deliveryMethod = 'IN_APP';
-      deliveryWarning =
-        'Email delivery is unavailable. Use the code shown in app to continue signup.';
+      const codeIsReturned = process.env.NODE_ENV !== 'production';
+      deliveryWarning = codeIsReturned
+        ? 'Email delivery is unavailable. Use the code shown in app to continue signup.'
+        : 'Email delivery is unavailable. The code was not delivered; please request a new one.';
       console.warn(
         `[auth-code] Email delivery fallback enabled for ${email}: ${
           error?.message || 'unknown mail error'
@@ -677,15 +684,15 @@ export class AppService {
       message:
         deliveryMethod === 'EMAIL'
           ? 'Authentication code generated and sent successfully'
-          : 'Authentication code generated. Check in-app code and continue signup.',
+          : process.env.NODE_ENV !== 'production'
+            ? 'Authentication code generated. Check in-app code and continue signup.'
+            : 'Authentication code could not be delivered. Please request a new one.',
       sentTo: email,
       purpose,
       expiresInSeconds,
       deliveryMethod,
       ...(deliveryWarning ? { warning: deliveryWarning } : {}),
-      ...(process.env.NODE_ENV !== 'production' || deliveryMethod === 'IN_APP'
-        ? { authCode: code }
-        : {}),
+      ...(process.env.NODE_ENV !== 'production' ? { authCode: code } : {}),
     };
   }
 
@@ -941,15 +948,15 @@ export class AppService {
   }): Promise<string | null> {
     try {
       const row = await this.prisma.securityLog.create({
-        data: {
+        data: buildCredentialAuditEnvelope({
           profileId: params.targetProfileId,
           actorProfileId: params.actorProfileId,
           targetProfileId: params.targetProfileId,
-          ...(params.pawnshopId ? { pawnshopId: params.pawnshopId } : {}),
-          action: 'ADMIN_PASSWORD_RESET',
+          pawnshopId: params.pawnshopId,
+          action: SECURITY_LOG_ACTIONS.ADMIN_PASSWORD_RESET,
           success: false,
           metadata: { targetRole: params.targetRole },
-        },
+        }),
         select: { id: true },
       });
       return row?.id ?? null;
@@ -957,7 +964,6 @@ export class AppService {
       console.error('[changeStaffPassword] failed to open audit event', {
         actorProfileId: params.actorProfileId,
         targetProfileId: params.targetProfileId,
-        message: (error as Error)?.message,
       });
       return null;
     }
@@ -969,21 +975,19 @@ export class AppService {
     failureStage?: 'forced_state_reservation' | 'supabase_update',
   ): Promise<void> {
     if (!auditId) return;
+    const metadata = sanitizeCredentialAuditMetadata({ failureStage });
     try {
       await this.prisma.securityLog.update({
         where: { id: auditId },
         data: {
           success,
-          ...(failureStage
-            ? { metadata: { failureStage } }
-            : {}),
+          ...(metadata ? { metadata } : {}),
         },
       });
     } catch (error) {
       console.error('[changeStaffPassword] failed to close audit event', {
         auditId,
         success,
-        message: (error as Error)?.message,
       });
     }
   }

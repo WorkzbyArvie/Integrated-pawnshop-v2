@@ -1,7 +1,13 @@
 import * as fs from 'fs';
 import * as path from 'path';
 
+import { CREDENTIAL_AUDIT_METADATA_KEYS } from './security.service';
+
 const sourceRoot = path.resolve(__dirname, '..');
+const CREDENTIAL_AUDIT_WRITERS = [
+  path.join('security', 'security.service.ts'),
+  path.join('app.service.ts'),
+];
 const policyFiles = new Set([
   path.join(sourceRoot, 'security', 'password-policy.constants.ts'),
   path.join(sourceRoot, 'security', 'password-policy.service.ts'),
@@ -98,5 +104,153 @@ describe('password policy and credential authority source contract', () => {
     expect(credentialState).toContain('initializeSelfSelected');
     expect(credentialState).toContain('initializeProvisioned');
     expect(credentialState).toContain('getForUser');
+  });
+
+  it('rejects every local password-hash verifier in tracked runtime source', () => {
+    const forbiddenPasswordHashers = [
+      /bcrypt/i,
+      /argon2/i,
+      /scryptSync|scrypt\(/,
+      /pbkdf2/i,
+      /timingSafeEqual/,
+      /createCipher/i,
+    ];
+    const passwordBearingFiles = files.filter((file) =>
+      /password/i.test(fs.readFileSync(file, 'utf8')),
+    );
+    const offending: string[] = [];
+
+    for (const file of passwordBearingFiles) {
+      const source = fs.readFileSync(file, 'utf8');
+      if (forbiddenPasswordHashers.some((pattern) => pattern.test(source))) {
+        offending.push(path.relative(sourceRoot, file));
+      }
+    }
+
+    expect(offending).toEqual([]);
+  });
+
+  it('keeps the assertion HMAC owner free of any password handling', () => {
+    const mfaAssertion = fs.readFileSync(
+      path.join(sourceRoot, 'security', 'mfa-assertion.service.ts'),
+      'utf8',
+    );
+
+    expect(mfaAssertion).toMatch(/createHmac/);
+    expect(mfaAssertion).not.toMatch(/password/i);
+  });
+
+  it('keeps Supabase Auth the only accepting password verifier', () => {
+    const verificationFiles = files.filter((file) =>
+      /signInWithPassword|verifyCurrentPassword/.test(
+        fs.readFileSync(file, 'utf8'),
+      ),
+    );
+    const localComparisons: string[] = [];
+
+    expect(verificationFiles.length).toBeGreaterThan(0);
+    for (const file of verificationFiles) {
+      const source = fs
+        .readFileSync(file, 'utf8')
+        .replace(/signInWithPassword/g, '')
+        .replace(/verifyCurrentPassword/g, '');
+      if (/password\s*===|===\s*password/.test(source)) {
+        localComparisons.push(path.relative(sourceRoot, file));
+      }
+    }
+
+    expect(localComparisons).toEqual([]);
+    expect(appService).toContain('signInWithPassword');
+  });
+
+  it('routes every password write through Supabase Auth', () => {
+    const passwordWriters = files.filter((file) =>
+      /password\s*:\s*[A-Za-z_$][\w$.]*\s*[,}]/.test(
+        fs.readFileSync(file, 'utf8'),
+      ),
+    );
+    const unprovenWriters: string[] = [];
+
+    expect(passwordWriters.length).toBeGreaterThan(0);
+    for (const file of passwordWriters) {
+      const source = fs.readFileSync(file, 'utf8');
+      if (!/updateUserById|signUp|admin\.createUser|signInWithPassword/.test(source)) {
+        unprovenWriters.push(path.relative(sourceRoot, file));
+      }
+    }
+
+    expect(unprovenWriters).toEqual([]);
+  });
+
+  it('routes every credential audit write through the shared allowlisted envelope', () => {
+    const badWriters: string[] = [];
+
+    for (const relative of CREDENTIAL_AUDIT_WRITERS) {
+      const source = fs.readFileSync(path.join(sourceRoot, relative), 'utf8');
+
+      if (!/securityLog\.(create|update)/.test(source)) {
+        badWriters.push(`${relative}:no-writer`);
+        continue;
+      }
+      if (!/buildCredentialAuditEnvelope/.test(source)) {
+        badWriters.push(`${relative}:unshared-envelope`);
+      }
+      if (!/sanitizeCredentialAuditMetadata/.test(source)) {
+        badWriters.push(`${relative}:unshared-metadata`);
+      }
+      for (const [, literal] of source.matchAll(
+        /(?<![A-Za-z_$])metadata:\s*\{([^}]*)\}/g,
+      )) {
+        for (const [, key] of literal.matchAll(/([A-Za-z_$][\w$]*)\s*:/g)) {
+          if (!CREDENTIAL_AUDIT_METADATA_KEYS.includes(key as never)) {
+            badWriters.push(`${relative}:inline-metadata:${key}`);
+          }
+        }
+      }
+    }
+
+    expect(badWriters).toEqual([]);
+  });
+
+  it('never interpolates a credential secret into a credential-path log line', () => {
+    const secretIdentifier =
+      /^(password|newPassword|currentPassword|confirmPassword|authCode|otpCode|code|assertion|refreshToken|accessToken|serviceRoleToken|codeHash|secret|token)$/i;
+    const offendingLines: string[] = [];
+
+    for (const relative of CREDENTIAL_AUDIT_WRITERS) {
+      const lines = fs
+        .readFileSync(path.join(sourceRoot, relative), 'utf8')
+        .split(/\r?\n/);
+      for (const [index, line] of lines.entries()) {
+        if (
+          !/console\.(log|warn|error|info|debug)\(|this\.logger\.(log|warn|error|debug)\(/.test(
+            line,
+          )
+        ) {
+          continue;
+        }
+
+        const interpolated = [...line.matchAll(/\$\{([^}]*)\}/g)].map(
+          (match) => match[1].trim().split('.').pop() ?? '',
+        );
+        const withoutTemplateText = line
+          .replace(/`(?:[^`\\]|\\.)*`/g, (segment) =>
+            segment.replace(/\$\{[^}]*\}/g, ' '),
+          )
+          .replace(/'(?:[^'\\]|\\.)*'/g, "''")
+          .replace(/"(?:[^"\\]|\\.)*"/g, '""');
+        const shorthand = [
+          ...withoutTemplateText.matchAll(/[{,]\s*([A-Za-z_$][\w$]*)\s*[,}]/g),
+        ].map((match) => match[1]);
+
+        for (const identifier of [...interpolated, ...shorthand]) {
+          if (secretIdentifier.test(identifier)) {
+            offendingLines.push(`${relative}:${index + 1}:${identifier}`);
+          }
+        }
+      }
+    }
+
+    expect(offendingLines).toEqual([]);
   });
 });

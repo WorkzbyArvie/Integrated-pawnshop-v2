@@ -8,6 +8,10 @@ import {
   CredentialStateService,
   CredentialStateUnavailableError,
 } from './security/credential-state.service';
+import {
+  CREDENTIAL_AUDIT_METADATA_KEYS,
+  SECURITY_LOG_ACTIONS,
+} from './security/security.service';
 import { PrismaService } from './prisma.service';
 import { FinanceService } from './finance/finance.service';
 import { LegalProofService } from './loan/legal-proof.service';
@@ -577,6 +581,149 @@ describe('AppService', () => {
         });
         consoleError.mockRestore();
       });
+    });
+  });
+
+  describe('shared credential audit vocabulary', () => {
+    const TEMP_PASSWORD = 'Temporary#Pass1';
+    const ACTOR_ID = 'actor-owner-1';
+    const TARGET_ID = 'target-staff-1';
+    const SHOP = 'shop_1';
+
+    const resolveActorAndTarget = () => {
+      mockPrisma.profile.findUnique
+        .mockResolvedValueOnce({
+          id: ACTOR_ID,
+          role: 'OWNER',
+          pawnshopId: SHOP,
+        } as never)
+        .mockResolvedValueOnce({
+          id: TARGET_ID,
+          role: 'STAFF',
+          pawnshopId: SHOP,
+        } as never);
+    };
+
+    beforeEach(() => {
+      mockPrisma.profile.findUnique.mockReset();
+      mockPasswordPolicy.assert.mockImplementation(() => undefined);
+      mockCredentialState.reserveForcedChange.mockResolvedValue({
+        profileId: TARGET_ID,
+        mustChangePassword: true,
+        reason: CREDENTIAL_STATE_REASONS.ADMIN_RESET_PENDING,
+      });
+      mockCredentialState.confirmForcedChange.mockResolvedValue({
+        profileId: TARGET_ID,
+        mustChangePassword: true,
+        reason: CREDENTIAL_STATE_REASONS.ADMIN_RESET,
+      });
+      mockCredentialState.recordForcedChangeFailure.mockResolvedValue({
+        profileId: TARGET_ID,
+        mustChangePassword: true,
+        reason: CREDENTIAL_STATE_REASONS.ADMIN_RESET_FAILED,
+      });
+      mockSupabaseAdmin.client.auth.admin.updateUserById.mockResolvedValue({
+        data: { user: { id: TARGET_ID } },
+        error: null,
+      });
+    });
+
+    it('records the administrative reset under the shared service action vocabulary', async () => {
+      resolveActorAndTarget();
+
+      await service.changeStaffPassword(ACTOR_ID, TARGET_ID, TEMP_PASSWORD);
+
+      const [createArgs] = mockPrisma.securityLog.create.mock.calls[0];
+      expect(createArgs.data.action).toBe(
+        SECURITY_LOG_ACTIONS.ADMIN_PASSWORD_RESET,
+      );
+      expect(createArgs.data.action).toBe('ADMIN_PASSWORD_RESET');
+    });
+
+    it('admits only allowlisted audit metadata for the administrative reset', async () => {
+      resolveActorAndTarget();
+
+      await service.changeStaffPassword(ACTOR_ID, TARGET_ID, TEMP_PASSWORD);
+
+      const [createArgs] = mockPrisma.securityLog.create.mock.calls[0];
+      for (const key of Object.keys(createArgs.data.metadata ?? {})) {
+        expect(CREDENTIAL_AUDIT_METADATA_KEYS).toContain(key);
+      }
+      expect(createArgs.data.metadata).toEqual({ targetRole: 'STAFF' });
+    });
+  });
+
+  describe('auth-code redaction', () => {
+    const EMAIL = 'bidder@example.com';
+    const previousNodeEnv = process.env.NODE_ENV;
+    const previousFallback = process.env.ALLOW_INAPP_AUTH_CODE_FALLBACK;
+
+    const requestWithFailingEmail = async () => {
+      const send = jest
+        .spyOn(service as unknown as { sendAuthCodeEmail: () => Promise<unknown> }, 'sendAuthCodeEmail')
+        .mockRejectedValue(new Error('smtp unavailable'));
+      const consoleLog = jest
+        .spyOn(console, 'log')
+        .mockImplementation(() => undefined);
+      const consoleWarn = jest
+        .spyOn(console, 'warn')
+        .mockImplementation(() => undefined);
+      try {
+        return await service.requestAuthCode({ email: EMAIL, purpose: 'BIDDER_REGISTRATION' });
+      } finally {
+        const logs = JSON.stringify([
+          ...consoleLog.mock.calls.flat(Infinity),
+          ...consoleWarn.mock.calls.flat(Infinity),
+        ]);
+        send.mockRestore();
+        consoleLog.mockRestore();
+        consoleWarn.mockRestore();
+        (requestWithFailingEmail as unknown as { logs?: string }).logs = logs;
+      }
+    };
+
+    afterEach(() => {
+      process.env.NODE_ENV = previousNodeEnv;
+      if (previousFallback === undefined) {
+        delete process.env.ALLOW_INAPP_AUTH_CODE_FALLBACK;
+      } else {
+        process.env.ALLOW_INAPP_AUTH_CODE_FALLBACK = previousFallback;
+      }
+    });
+
+    it('never returns the raw auth code in a production response', async () => {
+      process.env.NODE_ENV = 'production';
+      process.env.ALLOW_INAPP_AUTH_CODE_FALLBACK = 'true';
+
+      const result = await requestWithFailingEmail();
+
+      expect(result.deliveryMethod).toBe('IN_APP');
+      expect(result).not.toHaveProperty('authCode');
+      expect(JSON.stringify(result)).not.toMatch(/"authCode"/);
+      expect(result.message).not.toMatch(/in-app code/i);
+      expect(result.warning).not.toMatch(/shown in app/i);
+    });
+
+    it('keeps the non-production fallback usable for local development', async () => {
+      process.env.NODE_ENV = 'development';
+      process.env.ALLOW_INAPP_AUTH_CODE_FALLBACK = 'true';
+
+      const result = await requestWithFailingEmail();
+
+      expect(result.deliveryMethod).toBe('IN_APP');
+      expect(result).toHaveProperty('authCode');
+    });
+
+    it('never writes the raw code into a log line', async () => {
+      process.env.NODE_ENV = 'development';
+      process.env.ALLOW_INAPP_AUTH_CODE_FALLBACK = 'true';
+
+      const result = await requestWithFailingEmail();
+      const logs = (requestWithFailingEmail as unknown as { logs?: string }).logs ?? '';
+
+      expect(result.authCode).toMatch(/^\d{6}$/);
+      expect(logs).not.toContain(result.authCode);
+      expect(logs).toContain('[REDACTED]');
     });
   });
 });
