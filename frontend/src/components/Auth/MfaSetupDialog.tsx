@@ -23,6 +23,26 @@ import { OtpInput } from './OtpInput';
 
 export type MfaDialogMode = 'enable' | 'disable';
 
+/**
+ * Whether an outside interaction is the browser restoring focus to a
+ * backgrounded tab rather than the user clicking away.
+ *
+ * Radix dismisses a dialog when focus lands outside it, and returning to a
+ * backgrounded tab fires focusin on <body>. The layer cannot tell that from a
+ * click on the backdrop, so alt-tabbing mid-flow closed the dialog and
+ * discarded the countdown.
+ *
+ * `refocusing` is set by the window blur listener and cleared on the focus that
+ * follows, so a focusin that is genuinely the user's -- moving to a field in the
+ * dialog is inside, not outside -- is not suppressed once the window has settled.
+ * A real backdrop click is a pointerdown, which this never matches.
+ */
+export function isRefocusDismissal(event: unknown, refocusing: boolean): boolean {
+  if (!refocusing) return false;
+  const original = (event as { originalEvent?: { type?: unknown } } | null)?.originalEvent;
+  return original?.type === 'focusin';
+}
+
 export const MFA_RESEND_COOLDOWN_MS = 60_000;
 export const MFA_REQUEST_RATE_LIMIT_SECONDS = 60;
 
@@ -183,6 +203,32 @@ export function MfaSetupDialog({
   // `locked`, which only means a code submission is in flight -- conflating the
   // two left a user with no way to tell "try again" from "stop trying".
   const [reauthLocked, setReauthLocked] = useState(false);
+  // Set while the window is backgrounded. Radix dismisses a dialog when focus
+  // lands outside it, and returning to a backgrounded tab fires focusin on
+  // <body>, which it cannot tell from a click on the backdrop -- so alt-tabbing
+  // mid-flow closed the dialog and discarded the countdown. Nothing in this app
+  // re-renders on focus, so the blur is the only available signal.
+  const windowRefocusingRef = useRef(false);
+
+  useEffect(() => {
+    const markBlur = () => {
+      windowRefocusingRef.current = true;
+    };
+    const markFocus = () => {
+      // Cleared after the focusin Radix listens for has been dispatched. The
+      // timeout is what makes the ordering reliable; clearing synchronously
+      // would race the focusin and the dialog would still close.
+      window.setTimeout(() => {
+        windowRefocusingRef.current = false;
+      }, 0);
+    };
+    window.addEventListener('blur', markBlur);
+    window.addEventListener('focus', markFocus);
+    return () => {
+      window.removeEventListener('blur', markBlur);
+      window.removeEventListener('focus', markFocus);
+    };
+  }, []);
   // Ticks once a second so the retry button can count the cooldown down. The
   // timestamp alone is not enough: nothing re-rendered to read it, so the button
   // stayed enabled and every attempt drew another 429.
@@ -228,6 +274,10 @@ export function MfaSetupDialog({
     setVerifying(false);
     setRequestPending(false);
     setPasswordPending(false);
+    // This component is always mounted and its state outlives a close, so a
+    // lockout set in one session persisted into the next and every later open
+    // looked locked. Reopening is a fresh attempt; the server decides.
+    setReauthLocked(false);
   }, [open, mode]);
 
   const requestChallenge = useCallback(
@@ -494,6 +544,12 @@ export function MfaSetupDialog({
           }}
           onInteractOutside={(event) => {
             if (locked) event.preventDefault();
+            // DismissableLayer dismisses unless the interaction is prevented, so
+            // this is the one place the refocus case can be filtered out without
+            // swallowing a real click.
+            else if (isRefocusDismissal(event, windowRefocusingRef.current)) {
+              event.preventDefault();
+            }
           }}
           className="max-h-[90vh] overflow-y-auto p-4 sm:max-w-lg sm:p-8"
           style={{ background: 'var(--bg-elevated)', borderColor: 'rgba(255,255,255,0.08)' }}

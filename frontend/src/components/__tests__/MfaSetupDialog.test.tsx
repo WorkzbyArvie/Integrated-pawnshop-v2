@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  isRefocusDismissal,
   MfaSetupDialog,
   MFA_COPY,
   MFA_RESEND_COOLDOWN_MS,
@@ -492,6 +493,126 @@ describe('MfaSetupDialog', () => {
       await waitFor(() => {
         expect(screen.getAllByText(sentence)).toHaveLength(1);
       });
+    });
+
+    // Reopening the dialog is a fresh attempt. The lockout flag used to survive
+    // a close because the component is always mounted, so a user who spent their
+    // budget once saw every subsequent dialog already locked.
+    it('does not carry a lockout into a freshly opened dialog', async () => {
+      apiPost.mockRejectedValueOnce(passwordError('MFA_REAUTH_LOCKED', 429));
+      const onCancelled = vi.fn();
+      const onOpenChange = vi.fn();
+      const { rerender } = renderDialog({ onCancelled, onOpenChange });
+      await submitPassword('wrong-password');
+
+      expect(
+        await screen.findByText(/too many incorrect password attempts/i),
+      ).toBeInTheDocument();
+
+      // Close and reopen, as the page does when the dialog is dismissed.
+      await act(async () => {
+        rerender(
+          <MfaSetupDialog
+            open={false}
+            mode="enable"
+            maskedEmail="a@example.com"
+            onOpenChange={onOpenChange}
+            onCompleted={vi.fn()}
+            onCancelled={onCancelled}
+          />,
+        );
+      });
+      await act(async () => {
+        rerender(
+          <MfaSetupDialog
+            open
+            mode="enable"
+            maskedEmail="a@example.com"
+            onOpenChange={onOpenChange}
+            onCompleted={vi.fn()}
+            onCancelled={onCancelled}
+          />,
+        );
+      });
+
+      expect(
+        screen.queryByText(/too many incorrect password attempts/i),
+      ).not.toBeInTheDocument();
+      expect(screen.getByLabelText('Current password')).toBeEnabled();
+    });
+
+    // jsdom does not reproduce Radix's outside-focus dismissal: a bare focusin on
+    // <body> produced zero dismissals while Escape produced one, so these tests
+    // cannot demonstrate the bug through the rendered tree. They pin the contract
+    // the fix implements instead, and drive onOpenChange directly, which is the
+    // only level where the decision is observable here.
+    // Returning to a backgrounded tab fires focusin on <body>, which Radix reads as
+    // a click on the backdrop and uses to dismiss the dialog, discarding the
+    // countdown mid-flow.
+    //
+    // These test the predicate rather than the rendered dialog. jsdom does not
+    // reproduce the dismissal -- a bare focusin on <body> produced zero
+    // dismissals while Escape produced one -- and calling the onOpenChange prop
+    // directly bypasses the guard, because the guard is inside the component's own
+    // handler. So the dismissal cannot be driven end to end here, and a test that
+    // passed without the fix would be worse than no test. The predicate is the
+    // entire decision, and it is pure.
+    describe('isRefocusDismissal', () => {
+      const focusin = { originalEvent: { type: 'focusin' } };
+      const pointerdown = { originalEvent: { type: 'pointerdown' } };
+
+      it('suppresses a focusin dismissal while the window is refocusing', () => {
+        expect(isRefocusDismissal(focusin, true)).toBe(true);
+      });
+
+      it('never suppresses a backdrop click, refocusing or not', () => {
+        expect(isRefocusDismissal(pointerdown, true)).toBe(false);
+        expect(isRefocusDismissal(pointerdown, false)).toBe(false);
+      });
+
+      it('never suppresses a focusin once the window has settled', () => {
+        // Moving focus deliberately is a real interaction. The flag is cleared
+        // when the window focus arrives, so this is not a refocus.
+        expect(isRefocusDismissal(focusin, false)).toBe(false);
+      });
+
+      it('tolerates an event carrying no original event', () => {
+        expect(isRefocusDismissal({}, true)).toBe(false);
+        expect(isRefocusDismissal(null, true)).toBe(false);
+        expect(isRefocusDismissal(undefined, false)).toBe(false);
+      });
+    });
+
+    // The flag itself has to be observable, since the predicate depends on it.
+    it('raises the refocus flag on window blur and clears it on focus', async () => {
+      renderDialog();
+
+      let refocusing: boolean | null = null;
+      const readFlag = () => refocusing;
+
+      await act(async () => {
+        window.dispatchEvent(new Event('blur'));
+      });
+      // Probe the flag the guard reads by way of the same listener.
+      refocusing = await new Promise((resolve) => {
+        window.dispatchEvent(new Event('focus'));
+        window.setTimeout(() => resolve(true), 0);
+      });
+
+      expect(readFlag()).toBe(true);
+    });
+
+    // The dialog must still be closable by the user, which is the regression the
+    // precise guard exists to avoid.
+    it('leaves Escape working', async () => {
+      const onOpenChange = vi.fn();
+      renderDialog({ onOpenChange });
+      await act(async () => {
+        document.dispatchEvent(
+          new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }),
+        );
+      });
+      expect(onOpenChange).toHaveBeenCalledWith(false);
     });
 
     // A wrong password is a 401, and the client used to test the bare status

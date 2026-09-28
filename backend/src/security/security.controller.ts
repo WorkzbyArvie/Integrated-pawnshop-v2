@@ -11,10 +11,22 @@ import { MfaDisableDto } from './dto/mfa-disable.dto';
 import { AuthUserService } from '../common/auth-user.service';
 
 const CREDENTIAL_THROTTLE = { ttl: 60_000, limit: 5 } as const;
-const MFA_ENABLE_THROTTLE = { ttl: 60_000, limit: 3 } as const;
+/**
+ * These bound request volume per IP; they are not the password-guessing
+ * defence, which is MfaPasswordAttemptService, per account and therefore not
+ * shared between users behind one address.
+ *
+ * At three a minute this endpoint blocked its own legitimate use. The
+ * current-password check runs inside the throttled handler, so a user who
+ * mistyped twice, or reopened the dialog to retry, was refused at the throttle
+ * before the password was examined and told to wait for an email that would
+ * never be sent. Ten leaves room for ordinary correction while still capping a
+ * single address.
+ */
+const MFA_ENABLE_THROTTLE = { ttl: 60_000, limit: 10 } as const;
 const MFA_VERIFY_THROTTLE = { ttl: 60_000, limit: 10 } as const;
 const MFA_LOGIN_THROTTLE = { ttl: 60_000, limit: 5 } as const;
-const MFA_DISABLE_THROTTLE = { ttl: 60_000, limit: 5 } as const;
+const MFA_DISABLE_THROTTLE = { ttl: 60_000, limit: 10 } as const;
 
 @Controller('security')
 export class SecurityController {

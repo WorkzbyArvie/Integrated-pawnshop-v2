@@ -102,10 +102,15 @@ describe('SecurityController', () => {
     it.each([
       ['changeMyPassword', 60_000, 5],
       ['completeRecovery', 60_000, 5],
-      ['startMfaEnrollment', 60_000, 3],
+      // Raised from 3. The current-password check runs inside this throttled
+    // handler, so three a minute refused a user correcting a typo before their
+    // password was examined. Guessing is bounded per account instead.
+    ['startMfaEnrollment', 60_000, 10],
       ['verifyMfaChallenge', 60_000, 10],
       ['startMfaLoginChallenge', 60_000, 5],
-      ['disableMfa', 60_000, 5],
+      // Raised from 5, for the same reason: the password check is inside the
+    // throttle on this handler too.
+    ['disableMfa', 60_000, 10],
     ])('throttles %s to %i per %i ms', (handler, ttl, limit) => {
       const fn = (SecurityController.prototype as never as Record<string, Handler>)[handler];
       expect(read(THROTTLE_TTL_KEY, fn)).toBe(ttl);
