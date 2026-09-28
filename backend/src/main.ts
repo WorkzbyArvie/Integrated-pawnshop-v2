@@ -19,6 +19,7 @@ import {
   buildCorsOptions,
   resolveAllowedOrigins,
 } from './common/config/cors.config';
+import { assertValidEnv } from './common/config/env.validation';
 
 // Load .env file explicitly — try multiple paths for dev vs compiled
 dotenv.config({ path: path.resolve(__dirname, '..', '.env') });
@@ -33,6 +34,10 @@ async function bootstrap() {
   } catch {
     // Older Node runtimes may not support this API.
   }
+
+  // Fail before any dependency is constructed, so a misconfigured deploy reports
+  // every bad variable at once instead of dying later in a service constructor.
+  assertValidEnv(process.env);
 
   const app = await NestFactory.create(AppModule);
   const httpApp = app.getHttpAdapter().getInstance() as express.Express;
