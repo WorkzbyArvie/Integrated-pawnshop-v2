@@ -36,6 +36,9 @@ export const MFA_LOGIN_CHALLENGE_COPY = {
     'That code is invalid or expired. Check the six digits or request a new code when the timer ends.',
   tooManyAttempts:
     'Too many verification attempts. Request a new code before trying again.',
+  tooManyRequests:
+    'Too many verification code requests. The timer shows when you can try again.',
+  retryIn: (seconds: number) => `Retry in ${seconds}s`,
   requestNewCode: 'Request a new code',
   verifying: 'Verifying code',
   signOut: 'Sign out',
@@ -136,6 +139,19 @@ export function MfaChallenge({
   const [requesting, setRequesting] = useState(false);
   const [verifying, setVerifying] = useState(false);
   const [resendAt, setResendAt] = useState<number | null>(null);
+  // Ticks once a second so the cooldown can be counted down. The timestamp alone
+  // did nothing, because no re-render was scheduled to read it.
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    if (resendAt === null) return;
+    setNow(Date.now());
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [resendAt]);
+
+  const resendSeconds = resendAt === null ? 0 : Math.max(0, Math.ceil((resendAt - now) / 1000));
+  const resendCountingDown = resendSeconds > 0;
 
   const destination = challenge?.maskedEmail || maskedEmail || maskAccountEmail(email) || '';
   const verificationLocked = verifying || alert?.message === MFA_LOGIN_CHALLENGE_COPY.tooManyAttempts;
@@ -160,8 +176,17 @@ export function MfaChallenge({
     } catch (error) {
       setChallenge(null);
       setCode('');
-      setResendAt(null);
-      setAlert({ message: MFA_LOGIN_CHALLENGE_COPY.requestFailed });
+      if (errorStatus(error) === 429) {
+        // A rate-limited request still consumed budget on the server, so the
+        // client has to honour the same cooldown. Reporting this as a generic
+        // failure both hid the reason and left the request button live, so the
+        // next attempt just drew another 429.
+        setResendAt(Date.now() + MFA_LOGIN_RESEND_COOLDOWN_MS);
+        setAlert({ message: MFA_LOGIN_CHALLENGE_COPY.tooManyRequests });
+      } else {
+        setResendAt(null);
+        setAlert({ message: MFA_LOGIN_CHALLENGE_COPY.requestFailed });
+      }
     } finally {
       setRequesting(false);
     }
@@ -328,14 +353,22 @@ export function MfaChallenge({
             <button
               type="button"
               onClick={handleResend}
-              disabled={requesting}
+              // Same cooldown gap as the setup dialog: this fallback button is
+              // shown exactly when a rate-limited request left no challenge, and
+              // it was gated only on `requesting`.
+              disabled={requesting || resendCountingDown}
               className="h-11 rounded-[12px] px-4 text-[14px] font-semibold disabled:opacity-60"
               style={{
-                background: requesting ? 'rgba(201,160,92,0.5)' : 'var(--gold)',
+                background:
+                  requesting || resendCountingDown
+                    ? 'rgba(201,160,92,0.5)'
+                    : 'var(--gold)',
                 color: '#0A0A0F',
               }}
             >
-              {MFA_LOGIN_CHALLENGE_COPY.requestNewCode}
+              {resendCountingDown
+                ? MFA_LOGIN_CHALLENGE_COPY.retryIn(resendSeconds)
+                : MFA_LOGIN_CHALLENGE_COPY.requestNewCode}
             </button>
           )}
 

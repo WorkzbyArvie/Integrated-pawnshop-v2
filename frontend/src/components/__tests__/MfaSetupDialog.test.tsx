@@ -1,6 +1,10 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { MfaSetupDialog } from '../Auth/MfaSetupDialog';
+import { MfaSetupDialog, MFA_RESEND_COOLDOWN_MS } from '../Auth/MfaSetupDialog';
+
+// Matches "Request code" before the cooldown starts and the seconds-counting
+// label during it, without also matching the confirm or cancel buttons.
+const MFA_COPY_probe = /request code|request a new code|retry in \d+s/i;
 
 const apiPost = vi.fn();
 const setMfaAssertion = vi.fn();
@@ -34,7 +38,7 @@ const CODE = '246813';
 
 const CHALLENGE = {
   challengeId: 'challenge-enable-1',
-  maskedEmail: 'a••••@example.com',
+  maskedEmail: 'aÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢@example.com',
   expiresAt: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
 };
 
@@ -55,7 +59,7 @@ function renderDialog(
     <MfaSetupDialog
       open
       mode="enable"
-      maskedEmail="a••••@example.com"
+      maskedEmail="aÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢@example.com"
       onOpenChange={onOpenChange}
       onCompleted={onCompleted}
       onCancelled={onCancelled}
@@ -121,7 +125,7 @@ describe('MfaSetupDialog', () => {
       );
       expect(
         await screen.findByText(
-          'We will send a six-digit code to a••••@example.com. Enter it to turn on two-step sign-in.',
+          'We will send a six-digit code to aÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢@example.com. Enter it to turn on two-step sign-in.',
         ),
       ).toBeInTheDocument();
     });
@@ -132,11 +136,11 @@ describe('MfaSetupDialog', () => {
 
       expect(
         await screen.findByText(
-          'A verification code was sent to a••••@example.com. Enter it to turn on two-step sign-in.',
+          'A verification code was sent to aÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢@example.com. Enter it to turn on two-step sign-in.',
         ),
       ).toBeInTheDocument();
       expect(
-        screen.queryByText('a••••@example.com@example.com'),
+        screen.queryByText('aÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢@example.com@example.com'),
       ).not.toBeInTheDocument();
       expect(document.body.textContent).not.toContain('ariel@example.com');
     });
@@ -275,7 +279,7 @@ describe('MfaSetupDialog', () => {
       );
       expect(
         await screen.findByText(
-          'A verification code was sent to a••••@example.com. Enter it to disable email MFA.',
+          'A verification code was sent to aÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢@example.com. Enter it to disable email MFA.',
         ),
       ).toBeInTheDocument();
     });
@@ -399,8 +403,79 @@ describe('MfaSetupDialog', () => {
       expect(
         screen.queryByLabelText('Six-digit email verification code'),
       ).not.toBeInTheDocument();
-      expect(screen.getByRole('button', { name: 'Request code' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: MFA_COPY_probe })).toBeInTheDocument();
       expect(screen.getByRole('button', { name: 'Keep email MFA enabled' })).toBeInTheDocument();
+    });
+
+    // Telling someone to wait 60 seconds is only honest if the request button is
+    // actually blocked for those 60 seconds. It was not: the 429 branch set the
+    // alert but never set resendAt, so the countdown that gates the button never
+    // started and each further attempt drew another 429.
+    it('blocks a retry behind a countdown after a rate-limited request', async () => {
+      // Fake timers only here: the countdown is the subject under test, and the
+      // rest of this file exercises real async settling.
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+      try {
+        renderDialog({ mode: 'disable' });
+        fireEvent.click(await screen.findByRole('button', { name: 'Continue to verification' }));
+
+        apiPost.mockRejectedValueOnce(challengeError('MFA_CHALLENGE_UNAVAILABLE', 429));
+        await submitPassword();
+
+        const retry = await screen.findByRole('button', { name: MFA_COPY_probe });
+        await waitFor(() => expect(retry).toBeDisabled());
+
+        // The visible number has to move, not merely appear once.
+        await act(async () => {
+          vi.advanceTimersByTime(5_000);
+        });
+        // The visible number has to move, not merely appear once.
+        expect(retry.textContent).toMatch(/retry in [45]\d/i);
+
+        apiPost.mockClear();
+        fireEvent.click(retry);
+        expect(apiPost).not.toHaveBeenCalled();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('re-enables the request button once the countdown reaches zero', async () => {
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+      try {
+        renderDialog({ mode: 'disable' });
+        fireEvent.click(await screen.findByRole('button', { name: 'Continue to verification' }));
+
+        apiPost.mockRejectedValueOnce(challengeError('MFA_CHALLENGE_UNAVAILABLE', 429));
+        await submitPassword();
+
+        const retry = await screen.findByRole('button', { name: MFA_COPY_probe });
+        await waitFor(() => expect(retry).toBeDisabled());
+
+        // Jump past the cooldown rather than waiting out 60 real seconds.
+        await act(async () => {
+          vi.advanceTimersByTime(MFA_RESEND_COOLDOWN_MS + 1_000);
+        });
+
+        await waitFor(() => expect(retry).toBeEnabled());
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    // The code step repeated the dialog description verbatim underneath itself
+    // whenever no code had been sent, so a rate-limited user saw the same
+    // sentence twice and no sign that no email was on its way.
+    it('does not repeat the description when no code was sent', async () => {
+      renderDialog({ mode: 'enable' });
+
+      apiPost.mockRejectedValueOnce(challengeError('MFA_CHALLENGE_UNAVAILABLE', 429));
+      await submitPassword();
+
+      const sentence = /We will send a six-digit code/;
+      await waitFor(() => {
+        expect(screen.getAllByText(sentence)).toHaveLength(1);
+      });
     });
   });
 });

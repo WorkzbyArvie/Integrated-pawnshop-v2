@@ -47,6 +47,7 @@ export const MFA_COPY = {
   disableCodeSent: (maskedEmail: string) =>
     `A verification code was sent to ${maskedEmail}. Enter it to disable email MFA.`,
   requestCode: 'Request code',
+  retryIn: (seconds: number) => `Retry in ${seconds}s`,
   sendingCode: 'Sending code',
   requestFailed:
     "We couldn't send a verification code. Check your connection and try again.",
@@ -150,6 +151,20 @@ export function MfaSetupDialog({
   const [alert, setAlert] = useState<MfaAlert | null>(null);
   const [challenge, setChallenge] = useState<MfaChallenge | null>(null);
   const [resendAt, setResendAt] = useState<number | null>(null);
+  // Ticks once a second so the retry button can count the cooldown down. The
+  // timestamp alone is not enough: nothing re-rendered to read it, so the button
+  // stayed enabled and every attempt drew another 429.
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    if (resendAt === null) return;
+    setNow(Date.now());
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [resendAt]);
+
+  const resendSeconds = resendAt === null ? 0 : Math.max(0, Math.ceil((resendAt - now) / 1000));
+  const resendCountingDown = resendSeconds > 0;
   const [requestPending, setRequestPending] = useState(false);
   const [verifying, setVerifying] = useState(false);
   const [outcome, setOutcome] = useState<'enabled' | 'disabled' | null>(null);
@@ -219,6 +234,11 @@ export function MfaSetupDialog({
             kind: 'requestRateLimited',
             message: MFA_COPY.requestRateLimited(MFA_REQUEST_RATE_LIMIT_SECONDS),
           });
+          // The cooldown has to start here too. The message tells the user to
+          // wait 60 seconds, but the countdown that gates the request button is
+          // driven off resendAt, so leaving it null meant the button stayed
+          // enabled and every further attempt drew another 429.
+          setResendAt(Date.now() + MFA_RESEND_COOLDOWN_MS);
           setStep('code');
         } else {
           setAlert({ kind: 'requestFailed', message: MFA_COPY.requestFailed });
@@ -483,13 +503,22 @@ export function MfaSetupDialog({
 
           {(step === 'code' || step === 'committing') && (
             <div className="space-y-4">
-              <p
-                role="status"
-                className="text-[14px] leading-[1.5]"
-                style={{ color: 'var(--text-secondary)' }}
-              >
-                {challenge ? codeSentMessage : destinationExplanation}
-              </p>
+              {/*
+                Only narrate a code that was actually sent. Falling back to
+                destinationExplanation here repeated the dialog description
+                verbatim underneath itself, so a rate-limited user saw the same
+                sentence twice with no indication that no code had been sent.
+                When nothing was sent, the alert below carries the reason.
+              */}
+              {challenge && (
+                <p
+                  role="status"
+                  className="text-[14px] leading-[1.5]"
+                  style={{ color: 'var(--text-secondary)' }}
+                >
+                  {codeSentMessage}
+                </p>
+              )}
 
               {alert && (
                 <div
@@ -552,14 +581,26 @@ export function MfaSetupDialog({
                     <button
                       type="button"
                       onClick={handleResend}
-                      disabled={requestPending}
+                      // This button is separate from the OtpInput resend control
+                      // and is the one shown when no challenge exists -- which is
+                      // exactly the state after a rate-limited request. It was
+                      // gated only on requestPending, so the 60-second cooldown
+                      // never applied and every retry drew another 429.
+                      disabled={requestPending || resendCountingDown}
                       className="h-11 rounded-[12px] px-4 text-[14px] font-semibold disabled:opacity-60"
                       style={{
-                        background: requestPending ? 'rgba(201,160,92,0.5)' : 'var(--gold)',
+                        background:
+                          requestPending || resendCountingDown
+                            ? 'rgba(201,160,92,0.5)'
+                            : 'var(--gold)',
                         color: '#0A0A0F',
                       }}
                     >
-                      {requestPending ? MFA_COPY.sendingCode : MFA_COPY.requestCode}
+                      {requestPending
+                        ? MFA_COPY.sendingCode
+                        : resendCountingDown
+                          ? MFA_COPY.retryIn(resendSeconds)
+                          : MFA_COPY.requestCode}
                     </button>
                   )}
                   {!locked && (
