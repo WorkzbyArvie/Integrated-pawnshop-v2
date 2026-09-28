@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { AlertTriangle, CheckCircle2, Loader2, Lock } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
 import { completeRecovery, fetchCredentialStatus } from '../../lib/accountSecurity';
-import { getApiErrorDetails } from '../../lib/apiClient';
+import { ApiError, getApiErrorDetails } from '../../lib/apiClient';
 import {
   PasswordConfirmField,
   PasswordErrorSummary,
@@ -40,12 +40,24 @@ const RECOVERY_COPY = {
   updateRejected:
     "We couldn't update your password. Check the fields below and try again.",
   updateSuccess: 'Password updated successfully',
+  needsSignIn: 'Password updated successfully',
+  needsSignInBody:
+    'Your sign-in session ended when the password changed. Sign in again with your new password.',
+  unverifiable:
+    "We couldn't confirm your account security status. Your password may have changed — sign in to continue.",
   continueToSignIn: 'Continue to sign in',
 } as const;
 
 type LinkState = 'validating' | 'ready' | 'invalid' | 'expired' | 'incomplete' | 'failed';
 type RequestState = 'idle' | 'sending' | 'sent' | 'invalid-email' | 'failed' | 'rate-limited';
-type UpdateState = 'idle' | 'submitting' | 'rejected' | 'not-cleared' | 'success';
+type UpdateState =
+  | 'idle'
+  | 'submitting'
+  | 'rejected'
+  | 'not-cleared'
+  | 'unverifiable'
+  | 'needs-sign-in'
+  | 'success';
 
 function parseHashParams(): URLSearchParams {
   const hash = window.location.hash.startsWith('#')
@@ -268,14 +280,34 @@ export default function ResetPassword() {
 
       await completeRecovery({ newPassword, confirmPassword });
 
-      const status = await fetchCredentialStatus().catch(() => null);
-      if (!status || status.mustChangePassword) {
+      setNewPassword('');
+      setConfirmPassword('');
+
+      let status: Awaited<ReturnType<typeof fetchCredentialStatus>> = null;
+      try {
+        status = await fetchCredentialStatus();
+      } catch (error) {
+        // A revoked session is expected here: changing a password invalidates
+        // outstanding refresh tokens, so the status re-check can be
+        // unauthorized even though the change succeeded.
+        if (error instanceof ApiError && error.status === 401) {
+          setUpdateState('needs-sign-in');
+          return;
+        }
+        setUpdateState('unverifiable');
+        return;
+      }
+
+      if (!status) {
+        setUpdateState('unverifiable');
+        return;
+      }
+
+      if (status.mustChangePassword) {
         setUpdateState('not-cleared');
         return;
       }
 
-      setNewPassword('');
-      setConfirmPassword('');
       setUpdateState('success');
     } catch (error) {
       const code = getApiErrorDetails(error).code;
@@ -556,6 +588,32 @@ export default function ResetPassword() {
               </p>
             )}
 
+            {updateState === 'unverifiable' && (
+              <p
+                role="status"
+                className="rounded-[12px] border px-3 py-2 text-[14px]"
+                style={{ background: 'rgba(201,160,92,0.1)', borderColor: 'rgba(201,160,92,0.2)', color: 'var(--text-secondary)' }}
+              >
+                {RECOVERY_COPY.unverifiable}
+              </p>
+            )}
+
+            {updateState === 'needs-sign-in' && (
+              <div
+                role="status"
+                className="flex flex-col gap-2 rounded-[12px] border px-3 py-3 text-[14px]"
+                style={{ background: 'rgba(61,168,108,0.1)', borderColor: 'rgba(61,168,108,0.2)' }}
+              >
+                <span className="flex items-start gap-2" style={{ color: 'var(--green)' }}>
+                  <CheckCircle2 size={16} aria-hidden="true" className="mt-0.5 shrink-0" />
+                  <span>{RECOVERY_COPY.needsSignIn}</span>
+                </span>
+                <span style={{ color: 'var(--text-secondary)' }}>
+                  {RECOVERY_COPY.needsSignInBody}
+                </span>
+              </div>
+            )}
+
             {updateState === 'success' && (
               <p
                 ref={successRef}
@@ -569,7 +627,7 @@ export default function ResetPassword() {
               </p>
             )}
 
-            {updateState === 'success' ? (
+            {updateState === 'success' || updateState === 'needs-sign-in' || updateState === 'unverifiable' ? (
               <button
                 type="button"
                 onClick={() => navigate('/', { replace: true })}
