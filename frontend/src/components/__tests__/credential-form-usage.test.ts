@@ -65,12 +65,6 @@ const SURFACES: Surface[] = [
     literals: ['new-password'],
   },
   {
-    name: 'admin provisioning dialog',
-    file: 'components/modal/AddAdminModal.tsx',
-    requires: ['PasswordField', 'getPasswordRuleFailures'],
-    literals: ['new-password'],
-  },
-  {
     name: 'account password change',
     file: 'pages/AccountSecurityPage.tsx',
     requires: ['PasswordField', 'PasswordConfirmField', 'PasswordErrorSummary', 'getPasswordRuleFailures'],
