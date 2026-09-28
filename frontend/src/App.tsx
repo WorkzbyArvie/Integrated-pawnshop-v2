@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, createContext, useContext, lazy, Suspense } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef, createContext, useContext, lazy, Suspense } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import Swal from 'sweetalert2';
 import {
@@ -374,40 +374,54 @@ function App() {
   const [mfaVerifiedUserId, setMfaVerifiedUserId] = useState<string | null>(null);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
+  const lastConfirmedStatus = useRef<CredentialStatus | null>(null);
+
   const loadCredentialStatus = useCallback(
     async (options?: { keepGate?: boolean }): Promise<CredentialStatus | null> => {
       if (!options?.keepGate) setCredentialState('loading');
 
-      // A fresh sign-in can outrun the token refresh, and a password change
-      // revokes the previous session, so a single 401 here is often transient
-      // rather than a real auth failure. Refresh once and retry before
-      // concluding that credential state is unavailable, which would otherwise
-      // strand a correctly authenticated user behind the fail-closed gate.
       const attempt = async (): Promise<CredentialStatus | null> =>
         fetchCredentialStatus();
 
-      try {
-        const next = await attempt();
+      const apply = (next: CredentialStatus | null) => {
+        if (next) lastConfirmedStatus.current = next;
         setCredentialStatus(next);
         setCredentialState(next ? 'ready' : 'unavailable');
         return next;
+      };
+
+      try {
+        return apply(await attempt());
       } catch (error) {
+        // A password change revokes the previous session and a fresh sign-in can
+        // outrun the token refresh, so a 401 here is usually transient. Refresh
+        // once and retry before treating it as a real auth failure.
         if (error instanceof ApiError && error.status === 401) {
           try {
             const { data } = await supabase.auth.refreshSession();
             if (data?.session?.access_token) {
-              const retried = await attempt();
-              setCredentialStatus(retried);
-              setCredentialState(retried ? 'ready' : 'unavailable');
-              return retried;
+              return apply(await attempt());
             }
           } catch {
-            // Fall through to the unavailable state below.
+            // Fall through.
           }
         }
-        setCredentialStatus(null);
-        setCredentialState('unavailable');
-        return null;
+
+        // A failed refresh must not discard a status this session already
+        // confirmed. Two requests for the same state can overlap, and letting a
+        // later 401 overwrite an earlier success drove the user into a loop:
+        // success -> forced gate -> transient 401 -> unavailable dead end ->
+        // password recovery -> repeat. The gate is defence in depth; the
+        // AccountSecurityGuard still enforces access per request, so keeping the
+        // last confirmed status cannot grant access the server would refuse.
+        // Held in a ref so the loader stays referentially stable and the mount
+        // effect cannot re-trigger itself.
+        if (lastConfirmedStatus.current) {
+          setCredentialState('ready');
+          return lastConfirmedStatus.current;
+        }
+
+        return apply(null);
       }
     },
     [],
@@ -1316,6 +1330,7 @@ function App() {
     const userId = session?.user?.id;
     clearMfaAssertion();
     setMfaVerifiedUserId(null);
+    lastConfirmedStatus.current = null;
     if (userId) {
       await supabase.from('profiles').update({ is_online: false, last_seen_at: new Date().toISOString() }).eq('id', userId);
     }
