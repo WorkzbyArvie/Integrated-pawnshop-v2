@@ -20,7 +20,11 @@ import {
   type CredentialActivityEvent,
   type CredentialStatus,
 } from '../lib/accountSecurity';
-import { clearMfaAssertion, getApiErrorDetails } from '../lib/apiClient';
+import { clearMfaAssertion } from '../lib/apiClient';
+import {
+  CREDENTIAL_FAILURE_COPY,
+  classifyCredentialFailure,
+} from '../lib/credentialFailure';
 import { getPasswordRuleFailures, PASSWORD_RULE_COPY } from '../components/Auth/PasswordRequirements';
 import {
   PasswordConfirmField,
@@ -170,18 +174,26 @@ export function AccountSecurityPage({
       setChanged(true);
       await Promise.all([loadStatus(), loadActivity()]);
     } catch (error) {
-      const code = getApiErrorDetails(error).code;
-      if (code === 'CURRENT_PASSWORD_INVALID') {
-        setCurrentPasswordError(CREDENTIAL_COPY.currentPasswordInvalid);
-        setSummaryMessage(CREDENTIAL_COPY.currentPasswordInvalid);
-        return;
+      // Name the actual problem and the field it belongs to. The previous
+      // version handled two of the eight ways this endpoint can fail and sent
+      // everything else to a generic message that told the user to check fields
+      // which were provably correct.
+      const failure = classifyCredentialFailure(error);
+      const message = CREDENTIAL_FAILURE_COPY[failure.kind](failure);
+
+      if (failure.field === 'currentPassword') {
+        setCurrentPasswordError(message);
+      } else {
+        setCurrentPasswordError(null);
       }
-      if (code === 'PASSWORD_CONFIRMATION_MISMATCH') {
-        setFieldError(PASSWORD_RULE_COPY.mismatch);
-        setSummaryMessage(CREDENTIAL_COPY.passwordFormError);
-        return;
+      if (failure.field === 'confirmPassword') {
+        setFieldError(message);
+      } else if (failure.field === 'newPassword') {
+        setFieldError(message);
+      } else {
+        setFieldError(null);
       }
-      setSummaryMessage(CREDENTIAL_COPY.passwordFormError);
+      setSummaryMessage(message);
     } finally {
       setSubmitting(false);
     }
