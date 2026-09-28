@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 4
+open_count: 6
 waived_count: 0
 fixed_count: 0
-total_count: 4
-last_updated: 2026-09-26T05:28:36.969Z
+total_count: 6
+last_updated: 2026-09-28T00:58:35.136Z
 ---
 
 # Broken Windows Ledger
@@ -19,6 +19,8 @@ last_updated: 2026-09-26T05:28:36.969Z
 | 2 | 10.1 | unmet-truth | frontend/src/lib/kycDocs.test.ts |  | Pre-existing failure: 'rejects when supabase returns an error' and 'rejects when no signedUrl is returned' fail; outside plan 10.1-05's file set and not caused by the credential-form migration | open |  | 2026-09-26T05:19:32.723Z |  |
 | 3 | 10.1 | unmet-truth | frontend/src/components/__tests__/InventoryVault.test.tsx |  | Pre-existing failure: 'marks active items for auction' fails; outside plan 10.1-05's file set and not caused by the credential-form migration | open |  | 2026-09-26T05:19:33.130Z |  |
 | 4 | 10.1 | deviation | backend/src/common/permissions/permissions-catalog.spec.ts | 474 | 10.1-04 made POST /staff/:id/password permission-gated, so the catalog count is 83 not 82 and MATRIX lacks app.controller.ts::changeStaffPassword; owned by plan 10.1-12 | open |  | 2026-09-26T05:28:36.969Z |  |
+| 5 | 10.1 | lint-warning | frontend/src/components/__tests__/MfaSetupDialog.test.tsx |  | 10.1-13: 12 React act() warnings from async state updates settling after the last assertion in the dialog suite; all tests pass, no functional failure | open |  | 2026-09-28T00:58:34.733Z |  |
+| 6 | 10.1 | lint-warning | frontend/src/components/__tests__/AccountSecurityPage.test.tsx |  | 10.1-13: act() warning from MfaSetupDialog enrollment settling after the assertion assertion in the sign-out test; all tests pass, no functional failure | open |  | 2026-09-28T00:58:35.136Z |  |
 
 ````json
 [
@@ -71,6 +73,32 @@ last_updated: 2026-09-26T05:28:36.969Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-09-26T05:28:36.969Z",
+    "resolved_at": null,
+    "milestone": "v2.0"
+  },
+  {
+    "id": 5,
+    "kind": "lint-warning",
+    "phase": "10.1",
+    "file": "frontend/src/components/__tests__/MfaSetupDialog.test.tsx",
+    "line": null,
+    "description": "10.1-13: 12 React act() warnings from async state updates settling after the last assertion in the dialog suite; all tests pass, no functional failure",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-28T00:58:34.733Z",
+    "resolved_at": null,
+    "milestone": "v2.0"
+  },
+  {
+    "id": 6,
+    "kind": "lint-warning",
+    "phase": "10.1",
+    "file": "frontend/src/components/__tests__/AccountSecurityPage.test.tsx",
+    "line": null,
+    "description": "10.1-13: act() warning from MfaSetupDialog enrollment settling after the assertion assertion in the sign-out test; all tests pass, no functional failure",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-28T00:58:35.136Z",
     "resolved_at": null,
     "milestone": "v2.0"
   }
