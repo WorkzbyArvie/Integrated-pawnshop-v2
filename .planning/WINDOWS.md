@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 6
+open_count: 8
 waived_count: 0
 fixed_count: 0
-total_count: 6
-last_updated: 2026-09-28T00:58:35.136Z
+total_count: 8
+last_updated: 2026-09-28T01:20:03.891Z
 ---
 
 # Broken Windows Ledger
@@ -21,6 +21,8 @@ last_updated: 2026-09-28T00:58:35.136Z
 | 4 | 10.1 | deviation | backend/src/common/permissions/permissions-catalog.spec.ts | 474 | 10.1-04 made POST /staff/:id/password permission-gated, so the catalog count is 83 not 82 and MATRIX lacks app.controller.ts::changeStaffPassword; owned by plan 10.1-12 | open |  | 2026-09-26T05:28:36.969Z |  |
 | 5 | 10.1 | lint-warning | frontend/src/components/__tests__/MfaSetupDialog.test.tsx |  | 10.1-13: 12 React act() warnings from async state updates settling after the last assertion in the dialog suite; all tests pass, no functional failure | open |  | 2026-09-28T00:58:34.733Z |  |
 | 6 | 10.1 | lint-warning | frontend/src/components/__tests__/AccountSecurityPage.test.tsx |  | 10.1-13: act() warning from MfaSetupDialog enrollment settling after the assertion assertion in the sign-out test; all tests pass, no functional failure | open |  | 2026-09-28T00:58:35.136Z |  |
+| 7 | 10.1 | lint-warning | frontend/src/components/__tests__/AccountSecurityPage.test.tsx |  | React act() warnings from App/MfaChallenge async state settling after the last assertion in the new preflight tests; all 35 focused tests pass | open |  | 2026-09-28T01:19:58.506Z |  |
+| 8 | 10.1 | unrun-verify | frontend/src/components/Auth/MfaChallenge.tsx |  | 10.1-14 human check still owed: desktop/375px challenge layout, keyboard-only operation, reduced motion, real clipboard paste, and mobile navigation drawer | open |  | 2026-09-28T01:20:03.891Z |  |
 
 ````json
 [
@@ -99,6 +101,32 @@ last_updated: 2026-09-28T00:58:35.136Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-09-28T00:58:35.136Z",
+    "resolved_at": null,
+    "milestone": "v2.0"
+  },
+  {
+    "id": 7,
+    "kind": "lint-warning",
+    "phase": "10.1",
+    "file": "frontend/src/components/__tests__/AccountSecurityPage.test.tsx",
+    "line": null,
+    "description": "React act() warnings from App/MfaChallenge async state settling after the last assertion in the new preflight tests; all 35 focused tests pass",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-28T01:19:58.506Z",
+    "resolved_at": null,
+    "milestone": "v2.0"
+  },
+  {
+    "id": 8,
+    "kind": "unrun-verify",
+    "phase": "10.1",
+    "file": "frontend/src/components/Auth/MfaChallenge.tsx",
+    "line": null,
+    "description": "10.1-14 human check still owed: desktop/375px challenge layout, keyboard-only operation, reduced motion, real clipboard paste, and mobile navigation drawer",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-28T01:20:03.891Z",
     "resolved_at": null,
     "milestone": "v2.0"
   }
