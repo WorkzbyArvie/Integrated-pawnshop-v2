@@ -1,4 +1,10 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { createHmac, timingSafeEqual } from 'node:crypto';
+import {
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 import { StorageService } from '../common/storage/storage.service';
 import PDFDocument from 'pdfkit';
@@ -9,10 +15,30 @@ export class ReceiptService {
   private readonly CACHE_TTL_MS = 5 * 60 * 1000;
   private readonly CACHE_MAX = 100;
 
+  /** How long a signed PDF link stays usable: long enough to click a link,
+   *  short enough that a leaked URL is worthless. */
+  private readonly PDF_LINK_TTL_SECONDS = 300;
+
+  /**
+   * Signing material for receipt PDF links, derived from the existing JWT secret
+   * with a domain-separation label rather than adding another required
+   * environment variable. Deriving instead of reusing the raw secret means a
+   * signature minted here can never be confused with, or replayed as, anything
+   * the auth layer checks.
+   */
+  private readonly pdfSigningKey: string;
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly storage: StorageService,
-  ) {}
+  ) {
+    this.pdfSigningKey = createHmac(
+      'sha256',
+      process.env.JWT_SECRET || 'pawngold-receipt-pdf-dev-key',
+    )
+      .update('receipt-pdf-link')
+      .digest('hex');
+  }
 
   async generateReceipt(params: {
     pawnshopId: string;
@@ -122,9 +148,89 @@ export class ReceiptService {
     return receipt;
   }
 
+  /**
+   * Confirms the caller is entitled to a receipt belonging to `receipt`.
+   *
+   * A receipt records the customer's name, address, amounts and the items
+   * pawned, so it is tenant-private. The PDF download route was public, which
+   * meant possession of a receipt id was enough to read one. The platform
+   * operator is exempt; everyone else must match, and an account with no tenant
+   * is refused rather than allowed to read anything.
+   */
+  assertTenantAccess(
+    receipt: { pawnshopId?: string | null },
+    actor: { pawnshopId?: string | null; role?: string } | undefined,
+  ): void {
+    if (actor?.role === 'SUPER_ADMIN') return;
+    if (!actor?.pawnshopId) {
+      throw new ForbiddenException('This account is not attached to a shop');
+    }
+    if (receipt.pawnshopId && receipt.pawnshopId !== actor.pawnshopId) {
+      throw new ForbiddenException('This receipt belongs to another shop');
+    }
+  }
+
   async getPdfInfo(id: string) {
     const receipt = await this.get(id);
     return { receiptId: receipt.id, receiptNumber: receipt.receiptNumber };
+  }
+
+  private signPdfLink(receiptId: string, expiresAt: number): string {
+    return createHmac('sha256', this.pdfSigningKey)
+      .update(`receipt-pdf:${receiptId}:${expiresAt}`)
+      .digest('hex');
+  }
+
+  /**
+   * Mints a short-lived signed link for a receipt PDF.
+   *
+   * The download route cannot simply require a bearer token, because every
+   * client opens the returned URL as a plain link: the dashboard renders it as
+   * an anchor, the auction site hands it to a bidder, and the mobile app hands
+   * it to the platform PDF viewer. None of those attach an Authorization header.
+   * So authorisation moves to the call that mints the link - which is
+   * authenticated, permission-gated and tenant-checked - and the download route
+   * accepts only a signature that route issued, for a few minutes.
+   */
+  createSignedPdfPath(receiptId: string): { path: string; expiresAt: string } {
+    const expiresAt = Math.floor(Date.now() / 1000) + this.PDF_LINK_TTL_SECONDS;
+    const signature = this.signPdfLink(receiptId, expiresAt);
+    return {
+      path: `/receipts/${receiptId}/pdf/download?expires=${expiresAt}&sig=${signature}`,
+      expiresAt: new Date(expiresAt * 1000).toISOString(),
+    };
+  }
+
+  /**
+   * Verifies a signed PDF link. Rejects a missing, malformed, expired or
+   * mismatched signature. Comparison is constant-time.
+   */
+  verifySignedPdfLink(
+    receiptId: string,
+    expires: string | undefined,
+    signature: string | undefined,
+  ): void {
+    if (!expires || !signature) {
+      throw new UnauthorizedException('A signed receipt link is required');
+    }
+
+    const expiresAt = Number(expires);
+    if (!Number.isInteger(expiresAt)) {
+      throw new UnauthorizedException('Malformed receipt link');
+    }
+    if (expiresAt * 1000 < Date.now()) {
+      throw new UnauthorizedException('This receipt link has expired');
+    }
+
+    const expected = this.signPdfLink(receiptId, expiresAt);
+    const expectedBuf = Buffer.from(expected, 'utf8');
+    const providedBuf = Buffer.from(signature, 'utf8');
+    if (
+      expectedBuf.length !== providedBuf.length ||
+      !timingSafeEqual(expectedBuf, providedBuf)
+    ) {
+      throw new UnauthorizedException('Invalid receipt link');
+    }
   }
 
   async getPdfBuffer(id: string): Promise<Buffer> {

@@ -82,14 +82,30 @@ export class AppController {
     return this.appService.checkEmailAvailability(email, role);
   }
 
-  @Public()
+  /**
+   * Duplicate-customer check for counter staff entering a new pawn.
+   *
+   * Previously `@Public()` and accepting `pawnshopId` as a query parameter.
+   * That made it an unauthenticated PII oracle: submit a name and a contact
+   * number, receive the matching customer record including their id and tenant,
+   * and omit `pawnshopId` to search every shop in the database. It now requires
+   * a session, is gated on the permission that already guards ticket creation,
+   * and derives the tenant from the authenticated principal instead of trusting
+   * the request. The matched record is no longer returned - callers only need
+   * the boolean, and the sole consumer already used just that.
+   */
   @Get('customers/check')
+  @RequiresPermission(PERMISSIONS['pawn_ticket.create'])
   async checkCustomer(
+    @Req() req: { user: { pawnshopId: string | null } },
     @Query('fullName') fullName: string,
     @Query('contactNumber') contactNumber: string,
-    @Query('pawnshopId') pawnshopId?: string,
   ) {
-    return this.appService.checkCustomerDuplicate(fullName, contactNumber, pawnshopId);
+    return this.appService.checkCustomerDuplicate(
+      fullName,
+      contactNumber,
+      req.user?.pawnshopId,
+    );
   }
 
   // --- AUTH ENDPOINTS (Development Local Auth) ---

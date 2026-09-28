@@ -29,7 +29,35 @@ const KNOWN_TUPLES: string[][] = [
 
 const APPRAISE_EXCEPTION = 'pawn-ticket.controller.ts::appraiseTicket';
 
+// Analytics reads are tenant-scoped in the service layer rather than by role
+// tuple: a caller may only ever read its own shop, and a request naming another
+// tenant is refused regardless of role. The permission still gates who may read
+// reporting at all. See `resolveTenant` in analytics.service.ts.
+const ANALYTICS_VIEWS: { tuple: string[]; permission: string } = {
+  tuple: ['OWNER', 'MANAGER'],
+  permission: 'reports.view',
+};
+
+/** Duplicate-customer lookup, re-gated on the permission that already guards
+ *  ticket creation. Was `@Public()`. Tenant scope is derived in the service. */
+const CUSTOMER_CHECK: { tuple: string[]; permission: string } = {
+  tuple: ['CASHIER_TELLER', 'STAFF', 'MANAGER', 'OWNER'],
+  permission: 'pawn_ticket.create',
+};
+
+/** Minting a receipt PDF link. The download route stays `@Public()` but accepts
+ *  only a signature this route issued; see receipt.service.ts. */
+const RECEIPT_PDF: { tuple: string[]; permission: string } = {
+  tuple: ['OWNER', 'MANAGER'],
+  permission: 'finance.manage',
+};
+
 const MATRIX: Record<string, { tuple: string[]; permission: string }> = {
+  'analytics.controller.ts::getStats': ANALYTICS_VIEWS,
+  'analytics.controller.ts::getBranchStats': ANALYTICS_VIEWS,
+  'analytics.controller.ts::getBatchBranchStats': ANALYTICS_VIEWS,
+  'app.controller.ts::checkCustomer': CUSTOMER_CHECK,
+  'receipt.controller.ts::getPdf': RECEIPT_PDF,
   'pawn-ticket.controller.ts::createTicket': {
     tuple: ['CASHIER_TELLER', 'STAFF', 'MANAGER', 'OWNER'],
     permission: 'pawn_ticket.create',
@@ -548,12 +576,15 @@ describe('69-site equivalence scan', () => {
     }
   });
 
-  it('finds all 83 guarded endpoints across the controllers', () => {
+  it('finds all 88 guarded endpoints across the controllers', () => {
+    // Calibration tripwire. Raised from 83 when five previously undecorated
+    // reads were given an explicit permission: the three analytics reads, the
+    // duplicate-customer lookup, and minting a receipt PDF link.
     const total = [...sitesByFile.values()].reduce((sum, sites) => {
       const withAny = sites.filter((s) => s.roles || s.permissions);
       return sum + withAny.length;
     }, 0);
-    expect(total).toBe(83);
+    expect(total).toBe(88);
   });
 
   it('matrix tuples match the current @Roles tuples (RED-phase calibration)', () => {

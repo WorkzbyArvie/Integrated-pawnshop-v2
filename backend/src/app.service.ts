@@ -1988,34 +1988,42 @@ export class AppService {
     };
   }
 
+  /**
+   * Reports whether a customer with this name and contact already exists.
+   *
+   * The matched record used to be returned to the caller. Combined with this
+   * being reachable unauthenticated, that made the endpoint a way to confirm
+   * and retrieve customer PII from any tenant. Only the boolean is returned now;
+   * the message echoes back the name the caller already supplied, so it
+   * discloses nothing the requester did not already know.
+   */
   async checkCustomerDuplicate(
     fullName: string,
     contactNumber: string,
-    pawnshopId?: string,
+    pawnshopId?: string | null,
   ) {
     const normalized = String(fullName || '').trim().replace(/\s+/g, ' ');
     const normalizedContact = String(contactNumber || '').trim();
 
     if (!normalized || !normalizedContact) {
-      return { exists: false };
+      return { exists: false, message: 'No duplicate found' };
     }
 
-    const where: any = {
-      fullName: normalized,
-      contactNumber: normalizedContact,
-    };
-    if (pawnshopId) where.pawnshopId = pawnshopId;
+    // A caller with no tenant cannot search a single shop, and searching all of
+    // them at once is exactly the leak this closes.
+    if (!pawnshopId) {
+      return { exists: false, message: 'No duplicate found' };
+    }
 
     const existing = await this.prisma.customer.findFirst({
-      where,
-      select: { id: true, fullName: true, contactNumber: true, pawnshopId: true },
+      where: { fullName: normalized, contactNumber: normalizedContact, pawnshopId },
+      select: { id: true },
     });
 
     return {
       exists: !!existing,
-      customer: existing || null,
       message: existing
-        ? `A customer named "${existing.fullName}" with this contact already exists`
+        ? `A customer named "${normalized}" with this contact already exists`
         : 'No duplicate found',
     };
   }

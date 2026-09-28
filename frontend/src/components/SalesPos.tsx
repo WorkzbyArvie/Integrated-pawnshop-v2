@@ -76,15 +76,19 @@ export function SalesPos({ branchId, activeBranchId }: SalesPosProps) {
     }
     setCustomerDuplicate((prev) => ({ ...prev, checking: true }));
     try {
-      const res = await api.get<{ exists: boolean; customer?: { fullName: string }; message: string }>(
-        '/customers/check',
-        { fullName: name.trim(), contactNumber: contact.trim(), pawnshopId: branchId || undefined }
-      );
+      // No pawnshopId is sent. The endpoint derives the tenant from the session
+      // and refuses to search beyond the caller's own shop, which is exactly
+      // what this call previously defeated by passing a branch id where a
+      // tenant UUID was expected.
+      const res = await api.get<{ exists: boolean; message: string }>('/customers/check', {
+        fullName: name.trim(),
+        contactNumber: contact.trim(),
+      });
       setCustomerDuplicate({ checking: false, exists: res.exists, message: res.exists ? res.message : '' });
     } catch {
       setCustomerDuplicate({ checking: false, exists: false, message: '' });
     }
-  }, [branchId]);
+  }, []);
 
   useEffect(() => {
     if (customerCheckTimer.current) clearTimeout(customerCheckTimer.current);
