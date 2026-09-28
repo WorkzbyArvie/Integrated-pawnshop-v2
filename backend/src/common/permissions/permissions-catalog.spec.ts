@@ -24,6 +24,7 @@ const KNOWN_TUPLES: string[][] = [
   ['APPRAISER', 'STAFF', 'MANAGER', 'OWNER'],
   ['OWNER'],
   ['OWNER', 'ADMIN'],
+  ['OWNER', 'ADMIN', 'MANAGER', 'SUPER_ADMIN'],
 ];
 
 const APPRAISE_EXCEPTION = 'pawn-ticket.controller.ts::appraiseTicket';
@@ -257,6 +258,10 @@ const MATRIX: Record<string, { tuple: string[]; permission: string }> = {
     tuple: ['SUPER_ADMIN'],
     permission: 'platform.manage',
   },
+  'app.controller.ts::changeStaffPassword': {
+    tuple: ['OWNER', 'ADMIN', 'MANAGER', 'SUPER_ADMIN'],
+    permission: 'user.manage_staff',
+  },
   'approval.controller.ts::getQueue': {
     tuple: ['OWNER', 'ADMIN', 'MANAGER', 'CASHIER_TELLER', 'APPRAISER'],
     permission: 'approval.view_queue',
@@ -416,16 +421,34 @@ function parseController(file: string): Site[] {
   return sites;
 }
 
-function migrationSqlPath(): string {
+function migrationSqlBySuffix(suffix: string): string {
   const dir = fs
     .readdirSync(migrationsRoot, { withFileTypes: true })
-    .find((entry) => entry.isDirectory() && entry.name.endsWith('_v2_schema_baseline'));
-  if (!dir) throw new Error('v2_schema_baseline migration directory not found');
-  return path.join(migrationsRoot, dir.name, 'migration.sql');
+    .find((entry) => entry.isDirectory() && entry.name.endsWith(suffix));
+  if (!dir) throw new Error(`${suffix} migration directory not found`);
+  return fs.readFileSync(path.join(migrationsRoot, dir.name, 'migration.sql'), 'utf8');
+}
+
+function migrationSqlPath(): string {
+  return migrationSqlBySuffix('_v2_schema_baseline');
+}
+
+const RBAC_GUARD_SOURCE = fs.readFileSync(
+  path.resolve(__dirname, '../guards/rbac.guard.ts'),
+  'utf8',
+);
+
+function superAdminAllowlist(): string[] {
+  const block = RBAC_GUARD_SOURCE.match(
+    /SUPER_ADMIN_PERMISSIONS\s*=\s*new Set<string>\(\s*\[([\s\S]*?)\]\s*\)/,
+  );
+  if (!block) throw new Error('SUPER_ADMIN_PERMISSIONS allowlist not found');
+  return [...block[1].matchAll(/'([a-z_.]+)'/g)].map((match) => match[1]);
 }
 
 describe('permission catalog consistency', () => {
-  const migrationSql = fs.readFileSync(migrationSqlPath(), 'utf8');
+  const migrationSql = migrationSqlPath();
+  const credentialStateSql = migrationSqlBySuffix('_add_credential_state');
   const constNames = Object.keys(PERMISSIONS);
   const sqlNames = [
     ...migrationSql.matchAll(/^\s*\('([a-z_.]+)',\s*'[a-z_]+',\s*NULL\)[,]?$/gm),
@@ -441,9 +464,9 @@ describe('permission catalog consistency', () => {
     expect(new Set(sqlNames)).toEqual(new Set(constNames));
   });
 
-  it('ROLE_PERMISSIONS references only const values and sums to 112 mappings', () => {
+  it('ROLE_PERMISSIONS references only const values and sums to 114 mappings', () => {
     const mapped = Object.values(ROLE_PERMISSIONS).flat();
-    expect(mapped.length).toBe(112);
+    expect(mapped.length).toBe(114);
     for (const name of mapped) {
       expect(PERMISSIONS[name]).toBe(name);
     }
@@ -451,6 +474,65 @@ describe('permission catalog consistency', () => {
       ...migrationSql.matchAll(/^\s*\('[A-Z_]+','[a-z_.]+'\)[,]?$/gm),
     ].length;
     expect(sqlRows).toBe(106);
+  });
+
+  it('seeds the two compatibility staff-management grants by name and mirrors them at runtime', () => {
+    const seed =
+      credentialStateSql.match(
+        /INSERT INTO "public"\."role_permissions"[\s\S]*?ON CONFLICT \("role", "permission_id"\) DO NOTHING;/,
+      )?.[0] ?? '';
+    const seeded = [...seed.matchAll(/\('([A-Z_]+)',\s*'([a-z_.]+)'\)/g)].map(
+      (m) => ({ role: m[1], permission: m[2] }),
+    );
+
+    expect(seed).not.toBe('');
+    expect(seeded).toEqual([
+      { role: 'ADMIN', permission: 'user.manage_staff' },
+      { role: 'SUPER_ADMIN', permission: 'user.manage_staff' },
+    ]);
+
+    const baselineRows = [
+      ...migrationSql.matchAll(/^\s*\('[A-Z_]+','[a-z_.]+'\)[,]?$/gm),
+    ].length;
+    expect(baselineRows + seeded.length).toBe(108);
+
+    for (const grant of seeded) {
+      expect(ROLE_PERMISSIONS[grant.role]).toContain(grant.permission);
+      expect(seeded.filter((row) => row.permission === grant.permission)).toHaveLength(2);
+    }
+  });
+
+  it('keeps every administrative staff-reset holder in the const', () => {
+    for (const role of ['OWNER', 'ADMIN', 'MANAGER', 'SUPER_ADMIN']) {
+      expect(ROLE_PERMISSIONS[role]).toContain('user.manage_staff');
+    }
+  });
+
+  it('grants the guard Super Admin allowlist every Super Admin matrix permission', () => {
+    const allowlist = new Set(superAdminAllowlist());
+    const required = new Set(
+      Object.values(MATRIX)
+        .filter((entry) => entry.tuple.includes('SUPER_ADMIN'))
+        .map((entry) => entry.permission),
+    );
+
+    expect(required.size).toBeGreaterThan(0);
+    for (const permission of required) {
+      expect([...allowlist]).toContain(permission);
+      expect(PERMISSIONS[permission as keyof typeof PERMISSIONS]).toBe(permission);
+    }
+  });
+
+  it('leaves the universal self-service security routes authenticated and undecorated', () => {
+    const securityController = fs.readFileSync(
+      path.resolve(srcRoot, 'security', 'security.controller.ts'),
+      'utf8',
+    );
+
+    expect(securityController).not.toMatch(/@Roles\(/);
+    expect(securityController).not.toMatch(/@RequiresPermission\(/);
+    const sites = parseController(path.resolve(srcRoot, 'security', 'security.controller.ts'));
+    expect(sites.filter((site) => site.roles || site.permissions)).toEqual([]);
   });
 });
 
@@ -466,12 +548,12 @@ describe('69-site equivalence scan', () => {
     }
   });
 
-  it('finds all 82 guarded endpoints across the controllers', () => {
+  it('finds all 83 guarded endpoints across the controllers', () => {
     const total = [...sitesByFile.values()].reduce((sum, sites) => {
       const withAny = sites.filter((s) => s.roles || s.permissions);
       return sum + withAny.length;
     }, 0);
-    expect(total).toBe(82);
+    expect(total).toBe(83);
   });
 
   it('matrix tuples match the current @Roles tuples (RED-phase calibration)', () => {

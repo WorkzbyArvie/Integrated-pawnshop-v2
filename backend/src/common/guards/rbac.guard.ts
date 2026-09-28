@@ -24,6 +24,7 @@ const LEGACY_ROLES = new Set([
 
 const SUPER_ADMIN_PERMISSIONS = new Set<string>([
   'platform.manage',
+  'user.manage_staff',
   'tenant.view_audit',
   'compliance.view',
   'compliance.manage_documents',

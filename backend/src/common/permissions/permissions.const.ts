@@ -44,7 +44,7 @@ export const PERMISSIONS = {
 export type PermissionName = keyof typeof PERMISSIONS;
 
 export const ROLE_PERMISSIONS: Record<string, PermissionName[]> = {
-  SUPER_ADMIN: ['platform.manage', 'review.moderate'],
+  SUPER_ADMIN: ['platform.manage', 'user.manage_staff', 'review.moderate'],
   OWNER: [
     'tenant.manage',
     'tenant.view_audit',
@@ -85,6 +85,7 @@ export const ROLE_PERMISSIONS: Record<string, PermissionName[]> = {
   ],
   ADMIN: [
     'tenant.view_audit',
+    'user.manage_staff',
     'auction.settle',
     'auction.manual_settle',
     'approval.view_queue',

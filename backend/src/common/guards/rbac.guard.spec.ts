@@ -109,6 +109,20 @@ describe('RbacGuard', () => {
     await expect(buildGuard().canActivate(context as never)).rejects.toThrow(ForbiddenException);
   });
 
+  it('(q) allows SUPER_ADMIN on the reused staff-reset permission without a permission lookup', async () => {
+    metadata[PERMISSIONS_KEY] = ['user.manage_staff'];
+    prisma.profile.findUnique.mockResolvedValue({
+      role: 'SUPER_ADMIN',
+      staffType: null,
+      pawnshopId: null,
+    });
+
+    await expect(buildGuard().canActivate(context as never)).resolves.toBe(true);
+
+    expect(permissionService.resolveEffectivePermissions).not.toHaveBeenCalled();
+    expect(request.user).toMatchObject({ role: 'SUPER_ADMIN', pawnshopId: null });
+  });
+
   it('(o) allows SUPER_ADMIN on ungated platform governance routes', async () => {
     request.path = '/tenant-governance/pawnshops/metadata';
     prisma.profile.findUnique.mockResolvedValue({
