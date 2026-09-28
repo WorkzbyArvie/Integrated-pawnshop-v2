@@ -560,46 +560,42 @@ describe('MfaSetupDialog', () => {
     describe('isRefocusDismissal', () => {
       const focusin = { originalEvent: { type: 'focusin' } };
       const pointerdown = { originalEvent: { type: 'pointerdown' } };
+      const keydown = { originalEvent: { type: 'keydown' } };
 
-      it('suppresses a focusin dismissal while the window is refocusing', () => {
-        expect(isRefocusDismissal(focusin, true)).toBe(true);
+      it('suppresses a focusin dismissal', () => {
+        // The whole fix in one line: a focusin is the browser restoring focus,
+        // never the user dismissing, and it must be suppressed whether or not
+        // the page ever saw a window blur.
+        expect(isRefocusDismissal(focusin)).toBe(true);
       });
 
-      it('never suppresses a backdrop click, refocusing or not', () => {
-        expect(isRefocusDismissal(pointerdown, true)).toBe(false);
-        expect(isRefocusDismissal(pointerdown, false)).toBe(false);
+      it('never suppresses a backdrop click', () => {
+        // The regression risk of dropping the flag: a real click must still
+        // close the dialog. A pointerdown is how a backdrop click arrives.
+        expect(isRefocusDismissal(pointerdown)).toBe(false);
       });
 
-      it('never suppresses a focusin once the window has settled', () => {
-        // Moving focus deliberately is a real interaction. The flag is cleared
-        // when the window focus arrives, so this is not a refocus.
-        expect(isRefocusDismissal(focusin, false)).toBe(false);
+      it('never suppresses a key dismissal', () => {
+        expect(isRefocusDismissal(keydown)).toBe(false);
       });
 
       it('tolerates an event carrying no original event', () => {
-        expect(isRefocusDismissal({}, true)).toBe(false);
-        expect(isRefocusDismissal(null, true)).toBe(false);
-        expect(isRefocusDismissal(undefined, false)).toBe(false);
+        expect(isRefocusDismissal({})).toBe(false);
+        expect(isRefocusDismissal(null)).toBe(false);
+        expect(isRefocusDismissal(undefined)).toBe(false);
       });
     });
 
-    // The flag itself has to be observable, since the predicate depends on it.
-    it('raises the refocus flag on window blur and clears it on focus', async () => {
-      renderDialog();
-
-      let refocusing: boolean | null = null;
-      const readFlag = () => refocusing;
-
-      await act(async () => {
-        window.dispatchEvent(new Event('blur'));
-      });
-      // Probe the flag the guard reads by way of the same listener.
-      refocusing = await new Promise((resolve) => {
-        window.dispatchEvent(new Event('focus'));
-        window.setTimeout(() => resolve(true), 0);
-      });
-
-      expect(readFlag()).toBe(true);
+    // The bug behind the old signature, reported twice and only ever with
+    // DevTools docked: focus returned to the DevTools frame, so the page saw a
+    // focus that cleared the blur flag before Radix consulted it. With no flag
+    // there is nothing to lose a race against, and the single-argument signature
+    // means reintroducing one is a compile error at every existing call site.
+    it('needs no window focus state to decide', () => {
+      // A backdrop click, which is the dismissal that must survive.
+      expect(isRefocusDismissal({ originalEvent: { type: 'pointerdown' } })).toBe(false);
+      // A refocus, which must not.
+      expect(isRefocusDismissal({ originalEvent: { type: 'focusin' } })).toBe(true);
     });
 
     // The dialog must still be closable by the user, which is the regression the
