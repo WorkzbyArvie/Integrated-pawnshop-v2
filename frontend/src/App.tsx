@@ -39,6 +39,7 @@ import {
 // Import Libs
 import { supabase } from './lib/supabaseClient';
 import api, { ApiError, clearMfaAssertion, getMfaAssertion } from './lib/apiClient';
+import { setBlockingSurface } from './lib/blockingSurface';
 import {
   fetchCredentialStatus,
   resolveCredentialAccess,
@@ -454,6 +455,21 @@ function App() {
     setMfaVerifiedUserId((prev) => (prev && prev !== userId ? null : prev));
     if (!userId) clearMfaAssertion();
   }, [session?.user?.id]);
+
+  // Tell the app-wide cookie notice to stand down while a blocking security
+  // surface owns the viewport. The MFA challenge, the unavailable-status screen
+  // and the forced password gate are the only routes by which a locked-out user
+  // can recover, and a privacy panel floating over them could sit on top of the
+  // control they need. Declared here rather than at the return sites so it stays
+  // a render-phase side-effect-free effect.
+  const blockingSecuritySurfaceActive =
+    mfaChallengeRequired ||
+    credentialAccess === 'forced' ||
+    credentialAccess === 'unavailable';
+
+  useEffect(() => {
+    setBlockingSurface(blockingSecuritySurfaceActive ? 'credential-gate' : 'none');
+  }, [blockingSecuritySurfaceActive]);
 
   // In live branch view, only owners can impersonate/select operational branch snapshots.
   const effectiveUserRole = userRole;

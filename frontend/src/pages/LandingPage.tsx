@@ -236,22 +236,6 @@ export default function LandingPage() {
   const [communityReviews, setCommunityReviews] = useState<ApprovedReview[]>([]);
   const [reviewsSummary, setReviewsSummary] = useState({ averageRating: 0, totalReviews: 0 });
   const [acceptedTerms, setAcceptedTerms] = useState(false);
-  const [cookieConsent, setCookieConsent] = useState<boolean>(() => {
-    try {
-      return localStorage.getItem('pawngold_cookie_consent') === 'accepted';
-    } catch {
-      return false;
-    }
-  });
-
-  const acceptCookies = () => {
-    try {
-      localStorage.setItem('pawngold_cookie_consent', 'accepted');
-    } catch {
-      /* storage unavailable */
-    }
-    setCookieConsent(true);
-  };
 
   const checkEmailAvailability = useCallback(async (email: string) => {
     if (!email || !email.includes('@')) {
@@ -1645,52 +1629,6 @@ export default function LandingPage() {
                 </div>
               </div>
             )}
-          </div>
-        </div>
-      )}
-
-      {/* COOKIE CONSENT */}
-      {!cookieConsent && (
-        <div
-          className="fixed bottom-4 left-4 right-4 z-[110] sm:right-auto sm:max-w-sm"
-          role="dialog"
-          aria-label="Cookie notice"
-        >
-          <div
-            className="rounded-[16px] p-5"
-            style={{
-              background: 'rgba(20,20,27,0.98)',
-              border: '1px solid rgba(201,160,92,0.2)',
-              boxShadow: '0 24px 64px rgba(0,0,0,0.5)',
-            }}
-          >
-            <p className="text-[13px] font-semibold" style={{ color: 'var(--text-primary)' }}>Your privacy</p>
-            <p className="mt-1.5 text-[12px] leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
-              PawnGold does not use tracking cookies. We only store essential session data locally
-              so you can sign in. See our{' '}
-              <Link to="/cookies" className="underline" style={{ color: 'var(--gold)' }}>Cookie Policy</Link> for details.
-            </p>
-            <div className="mt-4 flex gap-2">
-              <button
-                type="button"
-                onClick={acceptCookies}
-                className="rounded-[10px] px-4 py-2 text-[12px] font-semibold transition-all active:scale-[0.97]"
-                style={{
-                  background: 'linear-gradient(135deg, #C9A05C 0%, #A07D40 100%)',
-                  color: '#0A0A0F',
-                  border: '1px solid rgba(201,160,92,0.45)',
-                }}
-              >
-                Got it
-              </button>
-              <Link
-                to="/cookies"
-                className="rounded-[10px] px-4 py-2 text-[12px] font-medium transition-all"
-                style={{ border: '1px solid rgba(255,255,255,0.1)', color: 'var(--text-secondary)' }}
-              >
-                Learn more
-              </Link>
-            </div>
           </div>
         </div>
       )}

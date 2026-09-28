@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { ArrowLeft, ShieldCheck } from 'lucide-react';
+import { CookieConsentManager } from '../components/CookieConsentManager';
 
 type Section = {
   heading: string;
@@ -208,10 +209,12 @@ const DOCUMENTS: Record<string, LegalDocument> = {
       {
         heading: '2. Local Storage and Why We Use It',
         body: [
-          'Local storage is used for a limited set of essential purposes:',
+          'Local storage is used for a limited set of purposes. The exact list of stored items is reproduced under "Your choice" below and is read from the application itself rather than described here, so it can be checked:',
           '\u2022 Authentication tokens that keep you signed in across page loads.',
-          '\u2022 Your last-viewed dashboard area and lightweight UI preferences, so the interface feels consistent.',
-          '\u2022 Your cookie-notice preference, so we show the notice only until you acknowledge it once.',
+          '\u2022 Which branch or shop you are acting for, and your resolved role, so the interface opens where you left it.',
+          '\u2022 Your last-viewed dashboard area and lightweight UI preferences.',
+          '\u2022 A short-lived summary of dashboard figures, cached so the dashboard renders quickly.',
+          '\u2022 Your notice preference, so the notice is shown only until you decide, and so a change to this policy can ask you again.',
         ],
       },
       {
@@ -224,8 +227,9 @@ const DOCUMENTS: Record<string, LegalDocument> = {
       {
         heading: '4. Managing Local Storage',
         body: [
-          'You can clear local storage at any time through your browser\u2019s privacy or site-settings menu. Doing so may sign you out of the platform and reset lightweight preferences, but it will not delete data stored on our servers.',
-          'After clearing local storage, the cookie notice banner will appear again on your next visit.',
+          'You can withdraw your notice decision at any time using the controls under "Your choice" below. That records the withdrawal without signing you out; the items above remain until you clear them separately.',
+          'Clearing local storage entirely through your browser\u2019s privacy or site-settings menu remains available. Doing so may sign you out of the platform and reset lightweight preferences, but it will not delete data stored on our servers.',
+          'If this policy changes materially, its version number increases and the notice is shown again so you can decide against the new text.',
         ],
       },
       {
@@ -333,6 +337,8 @@ export default function LegalDocPage({ path }: { path: string }) {
             </section>
           ))}
         </div>
+
+        {path === '/cookies' && <CookieConsentManager />}
 
         <div
           className="mt-12 rounded-[16px] p-5"
