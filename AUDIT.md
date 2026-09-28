@@ -491,3 +491,20 @@ If the remediation completes, the defence position is:
 > engine built from their own service history — one that admits when it does not know.
 
 Four claims. Each demonstrable. None requires a claim that cannot be proven.
+
+### S5-13 · Six controllers sit outside the Express tenant guard
+`main.ts` applies a `pawnshop-id` requirement to a hand-maintained list of path prefixes
+and short-circuits with a 400 **before Nest routing runs**. Six controller modules hold
+tenant-scoped data but are not on that list, so the second, independent tenant check does
+not apply to them: `approval-queue`, `contracts`, `kyc`, `payment-methods`, `profile`,
+`tenant-governance`.
+
+They are not necessarily exploitable — most scope by `req.user` inside the controller —
+but the redundancy is missing, and `kyc` in particular holds personal data.
+
+Found by `src/common/guards/tenant-guard-coverage.spec.ts`, which enumerates every
+`@Controller` prefix and requires each to be guarded, deliberately public, or explicitly
+awaiting review. That test exists because `/decision-support` was added without being
+added to the list, compiled fine, passed its unit tests, deployed successfully, and then
+returned `400 Missing pawnshop-id header` to every caller including authenticated owners.
+*Disposition: **PUBLISHED** — awaiting a decision per module*

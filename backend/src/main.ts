@@ -97,6 +97,7 @@ async function bootstrap() {
   const operationalPrefixes = [
     '/analytics',
     '/auction',
+    '/decision-support',
     '/finance',
     '/payroll',
     '/compliance',
