@@ -38,7 +38,7 @@ import {
 
 // Import Libs
 import { supabase } from './lib/supabaseClient';
-import api, { clearMfaAssertion, getMfaAssertion } from './lib/apiClient';
+import api, { ApiError, clearMfaAssertion, getMfaAssertion } from './lib/apiClient';
 import {
   fetchCredentialStatus,
   resolveCredentialAccess,
@@ -377,12 +377,34 @@ function App() {
   const loadCredentialStatus = useCallback(
     async (options?: { keepGate?: boolean }): Promise<CredentialStatus | null> => {
       if (!options?.keepGate) setCredentialState('loading');
+
+      // A fresh sign-in can outrun the token refresh, and a password change
+      // revokes the previous session, so a single 401 here is often transient
+      // rather than a real auth failure. Refresh once and retry before
+      // concluding that credential state is unavailable, which would otherwise
+      // strand a correctly authenticated user behind the fail-closed gate.
+      const attempt = async (): Promise<CredentialStatus | null> =>
+        fetchCredentialStatus();
+
       try {
-        const next = await fetchCredentialStatus();
+        const next = await attempt();
         setCredentialStatus(next);
         setCredentialState(next ? 'ready' : 'unavailable');
         return next;
-      } catch {
+      } catch (error) {
+        if (error instanceof ApiError && error.status === 401) {
+          try {
+            const { data } = await supabase.auth.refreshSession();
+            if (data?.session?.access_token) {
+              const retried = await attempt();
+              setCredentialStatus(retried);
+              setCredentialState(retried ? 'ready' : 'unavailable');
+              return retried;
+            }
+          } catch {
+            // Fall through to the unavailable state below.
+          }
+        }
         setCredentialStatus(null);
         setCredentialState('unavailable');
         return null;
