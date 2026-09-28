@@ -622,6 +622,32 @@ export function MfaSetupDialog({
 
               {mode === 'enable' && !locked && (
                 <div className="flex flex-wrap gap-3 pt-1">
+                  {/* Enable mode previously offered Cancel only, so a
+                      rate-limited user was left with no way forward at all: the
+                      OtpInput resend control is not rendered without a challenge,
+                      and the standalone retry button was disable-mode only.
+                      The same cooldown applies, so the same button belongs here. */}
+                  {!challenge && (
+                    <button
+                      type="button"
+                      onClick={handleResend}
+                      disabled={requestPending || resendCountingDown}
+                      className="h-11 rounded-[12px] px-4 text-[14px] font-semibold disabled:opacity-60"
+                      style={{
+                        background:
+                          requestPending || resendCountingDown
+                            ? 'rgba(201,160,92,0.5)'
+                            : 'var(--gold)',
+                        color: '#0A0A0F',
+                      }}
+                    >
+                      {requestPending
+                        ? MFA_COPY.sendingCode
+                        : resendCountingDown
+                          ? MFA_COPY.retryIn(resendSeconds)
+                          : MFA_COPY.requestCode}
+                    </button>
+                  )}
                   <button
                     type="button"
                     onClick={cancel}
