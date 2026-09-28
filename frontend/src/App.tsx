@@ -1634,7 +1634,6 @@ function App() {
       <CredentialStatusUnavailable
         onRetry={() => void loadCredentialStatus()}
         onSignOut={handleSignOut}
-        onUseRecovery={() => navigate('/reset-password')}
       />
     );
   }

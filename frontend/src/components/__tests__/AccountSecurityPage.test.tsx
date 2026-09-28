@@ -555,7 +555,7 @@ describe('AccountSecurityPage', () => {
       expect(screen.queryByText('Account security')).not.toBeInTheDocument();
     });
 
-    it('fails closed with retry, recovery, and sign out when status is unavailable', async () => {
+    it('fails closed with retry and sign out when status is unavailable', async () => {
       await renderShell('error');
 
       await waitFor(() =>
@@ -564,9 +564,19 @@ describe('AccountSecurityPage', () => {
         ).toBeInTheDocument(),
       );
       expect(screen.getByRole('button', { name: 'Try again' })).toBeInTheDocument();
-      expect(screen.getByRole('link', { name: 'Use password recovery' })).toBeInTheDocument();
       expect(screen.getByRole('button', { name: 'Sign out' })).toBeInTheDocument();
       expect(screen.queryByText('Account security')).not.toBeInTheDocument();
+    });
+
+    it('does not route an unavailable status into password recovery', async () => {
+      // Recovery revokes the session and returns the user to this same screen,
+      // so it must not be offered as the escape from it.
+      await renderShell('error');
+
+      await waitFor(() =>
+        expect(screen.getByRole('button', { name: 'Try again' })).toBeInTheDocument(),
+      );
+      expect(screen.queryByRole('link', { name: 'Use password recovery' })).not.toBeInTheDocument();
     });
 
     it('holds an MFA-enabled user in the login challenge before any operational content', async () => {

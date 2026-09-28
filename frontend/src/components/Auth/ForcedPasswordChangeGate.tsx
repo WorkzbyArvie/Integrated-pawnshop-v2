@@ -77,7 +77,6 @@ export function CredentialStatusLoading({ onSignOut }: CredentialStatusScreenPro
 export function CredentialStatusUnavailable({
   onRetry,
   onSignOut,
-  onUseRecovery,
 }: CredentialStatusScreenProps) {
   return (
     <StatusFrame>
@@ -106,18 +105,6 @@ export function CredentialStatusUnavailable({
             {GATE_COPY.retry}
           </button>
         )}
-        <a
-          href="/reset-password"
-          onClick={(event) => {
-            if (!onUseRecovery) return;
-            event.preventDefault();
-            onUseRecovery();
-          }}
-          className="inline-flex h-11 items-center rounded-[12px] px-1 text-[14px] font-semibold underline"
-          style={{ color: 'var(--gold)' }}
-        >
-          {GATE_COPY.recovery}
-        </a>
         {onSignOut && (
           <button
             type="button"

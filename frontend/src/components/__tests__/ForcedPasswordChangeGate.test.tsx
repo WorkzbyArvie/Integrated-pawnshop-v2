@@ -178,7 +178,7 @@ describe('ForcedPasswordChangeGate', () => {
     expect(sessionStorage.length).toBe(0);
   });
 
-  it('blocks the shell while status is unknown and offers retry, recovery, and sign out', () => {
+  it('blocks the shell while status is unknown and offers only retry and sign out', () => {
     const onRetry = vi.fn();
     const onSignOut = vi.fn();
     const { unmount } = render(
@@ -198,8 +198,16 @@ describe('ForcedPasswordChangeGate', () => {
     expect(screen.queryByText('Subscription Required')).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
     expect(onRetry).toHaveBeenCalled();
-    expect(screen.getByRole('link', { name: 'Use password recovery' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Sign out' })).toBeInTheDocument();
+  });
+
+  it('does not offer password recovery from the unavailable state', () => {
+    // Recovery revokes the session, which produced a 401 on the credential
+    // status re-check, which returned the user to this same screen. Offering it
+    // here trapped the user in that loop.
+    render(<CredentialStatusUnavailable onRetry={vi.fn()} onSignOut={vi.fn()} />);
+    expect(screen.queryByRole('link', { name: 'Use password recovery' })).not.toBeInTheDocument();
+    expect(screen.queryByText('Use password recovery')).not.toBeInTheDocument();
   });
 
   it('resolves the fail-closed access decision from server status alone', () => {
