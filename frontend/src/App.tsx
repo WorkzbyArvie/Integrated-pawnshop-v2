@@ -32,11 +32,12 @@ import {
   Shield,
   MessageSquareQuote,
   KeyRound,
+  Menu,
 } from 'lucide-react';
 
 // Import Libs
 import { supabase } from './lib/supabaseClient';
-import api from './lib/apiClient';
+import api, { clearMfaAssertion, getMfaAssertion } from './lib/apiClient';
 import {
   fetchCredentialStatus,
   resolveCredentialAccess,
@@ -44,13 +45,25 @@ import {
 } from './lib/accountSecurity';
 
 // --- AUTH IMPORT (eager — small, shown immediately) ---
-import Login from './components/Auth/Login'; 
+import Login from './components/Auth/Login';
 import ResetPassword from './components/Auth/ResetPassword';
 import {
   CredentialStatusLoading,
   CredentialStatusUnavailable,
   ForcedPasswordChangeGate,
 } from './components/Auth/ForcedPasswordChangeGate';
+import {
+  MfaChallenge,
+  resolveMfaChallengeRequirement,
+} from './components/Auth/MfaChallenge';
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from './components/ui/sheet';
 
 // --- Eager imports (small, always visible) ---
 import { PendingAccessDashboard } from './components/PendingAccessDashboard';
@@ -339,6 +352,11 @@ function App() {
   // ── Server-owned credential preflight (SEC-03 / fail-closed) ──
   const [credentialState, setCredentialState] = useState<'loading' | 'ready' | 'unavailable'>('loading');
   const [credentialStatus, setCredentialStatus] = useState<CredentialStatus | null>(null);
+  // The account whose MFA login challenge the server has already accepted in
+  // this session. It is a memory-only mirror of the apiClient assertion holder
+  // and is dropped whenever the authenticated subject changes.
+  const [mfaVerifiedUserId, setMfaVerifiedUserId] = useState<string | null>(null);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   const loadCredentialStatus = useCallback(
     async (options?: { keepGate?: boolean }): Promise<CredentialStatus | null> => {
@@ -368,6 +386,22 @@ function App() {
     state: credentialPreflightRequired ? credentialState : 'ready',
     status: credentialPreflightRequired ? credentialStatus : null,
   });
+
+  const mfaChallengeRequired =
+    credentialPreflightRequired &&
+    resolveMfaChallengeRequirement({
+      credentialState,
+      mfaEnabled: credentialStatus?.mfaEnabled === true,
+      assertionHeld: getMfaAssertion() !== null,
+      verifiedUserId: mfaVerifiedUserId,
+      userId: session?.user?.id ?? null,
+    }) === 'required';
+
+  useEffect(() => {
+    const userId = session?.user?.id ?? null;
+    setMfaVerifiedUserId((prev) => (prev && prev !== userId ? null : prev));
+    if (!userId) clearMfaAssertion();
+  }, [session?.user?.id]);
 
   // In live branch view, only owners can impersonate/select operational branch snapshots.
   const effectiveUserRole = userRole;
@@ -468,9 +502,14 @@ function App() {
 
     const ownerPendingLimited = userRole === 'Owner' && ownerRegistrationStatus !== 'APPROVED';
     const subscriptionLocked = subscriptionAccessChecked && subscriptionAccessFrozen;
-    if (ownerPendingLimited || subscriptionLocked) return;
-
     const routeTab = resolveTabFromPath(location.pathname);
+
+    if (routeTab === 'account-security') {
+      if (activeTab !== 'account-security') setActiveTab('account-security');
+      return;
+    }
+
+    if (ownerPendingLimited || subscriptionLocked) return;
     if (!routeTab || routeTab === activeTab) return;
     if (routeTab === 'pending-access' || routeTab === 'frozen-access') return;
     setActiveTab(routeTab);
@@ -478,6 +517,7 @@ function App() {
 
   const handleSidebarNavigation = useCallback((tabId: string) => {
     setActiveTab(tabId);
+    setMobileNavOpen(false);
     const nextPath = TAB_TO_PATH[tabId];
     if (nextPath) {
       navigate(nextPath, { replace: false });
@@ -1231,6 +1271,8 @@ function App() {
 
   const handleSignOut = async () => {
     const userId = session?.user?.id;
+    clearMfaAssertion();
+    setMfaVerifiedUserId(null);
     if (userId) {
       await supabase.from('profiles').update({ is_online: false, last_seen_at: new Date().toISOString() }).eq('id', userId);
     }
@@ -1238,6 +1280,12 @@ function App() {
     localStorage.clear();
     window.location.href = "/";
   };
+
+  const handleMfaVerified = useCallback(async () => {
+    const userId = session?.user?.id ?? null;
+    if (userId) setMfaVerifiedUserId(userId);
+    await loadCredentialStatus({ keepGate: true });
+  }, [session?.user?.id, loadCredentialStatus]);
 
   const handleExitLiveAnalytics = () => {
     localStorage.removeItem('app_perspective');
@@ -1459,10 +1507,12 @@ function App() {
       return;
     }
 
+    if (activeTab === 'account-security') return;
+
     if (hasOnboardingIntent || (isPendingLimitedMode && ownerRegistrationChecked)) {
       setActiveTab('pending-access');
     }
-  }, [session?.user?.id, userRole, hasOnboardingIntent, isPendingLimitedMode, ownerRegistrationChecked, isSubscriptionFrozen]);
+  }, [session?.user?.id, userRole, hasOnboardingIntent, isPendingLimitedMode, ownerRegistrationChecked, isSubscriptionFrozen, activeTab]);
 
   useEffect(() => {
     if (!session || userRole === 'Super Admin' || !isSubscriptionFrozen) {
@@ -1504,6 +1554,17 @@ function App() {
     );
   }
 
+  // Preflight precedence (D-05 / D-09): legal and recovery surfaces, then
+  // logged-out handling, then the server-owned credential status, then the MFA
+  // challenge, the forced-password gate, pending-owner, subscription-frozen, and
+  // only then the operational shell.
+  if (isLegalDocRoute) return <LegalDocPage path={normalizedPath} />;
+  if (isResetPasswordRoute) return <ResetPassword />;
+  if (!session) {
+    if (isLoginRoute) return <Login />;
+    return <LandingPage />;
+  }
+
   // Fail-closed credential preflight. Nothing below this point may mount while
   // the server-owned credential state is loading, unavailable, or forced.
   if (credentialAccess === 'loading') {
@@ -1516,6 +1577,18 @@ function App() {
         onRetry={() => void loadCredentialStatus()}
         onSignOut={handleSignOut}
         onUseRecovery={() => navigate('/reset-password')}
+      />
+    );
+  }
+
+  if (mfaChallengeRequired) {
+    return (
+      <MfaChallenge
+        email={session?.user?.email ?? ''}
+        userId={session?.user?.id ?? null}
+        maskedEmail={credentialStatus?.mfaEmailMasked ?? null}
+        onVerified={handleMfaVerified}
+        onSignOut={handleSignOut}
       />
     );
   }
@@ -1596,17 +1669,12 @@ function App() {
               null
             }
             registrationStatus={ownerRegistrationStatus}
+            onOpenAccountSecurity={() => handleSidebarNavigation('account-security')}
+            accountSecurityActive={activeTab === 'account-security'}
           />
         </div>
       </div>
     );
-  }
-
-  if (isLegalDocRoute) return <LegalDocPage path={normalizedPath} />;
-  if (isResetPasswordRoute) return <ResetPassword />;
-  if (!session) {
-    if (isLoginRoute) return <Login />;
-    return <LandingPage />;
   }
 
   return (
@@ -1740,19 +1808,74 @@ function App() {
               <p className="text-[14px] font-semibold text-[#F5F0E8]" style={{ fontFamily: "'Syne', sans-serif" }}>
                 {sidebarBrandName}
               </p>
-              <button
-                type="button"
-                onClick={() => handleSidebarNavigation('account-security')}
-                aria-current={activeTab === 'account-security' ? 'page' : undefined}
-                className={`inline-flex min-h-11 items-center gap-2 rounded-xl border px-3 text-[13px] font-medium ${
-                  activeTab === 'account-security'
-                    ? 'bg-[#C9A05C]/10 text-[#E5C88C] border-[rgba(201,160,92,0.15)]'
-                    : 'text-[#8A8279] border-[rgba(201,160,92,0.1)]'
-                }`}
-              >
-                <KeyRound className={`w-[18px] h-[18px] ${activeTab === 'account-security' ? 'text-[#C9A05C]' : ''}`} aria-hidden="true" />
-                Account Security
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleSidebarNavigation('account-security')}
+                  aria-current={activeTab === 'account-security' ? 'page' : undefined}
+                  className={`inline-flex min-h-11 items-center gap-2 rounded-xl border px-3 text-[13px] font-medium ${
+                    activeTab === 'account-security'
+                      ? 'bg-[#C9A05C]/10 text-[#E5C88C] border-[rgba(201,160,92,0.15)]'
+                      : 'text-[#8A8279] border-[rgba(201,160,92,0.1)]'
+                  }`}
+                >
+                  <KeyRound className={`w-[18px] h-[18px] ${activeTab === 'account-security' ? 'text-[#C9A05C]' : ''}`} aria-hidden="true" />
+                  Account Security
+                </button>
+                <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
+                  <SheetTrigger asChild>
+                    <button
+                      type="button"
+                      aria-label="Open navigation menu"
+                      className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-xl border border-[rgba(201,160,92,0.1)] text-[#8A8279]"
+                    >
+                      <Menu className="h-[18px] w-[18px]" aria-hidden="true" />
+                    </button>
+                  </SheetTrigger>
+                  <SheetContent
+                    side="left"
+                    className="w-[85vw] max-w-xs overflow-y-auto p-4"
+                    style={{ background: 'var(--bg-surface)', borderColor: 'rgba(201,160,92,0.12)' }}
+                  >
+                    <SheetHeader>
+                      <SheetTitle
+                        className="text-[20px] font-semibold"
+                        style={{ fontFamily: 'var(--font-display)', color: 'var(--text-primary)' }}
+                      >
+                        Navigation
+                      </SheetTitle>
+                      <SheetDescription className="sr-only">
+                        Move between dashboard sections, including Account Security.
+                      </SheetDescription>
+                    </SheetHeader>
+                    <nav className="flex flex-col gap-1 overflow-y-auto">
+                      {sidebarVisibleNavItems.map((item) => {
+                        const Icon = item.icon;
+                        const isActive = activeTab === item.id;
+                        return (
+                          <button
+                            key={item.id}
+                            type="button"
+                            onClick={() => handleSidebarNavigation(item.id)}
+                            aria-current={isActive ? 'page' : undefined}
+                            className={`flex min-h-11 w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-medium ${
+                              isActive
+                                ? 'bg-[#C9A05C]/10 text-[#E5C88C] border border-[rgba(201,160,92,0.15)]'
+                                : 'text-[#8A8279] border border-transparent'
+                            }`}
+                          >
+                            <Icon
+                              className={`h-[18px] w-[18px] ${isActive ? 'text-[#C9A05C]' : ''}`}
+                              aria-hidden="true"
+                            />
+                            <span>{item.label}</span>
+                          </button>
+                        );
+                      })}
+                    </nav>
+                  </SheetContent>
+                </Sheet>
+              </div>
             </div>
             {userRole !== 'Super Admin' && userRole !== 'Owner' && !isPendingLimitedMode && !isSubscriptionFrozen && clockStatus !== 'loading' && (
               <div className={`mb-5 rounded-xl border px-5 py-3.5 flex items-center justify-between transition-all ${

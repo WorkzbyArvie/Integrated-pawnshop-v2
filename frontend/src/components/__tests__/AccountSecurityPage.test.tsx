@@ -1,11 +1,47 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AccountSecurityPage } from '../../pages/AccountSecurityPage';
+
+const supabaseMock = vi.hoisted(() => {
+  const state: {
+    session: unknown;
+    profile: Record<string, unknown> | null;
+    listener?: (event: string, session: unknown) => void;
+  } = { session: null, profile: null };
+  const table: Record<string, unknown> = {};
+  const chain = () => table;
+  table.select = chain;
+  table.eq = chain;
+  table.limit = chain;
+  table.update = chain;
+  table.maybeSingle = () => Promise.resolve({ data: state.profile, error: null });
+  table.then = (onFulfilled: (value: unknown) => unknown) =>
+    Promise.resolve({ data: null, error: null }).then(onFulfilled);
+  return {
+    state,
+    from: () => table,
+    storage: { from: () => ({ upload: vi.fn() }) },
+    auth: {
+      getSession: () => Promise.resolve({ data: { session: state.session } }),
+      refreshSession: () => Promise.resolve({ data: { session: state.session } }),
+      signOut: () => Promise.resolve({ error: null }),
+      onAuthStateChange: (callback: (event: string, session: unknown) => void) => {
+        state.listener = callback;
+        return { data: { subscription: { unsubscribe: () => undefined } } };
+      },
+    },
+  };
+});
+
+vi.mock('../../lib/supabaseClient', () => ({ supabase: supabaseMock }));
+vi.mock('sweetalert2', () => ({ default: { fire: vi.fn() } }));
 
 const apiGet = vi.fn();
 const apiPost = vi.fn();
 const setMfaAssertion = vi.fn();
 const clearMfaAssertion = vi.fn();
+const getMfaAssertion = vi.fn<() => string | null>(() => null);
 
 vi.mock('../../lib/apiClient', () => ({
   ApiError: class ApiError extends Error {
@@ -26,6 +62,7 @@ vi.mock('../../lib/apiClient', () => ({
   setMfaAssertion: (assertion: string, options?: unknown) =>
     setMfaAssertion(assertion, options),
   clearMfaAssertion: () => clearMfaAssertion(),
+  getMfaAssertion: () => getMfaAssertion(),
   default: {
     get: (...args: unknown[]) => apiGet(...args),
     post: (...args: unknown[]) => apiPost(...args),
@@ -431,6 +468,198 @@ describe('AccountSecurityPage', () => {
       expect(screen.getByText('Codes go to a••••@example.com')).toBeInTheDocument();
       expect(document.body.textContent).not.toContain('ariel@example.com');
       expect(document.body.textContent).not.toMatch(/ariel@/);
+    });
+  });
+
+  // ── D-05 / D-07 / D-09 / D-13: dashboard preflight and universal navigation ──
+  describe('dashboard credential preflight and universal navigation', () => {
+    const session = {
+      user: {
+        id: 'profile-1',
+        email: 'ariel@example.com',
+        user_metadata: { full_name: 'Ariel Auditor' },
+        app_metadata: {},
+      },
+      access_token: 'token',
+      expires_at: Math.floor(Date.now() / 1000) + 3600,
+    };
+
+    const compliantStatus = { ...currentStatus, mfaEnabled: false };
+    const mfaStatus = { ...currentStatus, mfaEnabled: true };
+    const forcedStatus = { ...currentStatus, mustChangePassword: true, mfaEnabled: false };
+
+    async function renderShell(
+      status: Record<string, unknown> | null | 'error',
+      profile: Record<string, unknown> | null = {
+        role: 'AUDITOR',
+        staff_type: 'AUDITOR',
+        pawnshop_id: 'tenant-1',
+        branch_id: null,
+      },
+      activeTab: string | null = 'account-security',
+    ) {
+      if (activeTab) localStorage.setItem('active_tab', activeTab);
+      else localStorage.removeItem('active_tab');
+      supabaseMock.state.session = session;
+      supabaseMock.state.profile = profile;
+      getMfaAssertion.mockReturnValue(null);
+      apiGet.mockImplementation((path: string) => {
+        if (path === '/security/credential-status') {
+          if (status === 'error') return Promise.reject(new Error('status offline'));
+          return Promise.resolve(status);
+        }
+        if (path === '/security/activity') return Promise.resolve({ events: [] });
+        return Promise.resolve(null);
+      });
+      apiPost.mockImplementation((path: string) => {
+        if (path === '/security/mfa/login-challenge') {
+          return Promise.resolve({
+            challengeId: 'challenge-login-1',
+            maskedEmail: 'a••••@example.com',
+            expiresAt: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
+          });
+        }
+        return Promise.resolve({ assertion: 'assertion-login-1' });
+      });
+
+      const App = (await import('../../App')).default;
+      return render(
+        <MemoryRouter initialEntries={['/']}>
+          <App />
+        </MemoryRouter>,
+      );
+    }
+
+    beforeEach(() => {
+      getMfaAssertion.mockReset();
+      getMfaAssertion.mockReturnValue(null);
+    });
+
+    it('blocks the shell while the server-owned credential status is still loading', async () => {
+      supabaseMock.state.session = session;
+      supabaseMock.state.profile = {
+        role: 'AUDITOR',
+        staff_type: 'AUDITOR',
+        pawnshop_id: 'tenant-1',
+        branch_id: null,
+      };
+      apiGet.mockImplementation(() => new Promise(() => {}));
+      const App = (await import('../../App')).default;
+      render(
+        <MemoryRouter initialEntries={['/']}>
+          <App />
+        </MemoryRouter>,
+      );
+
+      await waitFor(() => expect(screen.getByText('Checking account security')).toBeInTheDocument());
+      expect(screen.queryByText('Account security')).not.toBeInTheDocument();
+    });
+
+    it('fails closed with retry, recovery, and sign out when status is unavailable', async () => {
+      await renderShell('error');
+
+      await waitFor(() =>
+        expect(
+          screen.getByText("We couldn't confirm your account security status. Try again before continuing."),
+        ).toBeInTheDocument(),
+      );
+      expect(screen.getByRole('button', { name: 'Try again' })).toBeInTheDocument();
+      expect(screen.getByRole('link', { name: 'Use password recovery' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Sign out' })).toBeInTheDocument();
+      expect(screen.queryByText('Account security')).not.toBeInTheDocument();
+    });
+
+    it('holds an MFA-enabled user in the login challenge before any operational content', async () => {
+      await renderShell(mfaStatus);
+
+      expect(
+        await screen.findByRole('heading', { name: 'Verify your sign-in' }),
+      ).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Sign out' })).toBeInTheDocument();
+      // No pending-owner, frozen, tenant, or Account Security content behind it.
+      expect(screen.queryByText('Pending Access')).not.toBeInTheDocument();
+      expect(screen.queryByText('Subscription Required')).not.toBeInTheDocument();
+      expect(screen.queryByText('Account security')).not.toBeInTheDocument();
+    });
+
+    it('keeps the forced-password gate blocking after MFA is satisfied', async () => {
+      getMfaAssertion.mockReturnValue('assertion-login-1');
+      await renderShell(forcedStatus);
+
+      expect(
+        await screen.findByRole('heading', { name: 'Update your password to continue' }),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByRole('heading', { name: 'Verify your sign-in' }),
+      ).not.toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Sign out' })).toBeInTheDocument();
+      expect(screen.queryByText('Account security')).not.toBeInTheDocument();
+    });
+
+    it('reaches the universal Account Security route from desktop and mobile navigation', async () => {
+      await renderShell(compliantStatus);
+
+      expect(
+        await screen.findByRole('heading', { name: 'Account security' }),
+      ).toBeInTheDocument();
+
+      const desktopEntry = screen
+        .getAllByRole('button', { name: 'Account Security' })
+        .find((element) => element.getAttribute('aria-current') === 'page');
+      expect(desktopEntry).toBeDefined();
+      expect(desktopEntry?.className).toContain('min-h-11');
+
+      // A compact mobile sheet trigger exposes the same universal entry.
+      const menuTrigger = await screen.findByRole('button', { name: 'Open navigation menu' });
+      expect(menuTrigger.className).toContain('min-h-11');
+      fireEvent.click(menuTrigger);
+      const drawerEntry = await screen.findByRole('button', { name: 'Account Security' });
+      expect(drawerEntry.className).toContain('min-h-11');
+      expect(drawerEntry.className).toContain('w-full');
+      expect(drawerEntry.getAttribute('aria-current')).toBe('page');
+    });
+
+    it('keeps Account Security reachable from the limited pending-owner header', async () => {
+      localStorage.removeItem('active_pawnshop_id');
+      await renderShell(
+        compliantStatus,
+        { role: 'OWNER', staff_type: null, pawnshop_id: null, branch_id: null },
+        null,
+      );
+
+      expect(
+        await screen.findByText('Your account is active with limited access'),
+      ).toBeInTheDocument();
+
+      const headerEntry = screen.getByRole('button', { name: 'Account Security' });
+      expect(headerEntry.className).toContain('min-h-11');
+      fireEvent.click(headerEntry);
+
+      expect(
+        await screen.findByRole('heading', { name: 'Account security' }),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByText('Your account is active with limited access'),
+      ).not.toBeInTheDocument();
+    });
+
+    it('clears the held assertion when the session ends', async () => {
+      getMfaAssertion.mockReturnValue('assertion-login-1');
+      await renderShell(compliantStatus);
+      expect(
+        await screen.findByRole('heading', { name: 'Account security' }),
+      ).toBeInTheDocument();
+
+      clearMfaAssertion.mockClear();
+      act(() => {
+        supabaseMock.state.session = null;
+        supabaseMock.state.listener?.('SIGNED_OUT', null);
+      });
+
+      await waitFor(() => expect(clearMfaAssertion).toHaveBeenCalled());
+      expect(
+        screen.queryByRole('heading', { name: 'Account security' }),
+      ).not.toBeInTheDocument();
     });
   });
 });

@@ -158,8 +158,6 @@ export function MfaChallenge({
       setCode('');
       setResendAt(Date.now() + MFA_LOGIN_RESEND_COOLDOWN_MS);
     } catch (error) {
-      // Request failures never guess a code: the user stays blocked with an
-      // explicit retry and a reachable sign-out path.
       setChallenge(null);
       setCode('');
       setResendAt(null);
@@ -172,8 +170,6 @@ export function MfaChallenge({
   useEffect(() => {
     headingRef.current?.focus();
     void requestChallenge();
-    // A new challenge is only issued for a new account identity.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [email]);
 
   useEffect(() => {

@@ -1,6 +1,6 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Clock3, MessageSquare, RefreshCcw, Send, Upload, FileCheck, AlertCircle, LogOut } from 'lucide-react';
+import { Clock3, KeyRound, MessageSquare, RefreshCcw, Send, Upload, FileCheck, AlertCircle, LogOut } from 'lucide-react';
 import api from '../lib/apiClient';
 import { overallLabel, overallTone, rejectedDocumentCount } from '../lib/onboardingStatus';
 import { useToast } from '../App';
@@ -31,6 +31,9 @@ type PendingAccessDashboardProps = {
   ownerEmail?: string | null;
   ownerName?: string | null;
   registrationStatus?: string;
+  /** Universal own-account security entry; never hidden by limited-access mode. */
+  onOpenAccountSecurity?: () => void;
+  accountSecurityActive?: boolean;
 };
 
 type TrialRequestForm = {
@@ -61,7 +64,12 @@ const statusTone = (status: string) => {
   return 'text-[#C9A05C] bg-[#C9A05C]/10 border-[rgba(201,160,92,0.2)]';
 };
 
-export function PendingAccessDashboard({ ownerEmail, registrationStatus }: PendingAccessDashboardProps) {
+export function PendingAccessDashboard({
+  ownerEmail,
+  registrationStatus,
+  onOpenAccountSecurity,
+  accountSecurityActive = false,
+}: PendingAccessDashboardProps) {
   const { showToast } = useToast();
   const [loading, setLoading] = useState(true);
   const [requests, setRequests] = useState<TrialRequest[]>([]);
@@ -413,16 +421,30 @@ export function PendingAccessDashboard({ ownerEmail, registrationStatus }: Pendi
               <p className="mt-1 text-xs text-[#8A8279]">Current status: {registrationStatus}</p>
             ) : null}
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            {onOpenAccountSecurity && (
+              <button
+                type="button"
+                onClick={onOpenAccountSecurity}
+                aria-current={accountSecurityActive ? 'page' : undefined}
+                className={`inline-flex min-h-11 min-w-11 items-center gap-2 rounded-xl border px-3 text-xs font-bold uppercase tracking-wider ${
+                  accountSecurityActive
+                    ? 'border-[rgba(201,160,92,0.25)] bg-[#C9A05C]/10 text-[#C9A05C]'
+                    : 'border-[rgba(201,160,92,0.12)] text-[#8A8279] hover:bg-[#1C1C26]'
+                }`}
+              >
+                <KeyRound className="h-4 w-4" aria-hidden="true" /> Account Security
+              </button>
+            )}
             <button
               type="button"
               onClick={() => {
                 loadRequests();
                 loadStatusSummary();
               }}
-              className="inline-flex items-center gap-2 rounded-xl border border-[rgba(201,160,92,0.12)] px-3 py-2 text-xs font-bold uppercase tracking-wider text-[#8A8279] hover:bg-[#1C1C26]"
+              className="inline-flex min-h-11 min-w-11 items-center gap-2 rounded-xl border border-[rgba(201,160,92,0.12)] px-3 text-xs font-bold uppercase tracking-wider text-[#8A8279] hover:bg-[#1C1C26]"
             >
-              <RefreshCcw className="h-4 w-4" /> Refresh
+              <RefreshCcw className="h-4 w-4" aria-hidden="true" /> Refresh
             </button>
             <button
               type="button"
@@ -431,9 +453,9 @@ export function PendingAccessDashboard({ ownerEmail, registrationStatus }: Pendi
                 localStorage.clear();
                 window.location.href = '/';
               }}
-              className="inline-flex items-center gap-2 rounded-xl border border-[rgba(201,160,92,0.12)] px-3 py-2 text-xs font-bold uppercase tracking-wider text-[#D44545] hover:bg-[#D44545]/10"
+              className="inline-flex min-h-11 min-w-11 items-center gap-2 rounded-xl border border-[rgba(201,160,92,0.12)] px-3 text-xs font-bold uppercase tracking-wider text-[#D44545] hover:bg-[#D44545]/10"
             >
-              <LogOut className="h-4 w-4" /> Logout
+              <LogOut className="h-4 w-4" aria-hidden="true" /> Logout
             </button>
           </div>
         </div>
