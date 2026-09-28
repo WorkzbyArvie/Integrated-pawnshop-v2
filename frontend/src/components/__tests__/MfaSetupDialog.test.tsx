@@ -46,6 +46,23 @@ const CHALLENGE = {
   expiresAt: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
 };
 
+/**
+ * A rejected current-password attempt, as the server returns it: a 401 carrying
+ * either a reauth code or, for the legacy path, none at all. `remaining` becomes
+ * attemptsRemaining on the error.
+ */
+function passwordError(code: string | undefined, status: number, remaining?: number) {
+    const error = new Error('rejected') as Error & {
+      code?: string;
+      status: number;
+      attemptsRemaining?: number;
+    };
+    error.code = code;
+    error.status = status;
+    if (remaining !== undefined) error.attemptsRemaining = remaining;
+    return error;
+  }
+
 function challengeError(code: string, status: number, message = 'failed') {
   const error = new Error(message) as Error & { code?: string; status: number };
   error.code = code;
@@ -475,6 +492,71 @@ describe('MfaSetupDialog', () => {
       await waitFor(() => {
         expect(screen.getAllByText(sentence)).toHaveLength(1);
       });
+    });
+
+    // A wrong password is a 401, and the client used to test the bare status
+    // before the error code -- so it was reported as a request limit and the user
+    // was moved to the code step, waiting for an email that was never sent. The
+    // rate-limit message must not appear for a rejected password.
+    it('reports a wrong password as a password problem, not a request limit', async () => {
+      apiPost.mockRejectedValueOnce(passwordError('MFA_REAUTH_FAILED', 401, 3));
+      renderDialog();
+      await submitPassword('wrong-password');
+
+      // Told what actually went wrong, in the dialog's own words.
+      expect(
+        await screen.findByText(/we couldn't verify your current password/i),
+      ).toBeInTheDocument();
+
+      // Not told to wait for an email.
+      expect(
+        screen.queryByText(/too many verification code requests/i),
+      ).not.toBeInTheDocument();
+
+      // And put back on the password field rather than stranded on the code step.
+      expect(screen.getByLabelText('Current password')).toHaveAttribute(
+        'aria-invalid',
+        'true',
+      );
+      expect(
+        screen.queryByLabelText('Six-digit email verification code'),
+      ).not.toBeInTheDocument();
+    });
+
+    it('says how many password attempts remain when the server reports it', async () => {
+      apiPost.mockRejectedValueOnce(passwordError('MFA_REAUTH_FAILED', 401, 2));
+      renderDialog();
+      await submitPassword('wrong-password');
+
+      expect(await screen.findByText(/2 attempts left before this is locked/i))
+        .toBeInTheDocument();
+    });
+
+    it('stops offering a retry once reauthentication is locked out', async () => {
+      apiPost.mockRejectedValueOnce(passwordError('MFA_REAUTH_LOCKED', 429));
+      renderDialog();
+      await submitPassword('wrong-password');
+
+      expect(
+        await screen.findByText(/too many incorrect password attempts/i),
+      ).toBeInTheDocument();
+      // No code request may be offered: the password check is what failed, and
+      // the button that starts one is the same control the count down uses.
+      expect(
+        screen.queryByRole('button', { name: /request code|retry in/i }),
+      ).not.toBeInTheDocument();
+    });
+
+    // A 401 carrying no code at all must still not be reported as a rate limit.
+    it('does not call an unlabelled 401 a request limit', async () => {
+      apiPost.mockRejectedValueOnce(passwordError(undefined, 401));
+      renderDialog();
+      await submitPassword('wrong-password');
+
+      await screen.findByText(/we couldn't verify your current password/i);
+      expect(
+        screen.queryByText(/too many verification code requests/i),
+      ).not.toBeInTheDocument();
     });
 
     // Enable mode offered Cancel and nothing else. The OtpInput resend control

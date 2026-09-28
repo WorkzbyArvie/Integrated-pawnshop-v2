@@ -21,6 +21,10 @@ import {
 } from './security.service';
 import { MfaAssertionService } from './mfa-assertion.service';
 import {
+  MfaPasswordAttemptService,
+  MFA_REAUTH_ERROR_CODES,
+} from './mfa-password-attempt.service';
+import {
   MFA_CHALLENGE_PURPOSES,
   MfaChallengeService,
 } from './mfa-challenge.service';
@@ -179,6 +183,7 @@ describe('SecurityService', () => {
     };
 
     service = new SecurityService(
+      new MfaPasswordAttemptService(),
       prisma,
       supabaseAdmin,
       new PasswordPolicyService(),
@@ -673,18 +678,80 @@ describe('SecurityService', () => {
         error: { message: 'Invalid login credentials' },
       });
 
+      // The specific code matters: it is what lets the client report a rejected
+      // password as such instead of as an exhausted request budget, which is how
+      // a mistyped password came to be announced as "too many code requests".
+      await expect(
+        service.startMfaEnrollment('profile-1', 'session-1', {
+          currentPassword: 'wrong-password',
+        }),
+      ).rejects.toMatchObject({
+        status: 401,
+        response: expect.objectContaining({
+          error: MFA_REAUTH_ERROR_CODES.FAILED,
+          message: 'Current password is incorrect.',
+          attemptsRemaining: 4,
+        }),
+      });
+
+      expect(mfaChallenges.issue).not.toHaveBeenCalled();
+      expect(credentialState.update).not.toHaveBeenCalled();
+    });
+
+    it('counts repeated wrong passwords and reports the remaining budget', async () => {
+      // Each attempt re-mocks the rejection so the counter advances.
+      for (let attempt = 1; attempt <= 3; attempt += 1) {
+        supabaseClient.auth.signInWithPassword.mockResolvedValue({
+          data: { user: null, session: null },
+          error: { message: 'Invalid login credentials' },
+        });
+
+        await expect(
+          service.startMfaEnrollment('profile-1', 'session-1', {
+            currentPassword: 'wrong-password',
+          }),
+        ).rejects.toMatchObject({
+          response: expect.objectContaining({
+            error: MFA_REAUTH_ERROR_CODES.FAILED,
+            attemptsRemaining: 5 - attempt,
+          }),
+        });
+      }
+
+      // No challenge was ever issued, so none of these attempts consumed the
+      // rate limit that governs sending codes.
+      expect(mfaChallenges.issue).not.toHaveBeenCalled();
+    });
+
+    it('refuses further reauthentication once the attempt budget is spent', async () => {
+      for (let attempt = 0; attempt < 5; attempt += 1) {
+        supabaseClient.auth.signInWithPassword.mockResolvedValue({
+          data: { user: null, session: null },
+          error: { message: 'Invalid login credentials' },
+        });
+
+        await expect(
+          service.startMfaEnrollment('profile-1', 'session-1', {
+            currentPassword: 'wrong-password',
+          }),
+        ).rejects.toBeDefined();
+      }
+
+      // The sixth attempt is refused as a lockout, not as another wrong password.
+      supabaseClient.auth.signInWithPassword.mockResolvedValue({
+        data: { user: null, session: null },
+        error: { message: 'Invalid login credentials' },
+      });
+
       await expect(
         service.startMfaEnrollment('profile-1', 'session-1', {
           currentPassword: 'wrong-password',
         }),
       ).rejects.toMatchObject({
         response: expect.objectContaining({
-          error: CREDENTIAL_ERROR_CODES.CURRENT_PASSWORD_INVALID,
+          error: MFA_REAUTH_ERROR_CODES.LOCKED,
         }),
       });
-
-      expect(mfaChallenges.issue).not.toHaveBeenCalled();
-      expect(credentialState.update).not.toHaveBeenCalled();
     });
 
     it('fails closed before any reauthentication when the state row is unavailable', async () => {

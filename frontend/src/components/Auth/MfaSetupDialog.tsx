@@ -38,6 +38,10 @@ export const MFA_COPY = {
     'Enter your current password to continue disabling email MFA.',
   checkingPassword: 'Checking your current password',
   passwordInvalid: "We couldn't verify your current password. Check it and try again.",
+  passwordInvalidWithAttempts: (remaining: number) =>
+    `We couldn't verify your current password. Check it and try again — ${remaining} attempt${remaining === 1 ? '' : 's'} left before this is locked.`,
+  passwordAttemptsExhausted:
+    'Too many incorrect password attempts. Close this and sign in again before retrying.',
   enableDestinationExplanation: (maskedEmail: string) =>
     `We will send a six-digit code to ${maskedEmail}. Enter it to turn on two-step sign-in.`,
   disableDestinationExplanation: (maskedEmail: string) =>
@@ -69,6 +73,8 @@ export const MFA_COPY = {
 
 const ERROR_CODES = {
   CURRENT_PASSWORD_INVALID: 'CURRENT_PASSWORD_INVALID',
+  REAUTH_FAILED: 'MFA_REAUTH_FAILED',
+  REAUTH_LOCKED: 'MFA_REAUTH_LOCKED',
   CHALLENGE_INVALID: 'MFA_CHALLENGE_INVALID',
   CHALLENGE_LOCKED: 'MFA_CHALLENGE_LOCKED',
   CHALLENGE_UNAVAILABLE: 'MFA_CHALLENGE_UNAVAILABLE',
@@ -134,6 +140,28 @@ function errorCode(error: unknown): string | undefined {
   return getApiErrorDetails(error).code;
 }
 
+/**
+ * Attempts remaining before reauthentication locks, as reported by the server.
+ *
+ * Null when the server did not say, which is the case for the older error code
+ * and for any transport failure. The caller falls back to copy with no count
+ * rather than inventing a number.
+ */
+function attemptsRemaining(error: unknown): number | null {
+  // Read off the error object rather than through getApiErrorDetails, which
+  // surfaces only `code` and `failedRules` and would silently drop this field.
+  const direct = (error as { attemptsRemaining?: unknown } | null)?.attemptsRemaining;
+  if (typeof direct === 'number' && Number.isFinite(direct)) return direct;
+
+  // Fall back to the parsed response body, which is where a field the ApiError
+  // constructor does not model actually lives.
+  const body = (error as { response?: { data?: unknown } } | null)?.response?.data as
+    | { attemptsRemaining?: unknown }
+    | undefined;
+  const nested = body?.attemptsRemaining;
+  return typeof nested === 'number' && Number.isFinite(nested) ? nested : null;
+}
+
 export function MfaSetupDialog({
   open,
   mode,
@@ -151,6 +179,10 @@ export function MfaSetupDialog({
   const [alert, setAlert] = useState<MfaAlert | null>(null);
   const [challenge, setChallenge] = useState<MfaChallenge | null>(null);
   const [resendAt, setResendAt] = useState<number | null>(null);
+  // Set when the server refuses further reauthentication attempts. Distinct from
+  // `locked`, which only means a code submission is in flight -- conflating the
+  // two left a user with no way to tell "try again" from "stop trying".
+  const [reauthLocked, setReauthLocked] = useState(false);
   // Ticks once a second so the retry button can count the cooldown down. The
   // timestamp alone is not enough: nothing re-rendered to read it, so the button
   // stayed enabled and every attempt drew another 429.
@@ -173,7 +205,7 @@ export function MfaSetupDialog({
   const passwordRef = useRef<HTMLDivElement | null>(null);
   const headingRef = useRef<HTMLHeadingElement | null>(null);
 
-  const locked = step === 'committing';
+  const locked = step === 'committing' || reauthLocked;
   const destination = challenge?.maskedEmail || maskedEmail || '';
   const verifyingLocked = alert?.kind === 'tooManyAttempts' || verifying;
 
@@ -226,9 +258,33 @@ export function MfaSetupDialog({
       } catch (error) {
         const status = errorStatus(error);
         const code_ = errorCode(error);
-        if (code_ === ERROR_CODES.CURRENT_PASSWORD_INVALID) {
-          setPasswordError(MFA_COPY.passwordInvalid);
+        // The specific code is tested before the bare status. Testing status
+        // first meant every 401 -- including a rejected password -- was reported
+        // as a request limit and moved the user to the code step, where no code
+        // would ever arrive.
+        if (
+          code_ === ERROR_CODES.CURRENT_PASSWORD_INVALID ||
+          code_ === ERROR_CODES.REAUTH_FAILED ||
+          // A 401 on this endpoint can only mean the password was rejected --
+          // the request is already authenticated. Treating an unlabelled 401 as a
+          // send failure told the user to check their connection when their
+          // password was the problem.
+          (status === 401 && !code_)
+        ) {
+          const remaining = attemptsRemaining(error);
+          setPasswordError(
+            remaining === null
+              ? MFA_COPY.passwordInvalid
+              : MFA_COPY.passwordInvalidWithAttempts(remaining),
+          );
+          // Back to the password field, not forward to a code that was never sent.
           setStep('password');
+          setChallenge(null);
+        } else if (code_ === ERROR_CODES.REAUTH_LOCKED) {
+          setPasswordError(MFA_COPY.passwordAttemptsExhausted);
+          setStep('password');
+          setChallenge(null);
+          setReauthLocked(true);
         } else if (status === 429 || code_ === ERROR_CODES.CHALLENGE_UNAVAILABLE) {
           setAlert({
             kind: 'requestRateLimited',

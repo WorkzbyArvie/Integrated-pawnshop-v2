@@ -6,6 +6,7 @@ import { PasswordPolicyService } from './password-policy.service';
 import { CredentialStateService } from './credential-state.service';
 import { MfaAssertionService } from './mfa-assertion.service';
 import { MfaChallengeService } from './mfa-challenge.service';
+import { MfaPasswordAttemptService } from './mfa-password-attempt.service';
 import { SecurityEmailService } from './security-email.service';
 import { AccountSecurityGuard } from './guards/account-security.guard';
 
@@ -18,6 +19,7 @@ import { AccountSecurityGuard } from './guards/account-security.guard';
     CredentialStateService,
     MfaAssertionService,
     MfaChallengeService,
+    MfaPasswordAttemptService,
     SecurityEmailService,
     AccountSecurityGuard,
   ],

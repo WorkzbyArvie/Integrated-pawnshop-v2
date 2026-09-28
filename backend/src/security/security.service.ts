@@ -21,6 +21,10 @@ import {
   MfaChallengeService,
   isKnownMfaChallengePurpose,
 } from './mfa-challenge.service';
+import {
+  MfaPasswordAttemptService,
+  MFA_REAUTH_ERROR_CODES,
+} from './mfa-password-attempt.service';
 
 export const SECURITY_LOG_ACTIONS = {
   PASSWORD_CHANGED: 'PASSWORD_CHANGED',
@@ -156,6 +160,7 @@ export class SecurityService {
   private readonly logger = new Logger(SecurityService.name);
 
   constructor(
+    private readonly mfaPasswordAttempts: MfaPasswordAttemptService,
     private readonly prisma: PrismaService,
     private readonly supabaseAdmin: SupabaseAdminService,
     private readonly passwordPolicy: PasswordPolicyService,
@@ -702,7 +707,11 @@ export class SecurityService {
     challengeId: string | null = null,
   ): Promise<string> {
     try {
-      return await this.verifyCurrentPassword(profileId, currentPassword);
+      const email = await this.verifyCurrentPassword(profileId, currentPassword);
+      // Cleared only on success. Clearing on failure would let an attacker probe
+      // indefinitely by pairing a bad attempt with a good one.
+      this.mfaPasswordAttempts.recordSuccess(profileId);
+      return email;
     } catch (error) {
       await this.recordSecurityEvent(
         profileId,
@@ -710,6 +719,22 @@ export class SecurityService {
         false,
         { challengeId },
       );
+
+      // Distinguish a mistyped password from an exhausted request budget. Only
+      // the second is a rate limit the caller caused, and telling someone to wait
+      // for an email that will never be sent is worse than saying their password
+      // was wrong.
+      const status = (error as { status?: number })?.status;
+      if (status === 401) {
+        const view = this.mfaPasswordAttempts.recordFailure(profileId);
+        throw new UnauthorizedException({
+          success: false,
+          error: MFA_REAUTH_ERROR_CODES.FAILED,
+          message: 'Current password is incorrect.',
+          attemptsRemaining: view.remaining,
+        });
+      }
+
       throw error;
     }
   }
