@@ -33,6 +33,7 @@ import {
   MessageSquareQuote,
   KeyRound,
   Menu,
+  UserCog,
 } from 'lucide-react';
 
 // Import Libs
@@ -99,6 +100,7 @@ const LandingPage = lazy(() => import('./pages/LandingPage'));
 const ReviewsFeedback = lazy(() => import('./components/ReviewsFeedback').then(m => ({ default: m.ReviewsFeedback })));
 const LegalDocPage = lazy(() => import('./pages/LegalDocPage'));
 const AccountSecurityPage = lazy(() => import('./pages/AccountSecurityPage'));
+const ProfileSettingsPage = lazy(() => import('./pages/ProfileSettingsPage'));
 
 // Standardized Roles
 export type Role =
@@ -192,6 +194,7 @@ const TAB_TO_PATH: Record<string, string> = {
   'subscription': '/subscription',
   'support-chat': '/support-chat',
   'account-security': '/account-security',
+  'profile-settings': '/profile-settings',
 };
 
 const PATH_TO_TAB = Object.entries(TAB_TO_PATH).reduce<Record<string, string>>((acc, [tab, path]) => {
@@ -255,6 +258,19 @@ const ACCOUNT_SECURITY_NAV_ITEM = {
   id: 'account-security',
   label: 'Account Security',
   icon: KeyRound,
+  roles: [] as string[],
+  type: 'ACCOUNT',
+};
+
+/**
+ * Universal own-account Profile Settings entry, for the same reason as Account
+ * Security: it touches no tenant data, so no role filter, subscription freeze, or
+ * pending-owner mode may hide it.
+ */
+const PROFILE_SETTINGS_NAV_ITEM = {
+  id: 'profile-settings',
+  label: 'Profile Settings',
+  icon: UserCog,
   roles: [] as string[],
   type: 'ACCOUNT',
 };
@@ -506,6 +522,11 @@ function App() {
 
     if (routeTab === 'account-security') {
       if (activeTab !== 'account-security') setActiveTab('account-security');
+      return;
+    }
+
+    if (routeTab === 'profile-settings') {
+      if (activeTab !== 'profile-settings') setActiveTab('profile-settings');
       return;
     }
 
@@ -1432,15 +1453,15 @@ function App() {
       : true;
     return item.type === 'OPERATIONAL' && roleMatch && featureEnabled && subscriptionAllowed && trialAllowed;
     });
-    // Account Security is universal: never role-filtered, never frozen out.
-    return [ACCOUNT_SECURITY_NAV_ITEM, ...roleFiltered];
+    // Account Security and Profile Settings are universal: never role-filtered, never frozen out.
+    return [ACCOUNT_SECURITY_NAV_ITEM, PROFILE_SETTINGS_NAV_ITEM, ...roleFiltered];
     },
     [isSubscriptionFrozen, effectiveUserRole, isPendingLimitedMode, ownerRegistrationChecked,
      userRole, isImpersonating, subscriptionTier, globalOverrides, systemConfig]
   );
 
   const getSidebarCategory = (item: { id: string; type: string }) => {
-    if (item.id === 'account-security') {
+    if (item.id === 'account-security' || item.id === 'profile-settings') {
       return 'Access';
     }
     if (item.id === 'pending-access' || item.id === 'frozen-access' || item.id === 'subscription' || item.id === 'compliance') {
@@ -1507,7 +1528,7 @@ function App() {
       return;
     }
 
-    if (activeTab === 'account-security') return;
+    if (activeTab === 'account-security' || activeTab === 'profile-settings') return;
 
     if (hasOnboardingIntent || (isPendingLimitedMode && ownerRegistrationChecked)) {
       setActiveTab('pending-access');
@@ -1519,7 +1540,7 @@ function App() {
       return;
     }
 
-    if (activeTab === 'account-security') {
+    if (activeTab === 'account-security' || activeTab === 'profile-settings') {
       return;
     }
 
@@ -1822,6 +1843,19 @@ function App() {
                   <KeyRound className={`w-[18px] h-[18px] ${activeTab === 'account-security' ? 'text-[#C9A05C]' : ''}`} aria-hidden="true" />
                   Account Security
                 </button>
+                <button
+                  type="button"
+                  onClick={() => handleSidebarNavigation('profile-settings')}
+                  aria-current={activeTab === 'profile-settings' ? 'page' : undefined}
+                  className={`inline-flex min-h-11 items-center gap-2 rounded-xl border px-3 text-[13px] font-medium ${
+                    activeTab === 'profile-settings'
+                      ? 'bg-[#C9A05C]/10 text-[#E5C88C] border-[rgba(201,160,92,0.15)]'
+                      : 'text-[#8A8279] border-[rgba(201,160,92,0.1)]'
+                  }`}
+                >
+                  <UserCog className={`w-[18px] h-[18px] ${activeTab === 'profile-settings' ? 'text-[#C9A05C]' : ''}`} aria-hidden="true" />
+                  Profile Settings
+                </button>
                 <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
                   <SheetTrigger asChild>
                     <button
@@ -1983,6 +2017,7 @@ function App() {
                 onSignOut={handleSignOut}
               />
             )}
+            {activeTab === 'profile-settings' && <ProfileSettingsPage />}
             {activeTab === 'dashboard' && (
               <Dashboard 
                 branchId={currentBranchId} 
