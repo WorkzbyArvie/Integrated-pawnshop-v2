@@ -3,7 +3,14 @@ const configuredBackendFallbackUrl =
   import.meta.env.VITE_BACKEND_URL_FALLBACK?.replace(/\/$/, '') || '';
 
 const LOCAL_BACKEND_URL = 'http://localhost:3000';
-const FALLBACK_BACKEND_URL = 'https://pawngold-backend-production.up.railway.app';
+/**
+ * Deployed API host used when no `VITE_BACKEND_URL` is configured.
+ *
+ * This previously pointed at `pawngold-backend-production.up.railway.app`, which
+ * no longer serves the API and returns 404 on every route. A stale fallback
+ * silently routed both clients at a dead backend instead of failing loudly.
+ */
+const FALLBACK_BACKEND_URL = 'https://integrated-pawnshop-v2.onrender.com';
 
 const isLocalRuntime =
   typeof window !== 'undefined' &&

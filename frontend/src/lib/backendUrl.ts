@@ -7,7 +7,17 @@ const configuredAuctionFallbackUrl =
 
 const LOCAL_BACKEND_URL = 'http://localhost:3000';
 const LOCAL_AUCTION_URL = 'https://pawngold-auctionhouse-v2.vercel.app';
-const FALLBACK_BACKEND_URL = 'https://pawngold-backend-production.up.railway.app';
+/**
+ * Deployed hosts used when no `VITE_*_URL` is configured.
+ *
+ * The backend fallback previously pointed at
+ * `pawngold-backend-production.up.railway.app`, which no longer serves the API
+ * and returns 404 on every route. Because it is a *fallback*, a missing env var
+ * did not fail loudly — it silently sent every authenticated request to a dead
+ * host, which the credential preflight then reported as an unavailable account
+ * security status.
+ */
+const FALLBACK_BACKEND_URL = 'https://integrated-pawnshop-v2.onrender.com';
 const FALLBACK_AUCTION_URL = 'https://pawngold-auctionhouse-v2.vercel.app';
 
 const isLocalRuntime =

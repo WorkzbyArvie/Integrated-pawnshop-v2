@@ -40,7 +40,14 @@ Thumbs.db
 *.swo
 *~
 
-# Keep .env in git (private repo, clone-and-run)
-# .env
+# Real secrets are never committed. Keep the templated variant so a fresh clone
+# can discover which variables exist, with no secret value in git history.
 .vercel
 .env*
+!.env.example
+!.env.sample
+!.env.template
+
+# Graphify knowledge graph (regenerate with: graphify update .)
+/graphify-out/
+/.planning/graphs/
