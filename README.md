@@ -72,7 +72,7 @@ Create `.env` files:
 
 **backend/.env**
 ```env
-DATABASE_URL=postgresql://[user]:[password]@db.[SUPABASE_ID].supabase.co:5432/postgres
+DATABASE_URL=$1<REDACTED_PASSWORD>$2db.[SUPABASE_ID].supabase.co:5432/postgres
 PORT=3000
 NODE_ENV=development
 FRONTEND_URL=http://localhost:5173

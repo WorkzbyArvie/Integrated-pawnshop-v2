@@ -75,7 +75,7 @@
 
 **Databases:**
 - PostgreSQL (via Supabase)
-  - Connection: `DATABASE_URL` env var (format: `postgresql://[user]:[password]@[host]:[port]/[database]`)
+  - Connection: `DATABASE_URL` env var (format: `$1<REDACTED_PASSWORD>$2[host]:[port]/[database]`)
   - Client: Prisma ORM 5.22 (`@prisma/client`)
   - Schema: `backend/prisma/schema.prisma` (1604 lines, 30+ models, 23+ enums)
   - SSL: Required for Supabase hosts (auto-added in `backend/src/prisma.service.ts:42`)

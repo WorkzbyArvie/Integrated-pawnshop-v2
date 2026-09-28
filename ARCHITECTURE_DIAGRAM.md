@@ -275,7 +275,7 @@ EXTERNAL SERVICES
 INPUT (Form)
 │
 ├─ email: "admin@pawngold.com"
-├─ password: "TestPassword123!"
+├─ $1<REDACTED>$2
 ├─ branchId: "brooklyn-001"
 └─ branchName: "Brooklyn Branch"
 
@@ -369,7 +369,7 @@ TOAST NOTIFICATION
 LOGIN ATTEMPT
 │
 ├─ email: "admin@pawngold.com"
-└─ password: "TestPassword123!"
+└─ $1<REDACTED>$2
 
     ↓ SUPABASE VERIFICATION
 

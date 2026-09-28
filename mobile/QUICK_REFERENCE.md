@@ -216,7 +216,7 @@ void main() {
     test('login returns user when successful', () async {
       // Arrange
       const testEmail = 'test@example.com';
-      const testPassword = 'password123';
+      const test$1<REDACTED>$2;
       final testModel = UserModel(
         id: '1',
         email: testEmail,
