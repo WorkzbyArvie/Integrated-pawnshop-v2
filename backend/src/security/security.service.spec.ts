@@ -61,6 +61,7 @@ describe('SecurityService', () => {
   let credentialState: {
     findUnique: jest.Mock;
     update: jest.Mock;
+    upsert: jest.Mock;
     getRequired: jest.Mock;
   };
   let prisma: any;
@@ -83,6 +84,22 @@ describe('SecurityService', () => {
     credentialState = {
       findUnique: jest.fn(),
       getRequired: jest.fn(),
+      // The MFA transitions now upsert rather than update, so a missing
+      // credential row is created instead of throwing. The mock has to answer on
+      // the same call the service makes, reading the value from `update` so both
+      // spellings of the payload are handled.
+      upsert: jest.fn((args: any) => {
+        const next = args?.update ?? args?.data ?? {};
+        if (typeof next?.mfaEnabled === 'boolean') {
+          order.push(next.mfaEnabled ? 'state:enableMfa' : 'state:disableMfa');
+          return Promise.resolve({
+            ...STATE,
+            mfaEnabled: next.mfaEnabled,
+            mfaEmail: next.mfaEmail ?? null,
+          });
+        }
+        return Promise.resolve({ ...STATE });
+      }),
       update: jest.fn((args: any) => {
         if (typeof args?.data?.mfaEnabled === 'boolean') {
           order.push(args.data.mfaEnabled ? 'state:enableMfa' : 'state:disableMfa');
@@ -898,9 +915,18 @@ describe('SecurityService', () => {
         code: '123456',
       });
 
-      expect(credentialState.update).toHaveBeenCalledWith({
-        where: { profileId: 'profile-1' },
-        data: { mfaEnabled: true, mfaEmail: 'juan@example.com' },
+      // The transition now upserts. Asserting on update() would pass only if the
+      // call never happened, so this checks the branch that carries the change and
+      // that a create branch exists for the missing-row case.
+      expect(credentialState.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { profileId: 'profile-1' },
+          update: { mfaEnabled: true, mfaEmail: 'juan@example.com' },
+        }),
+      );
+      expect(credentialState.upsert.mock.calls[0][0].create).toMatchObject({
+        mfaEnabled: true,
+        mfaEmail: 'juan@example.com',
       });
     });
 
@@ -1055,7 +1081,7 @@ describe('SecurityService', () => {
     });
 
     it('fails closed without enabling MFA when the state mutation is rejected', async () => {
-      credentialState.update.mockRejectedValue(new Error('write rejected'));
+      credentialState.upsert.mockRejectedValue(new Error('write rejected'));
 
       await expect(
         service.verifyMfaChallenge('profile-1', 'session-1', {
@@ -1177,10 +1203,18 @@ describe('SecurityService', () => {
     it('performs the disablement as one profile-scoped credential-state write', async () => {
       await service.disableMfa('profile-1', 'session-1', phaseTwo);
 
-      expect(credentialState.update).toHaveBeenCalledTimes(1);
-      expect(credentialState.update).toHaveBeenCalledWith({
-        where: { profileId: 'profile-1' },
-        data: { mfaEnabled: false, mfaEmail: null },
+      // Enrolment must create the row if it is missing rather than throw on it.
+      expect(credentialState.upsert).toHaveBeenCalledTimes(1);
+      expect(credentialState.update).not.toHaveBeenCalled();
+      expect(credentialState.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { profileId: 'profile-1' },
+          update: { mfaEnabled: false, mfaEmail: null },
+        }),
+      );
+      expect(credentialState.upsert.mock.calls[0][0].create).toMatchObject({
+        mfaEnabled: false,
+        mfaEmail: null,
       });
     });
 
@@ -1263,7 +1297,7 @@ describe('SecurityService', () => {
     );
 
     it('leaves MFA enabled and fails closed when the state write is rejected', async () => {
-      credentialState.update.mockRejectedValue(new Error('write rejected'));
+      credentialState.upsert.mockRejectedValue(new Error('write rejected'));
 
       await expect(
         service.disableMfa('profile-1', 'session-1', phaseTwo),

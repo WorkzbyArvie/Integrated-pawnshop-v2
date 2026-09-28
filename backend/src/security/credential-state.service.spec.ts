@@ -227,7 +227,7 @@ describe('CredentialStateService', () => {
 
   describe('profile-scoped MFA transitions', () => {
     it('turns MFA on for the profile and records its destination', async () => {
-      credentialState.update.mockResolvedValue({
+      credentialState.upsert.mockResolvedValue({
         profileId: 'profile-1',
         mfaEnabled: true,
         mfaEmail: 'juan@example.com',
@@ -241,14 +241,16 @@ describe('CredentialStateService', () => {
           mfaEmail: 'juan@example.com',
         }),
       );
-      expect(credentialState.update).toHaveBeenCalledWith({
-        where: { profileId: 'profile-1' },
-        data: { mfaEnabled: true, mfaEmail: 'juan@example.com' },
-      });
+      expect(credentialState.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { profileId: 'profile-1' },
+          update: { mfaEnabled: true, mfaEmail: 'juan@example.com' },
+        }),
+      );
     });
 
     it('turns MFA off for the profile and clears the stored destination', async () => {
-      credentialState.update.mockResolvedValue({
+      credentialState.upsert.mockResolvedValue({
         profileId: 'profile-1',
         mfaEnabled: false,
         mfaEmail: null,
@@ -256,9 +258,64 @@ describe('CredentialStateService', () => {
 
       await service.disableMfa('profile-1');
 
-      expect(credentialState.update).toHaveBeenCalledWith({
-        where: { profileId: 'profile-1' },
-        data: { mfaEnabled: false, mfaEmail: null },
+      expect(credentialState.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { profileId: 'profile-1' },
+          update: { mfaEnabled: false, mfaEmail: null },
+        }),
+      );
+    });
+
+    // The regression. enableMfa and disableMfa used a bare update(), which throws
+    // when the row is absent rather than creating it. An account with no
+    // credential row could therefore never enable MFA, and the failure landed
+    // after the code had been sent and verified -- so the UI kept promising an
+    // email that could no longer be produced, with no in-product way back. It
+    // reached production as an owner locked out of sign-in.
+    it('enrols MFA when the credential row does not exist yet', async () => {
+      credentialState.upsert.mockResolvedValue({
+        profileId: 'profile-1',
+        mfaEnabled: true,
+        mfaEmail: 'juan@example.com',
+      });
+
+      await service.enableMfa('profile-1', 'juan@example.com');
+
+      // Never update: that is the call which throws.
+      expect(credentialState.update).not.toHaveBeenCalled();
+
+      const arg = credentialState.upsert.mock.calls[0][0];
+      // The create branch carries the same defaults getRequired uses, so a row
+      // born here is indistinguishable from one born there.
+      expect(arg.create).toEqual({
+        profileId: 'profile-1',
+        mustChangePassword: false,
+        reason: null,
+        markedAt: null,
+        mfaEnabled: true,
+        mfaEmail: 'juan@example.com',
+      });
+    });
+
+    it('disables MFA without throwing when the row does not exist', async () => {
+      // The worse direction: a disable that throws leaves MFA on and the account
+      // unable to sign in at all.
+      credentialState.upsert.mockResolvedValue({
+        profileId: 'profile-1',
+        mfaEnabled: false,
+        mfaEmail: null,
+      });
+
+      await service.disableMfa('profile-1');
+
+      expect(credentialState.update).not.toHaveBeenCalled();
+      expect(credentialState.upsert.mock.calls[0][0].create).toEqual({
+        profileId: 'profile-1',
+        mustChangePassword: false,
+        reason: null,
+        markedAt: null,
+        mfaEnabled: false,
+        mfaEmail: null,
       });
     });
 
@@ -280,7 +337,10 @@ describe('CredentialStateService', () => {
     });
 
     it('wraps a rejected transition with the typed unavailable error', async () => {
-      credentialState.update.mockRejectedValue(new Error('write rejected'));
+      // The transitions upsert rather than update, so the rejection is raised on
+      // the call they actually make. Mocking update() here would leave the
+      // promise resolved and the assertion meaningless.
+      credentialState.upsert.mockRejectedValue(new Error('write rejected'));
 
       await expect(
         service.enableMfa('profile-1', 'juan@example.com'),

@@ -178,9 +178,21 @@ export class CredentialStateService {
       throw new Error('A destination address is required to enable MFA');
     }
     try {
-      return (await this.prisma.credentialState.update({
+      // upsert, not update: an update() throws when the row is absent, which left
+      // an account with no credential row unable to ever enable MFA. The create
+      // branch mirrors getRequired's defaults so the row is indistinguishable from
+      // one created there.
+      return (await this.prisma.credentialState.upsert({
         where: { profileId },
-        data: { mfaEnabled: true, mfaEmail: destination },
+        create: {
+          profileId,
+          mustChangePassword: false,
+          reason: null,
+          markedAt: null,
+          mfaEnabled: true,
+          mfaEmail: destination,
+        },
+        update: { mfaEnabled: true, mfaEmail: destination },
       })) as CredentialStateView;
     } catch (error) {
       throw new CredentialStateUnavailableError('dependency', error);
@@ -190,9 +202,20 @@ export class CredentialStateService {
   async disableMfa(profileId: string): Promise<CredentialStateView> {
     this.assertProfileId(profileId);
     try {
-      return (await this.prisma.credentialState.update({
+      // upsert for the same reason as enableMfa. A disable that throws leaves MFA
+      // switched on and the account unable to sign in, which is the worse of the
+      // two failure directions, so the row is created if it happens to be missing.
+      return (await this.prisma.credentialState.upsert({
         where: { profileId },
-        data: { mfaEnabled: false, mfaEmail: null },
+        create: {
+          profileId,
+          mustChangePassword: false,
+          reason: null,
+          markedAt: null,
+          mfaEnabled: false,
+          mfaEmail: null,
+        },
+        update: { mfaEnabled: false, mfaEmail: null },
       })) as CredentialStateView;
     } catch (error) {
       throw new CredentialStateUnavailableError('dependency', error);
