@@ -278,4 +278,68 @@ export function submitPasswordChange(input: {
   }).then(() => undefined);
 }
 
+/**
+ * Start MFA enrollment. The user reauthenticates with their current password
+ * before any code is issued, so enabling MFA always requires the account
+ * password as well as the emailed code (SEC-05).
+ */
+export function startMfaEnrollment(input: {
+  accessToken: string;
+  userId?: string | null;
+  currentPassword: string;
+}): Promise<LoginChallenge> {
+  return request<Record<string, unknown>>('POST', '/security/mfa/enable-challenge', {
+    accessToken: input.accessToken,
+    userId: input.userId ?? null,
+    body: { currentPassword: input.currentPassword },
+  }).then((raw) => ({
+    challengeId: typeof raw?.challengeId === 'string' ? raw.challengeId : '',
+    expiresAt: toIsoString(raw?.expiresAt),
+    maskedEmail: typeof raw?.maskedEmail === 'string' ? raw.maskedEmail : '',
+  }));
+}
+
+/** Complete MFA enrollment. On success the server turns MFA on. */
+export function completeMfaEnrollment(input: {
+  accessToken: string;
+  userId?: string | null;
+  challengeId: string;
+  code: string;
+}): Promise<void> {
+  return request<Record<string, unknown>>('POST', '/security/mfa/verify', {
+    accessToken: input.accessToken,
+    userId: input.userId ?? null,
+    body: { challengeId: input.challengeId, code: input.code },
+  }).then((raw) => {
+    // Enrollment also returns an assertion; hold it so the current session is
+    // not immediately challenged by the MFA it just enabled.
+    const assertion = typeof raw?.assertion === 'string' ? raw.assertion.trim() : '';
+    if (assertion) {
+      setMfaAssertion(assertion, { expiresAt: toIsoString(raw?.expiresAt), userId: input.userId ?? null });
+    }
+  });
+}
+
+/**
+ * Disable MFA. Requires the current password and the emailed code together, so
+ * the action cannot be completed by a stolen session alone.
+ */
+export function disableMfa(input: {
+  accessToken: string;
+  userId?: string | null;
+  currentPassword: string;
+  challengeId?: string;
+  code?: string;
+}): Promise<void> {
+  return request<unknown>('POST', '/security/mfa/disable', {
+    accessToken: input.accessToken,
+    userId: input.userId ?? null,
+    body: {
+      currentPassword: input.currentPassword,
+      ...(input.challengeId ? { challengeId: input.challengeId } : {}),
+      ...(input.code ? { code: input.code } : {}),
+    },
+  }).then(() => undefined);
+}
+
 export { clearMfaAssertion };

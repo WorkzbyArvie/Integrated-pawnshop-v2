@@ -40,43 +40,62 @@ export type PasswordRuleKey = (typeof PASSWORD_RULE_ORDER)[number];
 
 const COMMON_PASSWORDS = new Set([
   'password',
-  'password1',
-  'password123',
+  'passwd',
+  'qwerty',
+  'qwertyuiop',
+  'letmein',
+  'welcome',
+  'admin',
+  'administrator',
+  'iloveyou',
+  'monkey',
+  'dragon',
+  'football',
+  'baseball',
+  'master',
+  'shadow',
+  'sunshine',
+  'princess',
+  'abc',
+  '123456',
+  '1234567',
   '12345678',
   '123456789',
   '1234567890',
-  'qwerty123',
-  'qwertyuiop',
-  'iloveyou1',
-  'admin1234',
-  'welcome123',
-  'letmein123',
-  'monkey1234',
-  'dragon1234',
-  'baseball1',
-  'football1',
-  'trustno123',
-  'sunshine1',
-  'princess1',
-  'passw0rd123',
 ]);
 
-/** Obvious variant: a common password with simple character substitutions appended. */
-function isObviousVariant(value: string): boolean {
-  const normalized = value.toLowerCase();
-  if (COMMON_PASSWORDS.has(normalized)) return true;
-  const collapsed = normalized
-    .replace(/[0]/g, 'o')
-    .replace(/[1!]/g, 'l')
-    .replace(/[3]/g, 'e')
-    .replace(/[4@]/g, 'a')
-    .replace(/[5$]/g, 's')
-    .replace(/[7]/g, 't');
-  for (const common of COMMON_PASSWORDS) {
-    if (collapsed === common) return true;
-    if (collapsed.startsWith(common) && collapsed.length - common.length <= 3) return true;
-  }
-  return false;
+/**
+ * Faithful mirror of `normalizePasswordVariant` in
+ * `backend/src/security/password-policy.service.ts`. The substitution is a
+ * single pass so one substitution can never cascade into another.
+ */
+function normalizePasswordVariant(value: string): string {
+  const substitutions: Record<string, string> = {
+    '@': 'a',
+    '4': 'a',
+    '8': 'b',
+    '(': 'c',
+    '3': 'e',
+    '6': 'g',
+    '1': 'i',
+    '0': 'o',
+    '$': 's',
+    '5': 's',
+    '7': 't',
+    '+': 't',
+  };
+
+  return value
+    .normalize('NFKC')
+    .toLowerCase()
+    .split('')
+    .map((character) => substitutions[character] ?? character)
+    .join('')
+    .replace(/[^a-z0-9]/g, '');
+}
+
+function isCommonPassword(value: string): boolean {
+  return COMMON_PASSWORDS.has(normalizePasswordVariant(value));
 }
 
 export function evaluatePasswordRules(value: string): Record<PasswordRuleKey, boolean> {
@@ -88,10 +107,8 @@ export function evaluatePasswordRules(value: string): Record<PasswordRuleKey, bo
     number: /[0-9]/.test(value),
     symbol: /[^A-Za-z0-9]/.test(value),
     noSurroundingWhitespace:
-      PASSWORD_POLICY.rejectSurroundingWhitespace
-        ? value === value.trim()
-        : true,
-    common: value.length > 0 ? !isObviousVariant(value) : true,
+      PASSWORD_POLICY.rejectSurroundingWhitespace ? value === value.trim() : true,
+    common: value.length > 0 ? !isCommonPassword(value) : true,
   };
 }
 

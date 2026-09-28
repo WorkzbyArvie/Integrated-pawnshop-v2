@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import Swal from 'sweetalert2';
 import { useAuth } from '../context/AuthContext';
 import { checkTosStatus } from '../services/auctionApi';
+import { AccountSecuritySection } from '../components/AccountSecuritySection';
 import '../App.css';
 
 export default function Profile() {
@@ -180,6 +181,14 @@ export default function Profile() {
               )}
             </div>
           </div>
+
+          {session?.access_token && (
+            <AccountSecuritySection
+              accessToken={session.access_token}
+              userId={user?.id ?? null}
+              email={user?.email ?? null}
+            />
+          )}
 
           <div
             style={{

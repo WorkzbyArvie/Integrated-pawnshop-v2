@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState, useRef, useCallback } from 'react';
 import { useBranding } from '../context/BrandingContext';
 import { Link } from 'react-router-dom';
 import Swal from 'sweetalert2';
+import { PasswordRequirements } from '../components/Auth/PasswordRequirements';
+import { isPasswordCompliant } from '../lib/passwordPolicy';
 import {
   ArrowRight,
   SealCheck,
@@ -198,6 +200,7 @@ export default function Home() {
   const [authTab, setAuthTab] = useState<'login' | 'signup'>('login');
   const [authEmail, setAuthEmail] = useState('');
   const [authPassword, setAuthPassword] = useState('');
+  const [showAuthPassword, setShowAuthPassword] = useState(false);
   const [authName, setAuthName] = useState('');
   const [authCode, setAuthCode] = useState('');
   const [authSubmitting, setAuthSubmitting] = useState(false);
@@ -837,6 +840,14 @@ export default function Home() {
                     notifyError('This email is already registered. Please use a different email or sign in.');
                     return;
                   }
+                  // The server owns the policy; this only blocks an obviously
+                  // non-compliant submit before the round trip (D-01).
+                  if (!isPasswordCompliant(authPassword)) {
+                    notifyError(
+                      'Your password does not meet the password requirements. Check each rule and try again.',
+                    );
+                    return;
+                  }
 
                   const { isConfirmed } = await Swal.fire({
                     title: 'Confirm Registration',
@@ -909,20 +920,40 @@ export default function Home() {
               <input
                 placeholder="Password"
                 aria-label="Password"
-                type="password"
+                type={showAuthPassword ? 'text' : 'password'}
                 value={authPassword}
                 onChange={(e) => setAuthPassword(e.target.value)}
                 required
-                minLength={8}
+                autoComplete={authTab === 'signup' ? 'new-password' : 'current-password'}
+                aria-describedby={authTab === 'signup' ? 'auth-password-requirements' : undefined}
               />
+              <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                <button
+                  type="button"
+                  className="ghost-button"
+                  style={{ padding: '0.3rem 0.6rem', fontSize: '0.7rem' }}
+                  aria-pressed={showAuthPassword}
+                  onClick={() => setShowAuthPassword((previous) => !previous)}
+                >
+                  {showAuthPassword ? 'Hide password' : 'Show password'}
+                </button>
+              </div>
+              {authTab === 'signup' && (
+                <PasswordRequirements value={authPassword} id="auth-password-requirements" />
+              )}
               {authTab === 'signup' && (
                 <div style={{ display: 'grid', gap: '0.5rem' }}>
+                  <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: 0 }}>
+                    Enter the six-digit authentication code to finish creating your account.
+                  </p>
                   <div style={{ display: 'flex', gap: '0.5rem' }}>
                     <input
                       placeholder="Authentication code"
                       aria-label="Authentication code"
+                      inputMode="numeric"
+                      maxLength={6}
                       value={authCode}
-                      onChange={(e) => setAuthCode(e.target.value)}
+                      onChange={(e) => setAuthCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
                       required
                     />
                     <button
