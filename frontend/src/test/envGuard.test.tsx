@@ -73,6 +73,32 @@ describe('validateViteEnv', () => {
       'VITE_SUPABASE_URL is not a valid Supabase project URL (got "nonsense")',
     ]);
   });
+
+  it('rejects a ref that disagrees with the configured expectation', () => {
+    const problems = validateViteEnv({
+      ...VALID,
+      EXPECTED_SUPABASE_PROJECT_REF: 'aaaaaaaaaaaaaaaaaaaa',
+    });
+    expect(problems.join('\n')).toContain('but this deployment expects');
+    expect(problems.join('\n')).toContain(`"${REF}"`);
+  });
+
+  it('accepts a ref that matches the configured expectation', () => {
+    expect(
+      validateViteEnv({ ...VALID, EXPECTED_SUPABASE_PROJECT_REF: REF }),
+    ).toEqual([]);
+  });
+
+  it('catches a 20-character typo that no pattern check can detect', () => {
+    const typo = `${REF.slice(0, 4)}z${REF.slice(5)}`;
+    expect(typo).toHaveLength(20);
+    const problems = validateViteEnv({
+      ...VALID,
+      VITE_SUPABASE_URL: `https://${typo}.supabase.co`,
+      EXPECTED_SUPABASE_PROJECT_REF: REF,
+    });
+    expect(problems.join('\n')).toContain('but this deployment expects');
+  });
 });
 
 describe('assertValidViteEnv', () => {

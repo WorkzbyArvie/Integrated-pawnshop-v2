@@ -33,6 +33,21 @@ export function validateViteEnv(env) {
     );
   }
 
+  // A 20-character typo is syntactically perfect, so the only way to catch it is
+  // to compare against a known-good reference. Set the same
+  // EXPECTED_SUPABASE_PROJECT_REF in Vercel and Render so each side is checked
+  // independently against the one correct value.
+  const expected = env.EXPECTED_SUPABASE_PROJECT_REF;
+  if (typeof expected === 'string' && expected.trim() !== '') {
+    const wanted = expected.trim().toLowerCase();
+    if (ref !== wanted) {
+      problems.push(
+        `VITE_SUPABASE_URL references project "${ref}" but this deployment expects "${wanted}". ` +
+          'Copy the ref from Supabase > Project Settings > API.',
+      );
+    }
+  }
+
   const key = env.VITE_SUPABASE_ANON_KEY;
   if (typeof key !== 'string' || key.trim() === '') {
     problems.push('VITE_SUPABASE_ANON_KEY is required but missing or empty');
