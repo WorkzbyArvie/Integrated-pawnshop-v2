@@ -1,5 +1,6 @@
 ﻿import type { AuctionListResponse, AuctionListing } from '../types';
 import { getBackendUrl } from '../lib/backendUrl';
+import { unwrapEnvelope } from '../lib/responseEnvelope';
 import { authHeaders } from '../lib/authHeaders';
 
 const backendUrl = getBackendUrl();
@@ -31,7 +32,7 @@ export async function fetchListings(query: ListingQuery = {}): Promise<AuctionLi
   }
 
   const json = await response.json();
-  return (json?.data ?? json) as AuctionListResponse;
+  return unwrapEnvelope<AuctionListResponse>(json);
 }
 
 export async function fetchListing(id: number): Promise<AuctionListing> {
@@ -44,7 +45,7 @@ export async function fetchListing(id: number): Promise<AuctionListing> {
   }
 
   const json = await response.json();
-  return (json?.data ?? json) as AuctionListing;
+  return unwrapEnvelope<AuctionListing>(json);
 }
 
 export async function checkTosStatus(
@@ -59,7 +60,7 @@ export async function checkTosStatus(
   }
 
   const json = await response.json();
-  return json?.data ?? json;
+  return unwrapEnvelope(json);
 }
 
 export interface TosTemplate {
@@ -97,12 +98,12 @@ export async function fetchTosTemplate(accessToken: string): Promise<{
   const templateJson = await templateRes.json().catch(() => ({}));
   const clausesJson = await clausesRes.json().catch(() => ({}));
 
-  const templates: TosTemplate[] = templateJson?.data ?? templateJson ?? [];
-  const clauses: TosClause[] = clausesJson?.data ?? clausesJson ?? [];
+  const templateList = unwrapEnvelope<unknown>(templateJson);
+  const clauseList = unwrapEnvelope<unknown>(clausesJson);
 
   return {
-    template: Array.isArray(templates) ? templates[0] || null : null,
-    clauses: Array.isArray(clauses) ? clauses : [],
+    template: Array.isArray(templateList) ? ((templateList[0] as TosTemplate) || null) : null,
+    clauses: Array.isArray(clauseList) ? (clauseList as TosClause[]) : [],
   };
 }
 
@@ -140,7 +141,7 @@ export async function placeBid(
   }
 
   const json = await response.json();
-  return json?.data ?? json;
+  return unwrapEnvelope(json);
 }
 
 export interface MyBidItem {
@@ -166,7 +167,7 @@ export async function fetchMyBids(accessToken: string): Promise<MyBidItem[]> {
   }
 
   const json = await response.json();
-  return json?.data ?? json;
+  return unwrapEnvelope(json);
 }
 
 export interface MyWinningItem {
@@ -197,7 +198,7 @@ export async function fetchMyWinnings(accessToken: string): Promise<MyWinningIte
   }
 
   const json = await response.json();
-  return json?.data ?? json;
+  return unwrapEnvelope(json);
 }
 
 export async function createPaymentCheckout(
@@ -215,7 +216,7 @@ export async function createPaymentCheckout(
   }
 
   const json = await response.json();
-  return json?.data ?? json;
+  return unwrapEnvelope(json);
 }
 
 export async function signContract(
@@ -270,7 +271,7 @@ export async function fetchReceiptsByAuction(listingId: number, accessToken: str
   if (!response.ok) return [];
 
   const json = await response.json();
-  const data = json?.data ?? json;
+  const data = unwrapEnvelope(json);
   return Array.isArray(data) ? data : [];
 }
 

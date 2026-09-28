@@ -9,6 +9,7 @@
 
 import { getBackendUrl } from './backendUrl';
 import { authHeaders, clearMfaAssertion, setMfaAssertion } from './authHeaders';
+import { unwrapEnvelope } from './responseEnvelope';
 
 const backendUrl = getBackendUrl();
 
@@ -71,12 +72,17 @@ function readMessage(body: unknown, fallback: string): string {
   return typeof candidate === 'string' && candidate ? candidate : fallback;
 }
 
-/** Unwrap the backend's `{ success, data }` response envelope. */
-function unwrap(body: unknown): unknown {
-  if (body && typeof body === 'object' && 'success' in (body as object) && 'data' in (body as object)) {
-    return (body as Record<string, unknown>).data;
-  }
-  return body;
+/**
+ * Unwrap the backend's `{ success, data }` response envelope.
+ *
+ * Repeated rather than single-level: a controller that already returns the
+ * envelope, combined with the backend's global wrapping interceptor, produced a
+ * second layer. Unwrapping once then handed back the envelope instead of the
+ * payload, so a valid response was read as an absent credential state and the
+ * bidder preflight reported an unavailable account security status.
+ */
+function unwrap<T>(body: unknown): T {
+  return unwrapEnvelope<T>(body);
 }
 
 async function request<T>(
@@ -90,11 +96,29 @@ async function request<T>(
     userId: options.userId ?? null,
   });
 
-  const response = await fetch(`${backendUrl}${path.startsWith('/') ? path : `/${path}`}`, {
+  const url = `${backendUrl}${path.startsWith('/') ? path : `/${path}`}`;
+  const init: RequestInit = {
     method,
     headers,
     body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
-  });
+    // Authenticated, per-user data must never come from the HTTP cache. A
+    // revalidation `304 Not Modified` carries no body, and `Response.ok` is
+    // false for it, so treating it as a normal response left callers with an
+    // empty payload and a false "unavailable" credential state.
+    cache: 'no-store',
+  };
+
+  let response = await fetch(url, init);
+
+  if (response.status === 304) {
+    // An intermediary ignored `no-store`; refetch unconditionally once rather
+    // than surfacing an error for a request that actually succeeded.
+    response = await fetch(url, { ...init, cache: 'reload' });
+  }
+
+  if (response.status === 204) {
+    return undefined as T;
+  }
 
   let payload: unknown = null;
   try {
@@ -111,7 +135,7 @@ async function request<T>(
     );
   }
 
-  return unwrap(payload) as T;
+  return unwrap<T>(payload);
 }
 
 export function isCredentialStateUnavailable(error: unknown): boolean {
