@@ -19,13 +19,14 @@ import {
   type CredentialActivityEvent,
   type CredentialStatus,
 } from '../lib/accountSecurity';
-import { getApiErrorDetails } from '../lib/apiClient';
+import { clearMfaAssertion, getApiErrorDetails } from '../lib/apiClient';
 import { getPasswordRuleFailures, PASSWORD_RULE_COPY } from '../components/Auth/PasswordRequirements';
 import {
   PasswordConfirmField,
   PasswordErrorSummary,
   PasswordField,
 } from '../components/Auth/PasswordField';
+import { MfaSetupDialog, type MfaDialogMode } from '../components/Auth/MfaSetupDialog';
 
 export const ACCOUNT_SECURITY_COPY = {
   heading: 'Account security',
@@ -40,6 +41,8 @@ export const ACCOUNT_SECURITY_COPY = {
   mfaNotEnabled: 'Not enabled',
   mfaEnabled: 'Enabled',
   mfaSetupPending: 'Setup pending',
+  enableMfa: 'Enable email MFA',
+  disableMfa: 'Disable email MFA',
   statusCurrent: 'Current',
   statusChangeRequired: 'Change required',
   statusUnavailable: 'Unavailable',
@@ -66,6 +69,7 @@ export function AccountSecurityPage({
   const headingRef = useRef<HTMLHeadingElement>(null);
   const passwordSectionRef = useRef<HTMLHeadingElement>(null);
   const changeTriggerRef = useRef<HTMLButtonElement>(null);
+  const mfaTriggerRef = useRef<HTMLButtonElement>(null);
   const [status, setStatus] = useState<CredentialStatus | null>(null);
   const [statusFailed, setStatusFailed] = useState(false);
   const [activity, setActivity] = useState<CredentialActivityEvent[] | null>(null);
@@ -79,6 +83,8 @@ export function AccountSecurityPage({
   const [summaryMessage, setSummaryMessage] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [changed, setChanged] = useState(false);
+  const [mfaDialogMode, setMfaDialogMode] = useState<MfaDialogMode | null>(null);
+  const [mfaEnrollmentPending, setMfaEnrollmentPending] = useState(false);
 
   const maskedEmail = maskAccountEmail(accountEmail);
 
@@ -180,6 +186,30 @@ export function AccountSecurityPage({
     }
   };
 
+  const openMfaDialog = (mode: MfaDialogMode) => {
+    if (statusFailed || !status) return;
+    setMfaEnrollmentPending(mode === 'enable');
+    setMfaDialogMode(mode);
+  };
+
+  const closeMfaDialog = (returnFocus = false) => {
+    setMfaDialogMode(null);
+    setMfaEnrollmentPending(false);
+    if (returnFocus) {
+      window.requestAnimationFrame(() => mfaTriggerRef.current?.focus());
+    }
+  };
+
+  const handleMfaCompleted = async () => {
+    await Promise.all([loadStatus(), loadActivity()]);
+    closeMfaDialog(true);
+  };
+
+  const handleSignOut = () => {
+    clearMfaAssertion();
+    onSignOut?.();
+  };
+
   const passwordStatusLabel = statusFailed
     ? ACCOUNT_SECURITY_COPY.statusUnavailable
     : status?.mustChangePassword
@@ -190,7 +220,9 @@ export function AccountSecurityPage({
     ? ACCOUNT_SECURITY_COPY.statusUnavailable
     : status?.mfaEnabled
       ? ACCOUNT_SECURITY_COPY.mfaEnabled
-      : ACCOUNT_SECURITY_COPY.mfaNotEnabled;
+      : mfaEnrollmentPending
+        ? ACCOUNT_SECURITY_COPY.mfaSetupPending
+        : ACCOUNT_SECURITY_COPY.mfaNotEnabled;
 
   return (
     <div
@@ -411,6 +443,27 @@ export function AccountSecurityPage({
           <p className="text-[14px] leading-[1.5]" style={{ color: 'var(--text-secondary)' }}>
             {ACCOUNT_SECURITY_COPY.mfaExplanation}
           </p>
+          {status && !statusFailed ? (
+            <button
+              ref={mfaTriggerRef}
+              type="button"
+              onClick={() => openMfaDialog(status.mfaEnabled ? 'disable' : 'enable')}
+              className="h-11 rounded-[12px] px-4 text-[14px] font-semibold"
+              style={
+                status.mfaEnabled
+                  ? {
+                      background: 'rgba(212,69,69,0.12)',
+                      border: '1px solid rgba(212,69,69,0.35)',
+                      color: 'var(--red)',
+                    }
+                  : { background: 'var(--gold)', color: '#0A0A0F' }
+              }
+            >
+              {status.mfaEnabled
+                ? ACCOUNT_SECURITY_COPY.disableMfa
+                : ACCOUNT_SECURITY_COPY.enableMfa}
+            </button>
+          ) : null}
         </section>
       </div>
 
@@ -489,7 +542,7 @@ export function AccountSecurityPage({
         <div>
           <button
             type="button"
-            onClick={onSignOut}
+            onClick={handleSignOut}
             className="h-11 rounded-[12px] px-4 text-[14px] font-medium"
             style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: 'var(--text-secondary)' }}
           >
@@ -497,6 +550,18 @@ export function AccountSecurityPage({
           </button>
         </div>
       )}
+
+      <MfaSetupDialog
+        open={mfaDialogMode !== null}
+        mode={mfaDialogMode ?? 'enable'}
+        maskedEmail={status?.mfaEmailMasked ?? maskedEmail}
+        onOpenChange={(next) => {
+          if (next) return;
+          closeMfaDialog(true);
+        }}
+        onCompleted={handleMfaCompleted}
+        onCancelled={() => closeMfaDialog(true)}
+      />
     </div>
   );
 }

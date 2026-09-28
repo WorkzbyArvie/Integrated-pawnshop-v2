@@ -83,12 +83,24 @@ export function clearMfaAssertion(): void {
   mfaAssertionUserId = null;
 }
 
-/** Drop a held assertion when the authenticated subject is no longer the one that earned it. */
-function clearAssertionForOtherUser(userId: string | null): void {
+/**
+ * Bind a held assertion to the subject that is currently authenticated and drop it
+ * as soon as that subject changes. A held assertion is never carried into a new
+ * login or a different account, and sign-out leaves nothing behind to replay.
+ */
+function bindAssertionToSession(userId: string | null, authenticated: boolean): void {
   if (!mfaAssertion) return;
-  if (mfaAssertionUserId === null) return;
-  if (userId === mfaAssertionUserId) return;
-  clearMfaAssertion();
+  if (!authenticated) {
+    clearMfaAssertion();
+    return;
+  }
+  if (mfaAssertionUserId === null) {
+    mfaAssertionUserId = userId;
+    return;
+  }
+  if (mfaAssertionUserId !== userId) {
+    clearMfaAssertion();
+  }
 }
 
 function errorDetails(body: unknown): { code?: string; failedRules: string[] } {
@@ -148,7 +160,7 @@ async function getHeaders(): Promise<Record<string, string>> {
 
     if (session?.access_token) {
       const userId = session.user?.id ?? null;
-      clearAssertionForOtherUser(userId);
+      bindAssertionToSession(userId, true);
       headers['Authorization'] = `Bearer ${session.access_token}`;
       headers['user-id'] = userId ?? '';
       const assertion = getMfaAssertion();
@@ -156,7 +168,7 @@ async function getHeaders(): Promise<Record<string, string>> {
         headers[MFA_ASSERTION_HEADER] = assertion;
       }
     } else {
-      clearAssertionForOtherUser(null);
+      bindAssertionToSession(null, false);
     }
   } catch {
     // No session available — proceed unauthenticated
