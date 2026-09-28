@@ -45,6 +45,8 @@ const RECOVERY_COPY = {
     'Your sign-in session ended when the password changed. Sign in again with your new password.',
   unverifiable:
     "We couldn't confirm your account security status. Your password may have changed — sign in to continue.",
+  rateLimited:
+    'Too many password update attempts. Wait 60 seconds, then try again once.',
   continueToSignIn: 'Continue to sign in',
 } as const;
 
@@ -54,6 +56,7 @@ type UpdateState =
   | 'idle'
   | 'submitting'
   | 'rejected'
+  | 'rate-limited'
   | 'not-cleared'
   | 'unverifiable'
   | 'needs-sign-in'
@@ -310,6 +313,14 @@ export default function ResetPassword() {
 
       setUpdateState('success');
     } catch (error) {
+      if (error instanceof ApiError && error.status === 429) {
+        // The endpoint allows 5 attempts per minute. Reporting "couldn't update
+        // your password" for a rate limit invites a retry loop that cannot
+        // succeed while remaining rate limited.
+        setUpdateState('rate-limited');
+        setSummaryMessage(RECOVERY_COPY.rateLimited);
+        return;
+      }
       const code = getApiErrorDetails(error).code;
       if (code === 'PASSWORD_CONFIRMATION_MISMATCH') {
         setFieldError(PASSWORD_RULE_COPY.mismatch);
@@ -585,6 +596,16 @@ export default function ResetPassword() {
                 style={{ background: 'rgba(212,69,69,0.1)', borderColor: 'rgba(212,69,69,0.2)', color: 'var(--red)' }}
               >
                 Your password change has not cleared yet. Try again.
+              </p>
+            )}
+
+            {updateState === 'rate-limited' && (
+              <p
+                role="alert"
+                className="rounded-[12px] border px-3 py-2 text-[14px]"
+                style={{ background: 'rgba(201,160,92,0.1)', borderColor: 'rgba(201,160,92,0.2)', color: 'var(--text-secondary)' }}
+              >
+                {RECOVERY_COPY.rateLimited}
               </p>
             )}
 
