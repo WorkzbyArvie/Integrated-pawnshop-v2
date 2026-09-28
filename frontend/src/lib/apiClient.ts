@@ -114,6 +114,27 @@ function errorDetails(body: unknown): { code?: string; failedRules: string[] } {
   return { code, failedRules: safeRuleKeys(data?.failed) };
 }
 
+/**
+ * Unwrap the backend's `{ success, data }` envelope.
+ *
+ * Repeated rather than single-level because a controller that already returns an
+ * envelope, combined with the global wrapping interceptor, produced a second
+ * layer. The client then received the envelope instead of the payload, so a
+ * valid response was read as an absent one, which the credential preflight
+ * reported as an unavailable account security status. Bounded so a pathological
+ * payload cannot spin.
+ */
+function unwrapEnvelope<T>(value: unknown): T {
+  let current: unknown = value;
+  for (let depth = 0; depth < 3; depth += 1) {
+    if (!current || typeof current !== 'object' || Array.isArray(current)) break;
+    const envelope = current as Record<string, unknown>;
+    if (envelope.success !== true || envelope.data === undefined) break;
+    current = envelope.data;
+  }
+  return current as T;
+}
+
 export class ApiError extends Error {
   status: number;
   body: unknown;
@@ -282,12 +303,7 @@ async function parseResponse<T>(
     );
   }
 
-  // Unwrap the backend's { success, data } response envelope
-  if (data && typeof data === 'object' && 'success' in (data as any) && 'data' in (data as any)) {
-    return (data as any).data as T;
-  }
-
-  return data as T;
+  return unwrapEnvelope<T>(data);
 }
 
 // ── Convenience Methods ─────────────────────────────────────────

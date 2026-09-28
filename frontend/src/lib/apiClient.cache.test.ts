@@ -128,6 +128,55 @@ describe('apiClient cache handling', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
+  it('unwraps a double-wrapped envelope to the payload', async () => {
+    // Regression: a controller returning `{ success, data }` combined with the
+    // global wrapping interceptor produced two layers. The client unwrapped one,
+    // received the envelope, and the credential preflight read a valid response
+    // as an absent security status.
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        jsonResponse(200, {
+          success: true,
+          data: {
+            success: true,
+            data: { mustChangePassword: true, mfaEnabled: false },
+          },
+        }),
+      ),
+    );
+
+    await expect(api.get('/security/credential-status')).resolves.toEqual({
+      mustChangePassword: true,
+      mfaEnabled: false,
+    });
+  });
+
+  it('unwraps a single envelope as before', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        jsonResponse(200, { success: true, data: { mustChangePassword: false } }),
+      ),
+    );
+    await expect(api.get('/security/credential-status')).resolves.toEqual({
+      mustChangePassword: false,
+    });
+  });
+
+  it('leaves a bare payload untouched', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(200, { id: 7 })));
+    await expect(api.get('/plain')).resolves.toEqual({ id: 7 });
+  });
+
+  it('unwraps an array payload rather than descending into it', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(jsonResponse(200, { success: true, data: [1, 2] })),
+    );
+    await expect(api.get('/list')).resolves.toEqual([1, 2]);
+  });
+
   it('refreshes once and retries a 401', async () => {
     const fetchMock = vi
       .fn()
