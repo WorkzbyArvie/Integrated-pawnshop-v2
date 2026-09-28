@@ -2,10 +2,19 @@ import { createContext, useContext, useEffect, useState, useCallback, type React
 import type { Session, User } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabaseClient';
 import { getBackendUrl } from '../lib/backendUrl';
+import { bindAssertionToSession, clearMfaAssertion, getMfaAssertion } from '../lib/authHeaders';
+import { fetchCredentialStatus, isCredentialStateUnavailable, type CredentialStatus } from '../lib/credentialApi';
 
 const backendUrl = getBackendUrl();
 
 export type KycStatus = 'NOT_SUBMITTED' | 'PENDING' | 'VERIFIED' | 'REJECTED';
+
+/**
+ * `loading` while the server-owned status is in flight, `ready` once the server
+ * has answered, `unavailable` when the answer could not be obtained. `unavailable`
+ * is fail-closed: the caller must not render auction content.
+ */
+export type CredentialState = 'loading' | 'ready' | 'unavailable';
 
 export interface KycProfile {
   id?: string;
@@ -23,6 +32,11 @@ interface AuthContextType {
   kycStatus: KycStatus;
   kycProfile: KycProfile | null;
   kycLoading: boolean;
+  credentialStatus: CredentialStatus | null;
+  credentialState: CredentialState;
+  mfaRequired: boolean;
+  markMfaVerified: () => void;
+  refreshCredentialStatus: () => Promise<void>;
   signIn: (email: string, password: string) => Promise<{ error?: string }>;
   requestAuthCode: (
     email: string,
@@ -48,6 +62,63 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [kycStatus, setKycStatus] = useState<KycStatus>('NOT_SUBMITTED');
   const [kycProfile, setKycProfile] = useState<KycProfile | null>(null);
   const [kycLoading, setKycLoading] = useState(false);
+  const [credentialStatus, setCredentialStatus] = useState<CredentialStatus | null>(null);
+  const [credentialState, setCredentialState] = useState<CredentialState>('loading');
+  const [mfaVerified, setMfaVerified] = useState(false);
+
+  const resetCredentialState = useCallback(() => {
+    setCredentialStatus(null);
+    setCredentialState('loading');
+    setMfaVerified(false);
+  }, []);
+
+  /**
+   * Read the server-owned credential status through the backend endpoint. The
+   * auction client never queries credential tables directly, and a status it
+   * cannot confirm resolves to `unavailable` so the gate fails closed (D-01, D-05).
+   */
+  const loadCredentialStatus = useCallback(async (accessToken: string) => {
+    try {
+      const status = await fetchCredentialStatus({ accessToken });
+      if (status) {
+        setCredentialStatus(status);
+        setCredentialState('ready');
+        return status;
+      }
+      setCredentialStatus(null);
+      setCredentialState('unavailable');
+      return null;
+    } catch (error) {
+      setCredentialStatus(null);
+      setCredentialState(isCredentialStateUnavailable(error) ? 'unavailable' : 'unavailable');
+      return null;
+    }
+  }, []);
+
+  const refreshCredentialStatus = useCallback(async () => {
+    const token = session?.access_token;
+    if (!token) {
+      resetCredentialState();
+      return;
+    }
+    await loadCredentialStatus(token);
+  }, [session?.access_token, loadCredentialStatus, resetCredentialState]);
+
+  const markMfaVerified = useCallback(() => {
+    setMfaVerified(true);
+  }, []);
+
+  /**
+   * The challenge is required when the server says MFA is on, the subject is
+   * authenticated, the status is confirmed ready, and this session holds neither
+   * a server-issued assertion nor a completed verification (D-05).
+   */
+  const mfaRequired =
+    credentialState === 'ready' &&
+    credentialStatus?.mfaEnabled === true &&
+    Boolean(session?.access_token) &&
+    !mfaVerified &&
+    !getMfaAssertion();
 
   const parseKycStatus = (raw: any): KycStatus => {
     const candidates = [
@@ -113,6 +184,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(s?.user ?? null);
       setLoading(false);
       if (s?.access_token) {
+        bindAssertionToSession(s?.user?.id ?? null, true);
+        void loadCredentialStatus(s.access_token);
         fetchKycStatus(s.access_token);
       }
     });
@@ -123,8 +196,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSession(newSession);
       setUser(newSession?.user ?? null);
       if (newSession?.access_token) {
+        // A different subject must never inherit the previous assertion.
+        bindAssertionToSession(newSession?.user?.id ?? null, true);
+        void loadCredentialStatus(newSession.access_token);
         fetchKycStatus(newSession.access_token);
       } else {
+        bindAssertionToSession(null, false);
+        resetCredentialState();
         setKycStatus('NOT_SUBMITTED');
         setKycProfile(null);
       }
@@ -134,7 +212,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       mounted = false;
       subscription.unsubscribe();
     };
-  }, [fetchKycStatus]);
+  }, [fetchKycStatus, loadCredentialStatus, resetCredentialState]);
 
   const refreshKycStatus = useCallback(async () => {
     if (session?.access_token) {
@@ -248,6 +326,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signOut = async () => {
     await supabase.auth.signOut();
+    // Sign-out leaves no assertion, code, or verified-session flag behind to replay.
+    bindAssertionToSession(null, false);
+    clearMfaAssertion();
+    resetCredentialState();
     setUser(null);
     setSession(null);
     setKycStatus('NOT_SUBMITTED');
@@ -255,7 +337,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, loading, kycStatus, kycProfile, kycLoading, signIn, requestAuthCode, signUp, signOut, refreshKycStatus }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        session,
+        loading,
+        kycStatus,
+        kycProfile,
+        kycLoading,
+        credentialStatus,
+        credentialState,
+        mfaRequired,
+        markMfaVerified,
+        refreshCredentialStatus,
+        signIn,
+        requestAuthCode,
+        signUp,
+        signOut,
+        refreshKycStatus,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );

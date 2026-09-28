@@ -4,6 +4,7 @@ import Swal from 'sweetalert2';
 import { useAuth, type KycStatus } from '../context/AuthContext';
 import { supabase } from '../lib/supabaseClient';
 import { getBackendUrl } from '../lib/backendUrl';
+import { authHeaders } from '../lib/authHeaders';
 
 const backendUrl = getBackendUrl();
 
@@ -350,10 +351,7 @@ const [acceptedTerms, setAcceptedTerms] = useState(false);
 
       const res = await fetch(`${backendUrl}/auth/kyc/submit`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${session.access_token}`,
-        },
+        headers: authHeaders(session.access_token, { json: true, userId: user.id }),
         body: JSON.stringify({
           fullName,
           dateOfBirth,

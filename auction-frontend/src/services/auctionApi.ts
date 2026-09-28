@@ -1,5 +1,6 @@
-import type { AuctionListResponse, AuctionListing } from '../types';
+﻿import type { AuctionListResponse, AuctionListing } from '../types';
 import { getBackendUrl } from '../lib/backendUrl';
+import { authHeaders } from '../lib/authHeaders';
 
 const backendUrl = getBackendUrl();
 
@@ -50,10 +51,7 @@ export async function checkTosStatus(
   accessToken: string,
 ): Promise<{ accepted: boolean; tosVersion: string | null; acceptedAt: string | null }> {
   const response = await fetch(`${backendUrl}/auction/bidders/tos-status`, {
-    headers: {
-      Accept: 'application/json',
-      Authorization: `Bearer ${accessToken}`,
-    },
+    headers: authHeaders(accessToken),
   });
 
   if (!response.ok) {
@@ -89,16 +87,10 @@ export async function fetchTosTemplate(accessToken: string): Promise<{
 }> {
   const [templateRes, clausesRes] = await Promise.all([
     fetch(`${backendUrl}/contracts/templates?type=AUCTION_BIDDER_AGREEMENT`, {
-      headers: {
-        Accept: 'application/json',
-        Authorization: `Bearer ${accessToken}`,
-      },
+      headers: authHeaders(accessToken),
     }),
     fetch(`${backendUrl}/contracts/clauses?type=AUCTION_BIDDER_AGREEMENT`, {
-      headers: {
-        Accept: 'application/json',
-        Authorization: `Bearer ${accessToken}`,
-      },
+      headers: authHeaders(accessToken),
     }),
   ]);
 
@@ -121,11 +113,7 @@ export async function acceptBidderTos(
 ): Promise<void> {
   const response = await fetch(`${backendUrl}/auction/bidders/accept-tos`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Accept: 'application/json',
-      Authorization: `Bearer ${accessToken}`,
-    },
+    headers: authHeaders(accessToken, { json: true }),
     body: JSON.stringify({ listingId, signedName }),
   });
 
@@ -142,11 +130,7 @@ export async function placeBid(
 ): Promise<{ bidId: number | null; currentBid: number; nextMinimumBid: number; extended: boolean }> {
   const response = await fetch(`${backendUrl}/auction/listings/${listingId}/bids`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Accept: 'application/json',
-      Authorization: `Bearer ${accessToken}`,
-    },
+    headers: authHeaders(accessToken, { json: true }),
     body: JSON.stringify({ amount }),
   });
 
@@ -174,10 +158,7 @@ export interface MyBidItem {
 
 export async function fetchMyBids(accessToken: string): Promise<MyBidItem[]> {
   const response = await fetch(`${backendUrl}/auction/bidders/my-bids`, {
-    headers: {
-      Accept: 'application/json',
-      Authorization: `Bearer ${accessToken}`,
-    },
+    headers: authHeaders(accessToken),
   });
 
   if (!response.ok) {
@@ -208,10 +189,7 @@ export interface MyWinningItem {
 
 export async function fetchMyWinnings(accessToken: string): Promise<MyWinningItem[]> {
   const response = await fetch(`${backendUrl}/auction/bidders/my-winnings`, {
-    headers: {
-      Accept: 'application/json',
-      Authorization: `Bearer ${accessToken}`,
-    },
+    headers: authHeaders(accessToken),
   });
 
   if (!response.ok) {
@@ -228,10 +206,7 @@ export async function createPaymentCheckout(
 ): Promise<{ checkoutUrl: string; linkId: string; paymentId: string; amount: number }> {
   const response = await fetch(`${backendUrl}/auction/bidders/me/pay/${complianceId}`, {
     method: 'POST',
-    headers: {
-      Accept: 'application/json',
-      Authorization: `Bearer ${accessToken}`,
-    },
+    headers: authHeaders(accessToken),
   });
 
   if (!response.ok) {
@@ -250,11 +225,7 @@ export async function signContract(
 ): Promise<void> {
   const response = await fetch(`${backendUrl}/auction/settlements/${complianceId}/sign-contract`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Accept: 'application/json',
-      Authorization: `Bearer ${accessToken}`,
-    },
+    headers: authHeaders(accessToken, { json: true }),
     body: JSON.stringify({ signedName }),
   });
 
@@ -270,11 +241,7 @@ export async function simulatePaymentWebhook(
 ): Promise<void> {
   const response = await fetch(`${backendUrl}/auction/payments/webhook/simulate`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Accept: 'application/json',
-      Authorization: `Bearer ${accessToken}`,
-    },
+    headers: authHeaders(accessToken, { json: true }),
     body: JSON.stringify({ complianceId }),
   });
 
@@ -297,10 +264,7 @@ export interface AuctionReceipt {
 
 export async function fetchReceiptsByAuction(listingId: number, accessToken: string): Promise<AuctionReceipt[]> {
   const response = await fetch(`${backendUrl}/receipts/by-reference/AUCTION/${listingId}`, {
-    headers: {
-      Accept: 'application/json',
-      Authorization: `Bearer ${accessToken}`,
-    },
+    headers: authHeaders(accessToken),
   });
 
   if (!response.ok) return [];

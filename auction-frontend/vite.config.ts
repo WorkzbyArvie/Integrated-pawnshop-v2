@@ -19,6 +19,12 @@ export default defineConfig({
   },
   test: {
     environment: 'jsdom',
+    // A concrete origin is required for `localStorage`/`sessionStorage` to
+    // exist; an opaque origin would make the "no credential is persisted" (D-02)
+    // assertions vacuously pass.
+    environmentOptions: {
+      jsdom: { url: 'http://localhost:5174/' },
+    },
     setupFiles: './src/test/setup.ts',
     globals: true,
   },
