@@ -401,7 +401,7 @@ export function ContractViewer({
                         <button
                           onClick={() => { setActiveSigner('customer'); handleSign('customer'); }}
                           disabled={!signature || signing}
-                          className="px-4 py-2 rounded-xl bg-[#C9A05C] text-white text-xs font-bold hover:bg-[#E5C88C] disabled:opacity-50"
+                          className="px-4 py-2 rounded-xl bg-[#C9A05C] text-[#0A0A0F] text-xs font-bold hover:bg-[#E5C88C] disabled:opacity-50"
                         >
                           {signing ? 'Signing...' : 'Sign as Customer'}
                         </button>
@@ -475,7 +475,7 @@ export function ContractViewer({
                         <button
                           onClick={() => { setActiveSigner('staff'); handleSign('staff'); }}
                           disabled={!signature || signing}
-                          className="px-4 py-2 rounded-xl bg-[#C9A05C] text-white text-xs font-bold hover:bg-[#E5C88C] disabled:opacity-50"
+                          className="px-4 py-2 rounded-xl bg-[#C9A05C] text-[#0A0A0F] text-xs font-bold hover:bg-[#E5C88C] disabled:opacity-50"
                         >
                           {signing ? 'Signing...' : 'Sign as Staff'}
                         </button>
@@ -490,7 +490,7 @@ export function ContractViewer({
                   <button
                     onClick={handleDownloadPdf}
                     disabled={downloading}
-                    className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-[#C9A05C] text-white text-sm font-bold hover:bg-[#E5C88C] transition-colors disabled:opacity-50"
+                    className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-[#C9A05C] text-[#0A0A0F] text-sm font-bold hover:bg-[#E5C88C] transition-colors disabled:opacity-50"
                   >
                     <FileDown className="w-4 h-4" />
                     {downloading ? 'Downloading...' : 'Download Contract PDF'}

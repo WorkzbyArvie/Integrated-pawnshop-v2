@@ -211,7 +211,7 @@ export function AuctionSettlements({ branchId: _branchId, activeBranchId: _activ
                         <button
                           onClick={() => handleRelease(item)}
                           disabled={releasingId === item.id}
-                          className="px-4 py-2 rounded-xl bg-[#C9A05C] text-white text-[10px] font-black uppercase tracking-wider hover:bg-[#E5C88C] transition-colors disabled:opacity-50"
+                          className="px-4 py-2 rounded-xl bg-[#C9A05C] text-[#0A0A0F] text-[10px] font-black uppercase tracking-wider hover:bg-[#E5C88C] transition-colors disabled:opacity-50"
                         >
                           {releasingId === item.id ? (
                             <Loader2 className="w-3 h-3 animate-spin inline" />

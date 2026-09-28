@@ -479,7 +479,7 @@ export function PayrollManagement({ branchId: _branchId, activeBranchId }: Payro
               </div>
             </CardContent>
           </Card>
-          <Card className="bg-gradient-to-br from-[#C9A05C] to-[#A07D40] text-white">
+          <Card className="bg-gradient-to-br from-[#C9A05C] to-[#A07D40] text-[#0A0A0F]">
             <CardContent className="pt-6">
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-white/20 rounded-xl"><Wallet className="w-5 h-5" /></div>

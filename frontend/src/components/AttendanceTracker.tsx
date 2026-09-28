@@ -444,7 +444,7 @@ export function AttendanceTracker({ branchId: _branchId, activeBranchId, userRol
                                 key={day}
                                 className={`w-8 h-8 text-xs rounded-full font-semibold transition-colors ${
                                   scheduleForm.workingDays & DAY_BITS[i]
-                                    ? 'bg-[#C9A05C] text-white'
+                                    ? 'bg-[#C9A05C] text-[#0A0A0F]'
                                     : 'bg-[#1C1C26] text-[#8A8279]'
                                 }`}
                                 onClick={() => toggleDay(DAY_BITS[i])}
@@ -661,7 +661,7 @@ export function AttendanceTracker({ branchId: _branchId, activeBranchId, userRol
                     key={day}
                     className={`w-10 h-10 text-xs rounded-full font-semibold transition-colors ${
                       scheduleForm.workingDays & DAY_BITS[i]
-                        ? 'bg-[#C9A05C] text-white'
+                        ? 'bg-[#C9A05C] text-[#0A0A0F]'
                         : 'bg-[#1C1C26] text-[#8A8279] hover:bg-[#222228]'
                     }`}
                     onClick={() => toggleDay(DAY_BITS[i])}

@@ -173,7 +173,7 @@ export function ReceiptViewer({ receiptId, referenceType, referenceId, open, onC
                   href={pdfUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-[#C9A05C] text-white text-sm font-bold hover:bg-[#E5C88C] transition-colors"
+                  className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-[#C9A05C] text-[#0A0A0F] text-sm font-bold hover:bg-[#E5C88C] transition-colors"
                 >
                   <FileDown className="w-4 h-4" />
                   Download PDF

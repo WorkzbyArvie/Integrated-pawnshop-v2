@@ -199,7 +199,7 @@ export function BranchAnalytics({ branchId, branchName, onBack }: BranchAnalytic
       <div className="min-h-[400px] flex flex-col items-center justify-center gap-4">
         <AlertCircle className="w-10 h-10 text-rose-400" />
         <p className="text-rose-500 text-sm font-bold">{error}</p>
-        <button onClick={fetchAll} className="px-6 py-3 bg-[#C9A05C] text-white rounded-xl text-xs font-bold uppercase hover:bg-[#E5C88C] transition-colors">
+        <button onClick={fetchAll} className="px-6 py-3 bg-[#C9A05C] text-[#0A0A0F] rounded-xl text-xs font-bold uppercase hover:bg-[#E5C88C] transition-colors">
           Retry
         </button>
       </div>

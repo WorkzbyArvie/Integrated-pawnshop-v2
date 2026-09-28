@@ -508,7 +508,7 @@ export function MultiBranchManagement({
                               onClick={() => onEnterLiveDashboard?.(branch.id)}
                               className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-colors ${
                                 isSelectedLiveBranch
-                                  ? 'bg-[#C9A05C] text-white'
+                                  ? 'bg-[#C9A05C] text-[#0A0A0F]'
                                   : 'border border-[rgba(201,160,92,0.2)] text-[#C9A05C] hover:bg-[#C9A05C]/8'
                               }`}
                             >

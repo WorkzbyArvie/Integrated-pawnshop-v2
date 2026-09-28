@@ -720,7 +720,7 @@ export function StaffMatrix({ branchId, userRole: propUserRole, activeBranchId =
                   const newRole = (document.getElementById('new-role-select') as HTMLSelectElement)?.value;
                   handleChangeRole(changeRoleData.staffId, newRole);
                 }}
-                className="flex-1 bg-[#C9A05C] text-white py-2 rounded-lg font-bold text-sm hover:bg-[#E5C88C]"
+                className="flex-1 bg-[#C9A05C] text-[#0A0A0F] py-2 rounded-lg font-bold text-sm hover:bg-[#E5C88C]"
               >
                 Update Role
               </button>

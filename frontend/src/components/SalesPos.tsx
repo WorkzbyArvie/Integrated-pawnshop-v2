@@ -533,7 +533,7 @@ export function SalesPos({ branchId, activeBranchId }: SalesPosProps) {
                 </div>
               </div>
 
-              <button type="submit" className="w-full bg-[#C9A05C] text-white py-5 rounded-3xl font-black text-xs uppercase tracking-widest hover:bg-[#E5C88C] shadow-xl transition-all">
+              <button type="submit" className="w-full bg-[#C9A05C] text-[#0A0A0F] py-5 rounded-3xl font-black text-xs uppercase tracking-widest hover:bg-[#E5C88C] shadow-xl transition-all">
                 Calculate Risk & Loan Amount
               </button>
             </form>

@@ -694,7 +694,7 @@ export function PendingAccessDashboard({
                       </div>
                       <div>
                         {!existing || existing.status === 'REJECTED' ? (
-                          <label className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest cursor-pointer transition-all ${isUploading ? 'bg-[#1C1C26] text-[#8A8279] cursor-wait' : 'bg-[#C9A05C]/10 text-[#C9A05C] hover:bg-[#C9A05C] hover:text-white'}`}>
+                          <label className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest cursor-pointer transition-all ${isUploading ? 'bg-[#1C1C26] text-[#8A8279] cursor-wait' : 'bg-[#C9A05C]/10 text-[#C9A05C] hover:bg-[#C9A05C] hover:text-[#0A0A0F]'}`}>
                             {isUploading ? (
                               <>
                                 <span className="animate-spin h-3 w-3 border-2 border-[#C9A05C] border-t-transparent rounded-full" />

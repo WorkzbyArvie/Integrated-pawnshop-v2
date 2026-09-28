@@ -185,7 +185,7 @@ export function PlatformControl({ userRole }: PlatformControlProps) {
         {filteredShops.map((shop) => (
           <div key={shop.id} className="group bg-[#14141B] p-8 rounded-[32px] border border-[rgba(201,160,92,0.08)] hover:border-[rgba(201,160,92,0.2)] transition-all duration-300 shadow-sm hover:shadow-2xl relative">
             <div className="flex justify-between items-start mb-6">
-              <div className="p-4 bg-[#C9A05C]/10 rounded-2xl text-[#C9A05C] group-hover:bg-[#C9A05C] group-hover:text-white transition-colors">
+              <div className="p-4 bg-[#C9A05C]/10 rounded-2xl text-[#C9A05C] group-hover:bg-[#C9A05C] group-hover:text-[#0A0A0F] transition-colors">
                 <Building2 size={24} />
               </div>
               <div className="flex gap-2 items-center">
@@ -228,7 +228,7 @@ export function PlatformControl({ userRole }: PlatformControlProps) {
               </span>
               <button
                 onClick={() => setSelectedShop(shop)}
-                className="flex items-center gap-2 px-4 py-2 bg-[#C9A05C]/10 text-[#C9A05C] rounded-xl font-bold text-[10px] uppercase tracking-widest hover:bg-[#C9A05C] hover:text-white transition-all"
+                className="flex items-center gap-2 px-4 py-2 bg-[#C9A05C]/10 text-[#C9A05C] rounded-xl font-bold text-[10px] uppercase tracking-widest hover:bg-[#C9A05C] hover:text-[#0A0A0F] transition-all"
               >
                 <TrendingUp size={14} /> Details
               </button>
@@ -288,7 +288,7 @@ export function PlatformControl({ userRole }: PlatformControlProps) {
               <button
                 onClick={() => void fetchStaffAccounts(selectedShop.id)}
                 disabled={loadingStaff}
-                className="inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-[#C9A05C] text-white text-xs font-black uppercase tracking-widest hover:bg-[#C9A05C]/80 disabled:opacity-50 transition-all"
+                className="inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-[#C9A05C] text-[#0A0A0F] text-xs font-black uppercase tracking-widest hover:bg-[#C9A05C]/80 disabled:opacity-50 transition-all"
               >
                 {loadingStaff ? <Loader2 className="w-4 h-4 animate-spin" /> : <Shield className="w-4 h-4" />}
                 {staffAccounts.length > 0 ? 'Refresh Staff Accounts' : 'Check Staff Accounts'}

@@ -389,7 +389,7 @@ export function TrialRequestsPanel() {
                               <button
                                 type="button"
                                 onClick={() => openPreviewAndMarkViewed(doc)}
-                                className="rounded-lg border border-[rgba(201,160,92,0.2)] bg-[#C9A05C]/10 px-2 py-1 text-[9px] font-black uppercase text-[#C9A05C] hover:bg-[#C9A05C] hover:text-white"
+                                className="rounded-lg border border-[rgba(201,160,92,0.2)] bg-[#C9A05C]/10 px-2 py-1 text-[9px] font-black uppercase text-[#C9A05C] hover:bg-[#C9A05C] hover:text-[#0A0A0F]"
                               >
                                 {canReview ? 'View & Review' : 'View'}
                               </button>
@@ -543,7 +543,7 @@ export function TrialRequestsPanel() {
                     href={previewDocSignedUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="mt-3 inline-block rounded-xl bg-[#C9A05C] px-4 py-2 text-xs font-black uppercase text-white hover:bg-[#b8913f]"
+                    className="mt-3 inline-block rounded-xl bg-[#C9A05C] px-4 py-2 text-xs font-black uppercase text-[#0A0A0F] hover:bg-[#b8913f]"
                   >
                     Open in New Tab
                   </a>

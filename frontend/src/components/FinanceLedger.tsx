@@ -374,7 +374,7 @@ export function FinanceLedger({ branchId: _branchId, activeBranchId }: FinanceLe
 
       {/* Balance Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card className="bg-gradient-to-br from-[#C9A05C] to-[#A07D40] text-white">
+        <Card className="bg-gradient-to-br from-[#C9A05C] to-[#A07D40] text-[#0A0A0F]">
           <CardContent className="pt-6">
             <div className="flex items-center gap-3">
               <div className="p-3 bg-white/20 rounded-xl"><Wallet className="w-6 h-6" /></div>

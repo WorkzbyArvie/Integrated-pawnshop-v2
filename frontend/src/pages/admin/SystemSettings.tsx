@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import Swal from 'sweetalert2';
 import { 
   Users, 
@@ -13,7 +13,6 @@ import {
   Undo2,
   ShieldAlert,
   X,
-  AlertTriangle,
   Loader2,
   CheckCircle2,
   Crown,
@@ -61,9 +60,73 @@ const DEFAULT_BRANDING: BrandingPayload = {
   customBrandingEnabled: false,
 };
 
+type SectionKey = 'features' | 'contract' | 'location' | 'branding';
+
+const SECTION_ORDER: SectionKey[] = ['features', 'contract', 'location', 'branding'];
+
+const SECTION_LABELS: Record<SectionKey, string> = {
+  features: 'feature toggles and redemption threshold',
+  contract: 'contract terms',
+  location: 'map location',
+  branding: 'branding',
+};
+
+// Exactly the keys the snapshot carries. Declaring this as the wider
+// `keyof BrandingPayload` would let a field name index a snapshot that does
+// not hold it.
+type ComparedBrandingField = 'displayName' | 'logoUrl' | 'primaryColor' | 'secondaryColor';
+
+const BRANDING_COMPARED_FIELDS: ComparedBrandingField[] = [
+  'displayName',
+  'logoUrl',
+  'primaryColor',
+  'secondaryColor',
+];
+
+type SavedSnapshot = {
+  config: Record<string, boolean>;
+  redemptionThreshold: number;
+  contractTerms: string;
+  contractResponsibilities: string;
+  pawnshopLat: number | null;
+  pawnshopLng: number | null;
+  pawnshopAddress: string;
+  branding: Pick<BrandingPayload, ComparedBrandingField>;
+};
+
+/**
+ * Per-section save state, shown in place of the three buttons that used to sit
+ * inside each section. Those buttons wrote to the server on click with no
+ * relationship to the footer action, so the page could not say what was still
+ * outstanding.
+ */
+function SectionSaveState({ dirty, saving }: { dirty: boolean; saving?: boolean }) {
+  if (saving) {
+    return (
+      <span className="inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-[#8A8279]">
+        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+        Saving
+      </span>
+    );
+  }
+  if (dirty) {
+    return (
+      <span className="inline-flex items-center gap-2 rounded-full bg-amber-500/15 px-3.5 py-2 text-[10px] font-black uppercase tracking-widest text-amber-400">
+        <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
+        Unsaved
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-[#6E655A]">
+      <CheckCircle2 className="w-3.5 h-3.5" />
+      Saved
+    </span>
+  );
+}
+
 export function SystemSettings({ config, setConfig, userRole, branchId, onBrandingUpdated }: SystemSettingsProps) {
   // State for Confirmation Workflow
-  const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [showToast, setShowToast] = useState(false);
   const [globalConfig, setGlobalConfig] = useState<Record<string, boolean> | null>(null);
@@ -78,6 +141,12 @@ export function SystemSettings({ config, setConfig, userRole, branchId, onBrandi
   const [pawnshopLng, setPawnshopLng] = useState<number | null>(null);
   const [pawnshopAddress, setPawnshopAddress] = useState('');
   const [savingLocation, setSavingLocation] = useState(false);
+
+  const [settingsLoaded, setSettingsLoaded] = useState(false);
+
+  // Last values known to be on the server. Every unsaved indicator is a diff
+  // against this rather than a hand-maintained flag.
+  const [savedSnapshot, setSavedSnapshot] = useState<SavedSnapshot | null>(null);
   
   const normalizedRole = (userRole || '').toUpperCase().replace(/[_\s]/g, '');
   const isSuperAdmin = normalizedRole === 'SUPERADMIN' || normalizedRole === 'SUPER';
@@ -143,6 +212,8 @@ export function SystemSettings({ config, setConfig, userRole, branchId, onBrandi
         }
       } catch (error) {
         console.error('Error in loadSettings:', error);
+      } finally {
+        setSettingsLoaded(true);
       }
     };
     
@@ -213,87 +284,8 @@ export function SystemSettings({ config, setConfig, userRole, branchId, onBrandi
     setConfig((prev: any) => ({ ...prev, [id]: !prev[id] }));
   };
 
-  // ASYNC SAVE HANDLER
-  const handleConfirmSave = async () => {
-    setIsSaving(true);
-
-    const threshold = Number(redemptionThreshold);
-    if (!Number.isFinite(threshold) || threshold <= 0) {
-      setIsSaving(false);
-      await Swal.fire({
-        icon: 'warning',
-        title: 'Invalid Redemption Threshold',
-        text: 'Enter a valid amount greater than zero.',
-        confirmButtonColor: '#ef4444',
-      });
-      return;
-    }
-
-    try {
-      if (isSuperAdmin) {
-        // â”€â”€ Super Admin: write global_overrides to ALL pawnshops â”€â”€
-        // Preserves each branch's local settings
-        const { data: pawnshops, error: fetchError } = await supabase
-          .from('pawnshops')
-          .select('id, settings');
-        
-        if (fetchError) throw fetchError;
-
-        if (pawnshops && pawnshops.length > 0) {
-          for (const shop of pawnshops) {
-            const currentSettings = shop.settings || {};
-            const updatedSettings = {
-              ...currentSettings,
-              global_overrides: { ...config },
-            };
-            await api.patch(`/tenant-governance/pawnshops/${shop.id}/settings`, { settings: updatedSettings });
-          }
-        }
-      } else if (branchId) {
-        // â”€â”€ Branch Admin: write local settings to this pawnshop only â”€â”€
-        // Preserves global_overrides set by Super Admin
-        const { data: current, error: readError } = await supabase
-          .from('pawnshops')
-          .select('settings')
-          .eq('id', branchId)
-          .single();
-
-        if (readError) throw readError;
-
-        const currentSettings = current?.settings || {};
-
-        // Enforce global overrides: force-off any feature the super admin has disabled
-        const sanitizedConfig = { ...config };
-        if (globalConfig) {
-          for (const key of Object.keys(sanitizedConfig)) {
-            if (globalConfig[key] === false) {
-              (sanitizedConfig as any)[key] = false;
-            }
-          }
-        }
-
-        // Merge: update local keys, preserve global_overrides
-        const updatedSettings = {
-          ...currentSettings,
-          ...sanitizedConfig,
-          redemptionApprovalThreshold: threshold,
-          global_overrides: currentSettings.global_overrides || {},
-        };
-
-        await api.patch(`/tenant-governance/pawnshops/${branchId}/settings`, { settings: updatedSettings });
-        setConfig((prev: any) => ({ ...prev, ...sanitizedConfig }));
-      }
-
-      setIsSaving(false);
-      setIsModalOpen(false);
-      setShowToast(true);
-    } catch (error) {
-      console.error('Error saving settings:', error);
-      setIsSaving(false);
-      setIsModalOpen(false);
-    }
-  };
-
+  // A field updater, not a save action: it only mutates local form state and
+  // the section stays marked unsaved until the footer action commits it.
   const handleBrandingChange = (field: keyof BrandingPayload, value: string) => {
     setBranding((prev) => ({
       ...prev,
@@ -301,16 +293,149 @@ export function SystemSettings({ config, setConfig, userRole, branchId, onBrandi
     }));
   };
 
-  const handleSaveBranding = async () => {
+  const takeSnapshot = (): SavedSnapshot => ({
+    config: { ...(config as Record<string, boolean>) },
+    redemptionThreshold: Number(redemptionThreshold),
+    contractTerms,
+    contractResponsibilities,
+    pawnshopLat,
+    pawnshopLng,
+    pawnshopAddress,
+    branding: {
+      displayName: branding.displayName,
+      logoUrl: branding.logoUrl,
+      primaryColor: branding.primaryColor,
+      secondaryColor: branding.secondaryColor,
+    },
+  });
+
+  // The baseline is only trustworthy once both async loads have settled, so it
+  // is taken then rather than on first render.
+  useEffect(() => {
+    if (settingsLoaded && !loadingBranding) {
+      setSavedSnapshot(takeSnapshot());
+    }
+  }, [settingsLoaded, loadingBranding]);
+
+  const dirtySections = useMemo(() => {
+    const dirty = new Set<SectionKey>();
+    if (!savedSnapshot) return dirty;
+
+    if (JSON.stringify(savedSnapshot.config) !== JSON.stringify(config)) {
+      dirty.add('features');
+    }
+    if (savedSnapshot.redemptionThreshold !== Number(redemptionThreshold)) {
+      dirty.add('features');
+    }
+    if (
+      savedSnapshot.contractTerms !== contractTerms ||
+      savedSnapshot.contractResponsibilities !== contractResponsibilities
+    ) {
+      dirty.add('contract');
+    }
+    if (
+      savedSnapshot.pawnshopLat !== pawnshopLat ||
+      savedSnapshot.pawnshopLng !== pawnshopLng ||
+      savedSnapshot.pawnshopAddress !== pawnshopAddress
+    ) {
+      dirty.add('location');
+    }
+    if (BRANDING_COMPARED_FIELDS.some((f) => savedSnapshot.branding[f] !== branding[f])) {
+      dirty.add('branding');
+    }
+    return dirty;
+  }, [
+    savedSnapshot,
+    config,
+    redemptionThreshold,
+    contractTerms,
+    contractResponsibilities,
+    pawnshopLat,
+    pawnshopLng,
+    pawnshopAddress,
+    branding,
+  ]);
+
+  const isDirty = dirtySections.size > 0;
+
+  const pendingSummary = SECTION_ORDER.filter((s) => dirtySections.has(s)).map(
+    (s) => SECTION_LABELS[s],
+  );
+
+  // Each saver returns null on success or a reason it could not proceed, and
+  // throws on transport failure. The orchestrator folds both into one report so
+  // no section can fail silently behind a spinner.
+  const saveFeatureSettings = async (): Promise<string | null> => {
+    const threshold = Number(redemptionThreshold);
+    if (!Number.isFinite(threshold) || threshold <= 0) {
+      return 'Enter a redemption threshold greater than zero.';
+    }
+
+    if (isSuperAdmin) {
+      // A super admin write fans out to every branch, so each keeps its own
+      // local settings and only gains the global_overrides block.
+      const { data: pawnshops, error: fetchError } = await supabase
+        .from('pawnshops')
+        .select('id, settings');
+
+      if (fetchError) throw fetchError;
+
+      for (const shop of pawnshops || []) {
+        const currentSettings = shop.settings || {};
+        const updatedSettings = {
+          ...currentSettings,
+          global_overrides: { ...config },
+        };
+        await api.patch(`/tenant-governance/pawnshops/${shop.id}/settings`, {
+          settings: updatedSettings,
+        });
+      }
+      return null;
+    }
+
+    if (!branchId) return 'No branch is selected.';
+
+    const { data: current, error: readError } = await supabase
+      .from('pawnshops')
+      .select('settings')
+      .eq('id', branchId)
+      .single();
+
+    if (readError) throw readError;
+
+    const currentSettings = current?.settings || {};
+
+    // Force off anything a super admin has globally disabled, so a branch
+    // cannot re-enable a feature it does not own.
+    const sanitizedConfig = { ...config };
+    if (globalConfig) {
+      for (const key of Object.keys(sanitizedConfig)) {
+        if (globalConfig[key] === false) {
+          (sanitizedConfig as any)[key] = false;
+        }
+      }
+    }
+
+    const updatedSettings = {
+      ...currentSettings,
+      ...sanitizedConfig,
+      redemptionApprovalThreshold: threshold,
+    // A branch write preserves the super admin's global_overrides block rather
+    // than clobbering it with the branch's local view of the settings.
+      global_overrides: currentSettings.global_overrides || {},
+    };
+
+    await api.patch(`/tenant-governance/pawnshops/${branchId}/settings`, {
+      settings: updatedSettings,
+    });
+    setConfig((prev: any) => ({ ...prev, ...sanitizedConfig }));
+    return null;
+  };
+
+  const saveBranding = async (): Promise<void> => {
     if (isSuperAdmin || !branchId) return;
     if (!branding.customBrandingEnabled) {
-      await Swal.fire({
-        icon: 'info',
-        title: 'Enterprise Plan Required',
-        text: 'Custom branding is available only on the Enterprise plan.',
-        confirmButtonColor: '#4f46e5',
-      });
-      return;
+      throw new Error('Custom branding is available only on the Enterprise plan.');
     }
 
     setSavingBranding(true);
@@ -334,32 +459,14 @@ export function SystemSettings({ config, setConfig, userRole, branchId, onBrandi
         customBrandingEnabled: Boolean(payload.customBrandingEnabled),
       };
 
-      setBranding(() => ({
-        ...updatedBranding,
-      }));
-
+      setBranding(() => ({ ...updatedBranding }));
       onBrandingUpdated?.(updatedBranding);
-
-      await Swal.fire({
-        icon: 'success',
-        title: 'Branding Saved',
-        text: 'Your custom branding has been updated.',
-        timer: 2200,
-        showConfirmButton: false,
-      });
-    } catch (error: any) {
-      await Swal.fire({
-        icon: 'error',
-        title: 'Branding Update Failed',
-        text: error?.message || 'Unable to update custom branding right now.',
-        confirmButtonColor: '#ef4444',
-      });
     } finally {
       setSavingBranding(false);
     }
   };
 
-  const handleSaveContractTerms = async () => {
+  const saveContractTerms = async (): Promise<void> => {
     if (!branchId) return;
     setSavingContractTerms(true);
     try {
@@ -367,31 +474,13 @@ export function SystemSettings({ config, setConfig, userRole, branchId, onBrandi
         termsAndConditions: contractTerms,
         pawnshopResponsibilities: contractResponsibilities,
       });
-      setShowToast(true);
-    } catch (error) {
-      console.error('Error saving contract terms:', error);
-      await Swal.fire({
-        icon: 'error',
-        title: 'Save Failed',
-        text: 'Unable to save contract terms right now.',
-        confirmButtonColor: '#ef4444',
-      });
     } finally {
       setSavingContractTerms(false);
     }
   };
 
-  const handleSaveLocation = async () => {
+  const saveLocation = async (): Promise<void> => {
     if (!branchId) return;
-    if (pawnshopLat == null || pawnshopLng == null) {
-      await Swal.fire({
-        icon: 'warning',
-        title: 'No Location Selected',
-        text: 'Click on the map or use GPS to set your pawnshop location.',
-        confirmButtonColor: '#ef4444',
-      });
-      return;
-    }
     setSavingLocation(true);
     try {
       await api.patch(`/pawnshops/${branchId}/location`, {
@@ -399,23 +488,108 @@ export function SystemSettings({ config, setConfig, userRole, branchId, onBrandi
         longitude: pawnshopLng,
         address: pawnshopAddress,
       });
-      await Swal.fire({
-        icon: 'success',
-        title: 'Location Saved',
-        text: 'Your pawnshop location has been updated.',
-        timer: 2200,
-        showConfirmButton: false,
-      });
-    } catch (error: any) {
-      await Swal.fire({
-        icon: 'error',
-        title: 'Location Save Failed',
-        text: error?.message || 'Unable to save location right now.',
-        confirmButtonColor: '#ef4444',
-      });
     } finally {
       setSavingLocation(false);
     }
+  };
+
+  const handleSaveAll = async () => {
+    if (!isDirty || isSaving) return;
+
+    if (dirtySections.has('location') && (pawnshopLat == null || pawnshopLng == null)) {
+      await Swal.fire({
+        icon: 'warning',
+        title: 'No Location Selected',
+        text: 'Click the map or use GPS to set a location, or put the map back the way it was to drop this change.',
+        confirmButtonColor: '#ef4444',
+      });
+      return;
+    }
+
+    // The super admin save rewrites settings for every branch in the system, so
+    // that keeps a confirmation step. A branch owner writing to their own branch
+    // is ordinary settings editing and gains nothing from a second prompt.
+    if (isSuperAdmin) {
+      const answer = await Swal.fire({
+        icon: 'warning',
+        title: 'Apply to every branch?',
+        text: 'These feature toggles will be written as global overrides across all branches. Your pending contract, location and branding edits are saved only on this branch.',
+        showCancelButton: true,
+        confirmButtonText: 'Apply to all branches',
+        cancelButtonText: 'Cancel',
+        confirmButtonColor: '#4f46e5',
+      });
+      if (!answer.isConfirmed) return;
+    }
+
+    setIsSaving(true);
+    const failedMessages: string[] = [];
+    const failedSections = new Set<SectionKey>();
+
+    for (const section of SECTION_ORDER) {
+      if (!dirtySections.has(section)) continue;
+      try {
+        if (section === 'features') {
+          const problem = await saveFeatureSettings();
+          if (problem) {
+            failedMessages.push(problem);
+            failedSections.add(section);
+          }
+        } else if (section === 'contract') {
+          await saveContractTerms();
+        } else if (section === 'location') {
+          await saveLocation();
+        } else {
+          await saveBranding();
+        }
+      } catch (error: any) {
+        failedMessages.push(error?.message || `Could not save ${SECTION_LABELS[section]}.`);
+        failedSections.add(section);
+      }
+    }
+
+    setIsSaving(false);
+
+    // Only sections that actually reached the server join the new baseline.
+    // Folding in a failed section would mark unsaved work as done, which is the
+    // one outcome this page must never produce.
+    const landed = SECTION_ORDER.filter((s) => dirtySections.has(s) && !failedSections.has(s));
+    if (landed.length > 0) {
+      setSavedSnapshot((prev) => {
+        if (!prev) return prev;
+        const fresh = takeSnapshot();
+        const next: SavedSnapshot = { ...prev };
+        if (landed.includes('features')) {
+          next.config = fresh.config;
+          next.redemptionThreshold = fresh.redemptionThreshold;
+        }
+        if (landed.includes('contract')) {
+          next.contractTerms = fresh.contractTerms;
+          next.contractResponsibilities = fresh.contractResponsibilities;
+        }
+        if (landed.includes('location')) {
+          next.pawnshopLat = fresh.pawnshopLat;
+          next.pawnshopLng = fresh.pawnshopLng;
+          next.pawnshopAddress = fresh.pawnshopAddress;
+        }
+        if (landed.includes('branding')) {
+          next.branding = fresh.branding;
+        }
+        return next;
+      });
+    }
+
+    if (failedMessages.length === 0) {
+      setShowToast(true);
+      return;
+    }
+
+    await Swal.fire({
+      icon: 'warning',
+      title: 'Partly Saved',
+      text: `${failedMessages.join(' ')} Everything else was saved; the failed part is still marked unsaved so you can try again.`,
+      confirmButtonColor: '#ef4444',
+    });
   };
 
   return (
@@ -460,14 +634,14 @@ export function SystemSettings({ config, setConfig, userRole, branchId, onBrandi
 
       {/* SUPER ADMIN BANNER */}
       {isSuperAdmin && (
-        <div className="bg-[#C9A05C] rounded-[2rem] p-6 text-white flex items-center gap-6 shadow-xl shadow-indigo-200">
-          <div className="bg-white/20 p-4 rounded-2xl">
-            <ShieldCheck className="w-8 h-8 text-white" />
+        <div className="bg-[#C9A05C] rounded-[2rem] p-6 text-[#0A0A0F] flex items-center gap-6 shadow-xl shadow-indigo-200">
+          <div className="bg-[#0A0A0F]/10 p-4 rounded-2xl">
+            <ShieldCheck className="w-8 h-8 text-[#0A0A0F]" />
           </div>
           <div>
             <h4 className="font-black uppercase tracking-widest text-sm">Global Master Switches</h4>
-            <p className="text-[#E5C88C] text-xs mt-1">
-              Changes made here are <span className="underline decoration-[#C9A05C]">authoritative</span>.
+            <p className="text-[#1C1C26] text-xs mt-1">
+              Changes made here are <span className="underline decoration-[#1C1C26]">authoritative</span>.
             </p>
           </div>
         </div>
@@ -488,19 +662,36 @@ export function SystemSettings({ config, setConfig, userRole, branchId, onBrandi
             >
               <div className="flex items-center justify-between mb-6">
                 <div className={`p-4 rounded-2xl transition-all duration-500 ${
-                  isEnabled ? (isSuperAdmin ? 'bg-[#C9A05C] shadow-indigo-600/20' : 'bg-blue-600 shadow-blue-600/20') : 'bg-[#1C1C26] text-[#8A8279]'
-                } text-white shadow-lg`}>
+                  isEnabled
+                    ? (isSuperAdmin
+                      ? 'bg-[#C9A05C] shadow-indigo-600/20 text-[#0A0A0F]'
+                      : 'bg-blue-600 shadow-blue-600/20 text-white')
+                    : 'bg-[#1C1C26] text-[#8A8279]'
+                } shadow-lg`}>
                   <feature.icon className="w-7 h-7" />
                 </div>
                 
                 <button
+                  type="button"
+                  role="switch"
+                  aria-checked={isEnabled}
+                  aria-label={
+                    globalDisabled
+                      ? `${feature.name} (restricted by platform)`
+                      : feature.name
+                  }
+                  title={
+                    globalDisabled
+                      ? 'A platform administrator has switched this feature off for every branch.'
+                    : undefined
+                  }
                   onClick={() => toggleFeature(feature.id)}
                   disabled={globalDisabled}
-                  className={`w-14 h-8 rounded-full transition-all duration-300 relative p-1 outline-none ${
+                  className={`w-14 h-8 rounded-full transition-all duration-300 relative p-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C9A05C] focus-visible:ring-offset-2 focus-visible:ring-offset-[#14141B] ${
                     globalDisabled ? 'bg-slate-300 cursor-not-allowed' : (isEnabled ? (isSuperAdmin ? 'bg-[#C9A05C]' : 'bg-blue-600') : 'bg-[#222228]')
                   }`}
                 >
-                  <div className={`w-6 h-6 bg-[#14141B] rounded-full shadow-lg transition-transform duration-300 ${isEnabled ? 'translate-x-6' : 'translate-x-0'}`} />
+                  <div aria-hidden="true" className={`w-6 h-6 bg-[#14141B] rounded-full shadow-lg transition-transform duration-300 ${isEnabled ? 'translate-x-6' : 'translate-x-0'}`} />
                 </button>
               </div>
 
@@ -566,9 +757,9 @@ export function SystemSettings({ config, setConfig, userRole, branchId, onBrandi
           </div>
           <div className="grid grid-cols-1 gap-6">
             <div>
-              <label className="text-xs font-black uppercase tracking-wider text-[#8A8279]">Terms and Conditions</label>
+              <label htmlFor="settings-contract-terms" className="text-xs font-black uppercase tracking-wider text-[#8A8279]">Terms and Conditions</label>
               <textarea
-                value={contractTerms}
+ id="settings-contract-terms"                value={contractTerms}
                 onChange={(event) => setContractTerms(event.target.value)}
                 rows={9}
                 placeholder={'1. The Pawnee acknowledges receipt of the loan amount.\n2. Interest accrues monthly at the rate stated on the contract.\n3. The Pawnshop reserves the right to sell the collateral if the loan is not redeemed within the term and grace period.'}
@@ -576,9 +767,9 @@ export function SystemSettings({ config, setConfig, userRole, branchId, onBrandi
               />
             </div>
             <div>
-              <label className="text-xs font-black uppercase tracking-wider text-[#8A8279]">Pawnshop Responsibilities</label>
+              <label htmlFor="settings-contract-responsibilities" className="text-xs font-black uppercase tracking-wider text-[#8A8279]">Pawnshop Responsibilities</label>
               <textarea
-                value={contractResponsibilities}
+ id="settings-contract-responsibilities"                value={contractResponsibilities}
                 onChange={(event) => setContractResponsibilities(event.target.value)}
                 rows={6}
                 placeholder={'The Pawnshop shall safely store the collateral for the full term of the loan.\nThe Pawnshop shall release the collateral upon full payment of principal and interest.\nThe Pawnshop shall issue a receipt for every payment received.'}
@@ -586,14 +777,7 @@ export function SystemSettings({ config, setConfig, userRole, branchId, onBrandi
               />
             </div>
             <div className="flex justify-end">
-              <button
-                onClick={() => void handleSaveContractTerms()}
-                disabled={savingContractTerms}
-                className="px-6 py-3 rounded-2xl bg-[#C9A05C] text-white text-xs font-black uppercase tracking-widest hover:bg-[#C9A05C]/80 disabled:opacity-50 inline-flex items-center gap-2"
-              >
-                {savingContractTerms && <Loader2 className="w-4 h-4 animate-spin" />}
-                Save Contract Terms
-              </button>
+              <SectionSaveState dirty={dirtySections.has('contract')} saving={savingContractTerms} />
             </div>
           </div>
         </div>
@@ -624,14 +808,7 @@ export function SystemSettings({ config, setConfig, userRole, branchId, onBrandi
               <p className="text-xs text-[#8A8279] font-mono bg-[#1C1C26] px-4 py-3 rounded-xl">{pawnshopAddress}</p>
             )}
             <div className="flex justify-end">
-              <button
-                onClick={() => void handleSaveLocation()}
-                disabled={savingLocation}
-                className="px-6 py-3 rounded-2xl bg-[#C9A05C] text-white text-xs font-black uppercase tracking-widest hover:bg-[#C9A05C]/80 disabled:opacity-50 inline-flex items-center gap-2"
-              >
-                {savingLocation && <Loader2 className="w-4 h-4 animate-spin" />}
-                Save Location
-              </button>
+              <SectionSaveState dirty={dirtySections.has('location')} saving={savingLocation} />
             </div>
           </div>
         </div>
@@ -667,9 +844,9 @@ export function SystemSettings({ config, setConfig, userRole, branchId, onBrandi
             <>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 <div className="md:col-span-2">
-                  <label className="text-xs font-black uppercase tracking-wider text-[#8A8279]">Display Name</label>
+                  <label htmlFor="settings-branding-display-name" className="text-xs font-black uppercase tracking-wider text-[#8A8279]">Display Name</label>
                   <input
-                    type="text"
+ id="settings-branding-display-name"                    type="text"
                     value={branding.displayName}
                     onChange={(event) => handleBrandingChange('displayName', event.target.value)}
                     maxLength={60}
@@ -680,9 +857,9 @@ export function SystemSettings({ config, setConfig, userRole, branchId, onBrandi
                 </div>
 
                 <div className="md:col-span-2">
-                  <label className="text-xs font-black uppercase tracking-wider text-[#8A8279]">Logo URL</label>
+                  <label htmlFor="settings-branding-logo-url" className="text-xs font-black uppercase tracking-wider text-[#8A8279]">Logo URL</label>
                   <input
-                    type="url"
+ id="settings-branding-logo-url"                    type="url"
                     value={branding.logoUrl || ''}
                     onChange={(event) => handleBrandingChange('logoUrl', event.target.value)}
                     disabled={!branding.customBrandingEnabled || savingBranding}
@@ -692,10 +869,10 @@ export function SystemSettings({ config, setConfig, userRole, branchId, onBrandi
                 </div>
 
                 <div>
-                  <label className="text-xs font-black uppercase tracking-wider text-[#8A8279]">Primary Color</label>
+                  <label htmlFor="settings-branding-primary-color" className="text-xs font-black uppercase tracking-wider text-[#8A8279]">Primary Color</label>
                   <div className="mt-2 flex items-center gap-3 rounded-2xl border border-[rgba(201,160,92,0.12)] px-3 py-2">
                     <input
-                      type="color"
+ id="settings-branding-primary-color"                      type="color"
                       value={branding.primaryColor}
                       onChange={(event) => handleBrandingChange('primaryColor', event.target.value)}
                       disabled={!branding.customBrandingEnabled || savingBranding}
@@ -706,10 +883,10 @@ export function SystemSettings({ config, setConfig, userRole, branchId, onBrandi
                 </div>
 
                 <div>
-                  <label className="text-xs font-black uppercase tracking-wider text-[#8A8279]">Secondary Color</label>
+                  <label htmlFor="settings-branding-secondary-color" className="text-xs font-black uppercase tracking-wider text-[#8A8279]">Secondary Color</label>
                   <div className="mt-2 flex items-center gap-3 rounded-2xl border border-[rgba(201,160,92,0.12)] px-3 py-2">
                     <input
-                      type="color"
+ id="settings-branding-secondary-color"                      type="color"
                       value={branding.secondaryColor}
                       onChange={(event) => handleBrandingChange('secondaryColor', event.target.value)}
                       disabled={!branding.customBrandingEnabled || savingBranding}
@@ -728,92 +905,52 @@ export function SystemSettings({ config, setConfig, userRole, branchId, onBrandi
                     <p className="text-xs text-[#8A8279]">Sidebar preview colors</p>
                   </div>
                 </div>
-                <button
-                  onClick={() => void handleSaveBranding()}
-                  disabled={!branding.customBrandingEnabled || savingBranding}
-                  className="px-6 py-3 rounded-2xl bg-[#C9A05C] text-white text-xs font-black uppercase tracking-widest hover:bg-[#C9A05C]/80 disabled:bg-slate-300 disabled:cursor-not-allowed inline-flex items-center gap-2"
-                >
-                  {savingBranding && <Loader2 className="w-4 h-4 animate-spin" />}
-                  Save Branding
-                </button>
+                <SectionSaveState dirty={dirtySections.has('branding')} saving={savingBranding} />
               </div>
             </>
           )}
         </div>
       )}
 
-      {/* PERSISTENCE FOOTER */}
-      <div className={`rounded-[2.5rem] p-8 text-white flex items-center justify-between overflow-hidden relative shadow-2xl transition-colors duration-500 ${
-        isSuperAdmin ? 'bg-indigo-950' : 'bg-slate-900'
-      }`}>
+      {/* SINGLE COMMIT POINT */}
+      <div
+        className={`sticky bottom-4 z-[120] rounded-[2.5rem] p-6 text-white flex flex-col sm:flex-row sm:items-center justify-between gap-5 overflow-hidden relative shadow-2xl transition-colors duration-500 ${
+          isDirty
+            ? isSuperAdmin
+              ? 'bg-indigo-950'
+              : 'bg-slate-900'
+            : 'bg-[#14141B] border border-[rgba(201,160,92,0.08)]'
+        }`}
+      >
         <div className="relative z-10">
-          <h3 className="text-xl font-black mb-1 italic uppercase tracking-tighter">
-            Save {isSuperAdmin ? 'Global' : 'Branch'} Changes?
+          <h3 className="text-lg font-black italic uppercase tracking-tighter">
+            {isDirty ? 'Unsaved Changes' : 'Everything Saved'}
           </h3>
-          <p className="text-[#8A8279] text-sm font-medium italic">Confirmation required to proceed.</p>
+          <p className="text-[#8A8279] text-sm font-medium italic mt-1">
+            {isDirty
+              ? `Pending: ${pendingSummary.join(', ')}.`
+              : 'Every setting on this page matches what is stored on the server.'}
+          </p>
         </div>
-        <button 
-          onClick={() => setIsModalOpen(true)}
-          className={`relative z-10 px-8 py-4 rounded-2xl font-black uppercase tracking-widest text-xs transition-all active:scale-95 shadow-lg ${
-          isSuperAdmin ? 'bg-[#C9A05C] hover:bg-[#C9A05C]/80 shadow-indigo-600/20' : 'bg-blue-600 hover:bg-[#C9A05C]/100 shadow-blue-600/20'
-        }`}>
-          Apply Changes
+        <button
+          onClick={() => void handleSaveAll()}
+          disabled={!isDirty || isSaving}
+          className={`relative z-10 px-8 py-4 rounded-2xl font-black uppercase tracking-widest text-xs transition-all active:scale-95 shadow-lg inline-flex items-center justify-center gap-2 disabled:cursor-not-allowed ${
+            // Text follows the surface. Gold #C9A05C is 2.43:1 against white,
+            // which fails WCAG AA, so a gold surface takes the dark ink
+            // #0A0A0F at 7.85:1. Blue with white passes at 4.6:1, so only the
+            // hover state flips.
+            !isDirty
+              ? 'bg-[#1C1C26] text-[#8A8279] shadow-none'
+              : isSuperAdmin
+                ? 'bg-[#C9A05C] hover:bg-[#A07D40] text-[#0A0A0F] shadow-indigo-600/20'
+                : 'bg-blue-600 hover:bg-[#C9A05C] text-white hover:text-[#0A0A0F] shadow-blue-600/20'
+          }`}
+        >
+          {isSaving && <Loader2 className="w-4 h-4 animate-spin" />}
+          {isSaving ? 'Saving...' : isSuperAdmin ? 'Apply to All Branches' : 'Save Changes'}
         </button>
       </div>
-
-      {/* CONFIRMATION MODAL */}
-      {isModalOpen && (
-        <div className="fixed inset-0 z-[150] flex items-center justify-center p-4">
-          <div 
-            className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300" 
-            onClick={() => !isSaving && setIsModalOpen(false)} 
-          />
-          
-          <div className="relative bg-[#14141B] rounded-[2.5rem] shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-300">
-            <div className="p-8">
-              <div className="flex justify-between items-start mb-6">
-                <div className={`p-4 rounded-2xl ${isSuperAdmin ? 'bg-[#C9A05C]/15 text-[#C9A05C]' : 'bg-[#C9A05C]/15 text-[#C9A05C]'}`}>
-                  {isSaving ? <Loader2 className="w-8 h-8 animate-spin" /> : <AlertTriangle className="w-8 h-8" />}
-                </div>
-                {!isSaving && (
-                  <button onClick={() => setIsModalOpen(false)} className="p-2 hover:bg-[#1C1C26] rounded-xl transition-colors">
-                    <X className="w-6 h-6 text-[#8A8279]" />
-                  </button>
-                )}
-              </div>
-
-              <h2 className="text-2xl font-black text-[#F5F0E8] uppercase italic tracking-tight mb-2">
-                {isSaving ? 'Processing...' : 'Confirm Update'}
-              </h2>
-              <p className="text-[#8A8279] font-medium leading-relaxed mb-8">
-                {isSaving 
-                  ? "Writing configuration to the system registry. Please do not close this window."
-                  : "Are you sure you want to proceed? These changes will take effect immediately across your terminal."}
-              </p>
-
-              <div className="flex flex-col gap-3">
-                <button
-                  onClick={handleConfirmSave}
-                  disabled={isSaving}
-                  className={`w-full py-4 rounded-2xl font-black uppercase tracking-widest text-xs text-white shadow-lg transition-all active:scale-[0.98] flex items-center justify-center gap-2 ${
-                    isSuperAdmin ? 'bg-[#C9A05C] hover:bg-[#C9A05C]/80' : 'bg-blue-600 hover:bg-[#C9A05C]/100'
-                  } ${isSaving ? 'opacity-50 cursor-not-allowed' : ''}`}
-                >
-                  {isSaving ? 'Synchronizing...' : 'Yes, Apply Changes'}
-                </button>
-                {!isSaving && (
-                  <button
-                    onClick={() => setIsModalOpen(false)}
-                    className="w-full py-4 rounded-2xl font-black uppercase tracking-widest text-xs text-[#8A8279] hover:text-[#B8B0A4] hover:bg-[#1C1C26] transition-all"
-                  >
-                    Cancel
-                  </button>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

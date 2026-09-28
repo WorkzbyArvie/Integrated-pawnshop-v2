@@ -634,7 +634,7 @@ export function QueueManagement({ branchId: _branchId }: QueueManagementProps) {
                   <div key={msg.id || i} className={`flex ${isStaff ? 'justify-end' : 'justify-start'}`}>
                     <div className={`max-w-[75%] rounded-xl px-3 py-2 text-sm ${
                       isStaff
-                        ? 'bg-[#C9A05C] text-white rounded-br-sm'
+                        ? 'bg-[#C9A05C] text-[#0A0A0F] rounded-br-sm'
                         : 'bg-[#14141B] border border-[rgba(201,160,92,0.12)] text-slate-800 rounded-bl-sm'
                     }`}>
                       {!isStaff && <p className="text-[10px] font-semibold text-amber-600 mb-0.5">Customer</p>}

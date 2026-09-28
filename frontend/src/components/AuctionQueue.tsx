@@ -571,7 +571,7 @@ export function AuctionQueue({ branchId, activeBranchId }: AuctionQueueProps) {
                       <td className="px-5 py-4 text-right">
                         <button
                           onClick={(e) => { e.stopPropagation(); setSelectedItem(item); }}
-                          className="px-4 py-2 rounded-xl bg-[#1C1C26] text-[#F5F0E8] text-[10px] font-black uppercase tracking-wider border border-[rgba(201,160,92,0.15)] hover:bg-[#C9A05C] hover:text-white hover:border-[#C9A05C] transition-all"
+                          className="px-4 py-2 rounded-xl bg-[#1C1C26] text-[#F5F0E8] text-[10px] font-black uppercase tracking-wider border border-[rgba(201,160,92,0.15)] hover:bg-[#C9A05C] hover:text-[#0A0A0F] hover:border-[#C9A05C] transition-all"
                         >
                           View
                         </button>
@@ -850,7 +850,7 @@ export function AuctionQueue({ branchId, activeBranchId }: AuctionQueueProps) {
                 <button
                   onClick={() => handlePublish(selectedItem)}
                   disabled={publishingId === selectedItem.id}
-                  className="w-full bg-gradient-to-r from-[#C9A05C] to-[#8a6d37] text-white py-3.5 rounded-2xl font-black text-xs uppercase tracking-widest hover:from-[#E5C88C] hover:to-[#C9A05C] shadow-lg shadow-[#C9A05C]/20 transition-all disabled:opacity-60 flex items-center justify-center gap-2"
+                  className="w-full bg-gradient-to-r from-[#C9A05C] to-[#8a6d37] text-[#0A0A0F] py-3.5 rounded-2xl font-black text-xs uppercase tracking-widest hover:from-[#E5C88C] hover:to-[#C9A05C] shadow-lg shadow-[#C9A05C]/20 transition-all disabled:opacity-60 flex items-center justify-center gap-2"
                 >
                   {publishingId === selectedItem.id ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Publish to Auction House'}
                 </button>

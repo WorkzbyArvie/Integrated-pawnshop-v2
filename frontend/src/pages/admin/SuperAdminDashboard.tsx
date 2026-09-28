@@ -59,7 +59,7 @@ export function SuperAdminDashboard({
                   <Building2 size={120} />
                 </div>
                 <div className="relative z-10">
-                  <div className="p-4 w-fit bg-[#C9A05C]/10 rounded-2xl text-[#C9A05C] group-hover:bg-[#C9A05C] group-hover:text-white transition-colors mb-6">
+                  <div className="p-4 w-fit bg-[#C9A05C]/10 rounded-2xl text-[#C9A05C] group-hover:bg-[#C9A05C] group-hover:text-[#0A0A0F] transition-colors mb-6">
                     <Building2 size={32} />
                   </div>
                   <h3 className="text-2xl font-black text-[#F5F0E8] mb-2 uppercase tracking-tighter">Platform Control</h3>

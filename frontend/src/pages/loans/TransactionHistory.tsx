@@ -271,7 +271,7 @@ export function TransactionHistory() {
                         <button
                           onClick={() => downloadReceipt(t)}
                           title="Download receipt PDF"
-                          className="inline-flex items-center justify-center w-8 h-8 rounded-xl bg-[#1C1C26] hover:bg-[#C9A05C] text-[#B8B0A4] hover:text-white transition-colors"
+                          className="inline-flex items-center justify-center w-8 h-8 rounded-xl bg-[#1C1C26] hover:bg-[#C9A05C] text-[#B8B0A4] hover:text-[#0A0A0F] transition-colors"
                         >
                           <FileDown className="w-4 h-4" />
                         </button>
@@ -293,7 +293,7 @@ export function TransactionHistory() {
               <button
                 onClick={loadMore}
                 disabled={loadingMore}
-                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#C9A05C] text-white text-[10px] font-black uppercase tracking-wider hover:bg-[#E5C88C] disabled:opacity-50 transition-colors"
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#C9A05C] text-[#0A0A0F] text-[10px] font-black uppercase tracking-wider hover:bg-[#E5C88C] disabled:opacity-50 transition-colors"
               >
                 {loadingMore ? <Loader2 className="w-4 h-4 animate-spin" /> : <ArrowRight className="w-4 h-4" />}
                 Load More

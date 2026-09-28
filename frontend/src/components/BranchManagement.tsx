@@ -288,7 +288,7 @@ export function BranchManagement({ pawnshopId, pawnshopName, onBack }: BranchMan
                   </button>
                   <button
                     onClick={() => setAnalyticsView({ open: true, branch })}
-                    className="flex-1 py-3 bg-[#C9A05C]/10 text-[#C9A05C] text-[10px] font-black uppercase rounded-xl hover:bg-[#C9A05C] hover:text-white transition-all hover:shadow-md flex items-center justify-center gap-2"
+                    className="flex-1 py-3 bg-[#C9A05C]/10 text-[#C9A05C] text-[10px] font-black uppercase rounded-xl hover:bg-[#C9A05C] hover:text-[#0A0A0F] transition-all hover:shadow-md flex items-center justify-center gap-2"
                   >
                     <TrendingUp size={14} /> Analytics
                   </button>

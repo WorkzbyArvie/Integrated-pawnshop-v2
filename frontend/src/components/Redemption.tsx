@@ -313,7 +313,7 @@ export function Redemption({ branchId, activeBranchId }: RedemptionProps) {
               <button 
                 onClick={() => handleRedeem(selectedItem.id)}
                 disabled={isLoading}
-                className="w-full py-5 bg-blue-600 text-white rounded-[2rem] font-black uppercase text-xs hover:bg-[#C9A05C]/100 transition-all flex items-center justify-center gap-3 disabled:opacity-50"
+                className="w-full py-5 bg-blue-600 text-white hover:bg-[#C9A05C] hover:text-[#0A0A0F] rounded-[2rem] font-black uppercase text-xs transition-all flex items-center justify-center gap-3 disabled:opacity-50"
               >
                 {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <PackageCheck className="w-5 h-5" />}
                 Authorize Release

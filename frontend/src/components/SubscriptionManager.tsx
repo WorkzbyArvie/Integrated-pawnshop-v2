@@ -592,7 +592,7 @@ export function SubscriptionManager({ branchId: _branchId, onSubscriptionChange 
                 className={`relative overflow-hidden ${isCurrentPlan ? 'border-2 border-indigo-500 shadow-xl' : isTrialPlan ? 'border-2 border-[#C9A05C]/60 shadow-xl' : 'border border-[rgba(201,160,92,0.12)]'}`}
               >
                 {(isCurrentPlan || isTrialPlan) && (
-                  <div className="absolute top-0 left-0 right-0 bg-[#C9A05C] text-white text-center text-[10px] font-black py-1 uppercase tracking-widest">
+                  <div className="absolute top-0 left-0 right-0 bg-[#C9A05C] text-[#0A0A0F] text-center text-[10px] font-black py-1 uppercase tracking-widest">
                     {isTrialPlan ? 'Current Trial' : 'Current Plan'}
                   </div>
                 )}

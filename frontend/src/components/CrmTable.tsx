@@ -157,7 +157,7 @@ export function CrmTable({ branchId, activeBranchId }: CrmTableProps) {
               onClick={() => setFilterOpen(v => !v)}
               className={`flex items-center gap-2 px-6 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all active:scale-95 shadow-lg ${
                 tierFilter !== 'all'
-                  ? 'bg-[#C9A05C] text-white'
+                  ? 'bg-[#C9A05C] text-[#0A0A0F]'
                   : 'bg-slate-900 text-white hover:bg-slate-800'
               }`}
             >
@@ -220,7 +220,7 @@ export function CrmTable({ branchId, activeBranchId }: CrmTableProps) {
                       <div>
                         <p className="font-black text-[#F5F0E8] text-base leading-none mb-1">{customer.full_name}</p>
                         <div className="flex items-center gap-1.5 mt-1.5">
-                          <span className="text-[9px] font-black text-white bg-[#C9A05C] px-1.5 py-0.5 rounded uppercase tracking-tighter">Verified</span>
+                          <span className="text-[9px] font-black text-[#0A0A0F] bg-[#C9A05C] px-1.5 py-0.5 rounded uppercase tracking-tighter">Verified</span>
                           <span className={`inline-block px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider ${tierColors[normalizeTier(customer.loyaltytier || 'Standard')] || 'bg-gray-500/20 text-gray-400'}`}>
                             {normalizeTier(customer.loyaltytier || 'Standard')}
                           </span>
