@@ -214,11 +214,43 @@ async function request<T = unknown>(
     method,
     headers,
     body: body ? JSON.stringify(body) : undefined,
+    // Authenticated, per-user data must never be served from the HTTP cache.
+    // A revalidation `304 Not Modified` carries no body, so treating it as a
+    // normal response left callers with an empty payload and a false
+    // "unavailable" credential state.
+    cache: 'no-store',
   });
 
   // Handle 204 No Content
   if (res.status === 204) return undefined as T;
 
+  // A `304` can still arrive from an intermediary that ignores `no-store`. It
+  // has no body, so refetch unconditionally once rather than surfacing an error
+  // for a request that actually succeeded.
+  if (res.status === 304 && retryCount < 1) {
+    const forced = await fetch(url, {
+      method,
+      headers,
+      body: body ? JSON.stringify(body) : undefined,
+      cache: 'reload',
+    });
+    if (forced.status === 304) {
+      throw new ApiError('Request returned no body', 304, null);
+    }
+    return parseResponse<T>(forced, method, path, body, queryParams, retryCount);
+  }
+
+  return parseResponse<T>(res, method, path, body, queryParams, retryCount);
+}
+
+async function parseResponse<T>(
+  res: Response,
+  method: string,
+  path: string,
+  body?: unknown,
+  queryParams?: Record<string, string | number | boolean | undefined>,
+  retryCount = 0,
+): Promise<T> {
   let data: unknown;
   try {
     data = await res.json();
