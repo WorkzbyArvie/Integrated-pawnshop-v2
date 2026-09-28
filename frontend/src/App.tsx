@@ -331,6 +331,12 @@ function App() {
     searchParams.get('onboarding') === '1' ||
     hashParams.get('onboarding') === '1';
   const [session, setSession] = useState<any>(null);
+  // Supabase returns a new session object on every revalidation and token
+  // refresh, so depending on `session` re-ran the subscription effects on a timer
+  // and whenever a backgrounded tab resumed -- each run blanking the whole app to
+  // the "Loading your vault" screen. The id is stable across those and still
+  // changes on sign-in and sign-out, which is what those effects respond to.
+  const sessionUserId: string | null = session?.user?.id ?? null;
   const [activeTab, setActiveTab] = useState(() =>
     resolveTabFromPath(window.location.pathname) ||
     localStorage.getItem('active_tab') ||
@@ -1142,7 +1148,12 @@ function App() {
       }
 
       try {
-        setSubscriptionTierLoaded(false);
+        // Deliberately not cleared before the fetch. The flag means "a tier has
+        // been determined", and the shell gates its full-screen "Loading your
+        // vault" screen on it, so clearing it here replaced the entire app with a
+        // loading screen every time this refetched -- including the refetch that
+        // happens when a backgrounded tab resumes. Stale data shown briefly beats
+        // blanking the UI.
         const sub = await api.get('/subscriptions/current');
         const subStatus = String((sub as any)?.status || '').toUpperCase();
         const tier = (sub as any)?.tier;
@@ -1164,7 +1175,8 @@ function App() {
     };
 
     loadSubscription();
-  }, [session, userRole, currentBranchId, ownerRegistrationStatus, subscriptionRefreshKey]);
+    // sessionUserId rather than session -- see its declaration above.
+  }, [sessionUserId, userRole, currentBranchId, ownerRegistrationStatus, subscriptionRefreshKey]);
 
   useEffect(() => {
     const loadSubscriptionAccessStatus = async () => {
@@ -1184,7 +1196,8 @@ function App() {
       if (!currentBranchId) return;
 
       try {
-        setSubscriptionAccessChecked(false);
+        // Same reasoning as the tier flag above: this one also gates the shell's
+        // full-screen loader, so clearing it blanked the app on every refetch.
         const status = await api.get<{
           frozen?: boolean;
           canOperate?: boolean;
@@ -1201,7 +1214,8 @@ function App() {
     };
 
     loadSubscriptionAccessStatus();
-  }, [session, userRole, currentBranchId, ownerRegistrationStatus, subscriptionRefreshKey]);
+    // sessionUserId rather than session -- see its declaration above.
+  }, [sessionUserId, userRole, currentBranchId, ownerRegistrationStatus, subscriptionRefreshKey]);
 
   useEffect(() => {
     const checkSupportAccess = async () => {
