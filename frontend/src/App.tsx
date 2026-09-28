@@ -75,7 +75,9 @@ import { NotificationCenter } from './components/NotificationCenter';
 const Dashboard = lazy(() => import('./components/Dashboard').then(m => ({ default: m.Dashboard })));
 const CrmTable = lazy(() => import('./components/CrmTable').then(m => ({ default: m.CrmTable })));
 const InventoryVault = lazy(() => import('./components/InventoryVault').then(m => ({ default: m.InventoryVault })));
-const DecisionSupport = lazy(() => import('./components/DecisionSupport').then(m => ({ default: m.DecisionSupport })));
+const DecisionSupport = lazy(() =>
+  import('./components/DecisionSupportPanel').then((m) => ({ default: m.DecisionSupport })),
+);
 const Redemption = lazy(() => import('./components/Redemption').then(m => ({ default: m.Redemption })));
 const AuctionQueue = lazy(() => import('./components/AuctionQueue').then(m => ({ default: m.AuctionQueue })));
 const AuctionMarketplace = lazy(() => import('./components/AuctionMarketplace').then(m => ({ default: m.AuctionMarketplace })));
@@ -2086,7 +2088,7 @@ function App() {
             {activeTab === 'redemption' && <Redemption branchId={currentBranchId} activeBranchId={activeOperationalBranchId} />}
             {activeTab === 'crm' && <CrmTable branchId={currentBranchId} activeBranchId={activeOperationalBranchId} />}
             {activeTab === 'inventory' && <InventoryVault branchId={currentBranchId} activeBranchId={activeOperationalBranchId} />}
-            {activeTab === 'decision' && <DecisionSupport branchId={currentBranchId} activeBranchId={activeOperationalBranchId} />}
+            {activeTab === 'decision' && <DecisionSupport branchId={Number(currentBranchId) || null} activeBranchId={Number(activeOperationalBranchId) || null} />}
             {activeTab === 'auction-queue' && <AuctionQueue branchId={currentBranchId} activeBranchId={activeOperationalBranchId} />}
             {activeTab === 'auction-settlements' && <AuctionSettlements branchId={currentBranchId} activeBranchId={activeOperationalBranchId} />}
             {activeTab === 'bidder-kyc' && <BidderKycReview />}

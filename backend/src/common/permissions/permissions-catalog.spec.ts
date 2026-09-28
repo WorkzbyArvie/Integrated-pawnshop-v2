@@ -56,6 +56,8 @@ const MATRIX: Record<string, { tuple: string[]; permission: string }> = {
   'analytics.controller.ts::getStats': ANALYTICS_VIEWS,
   'analytics.controller.ts::getBranchStats': ANALYTICS_VIEWS,
   'analytics.controller.ts::getBatchBranchStats': ANALYTICS_VIEWS,
+  'decision-support.controller.ts::getReport': ANALYTICS_VIEWS,
+  'decision-support.controller.ts::getWait': ANALYTICS_VIEWS,
   'app.controller.ts::checkCustomer': CUSTOMER_CHECK,
   'receipt.controller.ts::getPdf': RECEIPT_PDF,
   'pawn-ticket.controller.ts::createTicket': {
@@ -576,15 +578,16 @@ describe('69-site equivalence scan', () => {
     }
   });
 
-  it('finds all 88 guarded endpoints across the controllers', () => {
-    // Calibration tripwire. Raised from 83 when five previously undecorated
-    // reads were given an explicit permission: the three analytics reads, the
-    // duplicate-customer lookup, and minting a receipt PDF link.
+  it('finds all 90 guarded endpoints across the controllers', () => {
+    // Calibration tripwire. Raised from 83 when seven previously undecorated
+    // reads were given an explicit permission: the three analytics reads, the two
+    // decision-support reads, the duplicate-customer lookup, and minting a
+    // receipt PDF link.
     const total = [...sitesByFile.values()].reduce((sum, sites) => {
       const withAny = sites.filter((s) => s.roles || s.permissions);
       return sum + withAny.length;
     }, 0);
-    expect(total).toBe(88);
+    expect(total).toBe(90);
   });
 
   it('matrix tuples match the current @Roles tuples (RED-phase calibration)', () => {

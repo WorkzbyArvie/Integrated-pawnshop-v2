@@ -12,6 +12,30 @@ backend dead code, frontend dead code, root scripts/config, state-machine comple
 
 ---
 
+## Remediation status
+
+| Area | State |
+|---|---|
+| Committed secrets and RLS-disabling scripts | **FIXED** — 13 files removed, 4 scrubbed, client `.env` untracked with `.env.example` added |
+| Dead code | **FIXED** — 7,109 lines and 32 documents removed, each verified unreferenced |
+| Cross-tenant analytics | **FIXED** — tenant derived from the principal; cross-tenant reads refused |
+| Fabricated figures (`+12.5%`, 5% interest, zero earnings) | **FIXED** — removed; earnings now summed from completed payments |
+| Unauthenticated customer PII lookup | **FIXED** — now authenticated, tenant-scoped, boolean-only |
+| Receipt PDF download with no check | **FIXED** — short-lived signed links, constant-time comparison |
+| Decision Support System | **BUILT** — real prediction engine with an explicit honesty contract |
+| "Neural Engine" / "Neural Link Stable" copy | **REMOVED** — zero occurrences in shipped code |
+| Queue call-ahead and no-show | **BUILT** — position-triggered, reversible by staff |
+| Redemption accepting ₱0 | **OPEN** — Phase 0.1, needs the canonical rate set first |
+| Online redemption bypassing approval | **OPEN** — Phase 0.2 |
+| Webhook signature verification | **OPEN** — Phase 0.3 |
+| Borrower reaching their own records | **OPEN** — Phase 1c, promoted to the front of the queue |
+| Production RLS state | **UNVERIFIED** — requires a check against the live database |
+
+Backend tests: **731 passing** across 50 suites, up from 695. Frontend: 19/21 files, the
+3 failures pre-existing and recorded below.
+
+---
+
 ## Severity
 
 | | Meaning |

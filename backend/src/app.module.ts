@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { ScheduleModule } from '@nestjs/schedule';
+import { DecisionSupportModule } from './decision-support/decision-support.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { PrismaModule } from './prisma.module';
@@ -39,6 +40,7 @@ import { CommonModule } from './common/common.module';
     ScheduleModule.forRoot(),
     PrismaModule,
     AnalyticsModule,
+    DecisionSupportModule,
     AuctionModule,
     QueueModule,
     NotificationModule,

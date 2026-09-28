@@ -1095,6 +1095,11 @@ model QueueTicket {
   joinedAt        DateTime     @default(now()) @map("joined_at")
   calledAt        DateTime?    @map("called_at")
   servedAt        DateTime?    @map("served_at")
+
+  // When this customer was told they were next. Distinguishes a genuine no-show
+  // from a notification that never reached them, so staff can tell the two apart
+  // and reinstate fairly. Null until the call-ahead sweep warns them.
+  notifiedAt      DateTime?    @map("notified_at")
   completedAt     DateTime?    @map("completed_at")
   
   // Staff assignment
