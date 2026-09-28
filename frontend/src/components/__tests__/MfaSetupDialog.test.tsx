@@ -20,8 +20,8 @@ vi.mock('../../lib/apiClient', () => ({
     code: (error as { code?: string })?.code,
     failedRules: [] as string[],
   }),
-  setMfaAssertion: (assertion: string, expiresAt?: unknown) =>
-    setMfaAssertion(assertion, expiresAt),
+  setMfaAssertion: (assertion: string, options?: unknown) =>
+    setMfaAssertion(assertion, options),
   clearMfaAssertion: () => clearMfaAssertion(),
   default: {
     post: (...args: unknown[]) => apiPost(...args),
@@ -157,7 +157,9 @@ describe('MfaSetupDialog', () => {
         }),
       );
       await waitFor(() => expect(onCompleted).toHaveBeenCalledWith('enabled'));
-      expect(setMfaAssertion).toHaveBeenCalledWith('assertion-token', CHALLENGE.expiresAt);
+      expect(setMfaAssertion).toHaveBeenCalledWith('assertion-token', {
+        expiresAt: CHALLENGE.expiresAt,
+      });
       expect(onOpenChange).toHaveBeenCalledWith(false);
       expect(localStorage.length).toBe(0);
       expect(sessionStorage.length).toBe(0);
@@ -305,7 +307,8 @@ describe('MfaSetupDialog', () => {
       expect(onCompleted).not.toHaveBeenCalled();
       apiPost.mockImplementation((path: string) => {
         if (path === '/security/mfa/disable') {
-          const body = apiPost.mock.calls.at(-1)?.[1] as
+          const calls = apiPost.mock.calls;
+          const body = calls[calls.length - 1]?.[1] as
             | { challengeId?: string; code?: string }
             | undefined;
           return body?.challengeId
@@ -384,17 +387,20 @@ describe('MfaSetupDialog', () => {
     it('reports a rate-limited code request with a retry path', async () => {
       renderDialog({ mode: 'disable' });
       fireEvent.click(await screen.findByRole('button', { name: 'Continue to verification' }));
-      await submitPassword();
 
       apiPost.mockRejectedValueOnce(challengeError('MFA_CHALLENGE_UNAVAILABLE', 429));
-      fireEvent.click(screen.getByRole('button', { name: 'Request code' }));
+      await submitPassword();
 
       expect(
         await screen.findByText(
           'Too many verification code requests. Wait 60 seconds, then try again.',
         ),
       ).toBeInTheDocument();
+      expect(
+        screen.queryByLabelText('Six-digit email verification code'),
+      ).not.toBeInTheDocument();
       expect(screen.getByRole('button', { name: 'Request code' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Keep email MFA enabled' })).toBeInTheDocument();
     });
   });
 });

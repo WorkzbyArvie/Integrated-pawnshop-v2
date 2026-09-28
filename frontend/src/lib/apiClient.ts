@@ -33,6 +33,64 @@ function safeRuleKeys(value: unknown): string[] {
   );
 }
 
+/**
+ * Header the backend reads the session-bound MFA assertion from.
+ * Mirrors `MFA_ASSERTION_HEADER` in backend/src/security/mfa-assertion.service.ts.
+ */
+export const MFA_ASSERTION_HEADER = 'x-mfa-assertion';
+
+let mfaAssertion: string | null = null;
+let mfaAssertionExpiresAt: number | null = null;
+let mfaAssertionUserId: string | null = null;
+
+function toTimestamp(value: string | number | Date | null | undefined): number | null {
+  if (value === null || value === undefined || value === '') return null;
+  const parsed = value instanceof Date ? value.getTime() : new Date(value).getTime();
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+/**
+ * Hold the server-issued MFA assertion in module memory only. Never written to
+ * localStorage, sessionStorage, a URL, or a log, and cleared at every session
+ * boundary so a previous session's assertion can never be replayed.
+ */
+export function setMfaAssertion(
+  assertion: string,
+  options: { expiresAt?: string | number | Date | null; userId?: string | null } = {},
+): void {
+  const value = typeof assertion === 'string' ? assertion.trim() : '';
+  if (!value) {
+    clearMfaAssertion();
+    return;
+  }
+  mfaAssertion = value;
+  mfaAssertionExpiresAt = toTimestamp(options.expiresAt);
+  mfaAssertionUserId = options.userId ?? mfaAssertionUserId;
+}
+
+export function getMfaAssertion(): string | null {
+  if (!mfaAssertion) return null;
+  if (mfaAssertionExpiresAt !== null && Date.now() >= mfaAssertionExpiresAt) {
+    clearMfaAssertion();
+    return null;
+  }
+  return mfaAssertion;
+}
+
+export function clearMfaAssertion(): void {
+  mfaAssertion = null;
+  mfaAssertionExpiresAt = null;
+  mfaAssertionUserId = null;
+}
+
+/** Drop a held assertion when the authenticated subject is no longer the one that earned it. */
+function clearAssertionForOtherUser(userId: string | null): void {
+  if (!mfaAssertion) return;
+  if (mfaAssertionUserId === null) return;
+  if (userId === mfaAssertionUserId) return;
+  clearMfaAssertion();
+}
+
 function errorDetails(body: unknown): { code?: string; failedRules: string[] } {
   if (!body || typeof body !== 'object') return { failedRules: [] };
   const payload = body as Record<string, unknown>;
@@ -89,8 +147,16 @@ async function getHeaders(): Promise<Record<string, string>> {
     }
 
     if (session?.access_token) {
+      const userId = session.user?.id ?? null;
+      clearAssertionForOtherUser(userId);
       headers['Authorization'] = `Bearer ${session.access_token}`;
-      headers['user-id'] = session.user?.id ?? '';
+      headers['user-id'] = userId ?? '';
+      const assertion = getMfaAssertion();
+      if (assertion) {
+        headers[MFA_ASSERTION_HEADER] = assertion;
+      }
+    } else {
+      clearAssertionForOtherUser(null);
     }
   } catch {
     // No session available — proceed unauthenticated
