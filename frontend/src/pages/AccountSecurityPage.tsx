@@ -15,6 +15,7 @@ import {
   formatSecurityTimestamp,
   maskAccountEmail,
   describeActivityEvent,
+  activitySeverity,
   submitPasswordChange,
   type CredentialActivityEvent,
   type CredentialStatus,
@@ -511,29 +512,55 @@ export function AccountSecurityPage({
           </div>
         ) : (
           <ol className="max-h-80 space-y-2 overflow-y-auto pr-1">
-            {activity.map((event) => (
-              <li
-                key={event.id}
-                className="flex flex-wrap items-center justify-between gap-2 rounded-[12px] border px-3 py-2"
-                style={{ borderColor: 'rgba(255,255,255,0.06)' }}
-              >
-                <span className="flex items-center gap-2 text-[14px]" style={{ color: 'var(--text-primary)' }}>
-                  {event.success ? (
-                    <CheckCircle2 size={14} aria-hidden="true" style={{ color: 'var(--green)' }} />
-                  ) : (
-                    <AlertTriangle size={14} aria-hidden="true" style={{ color: 'var(--red)' }} />
-                  )}
-                  {describeActivityEvent(event)}
-                </span>
-                <time
-                  dateTime={event.createdAt}
-                  className="text-[14px]"
-                  style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-mono, monospace)' }}
+            {activity.map((event) => {
+              // Severity is spelled out in words as well as carried by the icon
+              // and colour, so the distinction survives a screen reader and a
+              // monochrome display. Colour alone would not.
+              const severity = activitySeverity(event);
+              const tone =
+                severity === 'critical'
+                  ? { color: 'var(--red)', label: 'Needs attention' }
+                  : severity === 'notable'
+                    ? { color: 'var(--gold, #C9A05C)', label: 'Security change' }
+                    : { color: 'var(--green)', label: 'Routine' };
+
+              return (
+                <li
+                  key={event.id}
+                  className="flex flex-wrap items-center justify-between gap-2 rounded-[12px] border px-3 py-2"
+                  style={{ borderColor: 'rgba(255,255,255,0.06)' }}
                 >
-                  {formatSecurityTimestamp(event.createdAt)}
-                </time>
-              </li>
-            ))}
+                  <span className="flex items-center gap-2 text-[14px]" style={{ color: 'var(--text-primary)' }}>
+                    {event.success && severity === 'routine' ? (
+                      <CheckCircle2 size={14} aria-hidden="true" style={{ color: tone.color }} />
+                    ) : (
+                      <AlertTriangle size={14} aria-hidden="true" style={{ color: tone.color }} />
+                    )}
+                    {describeActivityEvent(event)}
+                    {!event.success && (
+                      <span className="text-[11px] font-bold uppercase tracking-wider" style={{ color: 'var(--red)' }}>
+                        Did not complete
+                      </span>
+                    )}
+                  </span>
+                  <span className="flex items-center gap-3">
+                    <span
+                      className="text-[10px] font-bold uppercase tracking-widest"
+                      style={{ color: tone.color }}
+                    >
+                      {tone.label}
+                    </span>
+                    <time
+                      dateTime={event.createdAt}
+                      className="text-[14px]"
+                      style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-mono, monospace)' }}
+                    >
+                      {formatSecurityTimestamp(event.createdAt)}
+                    </time>
+                  </span>
+                </li>
+              );
+            })}
           </ol>
         )}
       </section>
