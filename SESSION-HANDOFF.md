@@ -1,242 +1,198 @@
-# PawnGold — Session Handoff (end of 2026-09-29, session 2)
+# PawnGold — Session Handoff (end of 2026-09-30, session 3)
 
-**Defense: 3rd week of October 2026.** Roughly two and a half weeks.
+**Defense: 3rd week of October 2026.** About two weeks.
 
-**HEAD:** `5c6f85a`, pushed to `origin/main`. 10 commits on top of the previous
-handoff's `5db6f10`. **Both services are deployed and verified live** — the code
-work, the database migration, and the rollout are all done.
+**HEAD:** `dad2f62`, **local only — NOT pushed.** Three commits are unpushed and
+therefore **not deployed**:
 
-Supersedes `5db6f10`'s handoff. Read section 1 first: the previous handoff said
-this task was scoped; it was not.
+| Commit | Not yet live |
+|---|---|
+| `46433c1` | Appraisal rates + risk scoring moved off the client |
+| `7768089` | Two interest unit bugs; POS/redemption/dashboard stop computing money |
+| `dad2f62` | Renewal closed, plus three defects in `renewLoan` |
+
+Supersedes the `5c6f85a` handoff. Everything in that file about the RLS work and
+the section-3a deploy verification still stands and is not restated here. What
+follows is what changed since, and what is now wrong.
+
+Backend **1014** tests / 61 suites, all green. Frontend **287** passing, tsc clean
+both sides. The same two pre-existing `kycDocs` failures remain, still not ours.
 
 ---
 
-## 1. What happened this session
+## 1. Read this first
 
-Section 2a and 3 of the previous handoff are **complete, deployed, and verified**.
-The migration is applied to production. There is no outstanding action on the
-security work.
+**None of this session's work has been seen in a browser, and the agent cannot
+reach the database.** Everything below is unit tests against mocks. Three
+previous deploys in this project failed on migration details, all caused by me.
+Treat the three commits as unreviewed until you have clicked through them.
 
-The previous handoff listed 4 call sites to fix. The real number was **25**,
-across 6 tables, and two of them were worse than anything documented:
+The defects fixed this session were not found by reading the code carefully. They
+were found by the tests disagreeing with me — several times the failing test was
+my own arithmetic being wrong, but four times it was a real bug in code I had
+just written. **The pattern that worked: write the test that states the
+*invariant* rather than the expected number, and let it tell you.** A test
+asserting "the bank cannot be cheaper than the customer" found the 3%-vs-3.5%
+mismatch; a test asserting "summing rates is not an average" found the 10.5×
+projected-interest bug.
 
-| Site | Previous handoff | Reality |
-|---|---|---|
-| `CrmTable.tsx:89` | not mentioned | `customer.select('*')`, **zero filters** when no shop selected |
-| `StaffMatrix.tsx:224` | not mentioned | `profiles.select('*')`, zero filters — every email on the platform |
-| `App.tsx:1106` | not mentioned | `pawnshops.select('settings').limit(1)`, no WHERE, ran on every app load for Super Admin |
-| `App.tsx:687`, `Login.tsx:64` | one entry | `profiles` looked up **by email** — an enumeration oracle |
+## 2. The four real money bugs
 
-Worse: the same class of bug already existed **in the backend**, where the handoff
-did not look. `GET /customers`, `GET /customers/:id` and `GET /tickets` were
-unguarded *and* unscoped — any authenticated profile could list every customer in
-the platform, or fetch one by id across tenants, or list every ticket with each
-customer's full row attached.
+### 2a. Every POS-created ticket recorded 350% interest
 
-## 2. Commits
+`createTicket` wrote `interestRate: 3.5` into `ticket.interestRate`, which is a
+**fraction** (column default `0.035` = 3.5%). A percentage into a fraction column.
+A redemption priced off that column would have demanded 3.5× principal. Now
+resolves the shop's configured rate like everything else.
 
-| Commit | Fix |
+### 2b. Projected interest was 100× out *and* scaled with ticket count
+
+`analytics.service.ts`, both `getBranchActivity` and `getDashboardStats`:
+
+- Summed the `interestRate` column across tickets, then multiplied by total
+  principal. Summing rates is not an average. Three tickets at 3.5% sum to 10.5
+  and reported **10.5× principal** as monthly interest — and the error grew with
+  the number of tickets, not the amount of money.
+- Both then divided by 100 as if the column were a percentage. It is a fraction.
+  That was 100× out *on top of* the scaling bug.
+
+**Why it survived:** the test fixtures used `interestRate: 3` instead of `0.035`.
+At 3 the `/100` is invisible. A test asserting a plausible-looking wrong number
+is worse than no test. See trap 18.
+
+### 2c. The redemption screen charged a flat ₱50 and the wrong interest rate
+
+`Redemption.tsx` computed `principal * 0.03` plus a hardcoded `serviceFee = 50`
+and sent that as `amountPaid`. Two independent errors: loans issued at 3.5% so the
+branch absorbed the difference on every redemption; and P.D. 114 §10 caps the
+service fee at the **lesser of 1% of principal and ₱5**, so a flat ₱50 was up to
+ten times the legal maximum. A ticket is money already owed, so it is now priced
+from the loan's own recorded rate.
+
+### 2d. A refused renewal still granted the pawner 30 days
+
+`renewLoan` validated the tender **after** the ticket had been transitioned to
+`ACTIVE` with its expiry, grace and forfeiture dates rewritten. A renewal
+rejected for the wrong amount handed the pawner another 30 days and buried the
+mismatch in the database with no payment, no receipt and no proof. The check now
+runs before any write, and there is a test asserting that a refusal leaves
+`ticket.update`, `loan.update`, `stateMachine.transition` and `payment.create`
+all uncalled.
+
+## 3. The other things fixed
+
+| Defect | Where |
 |---|---|
-| `c8c9409` | `GET /customers`, `/customers/:id`, `/tickets` scoped to the caller's shop. New `PATCH /tickets/:id/description`. CrmTable + InventoryVault moved to the backend. |
-| `ef8ad44` | `?pawnshopId` no longer beats the authenticated tenant on pending approvals. `GET /loan/applications` requires the caller's tenant. Redemption moved to the backend. |
-| `30f5c6f` | StaffMatrix no longer reads every profile. New `GET /tenant-governance/staff`. |
-| `36c4ebf` | The email-fallback oracle is gone. New `GET /profile/session-context`. SystemSettings + App branding moved to guarded endpoints. |
-| `766af21` | Dashboard and BranchAnalytics stop trusting `?pawnshop=`. New `GET /analytics/branch-activity`. |
-| `c8447a7` | Branch name resolved from the tenant-scoped branch list instead of by localStorage id. |
-| `fecec05` | The RLS migration + 46 containment assertions. |
-| `3acd657` | First rewrite of this handoff. |
-| `4b4771a` | Handoff updated once the migration was verified live. |
-| `5c6f85a` | `.gitattributes` pins `*.sql text eol=lf` so Prisma migration checksums stay stable. **Pushed.** |
+| Appraisal rates lived in a React component; nothing recorded what produced a valuation | `SalesPos.tsx` → `backend/src/loan/appraisal.ts` |
+| Silver priced at ₱42/gram — a pre-2020 figure against a real market of ₱70–90 | same |
+| Risk curve read `w > 100 ? 20 : 32`: **heavier scored safer** | same |
+| Dashboard showed `totalPrincipal * 0.035`, discarding the per-ticket figure the endpoint had just computed | `Dashboard.tsx` |
+| `riskScore \|\| undefined` turned a legitimate score of `0` into `undefined` | `SalesPos.tsx` |
+| Every `<label>` in the POS form was unassociated with its input | `SalesPos.tsx` |
+| Panel printed `interestRate.toFixed(2)` on a fraction → "Interest (0.04%)" on a 3.5% loan | `Redemption.tsx` |
+| `POST /loans/renew` existed with **no caller at all** | dead code |
+| `renewLoan` fetched `ticketId` and `loanId` independently and never checked they were related — could extend one pawn's dates while collecting another loan's interest | `loan.service.ts` |
+| `processedBy` came from the **request body**, so receipts named whoever the client typed | `loan.controller.ts` |
 
-Backend 867 tests across 55 suites, all green. Frontend 256 passing, tsc clean
-both sides. Three pre-existing frontend failures remain (`kycDocs` ×2), still out
-of scope and still not ours.
+## 4. Decision waiting on you
 
-### One real bug fixed along the way
+**`frontend/src/lib/loanTerms.ts` is untracked and contradicts the backend.**
 
-`BranchAnalytics.tsx` queried a table called `loan_application`. The table is
-`loan_applications`. That read has been 404ing silently, so the loan count badge
-has always read zero.
-
-## 3. The migration is APPLIED and verified
-
-Applied by hand in the Supabase SQL editor on 2026-09-29 (the agent has no
-working DB credential — see section 8). Verified on the live project:
-
-| Check | Result |
+| | Grace period |
 |---|---|
-| RLS enabled **and** forced | all six tables `on=true force=true` |
-| Policies on the six | exactly one: `profiles_update_own [UPDATE] roles={authenticated}` |
-| anon / authenticated table grants | **zero rows** — hard-denied at the privilege layer |
-| `authenticated` UPDATE columns on `profiles` | exactly two: `is_online`, `last_seen_at` |
-| Backend unaffected | `customer=17 profiles=34 ticket=33` still readable as owner |
+| `backend/src/loan/loan-terms.ts` (verified against lawphil, P.D. 114 §13) | **90 days** |
+| `frontend/src/lib/loanTerms.ts` | **30 days** |
 
-So the anon key is now blocked twice over: no table privilege *and* forced RLS.
-`postgres`/`supabase_admin` have `rolbypassrls = true`, which overrides FORCE, so
-the backend on Render is unaffected.
+Nothing imports it, so it is harmless today. But its header claims a
+`loanTerms.sync.test.ts` that **does not exist** — the one safeguard it names is
+not running. A stale mirror of a statutory constant is precisely the drift that
+caused 2c above.
 
-**Do not grant the anon role anything back.** Postgres emits a `HINT: Grant
-SELECT ... TO anon` on any 42501. That hint is generic and applying it would
-re-create the breach condition — RLS would still deny, but the only remaining
-barrier would be a single policy someone could later drop.
+My recommendation is to **delete it**. The constants now arrive in the API
+responses (`termDays`, `gracePeriodDays`, `newGracePeriodEnd`), so the client has
+nothing to mirror. I did not delete it unilaterally because it is untracked and I
+did not create it — confirm and I will remove it.
 
-## 3a. Deployed and verified live
+## 5. Push and deploy, in this order
 
-`main` fast-forwarded `5db6f10..5c6f85a` and pushed. Both services redeployed.
-Verified from outside, by reading the deployed artifacts rather than trusting a
-200:
+1. `git push origin main`
+2. **Wait for Render.** Vite builds faster than NestJS, so the normal failure mode
+   is a new frontend live against an old backend — sign-in breaks first. (This
+   bit us before; the last deploy got lucky and the order was favourable.)
+3. Click through, in this order:
+   - **Sign in.** Highest risk — depends on endpoints added across several pushes.
+   - **POS → Calculate.** This is the one that changed most. A 10g silver
+     bracelet should quote **₱440** (₱80/g × 55% LTV). It used to say ₱294. If it
+     still says ₱294 the rates did not deploy. Check the panel shows the rate, the
+     LTV, the 30-day term and the risk factors — that disclosure is new.
+   - **Redemption → Calculate.** Should show principal + interest at the *loan's*
+     rate + a ₱5 service fee, not ₱50. Then **Authorize Release** and confirm the
+     receipt matches.
+   - **Redemption → "Customer is renewing instead" → Collect Interest & Renew.**
+     Entirely new. Confirms ₱350 on a ₱10,000 loan at 3.5%.
+   - **Dashboard** projected interest. Was 100× out; there is no obviously
+     "correct" value to eyeball, so compare a portfolio figure against what the
+     loans actually are.
+4. **Nothing was deployed this session. Do not assume the live app has any of it.**
 
-| | Evidence |
-|---|---|
-| Backend is the new build | `/profile/session-context` returns **401, not 404**. The route did not exist before this push, so a 404 would have meant the old build. 401 is correct — the route exists and refuses an unauthenticated call. |
-| Frontend is the new build | entry chunk changed `index-BUja1-EP.js` → `index-D02rnHjY.js`; every rewritten lazy chunk confirmed to call the backend and to contain **zero** `.from()` table calls |
+## 6. New tooling traps
 
-Confirmed per chunk in the served bundle: `CrmTable` → `/customers`, `Dashboard`
-→ `/analytics/branch-activity`, `StaffMatrix` → `/tenant-governance/staff`,
-`InventoryVault` and `Redemption` → `/tickets`, `SystemSettings` →
-`/tenant-governance/pawnshops/`. The old direct reads of `customer`, `profiles`,
-`ticket` and `pawnshops` are absent from all of them.
+The previous handoff's list (traps 1–15) still stands. Four more, all of which
+cost real time:
 
-The backend happened to finish before the frontend, so the window where a new
-frontend was live against an old backend never opened. **That was luck.** Vite
-builds faster than the NestJS build, so the normal outcome is the opposite, and
-the frontend would be live calling endpoints that do not exist — sign-in breaks
-first. If deploying again, expect to wait on Render before testing on Vercel.
-
-### Not yet done — a human needs to eyeball this
-
-The rollout is verified structurally. Nobody has clicked through the app. Check,
-in this order:
-
-1. **Sign in.** Highest risk — it depends on a brand-new endpoint.
-2. **Dashboard** — counts non-zero. It will **stop live-updating**; that is the
-   documented Realtime consequence, not a regression, because the data now comes
-   from `GET /analytics/branch-activity`.
-3. **Inventory Vault, Redemption, CRM, Staff Matrix, System Settings, Branch
-   Analytics** — the six surfaces moved to the backend.
-4. **Sign out, sign back in, confirm someone shows Active.** This is the one that
-   would expose a mistake in the `profiles` column grant: if the grant were wrong
-   the presence heartbeat fails silently and every user looks permanently
-   offline.
-
-## 4. Why the policy set is smaller than expected
-
-The handoff assumed the six tables would need tenant-scoped SELECT policies for
-the browser. They do not, because the code-side work removed every browser read.
-So:
-
-- `customer`, `ticket`, `pawnshops`, `branch`, `loan_applications` — **no policy
-  at all.** Nothing in the browser touches them.
-- `profiles` — one row-scoped UPDATE policy for the presence heartbeat, plus a
-  column-scoped `GRANT UPDATE (is_online, last_seen_at)`.
-
-That second half matters more than it looks. `USING (id = auth.uid())` permits
-updating **any column of your own row**, including `role` — so without the
-column-scoped grant, a signed-in STAFF could set their own role to OWNER and pass
-every `@Roles()` check in the backend. The policy and the grant are both required;
-neither is sufficient alone. There is a mutation test that fails if the grant ever
-widens to include `role`.
-
-## 5. Verification habits used
-
-- **Every fix was mutation-tested.** Each commit's tests were re-run against
-  deliberately broken versions of the code. 21 mutations total across the session;
-  all caught. One initially "survived" — that turned out to be a bug in my
-  mutation harness (a bare anchor matched the wrong call site), not a gap in the
-  tests. Worth remembering that a SURVIVED verdict is a claim about the harness
-  until proven otherwise.
-- **The migration is asserted as source, not against a live DB.** 46 assertions
-  in `backend/src/rls-containment.spec.ts` run in CI. Ten mutations that weaken
-  the migration — drop FORCE, leave a stale policy, add `USING (true)`, drop
-  `WITH CHECK`, widen the grant to `role`, remove `SECURITY DEFINER` — are all
-  caught.
-
-## 6. Tooling traps — six new ones, all cost real time
-
-The previous handoff's list still stands. Six more:
-
-8. **A mutation harness must restore in a `finally`, not after the loop.** An
-   early throw once left `app.service.ts` holding a mutated `tenantId`, and the
-   next `tsc` reported three unrelated type errors. Restoring from a snapshot
-   taken at start, in `finally`, is the only version that is safe.
-9. **`git checkout -- <file>` silently reverts work in progress.** It undid the
-   whole customer-ledger rewrite once, because the file had uncommitted changes
-   from the same session. It restored a *correct* file, so nothing looked broken —
-   the code was simply gone. Verify the diff after any checkout.
-10. **Never reason from a truncated diagnostic.** A probe that printed a
-    connection URL with `slice(0, 60)` showed the pooler port as `:65` and
-    briefly sent the diagnosis toward "malformed port" when it is a correct
-    `:6543`. Parse the field and print the field, not a prefix of the string.
-11. **The Supabase SQL editor renders only the last result set of a
-    multi-statement paste, and stops at the first error.** A five-query
-    verification block yields one grid, which reads as "everything else passed"
-    when in fact nothing else was shown. Fold checks into a single `UNION ALL`
-    statement. Related: a `SET ROLE anon` probe *errors* rather than returning
-    rows once the tables are revoked - that error is the result, and reading it
-    as a failure sends you down the wrong path.
-12. **Ignore the Database Migrations page in the Supabase dashboard.** It shows
-    "Run your first migration" because it tracks *Supabase CLI* migrations. This
-    project uses Prisma, there is no `supabase/migrations` directory, and
-    `supabase db push` is the wrong tool entirely.
-13. **There is only one database password.** The panel labelled "Used for direct
-    Postgres connections" and the "Shared pooler" connection string use the same
-    credential - I initially told the user they were different and had to correct
-    it. Resetting it breaks the Render backend until that service's env is
-    updated, which is why applying the migration through the SQL editor was the
-    better call.
-14. **A code-split bundle hides most of the app from the entry chunk.** Verifying
-    the deployed frontend by grepping `index-*.js` for new API paths reported
-    "PARTIAL" and looked like a failed deploy. It was not: Dashboard, StaffMatrix,
-    CrmTable, InventoryVault, Redemption and SystemSettings are all lazy chunks
-    listed in the entry's dynamic-import map, which the script was not following
-    because Vite references them relatively (`./Dashboard-BxY.js`) rather than by
-    absolute `/assets/...` path. Dump the `.js` string literals in the entry chunk
-    to learn the real naming, then fetch the chunks you care about.
-15. **Pick verification markers that cannot be confused with a near-miss.** I
-    searched for `/tickets/` and reported a false alarm on `Redemption`; the code
-    calls `api.get('/tickets')` with no trailing slash, and only the vault matched
-    because its photo path is a template literal that happens to contain that
-    prefix. A marker that is a near-miss of the real string produces a wrong
-    answer with total confidence. Match the exact call, and when a check fails,
-    confirm the marker is right before believing the result.
-
-Also still true: never read `.env` through the shell - the secret guard blocks
-it, correctly. To check whether a key exists, parse it in a Node script and print
-only presence and length.
+16. **PowerShell has no heredoc.** `git commit -F - <<'EOF'` fails with a
+    parser error that looks like a git problem. Write the message to a temp file
+    and use `git commit -F <path>`.
+17. **jsdom swallows clicks on submit buttons inside a form with `required`
+    fields.** Native validation runs first and the handler never fires. Use
+    `fireEvent.submit(form)`, not `fireEvent.click(button)`. The button is a
+    submit *inside a form* that also collects customer details — this is normal
+    markup, not a test artifact.
+18. **A fixture that asserts a plausible wrong number is worse than no test.**
+    `interestRate: 3` in a column that stores `0.035` made a 100× error look
+    correct. When a unit is in question, assert the *invariant* ("this figure
+    does not move when a loan is split in two") rather than the expected value.
+19. **The permission matrix is a tripwire and it earns its keep.** It caught me
+    declaring `pawn_ticket.create` on the redemption quote where
+    `pawn_ticket.redeem` was correct, and it pins the count of guarded endpoints
+    as an explicit number. Every new guarded endpoint must be added to
+    `permissions-catalog.spec.ts` **and** the count bumped, or the suite fails.
+    That is the system working, not an obstacle.
 
 ## 7. Still open
 
-**Nothing in the security work is outstanding.** These are the rest:
+Unchanged from the `5c6f85a` handoff unless noted:
 
-- **Click through the deployed app** (section 3a) — the rollout is verified
-  structurally, but nobody has used it yet. Sign-in first.
-- **§2b from the old handoff, still yours:** rotate `service_role` in Supabase →
-  update Render env → redeploy, then rotate the JWT secret. The key is in Git
-  history via `d9d199a`. Unaffected by anything here, and it was true before.
-- **`account-security.guard.ts`**: `mfaRequired()` returns "Email verification is
-  required for this account" when the **MFA assertion** is missing. Misleading;
-  two-line fix.
-- **43 orphan auth accounts** (no `profiles` row). Registration verified correct;
-  these are historical test residue. Note that with `profiles` now locked to
-  `auth.uid()`, nothing in the browser can read them, which is the intent.
-- **The DB credential in `backend/.env` is dead.** `prisma migrate status` fails
-  with P1000 locally. Resetting it is optional but worth doing so a future session
-  can verify the database independently instead of relying on screenshots — the
-  live claims in section 3 all rest on operator-run queries, not on a connection
-  of my own.
+- **Click through the app** — see section 5. This is the top item.
 - **Thesis prose reconciliation** (~1h, draft-level): renewal "8 months" → 30
   days; drop the at-rest encryption claim; narrow "weighted forecasts"; fix
   "Forfeiture" (state seizure → lender takes collateral); "Based on google";
-  verify Tan and Lim (2022); standardise "Dasmariñas".
-- **Phase 11 (Contract Management Upgrade)** and **Phase 12 (Customer History &
-  Volume-Based Tiering)** are untouched. Phase 11 has context + UI-SPEC ready.
+  verify "Tan and Lim (2022)"; standardise "Dasmariñas". The real thesis is
+  `CHAPTER201-4.docx` — `CAPSTONE CHAP 1-3.docx` is a decoy (a flower-shop
+  project, byte-identical across five copies). Note it currently shows as
+  **deleted-but-unstaged** in `git status`; that deletion predates this session
+  and is not mine, so I left it alone.
+- **P.D. 114 §14 sale notice** (date, hour, place, on or before the end of the
+  90-day period) — not implemented. The grace period is right; the required
+  notice before disposal is missing.
+- **You must verify the 7 compliance documents as Super Admin.** Until they are
+  VERIFIED, `ComplianceGuard` blocks pawn tickets, loans and auction bids. This
+  is the single most likely reason a demo fails live.
+- **§2b from the older handoff, still yours:** rotate `service_role`, then the
+  JWT secret. Key is in git history via `d9d199a`.
+- **43 orphan auth accounts** — no `profiles` row. You told me to delete them;
+  never confirmed done.
+- **The DB credential in `backend/.env` is dead** (P1000). Every live claim in
+  this handoff rests on operator-run queries, not on a connection of mine.
 - **Mobile app has no credential-security code at all** — see
-  `.planning/phases/10.1-.../MOBILE-HANDOFF.md`. A bidder can still set a weak
-  password on mobile. Independent of the RLS work, and the largest remaining gap
-  for a defense.
-- **`.planning/STATE.md` and `state.json` disagree** with each other and with this
-  file. They are GSD bookkeeping and were not maintained this session. Treat this
-  file as authoritative.
-- **Dashboard live-update is gone** and has not been replaced. If it matters for
-  the defense, the fix is a Realtime broadcast fed by a database trigger, not a
-  browser SELECT policy on `ticket` — the latter would undo section 3 entirely.
+  `.planning/phases/10.1-.../MOBILE-HANDOFF.md`. A bidder can set a weak
+  password on mobile. Largest remaining gap for the defense; you have not yet
+  confirmed whether to build it.
+- **Phase 11 (Contract Management Upgrade)** and **Phase 12** untouched.
+- **`account-security.guard.ts`**: `mfaRequired()` says "Email verification is
+  required" when the *MFA assertion* is missing. Misleading; two-line fix.
+- **Dashboard live-update is gone** and unreplaced. The fix is a Realtime
+  broadcast fed by a database trigger, **not** a browser SELECT policy on
+  `ticket` — the latter would undo the RLS work in `5c6f85a` entirely.
+- **`.planning/STATE.md` and `state.json` disagree** with each other and with
+  this file. GSD bookkeeping, not maintained. This file is authoritative.
