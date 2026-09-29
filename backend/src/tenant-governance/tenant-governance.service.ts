@@ -3339,6 +3339,67 @@ export class TenantGovernanceService {
     };
   }
 
+  /**
+   * Staff roster for the caller's own shop.
+   *
+   * The shop comes from the caller's profile, never from a request parameter, so
+   * there is no id to tamper with. `branchId` narrows the roster and is verified
+   * to belong to that same shop before it is applied. `SUPER_ADMIN` must name a
+   * shop through the separate `listPawnshopStaff` path so the cross-tenant read
+   * stays explicit and auditable.
+   */
+  async listOwnShopStaff(actorUserId: string, branchId?: string) {
+    const actor = await this.getProfileOrThrow(actorUserId);
+
+    if (actor.role === 'SUPER_ADMIN') {
+      throw new ForbiddenException(
+        'Use the platform staff endpoint to read another shop',
+      );
+    }
+
+    if (!actor.pawnshopId) {
+      throw new ForbiddenException('This account is not attached to a shop');
+    }
+
+    const pawnshopId = actor.pawnshopId;
+    const where: any = { pawnshopId };
+
+    if (branchId) {
+      const parsed = parseInt(branchId, 10);
+      if (!Number.isInteger(parsed) || parsed <= 0) {
+        throw new BadRequestException('Invalid branch id');
+      }
+
+      const branch = await this.prisma.branch.findFirst({
+        where: { id: parsed, pawnshopId },
+        select: { id: true },
+      });
+      if (!branch) {
+        throw new NotFoundException('Branch not found in this shop');
+      }
+
+      where.branchId = branch.id;
+    }
+
+    const profiles = await this.prisma.profile.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        email: true,
+        fullName: true,
+        role: true,
+        staffType: true,
+        isOnline: true,
+        lastSeenAt: true,
+        createdAt: true,
+        branchId: true,
+      },
+    });
+
+    return { pawnshopId, totalAccounts: profiles.length, accounts: profiles };
+  }
+
   async listPawnshopStaff(actorUserId: string, pawnshopId: string) {
     await this.assertSuperAdmin(actorUserId);
 

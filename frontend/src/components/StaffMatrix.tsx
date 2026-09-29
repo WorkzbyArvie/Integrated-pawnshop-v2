@@ -13,6 +13,19 @@ interface StaffMatrixProps {
   activeBranchId?: number | null;
 }
 
+/** Account shape returned by `GET /tenant-governance/staff`; camelCase from Prisma. */
+interface ApiProfile {
+  id: string;
+  email: string;
+  fullName?: string | null;
+  role: string;
+  staffType?: string | null;
+  isOnline?: boolean | null;
+  lastSeenAt?: string | null;
+  createdAt?: string | null;
+  branchId?: number | null;
+}
+
 interface StaffMember {
   id: string;
   name: string;
@@ -219,36 +232,31 @@ export function StaffMatrix({ branchId, userRole: propUserRole, activeBranchId =
   const fetchStaffData = async () => {
     setIsLoading(true);
     try {
-      // Fetch from Supabase profiles (where platform control creates accounts)
-      let query = supabase
-        .from('profiles')
-        .select('*');
+      // Reads through the backend, which resolves the shop from the caller's
+      // profile. The direct `profiles` read this replaced applied its pawnshop
+      // filter only when a shop was selected, and selected `*` - so an unset
+      // filter returned every profile on the platform, emails and all.
+      const { accounts } = await api.get<{ accounts: ApiProfile[] }>(
+        '/tenant-governance/staff',
+        { branchId: activeBranchId != null ? String(activeBranchId) : undefined },
+      );
 
-      if (branchId) {
-        query = query.eq('pawnshop_id', branchId);
-      }
-
-      if (activeBranchId != null) {
-        query = query.eq('branch_id', String(activeBranchId));
-      }
-
-      const { data, error } = await query;
-
-      if (error) throw error;
-
-      const formattedStaff: StaffMember[] = (data || []).map((u: any) => {
-        const roleCode = roleCodeFromProfile(u);
+      const formattedStaff: StaffMember[] = (accounts || []).map((u: ApiProfile) => {
+        const roleCode = roleCodeFromProfile(u as any);
 
         return {
           id: u.id,
-          name: u.full_name || u.email?.split('@')[0] || "Unknown User",
+          name: u.fullName || u.email?.split('@')[0] || "Unknown User",
           email: u.email,
           role: roleLabelFromCode(roleCode),
           systemRole: normalizeRole(u.role),
           staffType: STAFF_SPECIALIZATIONS.includes(roleCode) ? roleCode : null,
-          status: u.is_online ? "Active" : "Offline",
-          performance: u.performance_score ? `${u.performance_score}%` : "N/A",
-          shift: u.shift_hours || "Not Assigned",
+          status: u.isOnline ? "Active" : "Offline",
+          // `performance_score` and `shift_hours` were never columns on the
+          // profiles table, so the old `select('*')` always yielded these as
+          // "N/A" / "Not Assigned". The roster endpoint does not return them.
+          performance: "N/A",
+          shift: "Not Assigned",
           clearance: normalizeRole(u.role) === 'SUPER_ADMIN' ? "Lvl 4 Clear" : "Lvl 2 Clear"
         };
       });

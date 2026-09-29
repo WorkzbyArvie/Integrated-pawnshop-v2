@@ -1,5 +1,7 @@
 import { PawnTicketController } from './loan/pawn-ticket.controller';
 import { LoanApplicationService } from './loan/loan-application.service';
+import { TenantGovernanceController } from './tenant-governance/tenant-governance.controller';
+import { TenantGovernanceService } from './tenant-governance/tenant-governance.service';
 import { PERMISSIONS_KEY } from './common/decorators/requires-permission.decorator';
 import { PERMISSIONS } from './common/permissions/permissions.const';
 
@@ -139,5 +141,102 @@ describe('GET /loan/applications — tenant scoping', () => {
       expect.objectContaining({ status: 'PENDING' }),
       'shop-a',
     );
+  });
+});
+
+describe('GET /tenant-governance/staff — own-shop roster', () => {
+  let service: TenantGovernanceService;
+  let profile: { findMany: jest.Mock; findUnique: jest.Mock };
+  let branch: { findFirst: jest.Mock };
+
+  const withActor = (actor: { role: string; pawnshopId: string | null }) => {
+    profile.findUnique.mockResolvedValue({ id: 'u-1', ...actor });
+  };
+
+  beforeEach(() => {
+    profile = {
+      findMany: jest.fn().mockResolvedValue([]),
+      findUnique: jest.fn(),
+    };
+    branch = { findFirst: jest.fn().mockResolvedValue({ id: 3 }) };
+    service = Object.create(TenantGovernanceService.prototype) as TenantGovernanceService;
+    (service as any).prisma = { profile, branch };
+  });
+
+  // The defect: the browser read `profiles` with `select('*')` and applied the
+  // pawnshop filter only when a shop was selected, so an unset filter returned
+  // every profile on the platform - emails included.
+  it('scopes the roster to the caller own shop', async () => {
+    withActor({ role: 'OWNER', pawnshopId: 'shop-a' });
+
+    await service.listOwnShopStaff('u-1');
+
+    expect(profile.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { pawnshopId: 'shop-a' } }),
+    );
+  });
+
+  it('returns an explicit field list rather than every column', async () => {
+    withActor({ role: 'OWNER', pawnshopId: 'shop-a' });
+
+    await service.listOwnShopStaff('u-1');
+
+    const [args] = profile.findMany.mock.calls[0];
+    expect(Object.keys(args.select).sort()).toEqual(
+      ['branchId', 'createdAt', 'email', 'fullName', 'id', 'isOnline', 'lastSeenAt', 'role', 'staffType'].sort(),
+    );
+  });
+
+  it('fails closed for an account with no shop', async () => {
+    withActor({ role: 'STAFF', pawnshopId: null });
+
+    await expect(service.listOwnShopStaff('u-1')).rejects.toThrow(/not attached to a shop/i);
+    expect(profile.findMany).not.toHaveBeenCalled();
+  });
+
+  it('sends the platform operator to the explicit cross-tenant endpoint', async () => {
+    withActor({ role: 'SUPER_ADMIN', pawnshopId: null });
+
+    await expect(service.listOwnShopStaff('u-1')).rejects.toThrow(/platform staff endpoint/i);
+    expect(profile.findMany).not.toHaveBeenCalled();
+  });
+
+  it('rejects a non-numeric branch id before querying', async () => {
+    withActor({ role: 'OWNER', pawnshopId: 'shop-a' });
+
+    await expect(service.listOwnShopStaff('u-1', 'abc')).rejects.toThrow(/invalid branch id/i);
+    expect(branch.findFirst).not.toHaveBeenCalled();
+  });
+
+  it('verifies a named branch belongs to the caller shop', async () => {
+    withActor({ role: 'OWNER', pawnshopId: 'shop-a' });
+    branch.findFirst.mockResolvedValue({ id: 3 });
+
+    await service.listOwnShopStaff('u-1', '3');
+
+    expect(branch.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 3, pawnshopId: 'shop-a' } }),
+    );
+    expect(profile.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { pawnshopId: 'shop-a', branchId: 3 } }),
+    );
+  });
+
+  it('refuses a branch from another tenant', async () => {
+    withActor({ role: 'OWNER', pawnshopId: 'shop-a' });
+    branch.findFirst.mockResolvedValue(null);
+
+    await expect(service.listOwnShopStaff('u-1', '3')).rejects.toThrow(
+      /not found in this shop/i,
+    );
+    expect(profile.findMany).not.toHaveBeenCalled();
+  });
+
+  it('is guarded by user.manage_staff', () => {
+    const required = Reflect.getMetadata(
+      PERMISSIONS_KEY,
+      TenantGovernanceController.prototype.listOwnShopStaff,
+    );
+    expect(required).toContain(PERMISSIONS['user.manage_staff']);
   });
 });

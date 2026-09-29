@@ -312,6 +312,10 @@ const MATRIX: Record<string, { tuple: string[]; permission: string }> = {
     tuple: ['OWNER', 'ADMIN', 'MANAGER'],
     permission: 'loan.manage',
   },
+  'tenant-governance.controller.ts::listOwnShopStaff': {
+    tuple: ['OWNER', 'ADMIN', 'MANAGER'],
+    permission: 'user.manage_staff',
+  },
   'approval.controller.ts::getQueue': {
     tuple: ['OWNER', 'ADMIN', 'MANAGER', 'CASHIER_TELLER', 'APPRAISER'],
     permission: 'approval.view_queue',
@@ -599,18 +603,19 @@ describe('69-site equivalence scan', () => {
   });
 
   it('finds all 95 guarded endpoints across the controllers', () => {
-    // Calibration tripwire. Raised from 90 across five additions: the two
+    // Calibration tripwire. Raised from 90 across six additions: the two
     // customer-ledger reads, the ticket-vault read, the ticket description
-    // write, and the loan-application list. All five were previously unguarded
-    // *and* unscoped - any authenticated profile could list every customer in
-    // the platform, fetch one by id across tenants, list every ticket
-    // platform-wide along with each customer's full row, write to any ticket by
-    // id, or read every tenant's loan applications.
+    // write, the loan-application list, and the own-shop staff roster. All six
+    // were previously unguarded *and* unscoped - any authenticated profile
+    // could list every customer in the platform, fetch one by id across
+    // tenants, list every ticket platform-wide along with each customer's full
+    // row, write to any ticket by id, read every tenant's loan applications, or
+    // read every profile on the platform.
     const total = [...sitesByFile.values()].reduce((sum, sites) => {
       const withAny = sites.filter((s) => s.roles || s.permissions);
       return sum + withAny.length;
     }, 0);
-    expect(total).toBe(95);
+    expect(total).toBe(96);
   });
 
   it('matrix tuples match the current @Roles tuples (RED-phase calibration)', () => {

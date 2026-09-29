@@ -446,6 +446,25 @@ export class TenantGovernanceController {
     return this.tenantGovernanceService.restorePawnshop(userId, id);
   }
 
+  /**
+   * Staff roster for the caller's own shop.
+   *
+   * Distinct from `GET /pawnshops/:id/staff` above, which is the platform
+   * operator's cross-tenant view. This one resolves the shop from the
+   * authenticated principal so a tenant admin can read their own staff without
+   * naming an id, and without the browser ever holding an unfiltered `profiles`
+   * read.
+   */
+  @Get('staff')
+  @RequiresPermission(PERMISSIONS['user.manage_staff'])
+  async listOwnShopStaff(
+    @Headers('authorization') authHeader: string | undefined,
+    @Query('branchId') branchId?: string,
+  ) {
+    const userId = await this.authUserService.getUserIdFromAuthHeader(authHeader);
+    return this.tenantGovernanceService.listOwnShopStaff(userId, branchId);
+  }
+
   @Get('pawnshops/:id/staff')
   @RequiresPermission(PERMISSIONS['platform.manage'])
   async listPawnshopStaff(
