@@ -18,6 +18,24 @@ export class ProfileController {
     return this.profileService.getMyProfile(userId);
   }
 
+  /**
+   * The session bootstrap payload: the caller's own role, staff specialisation,
+   * shop and branch.
+   *
+   * The browser used to assemble this by reading `profiles` directly, first by
+   * id and then falling back to a lookup by email. That fallback is an
+   * enumeration oracle and cannot be made safe by a Row Level Security policy,
+   * because the policy has to decide who may ask before the caller has proved
+   * anything. Resolving it here also gives the browser one field list instead of
+   * two hand-written selects that can drift apart.
+   */
+  @Get('session-context')
+  async getSessionContext(@Headers('authorization') authHeader: string | undefined) {
+    const userId =
+      await this.authUserService.getUserIdFromAuthHeader(authHeader);
+    return this.profileService.getSessionContext(userId);
+  }
+
   @Patch('me')
   async updateMyProfile(
     @Headers('authorization') authHeader: string | undefined,

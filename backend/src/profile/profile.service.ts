@@ -26,6 +26,28 @@ export class ProfileService {
     return profile;
   }
 
+  /**
+   * Role, staff specialisation, shop and branch for the caller's own account.
+   *
+   * Looked up strictly by the authenticated id. The browser previously repeated
+   * this read and, when it came back empty, retried with `.eq('email', email)` -
+   * a lookup any caller could aim at an arbitrary address, which is why the
+   * `profiles` table could not simply be locked down to `auth.uid()`.
+   */
+  async getSessionContext(userId: string) {
+    const profile = await this.prisma.profile.findUnique({
+      where: { id: userId },
+      select: {
+        role: true,
+        staffType: true,
+        pawnshopId: true,
+        branchId: true,
+      },
+    });
+
+    return profile;
+  }
+
   async updateMyProfile(
     userId: string,
     data: {

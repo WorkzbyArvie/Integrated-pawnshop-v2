@@ -996,6 +996,88 @@ export class TenantGovernanceService {
     };
   }
 
+  /**
+   * Feature configuration for the caller's own shop.
+   *
+   * Replaces a browser read of `pawnshops.settings` issued with no filter, which
+   * handed an arbitrary tenant's configuration to anyone whose shop was not yet
+   * resolved. `global_overrides` is separated out because the dashboard treats it
+   * as a distinct concern from the local feature flags.
+   */
+  async getOwnShopSystemConfig(
+    actorUserId: string,
+  ): Promise<{ pawnshopId: string; settings: Record<string, unknown>; globalOverrides: Record<string, boolean> }> {
+    const actor = await this.getProfileOrThrow(actorUserId);
+
+    if (!actor.pawnshopId) {
+      throw new ForbiddenException('This account is not attached to a shop');
+    }
+
+    const pawnshop = await this.prisma.pawnshop.findUnique({
+      where: { id: actor.pawnshopId },
+      select: { settings: true },
+    });
+
+    const settings = (pawnshop?.settings ?? {}) as Record<string, unknown>;
+    const { global_overrides, ...localSettings } = settings;
+
+    return {
+      pawnshopId: actor.pawnshopId,
+      settings: localSettings,
+      globalOverrides: (global_overrides ?? {}) as Record<string, boolean>,
+    };
+  }
+
+  /**
+   * Settings for one named shop, platform operator only.
+   *
+   * Used by the System Settings page for both its platform-wide view and its
+   * merge-on-write branch save, so the browser no longer reads `pawnshops`
+   * directly to discover current settings before writing them back.
+   */
+  async getPawnshopSettings(
+    actorUserId: string,
+    pawnshopId: string,
+  ): Promise<{
+    pawnshopId: string;
+    settings: Record<string, unknown>;
+    globalOverrides: Record<string, boolean>;
+    name?: string;
+    latitude?: number | null;
+    longitude?: number | null;
+    address?: string | null;
+  }> {
+    await this.assertSuperAdmin(actorUserId);
+
+    const pawnshop = await this.prisma.pawnshop.findUnique({
+      where: { id: pawnshopId },
+      select: {
+        name: true,
+        latitude: true,
+        longitude: true,
+        address: true,
+        settings: true,
+      },
+    });
+
+    if (!pawnshop) {
+      throw new NotFoundException('Pawnshop not found');
+    }
+
+    const settings = (pawnshop.settings ?? {}) as Record<string, unknown>;
+    const { global_overrides, ...localSettings } = settings;
+
+    return {
+      pawnshopId,
+      settings: localSettings,
+      globalOverrides: (global_overrides ?? {}) as Record<string, boolean>,
+      name: pawnshop.name,
+      latitude: pawnshop.latitude,
+      longitude: pawnshop.longitude,
+      address: pawnshop.address,
+    };
+  }
+
   async getEffectiveBranding(
     actorUserId: string,
     pawnshopId?: string,

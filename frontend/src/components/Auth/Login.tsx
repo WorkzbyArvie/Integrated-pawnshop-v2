@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabaseClient';
+import api from '../../lib/apiClient';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Loader2, Lock, Mail, AlertTriangle, ChevronLeft } from "lucide-react";
 import { PasswordField } from './PasswordField';
@@ -48,33 +49,22 @@ export default function Login() {
         throw new Error(LOGIN_COPY.failure);
       }
 
-      let { data: profileData, error: profileError } = await supabase
-        .from('profiles')
-        .select('role, pawnshop_id, branch_id, full_name')
-        .eq('id', authData.user.id)
-        .maybeSingle();
+      // Resolved server-side by the authenticated id only. The direct `profiles`
+      // read this replaces had an `.eq('email', email)` fallback, which let any
+      // signed-in caller ask for an arbitrary address's role and shop - an
+      // enumeration oracle that no Row Level Security policy can close, because
+      // the policy would have to decide who may ask before the caller has proved
+      // anything. The id lookup also closes as soon as sign-in succeeds.
+      let profileData: {
+        role: string | null;
+        pawnshopId: string | null;
+        branchId: number | null;
+      } | null = null;
 
-      if (profileError) {
-        console.warn('[LOGIN] Profile fetch failed:', profileError.message);
-      }
-
-      if (!profileData) {
-        // Fallback for legacy accounts where profile row may be linked by email.
-        const { data: profileByEmail, error: profileByEmailError } = await supabase
-          .from('profiles')
-          .select('role, pawnshop_id, branch_id, full_name')
-          .eq('email', email)
-          .limit(1)
-          .maybeSingle();
-
-        if (profileByEmailError) {
-          console.warn('[LOGIN] Profile-by-email fetch failed:', profileByEmailError.message);
-        }
-
-        if (profileByEmail) {
-          profileData = profileByEmail;
-          console.warn('[LOGIN] Profile resolved by email fallback');
-        }
+      try {
+        profileData = await api.get('/profile/session-context');
+      } catch (err: unknown) {
+        console.warn('[LOGIN] Session context fetch failed:', err);
       }
 
       if (!profileData) {
@@ -83,9 +73,8 @@ export default function Login() {
         const fallbackPawnshopId = authData.user?.user_metadata?.pawnshop_id || authData.user?.app_metadata?.pawnshop_id || null;
         profileData = {
           role: fallbackRole,
-          full_name: email.split('@')[0],
-          pawnshop_id: fallbackPawnshopId,
-          branch_id: authData.user?.user_metadata?.branch_id || authData.user?.app_metadata?.branch_id || null,
+          pawnshopId: fallbackPawnshopId,
+          branchId: authData.user?.user_metadata?.branch_id || authData.user?.app_metadata?.branch_id || null,
         };
       }
 
@@ -120,13 +109,13 @@ export default function Login() {
       // 4. Store session
       localStorage.setItem('user_role', userRole);
       localStorage.setItem('user_email', email);
-      if (profileData.pawnshop_id) {
-        localStorage.setItem('active_pawnshop_id', profileData.pawnshop_id);
+      if (profileData.pawnshopId) {
+        localStorage.setItem('active_pawnshop_id', profileData.pawnshopId);
       } else {
         localStorage.removeItem('active_pawnshop_id');
       }
-      if (profileData.branch_id) {
-        localStorage.setItem('active_branch_id', String(profileData.branch_id));
+      if (profileData.branchId) {
+        localStorage.setItem('active_branch_id', String(profileData.branchId));
       } else {
         localStorage.removeItem('active_branch_id');
       }

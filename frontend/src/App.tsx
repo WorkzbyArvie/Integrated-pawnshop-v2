@@ -301,6 +301,14 @@ const TRIAL_RESTRICTED_OWNER_NAV_IDS = new Set([
     'decision',
 ]);
 
+/** Session bootstrap payload from `GET /profile/session-context`. */
+interface AppProfile {
+  role: string | null;
+  staffType: string | null;
+  pawnshopId: string | null;
+  branchId: number | null;
+}
+
 function App() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -664,44 +672,12 @@ function App() {
   }, [session, normalizedPath, location.search, location.hash, navigate, showToast]);
 
   useEffect(() => {
-    const fetchUserData = async (userId: string, email?: string | null) => {
+    // Resolved server-side from the authenticated id only. The browser version
+    // this replaces fell back to `.eq('email', email)`, which let any signed-in
+    // caller ask for an arbitrary address's role and shop.
+    const fetchUserData = async (_userId: string, _email?: string | null) => {
       try {
-        const { data: profileById, error } = await supabase
-          .from('profiles')
-          .select('role, staff_type, pawnshop_id, branch_id')
-          .eq('id', userId)
-          .maybeSingle();
-
-        if (error) {
-          console.error('fetchUserData error', error);
-          throw error;
-        }
-
-        if (profileById) {
-          return profileById;
-        }
-
-        // Some historical accounts can have profile rows linked by email but not auth UUID.
-        if (email) {
-          const { data: profileByEmail, error: emailError } = await supabase
-            .from('profiles')
-            .select('role, staff_type, pawnshop_id, branch_id')
-            .eq('email', email)
-            .limit(1)
-            .maybeSingle();
-
-          if (emailError) {
-            console.error('fetchUserData email fallback error', emailError);
-            throw emailError;
-          }
-
-          if (profileByEmail) {
-            console.warn('fetchUserData: resolved profile by email fallback');
-            return profileByEmail;
-          }
-        }
-
-        return null;
+        return await api.get<AppProfile>('/profile/session-context');
       } catch (err) {
         console.error('fetchUserData unexpected error', err);
         throw err;
@@ -730,15 +706,15 @@ function App() {
               const profile = await fetchUserData(currentSession.user.id, currentSession.user.email);
               console.debug('initializeAuth (bg): profile', profile);
               if (profile) {
-                const finalRole = resolveDisplayRole(profile.role, profile.staff_type);
-                let finalBranchId: string | null = finalRole === 'Super Admin' ? null : (profile.pawnshop_id || null);
+                const finalRole = resolveDisplayRole(profile.role, profile.staffType);
+                let finalBranchId: string | null = finalRole === 'Super Admin' ? null : (profile.pawnshopId || null);
                 setUserRole(finalRole);
                 setCurrentBranchId(finalBranchId);
                 localStorage.setItem('user_role', finalRole);
                 if (finalBranchId) localStorage.setItem('active_pawnshop_id', finalBranchId);
-                if (profile?.branch_id) {
-                  localStorage.setItem('active_branch_id', String(profile.branch_id));
-                  const parsedBranchId = Number(profile.branch_id);
+                if (profile?.branchId) {
+                  localStorage.setItem('active_branch_id', String(profile.branchId));
+                  const parsedBranchId = Number(profile.branchId);
                   if (Number.isInteger(parsedBranchId) && parsedBranchId > 0) {
                     setActiveOperationalBranchId(parsedBranchId);
                   }
@@ -811,16 +787,16 @@ function App() {
             const profile = await fetchUserData(newSession.user.id, newSession.user.email);
             console.debug('onAuthStateChange profile', profile);
             if (profile) {
-              const role = resolveDisplayRole(profile.role, profile.staff_type);
+              const role = resolveDisplayRole(profile.role, profile.staffType);
               setUserRole(role);
               localStorage.setItem('user_role', role);
-              const finalBranchId = role === 'Super Admin' ? null : (profile.pawnshop_id || null);
+              const finalBranchId = role === 'Super Admin' ? null : (profile.pawnshopId || null);
               setCurrentBranchId(finalBranchId);
               if (finalBranchId) localStorage.setItem('active_pawnshop_id', finalBranchId);
               else localStorage.removeItem('active_pawnshop_id');
-              if (profile?.branch_id) {
-                localStorage.setItem('active_branch_id', String(profile.branch_id));
-                const parsedBranchId = Number(profile.branch_id);
+              if (profile?.branchId) {
+                localStorage.setItem('active_branch_id', String(profile.branchId));
+                const parsedBranchId = Number(profile.branchId);
                 if (Number.isInteger(parsedBranchId) && parsedBranchId > 0) {
                   setActiveOperationalBranchId(parsedBranchId);
                 }
@@ -991,16 +967,12 @@ function App() {
         const latest = Array.isArray(rows) ? rows[0] : null;
         if (!latest) {
           // Legacy owners may not have registration rows but are already linked to a pawnshop.
-          const { data: profileById } = await supabase
-            .from('profiles')
-            .select('pawnshop_id')
-            .eq('id', session.user.id)
-            .maybeSingle();
+          const sessionProfile = await api.get<AppProfile>('/profile/session-context');
 
-          if (profileById?.pawnshop_id) {
+          if (sessionProfile?.pawnshopId) {
             setOwnerRegistrationStatus('APPROVED');
-            setCurrentBranchId(profileById.pawnshop_id);
-            localStorage.setItem('active_pawnshop_id', profileById.pawnshop_id);
+            setCurrentBranchId(sessionProfile.pawnshopId);
+            localStorage.setItem('active_pawnshop_id', sessionProfile.pawnshopId);
             return;
           }
 
@@ -1019,15 +991,11 @@ function App() {
         if (normalizedStatus === 'APPROVED') {
           maybeShowTrialApprovedToast();
 
-          const { data: profileById } = await supabase
-            .from('profiles')
-            .select('pawnshop_id')
-            .eq('id', session.user.id)
-            .maybeSingle();
+          const sessionProfile = await api.get<AppProfile>('/profile/session-context');
 
-          if (profileById?.pawnshop_id) {
-            setCurrentBranchId(profileById.pawnshop_id);
-            localStorage.setItem('active_pawnshop_id', profileById.pawnshop_id);
+          if (sessionProfile?.pawnshopId) {
+            setCurrentBranchId(sessionProfile.pawnshopId);
+            localStorage.setItem('active_pawnshop_id', sessionProfile.pawnshopId);
           } else {
             clearOwnerOperationalContext();
           }
@@ -1102,23 +1070,19 @@ function App() {
   useEffect(() => {
     const loadSystemConfig = async () => {
       try {
-        // Branch users read their branch row; super admin falls back to first row.
-        const query = supabase.from('pawnshops').select('settings').limit(1);
-        const { data, error } = currentBranchId
-          ? await query.eq('id', currentBranchId).maybeSingle()
-          : await query.maybeSingle();
+        // Resolved server-side from the caller's own profile. The direct read
+        // this replaced had no filter at all, so a user whose shop was not yet
+        // resolved received an arbitrary tenant's settings.
+        const config = await api.get<{
+          settings: Record<string, unknown>;
+          globalOverrides: Record<string, boolean>;
+        }>('/tenant-governance/system-config');
 
-        if (error) {
-          console.error('Failed to load system config:', error);
-          return;
+        if (config?.settings) {
+          setSystemConfig((prev) => ({ ...prev, ...config.settings }));
         }
-
-        if (data?.settings) {
-          const { global_overrides, ...localSettings } = data.settings;
-          if (global_overrides) {
-            setGlobalOverrides(global_overrides);
-          }
-          setSystemConfig((prev) => ({ ...prev, ...localSettings }));
+        if (config?.globalOverrides) {
+          setGlobalOverrides(config.globalOverrides);
         }
       } catch (err) {
         console.error('Unexpected error while loading system config:', err);
@@ -1286,20 +1250,16 @@ function App() {
         setSidebarBranding(resolved);
         setBrandLogoFailed(false);
       } catch {
-        // Fallback to pawnshop name when branding endpoint is unavailable.
+        // Fallback to the static name when the branding endpoint is unavailable.
+        // No direct `pawnshops` read: the browser anon key can read that table
+        // directly, so any read here needs a tenant filter RLS can enforce.
         if (currentBranchId && userRole !== 'Super Admin') {
           try {
-            const { data } = await supabase
-              .from('pawnshops')
-              .select('name')
-              .eq('id', currentBranchId)
-              .maybeSingle();
-
             setSidebarBranding({
               ...DEFAULT_SIDEBAR_BRANDING,
               pawnshopId: currentBranchId,
-              pawnshopName: data?.name || null,
-              displayName: data?.name || 'PawnGold',
+              pawnshopName: null,
+              displayName: 'PawnGold',
             });
             setBrandLogoFailed(false);
             return;

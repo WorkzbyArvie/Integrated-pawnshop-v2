@@ -150,6 +150,40 @@ export class TenantGovernanceController {
     return this.tenantGovernanceService.getEffectiveBranding(userId, pawnshopId);
   }
 
+  /**
+   * System feature configuration for the caller's own shop.
+   *
+   * The browser used to read `pawnshops.settings` directly with no filter at all,
+   * so a user with no shop selected received an arbitrary tenant's settings. The
+   * shop comes from the caller's profile here, so there is no id to tamper with.
+   */
+  @Get('system-config')
+  @RequiresPermission(PERMISSIONS['pawn_ticket.view'])
+  async getSystemConfig(
+    @Headers('authorization') authHeader: string | undefined,
+  ) {
+    const userId = await this.authUserService.getUserIdFromAuthHeader(authHeader);
+    return this.tenantGovernanceService.getOwnShopSystemConfig(userId);
+  }
+
+  /**
+   * Settings for one shop, for the platform operator's cross-tenant view.
+   *
+   * The System Settings page used to enumerate `pawnshops` from the browser and
+   * read each row's settings directly. That read has no tenant filter and no
+   * server-side role check - only a client-side role string - so it is served
+   * here instead, where `platform.manage` is actually enforced.
+   */
+  @Get('pawnshops/:id/settings')
+  @RequiresPermission(PERMISSIONS['platform.manage'])
+  async getPawnshopSettings(
+    @Headers('authorization') authHeader: string | undefined,
+    @Param('id') id: string,
+  ) {
+    const userId = await this.authUserService.getUserIdFromAuthHeader(authHeader);
+    return this.tenantGovernanceService.getPawnshopSettings(userId, id);
+  }
+
   @Post('public/client-registration')
   async createClientRegistration(@Body() dto: CreateClientRegistrationDto) {
     return this.tenantGovernanceService.createClientRegistration(dto);

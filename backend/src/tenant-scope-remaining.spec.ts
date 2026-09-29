@@ -2,6 +2,7 @@ import { PawnTicketController } from './loan/pawn-ticket.controller';
 import { LoanApplicationService } from './loan/loan-application.service';
 import { TenantGovernanceController } from './tenant-governance/tenant-governance.controller';
 import { TenantGovernanceService } from './tenant-governance/tenant-governance.service';
+import { ProfileService } from './profile/profile.service';
 import { PERMISSIONS_KEY } from './common/decorators/requires-permission.decorator';
 import { PERMISSIONS } from './common/permissions/permissions.const';
 
@@ -238,5 +239,185 @@ describe('GET /tenant-governance/staff — own-shop roster', () => {
       TenantGovernanceController.prototype.listOwnShopStaff,
     );
     expect(required).toContain(PERMISSIONS['user.manage_staff']);
+  });
+});
+
+describe('GET /tenant-governance/system-config — own-shop settings', () => {
+  let service: TenantGovernanceService;
+  let profile: { findUnique: jest.Mock };
+  let pawnshop: { findUnique: jest.Mock };
+
+  beforeEach(() => {
+    profile = { findUnique: jest.fn() };
+    pawnshop = { findUnique: jest.fn() };
+    service = Object.create(TenantGovernanceService.prototype) as TenantGovernanceService;
+    (service as any).prisma = { profile, pawnshop };
+  });
+
+  // The defect: the browser read `pawnshops.settings` with `.limit(1)` and no
+  // filter, so a user whose shop was not yet resolved received an arbitrary
+  // tenant's feature configuration.
+  it('reads the shop from the caller own profile', async () => {
+    profile.findUnique.mockResolvedValue({ id: 'u-1', role: 'OWNER', pawnshopId: 'shop-a' });
+    pawnshop.findUnique.mockResolvedValue({ settings: {} });
+
+    await service.getOwnShopSystemConfig('u-1');
+
+    expect(pawnshop.findUnique).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'shop-a' } }),
+    );
+  });
+
+  it('fails closed for an account with no shop', async () => {
+    profile.findUnique.mockResolvedValue({ id: 'u-1', role: 'STAFF', pawnshopId: null });
+
+    await expect(service.getOwnShopSystemConfig('u-1')).rejects.toThrow(
+      /not attached to a shop/i,
+    );
+    expect(pawnshop.findUnique).not.toHaveBeenCalled();
+  });
+
+  it('separates global overrides from the local feature flags', async () => {
+    profile.findUnique.mockResolvedValue({ id: 'u-1', role: 'OWNER', pawnshopId: 'shop-a' });
+    pawnshop.findUnique.mockResolvedValue({
+      settings: { crm_enabled: true, global_overrides: { audit_enabled: false } },
+    });
+
+    const result = await service.getOwnShopSystemConfig('u-1');
+
+    expect(result.settings).toEqual({ crm_enabled: true });
+    expect(result.globalOverrides).toEqual({ audit_enabled: false });
+  });
+
+  it('returns empty blocks when settings is null rather than throwing', async () => {
+    profile.findUnique.mockResolvedValue({ id: 'u-1', role: 'OWNER', pawnshopId: 'shop-a' });
+    pawnshop.findUnique.mockResolvedValue({ settings: null });
+
+    const result = await service.getOwnShopSystemConfig('u-1');
+
+    expect(result.settings).toEqual({});
+    expect(result.globalOverrides).toEqual({});
+  });
+
+  it('is guarded by pawn_ticket.view', () => {
+    const required = Reflect.getMetadata(
+      PERMISSIONS_KEY,
+      TenantGovernanceController.prototype.getSystemConfig,
+    );
+    expect(required).toContain(PERMISSIONS['pawn_ticket.view']);
+  });
+});
+
+describe('GET /tenant-governance/pawnshops/:id/settings — platform settings', () => {
+  let service: TenantGovernanceService;
+  let profile: { findUnique: jest.Mock };
+  let pawnshop: { findUnique: jest.Mock };
+
+  beforeEach(() => {
+    profile = { findUnique: jest.fn() };
+    pawnshop = { findUnique: jest.fn() };
+    service = Object.create(TenantGovernanceService.prototype) as TenantGovernanceService;
+    (service as any).prisma = { profile, pawnshop };
+  });
+
+  const asSuperAdmin = () =>
+    profile.findUnique.mockResolvedValue({ id: 'u-1', role: 'SUPER_ADMIN', pawnshopId: null });
+
+  const asOwner = () =>
+    profile.findUnique.mockResolvedValue({ id: 'u-1', role: 'OWNER', pawnshopId: 'shop-a' });
+
+  it('requires the platform operator role', async () => {
+    asOwner();
+
+    await expect(service.getPawnshopSettings('u-1', 'shop-b')).rejects.toThrow();
+    expect(pawnshop.findUnique).not.toHaveBeenCalled();
+  });
+
+  it('reads the named shop for a super admin', async () => {
+    asSuperAdmin();
+    pawnshop.findUnique.mockResolvedValue({ settings: {}, name: 'Shop B' });
+
+    const result = await service.getPawnshopSettings('u-1', 'shop-b');
+
+    expect(pawnshop.findUnique).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'shop-b' } }),
+    );
+    expect(result.name).toBe('Shop B');
+  });
+
+  it('returns only the columns the settings page renders', async () => {
+    asSuperAdmin();
+    pawnshop.findUnique.mockResolvedValue({ settings: {} });
+
+    await service.getPawnshopSettings('u-1', 'shop-b');
+
+    const [args] = pawnshop.findUnique.mock.calls[0];
+    expect(Object.keys(args.select).sort()).toEqual(
+      ['address', 'latitude', 'longitude', 'name', 'settings'].sort(),
+    );
+  });
+
+  it('splits global overrides out for the merge-on-write branch save', async () => {
+    asSuperAdmin();
+    pawnshop.findUnique.mockResolvedValue({
+      settings: { crm_enabled: true, global_overrides: { audit_enabled: true } },
+    });
+
+    const result = await service.getPawnshopSettings('u-1', 'shop-b');
+
+    expect(result.settings).toEqual({ crm_enabled: true });
+    expect(result.globalOverrides).toEqual({ audit_enabled: true });
+  });
+
+  it('is guarded by platform.manage', () => {
+    const required = Reflect.getMetadata(
+      PERMISSIONS_KEY,
+      TenantGovernanceController.prototype.getPawnshopSettings,
+    );
+    expect(required).toContain(PERMISSIONS['platform.manage']);
+  });
+});
+
+describe('GET /profile/session-context — the login role lookup', () => {
+  let service: ProfileService;
+  let profile: { findUnique: jest.Mock };
+
+  beforeEach(() => {
+    profile = { findUnique: jest.fn().mockResolvedValue(null) };
+    service = Object.create(ProfileService.prototype) as ProfileService;
+    (service as any).prisma = { profile };
+  });
+
+  // The defect: the browser read `profiles` by id and then retried with
+  // `.eq('email', email)`, letting any signed-in caller ask for an arbitrary
+  // address's role and shop.
+  it('looks the profile up by authenticated id only', async () => {
+    await service.getSessionContext('u-1');
+
+    expect(profile.findUnique).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'u-1' } }),
+    );
+  });
+
+  it('never queries by email', async () => {
+    await service.getSessionContext('u-1');
+
+    const [args] = profile.findUnique.mock.calls[0];
+    expect(args.where).not.toHaveProperty('email');
+  });
+
+  it('returns only the four session fields', async () => {
+    await service.getSessionContext('u-1');
+
+    const [args] = profile.findUnique.mock.calls[0];
+    expect(Object.keys(args.select).sort()).toEqual(
+      ['branchId', 'pawnshopId', 'role', 'staffType'].sort(),
+    );
+  });
+
+  it('returns null for an account with no profile rather than throwing', async () => {
+    profile.findUnique.mockResolvedValue(null);
+
+    await expect(service.getSessionContext('u-1')).resolves.toBeNull();
   });
 });

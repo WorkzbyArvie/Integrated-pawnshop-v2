@@ -20,9 +20,19 @@ import {
   FileText,
   MapPin,
 } from 'lucide-react';
-import { supabase } from '../../lib/supabaseClient';
 import api from '../../lib/apiClient';
 import { LocationPicker } from '../../components/LocationPicker';
+
+/** Shape returned by the tenant-governance system-config endpoints. */
+interface SystemConfigResponse {
+  pawnshopId: string;
+  settings: Record<string, any>;
+  globalOverrides: Record<string, boolean>;
+  name?: string;
+  latitude?: number | null;
+  longitude?: number | null;
+  address?: string | null;
+}
 
 interface SystemSettingsProps {
   config: {
@@ -155,59 +165,41 @@ export function SystemSettings({ config, setConfig, userRole, branchId, onBrandi
   useEffect(() => {
     const loadSettings = async () => {
       try {
+        // Both branches go through the backend. The direct `pawnshops` reads they
+        // replace carried no tenant filter and were gated only on a client-side
+        // role string, so any browser could ask for another shop's settings.
         if (isSuperAdmin) {
-          // Super Admin: load global_overrides from any pawnshop (they're the same on all)
-          const { data, error } = await supabase
-            .from('pawnshops')
-            .select('settings')
-            .limit(1)
-            .single();
-          
-          if (error) {
-            console.error('Error loading settings:', error);
-            return;
-          }
+          // The platform view fans out across shops, so it is served by the
+          // existing platform directory endpoint plus a per-shop settings read.
+          const shops = await api.get<Array<{ id: string; name?: string }>>('/pawnshops');
+          const first = shops?.[0];
 
-          if (data?.settings) {
-            setRedemptionThreshold(Number(data.settings.redemptionApprovalThreshold) || 50000);
-            const globalOverrides = data.settings.global_overrides;
-            if (globalOverrides) {
-              setConfig((prev: any) => ({ ...prev, ...globalOverrides }));
-            } else {
-              // Backward compat: no global_overrides yet, use flat settings
-              const { global_overrides: _, ...flat } = data.settings;
-              setConfig((prev: any) => ({ ...prev, ...flat }));
+          if (first?.id) {
+            const data = await api.get<SystemConfigResponse>(
+              `/tenant-governance/pawnshops/${first.id}/settings`,
+            );
+
+            if (data?.settings) {
+              setRedemptionThreshold(Number(data.settings.redemptionApprovalThreshold) || 50000);
+              if (data.globalOverrides && Object.keys(data.globalOverrides).length > 0) {
+                setConfig((prev: any) => ({ ...prev, ...data.globalOverrides }));
+              } else {
+                // Backward compat: no global_overrides yet, use flat settings
+                setConfig((prev: any) => ({ ...prev, ...data.settings }));
+              }
             }
           }
         } else if (branchId) {
-          // Branch Admin: load own branch settings (single query)
-          const { data, error } = await supabase
-            .from('pawnshops')
-            .select('settings, latitude, longitude, address')
-            .eq('id', branchId)
-            .single();
-          
-          if (error) {
-            console.error('Error loading branch settings:', error);
-            return;
-          }
+          const data = await api.get<SystemConfigResponse>('/tenant-governance/system-config');
 
           if (data?.settings) {
-            const { global_overrides, redemptionApprovalThreshold, ...localSettings } = data.settings;
-            setRedemptionThreshold(Number(redemptionApprovalThreshold) || 50000);
+            setRedemptionThreshold(Number(data.settings.redemptionApprovalThreshold) || 50000);
             setContractTerms(String(data.settings.contractTermsAndConditions || ''));
             setContractResponsibilities(String(data.settings.contractPawnshopResponsibilities || ''));
-            setConfig((prev: any) => ({ ...prev, ...localSettings }));
-            if (global_overrides) {
-              setGlobalConfig(global_overrides);
+            setConfig((prev: any) => ({ ...prev, ...data.settings }));
+            if (data.globalOverrides) {
+              setGlobalConfig(data.globalOverrides);
             }
-          }
-          if (data?.latitude != null && data?.longitude != null) {
-            setPawnshopLat(Number(data.latitude));
-            setPawnshopLng(Number(data.longitude));
-          }
-          if (data?.address) {
-            setPawnshopAddress(String(data.address));
           }
         }
       } catch (error) {
@@ -373,15 +365,15 @@ export function SystemSettings({ config, setConfig, userRole, branchId, onBrandi
 
     if (isSuperAdmin) {
       // A super admin write fans out to every branch, so each keeps its own
-      // local settings and only gains the global_overrides block.
-      const { data: pawnshops, error: fetchError } = await supabase
-        .from('pawnshops')
-        .select('id, settings');
+      // local settings and only gains the global_overrides block. The shop list
+      // and each shop's current settings both come from guarded endpoints now.
+      const shops = await api.get<Array<{ id: string }>>('/pawnshops');
 
-      if (fetchError) throw fetchError;
-
-      for (const shop of pawnshops || []) {
-        const currentSettings = shop.settings || {};
+      for (const shop of shops || []) {
+        const current = await api.get<SystemConfigResponse>(
+          `/tenant-governance/pawnshops/${shop.id}/settings`,
+        );
+        const currentSettings = current?.settings || {};
         const updatedSettings = {
           ...currentSettings,
           global_overrides: { ...config },
@@ -395,14 +387,7 @@ export function SystemSettings({ config, setConfig, userRole, branchId, onBrandi
 
     if (!branchId) return 'No branch is selected.';
 
-    const { data: current, error: readError } = await supabase
-      .from('pawnshops')
-      .select('settings')
-      .eq('id', branchId)
-      .single();
-
-    if (readError) throw readError;
-
+    const current = await api.get<SystemConfigResponse>('/tenant-governance/system-config');
     const currentSettings = current?.settings || {};
 
     // Force off anything a super admin has globally disabled, so a branch

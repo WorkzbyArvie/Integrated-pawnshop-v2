@@ -490,11 +490,13 @@ describe('AccountSecurityPage', () => {
 
     async function renderShell(
       status: Record<string, unknown> | null | 'error',
+      // camelCase from `GET /profile/session-context`. The shell resolves its
+      // role/shop/branch through the API rather than reading `profiles` directly.
       profile: Record<string, unknown> | null = {
         role: 'AUDITOR',
-        staff_type: 'AUDITOR',
-        pawnshop_id: 'tenant-1',
-        branch_id: null,
+        staffType: 'AUDITOR',
+        pawnshopId: 'tenant-1',
+        branchId: null,
       },
       activeTab: string | null = 'account-security',
     ) {
@@ -504,6 +506,7 @@ describe('AccountSecurityPage', () => {
       supabaseMock.state.profile = profile;
       getMfaAssertion.mockReturnValue(null);
       apiGet.mockImplementation((path: string) => {
+        if (path === '/profile/session-context') return Promise.resolve(profile);
         if (path === '/security/credential-status') {
           if (status === 'error') return Promise.reject(new Error('status offline'));
           return Promise.resolve(status);
@@ -539,9 +542,9 @@ describe('AccountSecurityPage', () => {
       supabaseMock.state.session = session;
       supabaseMock.state.profile = {
         role: 'AUDITOR',
-        staff_type: 'AUDITOR',
-        pawnshop_id: 'tenant-1',
-        branch_id: null,
+        staffType: 'AUDITOR',
+        pawnshopId: 'tenant-1',
+        branchId: null,
       };
       apiGet.mockImplementation(() => new Promise(() => {}));
       const App = (await import('../../App')).default;
@@ -631,9 +634,11 @@ describe('AccountSecurityPage', () => {
 
     it('keeps Account Security reachable from the limited pending-owner header', async () => {
       localStorage.removeItem('active_pawnshop_id');
+      // camelCase from `GET /profile/session-context`; the shell no longer reads
+      // the profiles table directly, so it resolves its context through the API.
       await renderShell(
         compliantStatus,
-        { role: 'OWNER', staff_type: null, pawnshop_id: null, branch_id: null },
+        { role: 'OWNER', staffType: null, pawnshopId: null, branchId: null },
         null,
       );
 
