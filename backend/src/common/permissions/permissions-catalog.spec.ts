@@ -100,6 +100,14 @@ const MATRIX: Record<string, { tuple: string[]; permission: string }> = {
     tuple: ['CASHIER_TELLER', 'MANAGER', 'OWNER'],
     permission: 'pawn_ticket.redeem',
   },
+  // The renewal quote. It reveals a loan's rate and the accrued interest, which
+  // is the same information the renewal itself accepts as payment - so anyone
+  // who can take a renewal can read the figure, and anyone who cannot cannot
+  // use it for anything.
+  'loan.controller.ts::quoteRenewal': {
+    tuple: ['CASHIER_TELLER', 'MANAGER', 'OWNER'],
+    permission: 'loan.collect',
+  },
   'pawn-ticket.controller.ts::redeemTicket': {
     tuple: ['CASHIER_TELLER', 'MANAGER', 'OWNER'],
     permission: 'pawn_ticket.redeem',
@@ -642,12 +650,13 @@ describe('69-site equivalence scan', () => {
       const withAny = sites.filter((s) => s.roles || s.permissions);
       return sum + withAny.length;
     }, 0);
-    // Was 99. Two read-only quote endpoints were added so the browser stops
-    // computing money: `quoteAppraisal` prices a prospective pawn and
-    // `quoteRedemption` prices a settlement. Both are guarded, so both are
-    // counted here - the invariant is that every guarded site is in the matrix,
-    // and this number is the tripwire for that.
-    expect(total).toBe(101);
+    // Was 99. Three read-only quote endpoints were added so the browser stops
+    // computing money: `quoteAppraisal` prices a prospective pawn,
+    // `quoteRedemption` prices a settlement, and `quoteRenewal` prices a
+    // renewal. All are guarded, so all are counted here - the invariant is
+    // that every guarded site is in the matrix, and this number is the
+    // tripwire for that.
+    expect(total).toBe(102);
   });
 
   it('matrix tuples match the current @Roles tuples (RED-phase calibration)', () => {

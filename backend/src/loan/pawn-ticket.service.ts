@@ -205,6 +205,10 @@ export class PawnTicketService {
     return {
       ticketId: ticket.id,
       ticketNumber: ticket.ticketNumber,
+      // Carried so the screen can offer a renewal against the same loan without
+      // a second lookup, and so the settlement panel can name the record it is
+      // pricing rather than only the ticket it is displayed under.
+      loanId: loan.id,
       customerName: ticket.customer?.fullName ?? null,
       principal: toCentavos(principal),
       interest,

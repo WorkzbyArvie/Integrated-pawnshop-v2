@@ -20,6 +20,7 @@ import {
   DEFAULT_SERVICE_FEE_RATE,
   interestFor,
   settlesAmount,
+  toCentavos,
 } from '../finance/interest';
 import { LedgerEntryType, LedgerCategory, NotificationChannel, NotificationType } from '@prisma/client';
 import { LegalProofService } from './legal-proof.service';
@@ -814,19 +815,111 @@ export class LoanService {
     };
   }
 
-  async renewLoan(dto: RenewLoanDto) {
-    const ticket = await this.prisma.ticket.findUnique({
-      where: { id: dto.ticketId },
-      include: { customer: true },
-    });
-    if (!ticket) throw new NotFoundException('Ticket not found');
-    if (!ticket.pawnshopId)
-      throw new BadRequestException('Ticket has no pawnshop');
-
+  /**
+   * Resolve a loan with its ticket, proving the two are actually related.
+   *
+   * `renewLoan` took a ticketId and a loanId and trusted both. Nothing checked
+   * that the loan belonged to the ticket, so a renewal could extend ticket A's
+   * dates while collecting ticket B's interest - and the resulting records
+   * disagreed with each other: the payment pointed at one loan, the proof and
+   * the receipt at the other. Both identifiers are also unscoped, so either
+   * could name a record in another shop.
+   */
+  private async loanWithItsTicket(loanId: number) {
     const loan = await this.prisma.loan.findUnique({
-      where: { id: dto.loanId },
+      where: { id: loanId },
+      include: { ticket: { include: { customer: true } } },
     });
     if (!loan) throw new NotFoundException('Loan not found');
+    if (!loan.ticket) {
+      throw new BadRequestException(
+        `Loan ${loan.id} is not attached to a pawn ticket, so there is nothing to renew.`,
+      );
+    }
+    return loan;
+  }
+
+  /**
+   * What a renewal costs today, and what it buys.
+   *
+   * Read-only, and the same evaluation `renewLoan` performs its check against,
+   * so a customer cannot be quoted one figure and charged another.
+   */
+  async quoteRenewal(loanId: number) {
+    const loan = await this.loanWithItsTicket(loanId);
+    const ticket = loan.ticket;
+
+    const renewableStates = ['ACTIVE', 'OVERDUE', 'GRACE_PERIOD'];
+    if (!renewableStates.includes(ticket.lifecycleStatus)) {
+      throw new BadRequestException(
+        `Ticket ${ticket.ticketNumber} (${ticket.lifecycleStatus}) cannot be renewed. Only ACTIVE, OVERDUE, or GRACE_PERIOD tickets can be renewed.`,
+      );
+    }
+
+    const accruedInterest = this.accruedInterestFor(loan);
+    const extensionDays = RENEWAL_EXTENSION_DAYS;
+    const now = new Date();
+    const newExpiry = maturityDateFrom(extensionDays, now);
+
+    return {
+      loanId: loan.id,
+      ticketId: ticket.id,
+      ticketNumber: ticket.ticketNumber,
+      customerName: ticket.customer?.fullName ?? null,
+      principal: toCentavos(loan.principalAmount),
+      interestDue: accruedInterest,
+      interestRate: this.rateFor(loan),
+      lifecycleStatus: ticket.lifecycleStatus,
+      renewable: true,
+      extensionDays,
+      currentExpiry: ticket.expiryDate,
+      newExpiry,
+      newGracePeriodEnd: gracePeriodEndFrom(newExpiry),
+      newForfeitureDate: forfeitureDateFrom(gracePeriodEndFrom(newExpiry)),
+      // A renewal restores ACTIVE, so the days of grace it re-opens are worth
+      // stating: renewing the day before forfeiture returns the full
+      // statutory window rather than the 15 days left.
+      daysUntilForfeiture: ticket.forfeitureDate
+        ? Math.ceil((ticket.forfeitureDate.getTime() - now.getTime()) / 86_400_000)
+        : null,
+    };
+  }
+
+  /** The interest a renewal collects, at the rate written on that loan. */
+  private accruedInterestFor(loan: { principalAmount: number; interestRate: number | null }) {
+    return interestFor(loan.principalAmount, {
+      monthlyInterestRate: this.rateFor(loan),
+      serviceFeeRate: DEFAULT_SERVICE_FEE_RATE,
+      latePenaltyRate: DEFAULT_LATE_PENALTY_RATE,
+    });
+  }
+
+  /**
+   * The rate on the loan, falling back to the platform default.
+   *
+   * A loan must be settled at the rate it was issued under, so a shop that has
+   * since changed its pricing still renews the old loan on the old terms.
+   */
+  private rateFor(loan: { interestRate: number | null }): number {
+    return typeof loan.interestRate === 'number' && loan.interestRate > 0
+      ? loan.interestRate
+      : DEFAULT_MONTHLY_INTEREST_RATE;
+  }
+
+  async renewLoan(dto: RenewLoanDto) {
+    const loan = await this.loanWithItsTicket(dto.loanId);
+    const ticket = loan.ticket;
+
+    if (ticket.id !== dto.ticketId) {
+      // Not merely a bad request: two records the caller believes are related
+      // are not, and the endpoint would otherwise settle one while moving the
+      // other's dates.
+      throw new BadRequestException(
+        `Loan ${loan.id} belongs to ticket ${
+          (ticket as { ticketNumber?: string }).ticketNumber ?? ticket.id
+        }, not ticket ${dto.ticketId}.`,
+      );
+    }
 
     const renewableStates = ['ACTIVE', 'OVERDUE', 'GRACE_PERIOD'];
     if (!renewableStates.includes(ticket.lifecycleStatus)) {
@@ -844,6 +937,33 @@ export class LoanService {
     const newExpiry = maturityDateFrom(extensionDays, now);
     const newGracePeriodEnd = gracePeriodEndFrom(newExpiry);
     const newForfeitureDate = forfeitureDateFrom(newGracePeriodEnd);
+
+    // A renewal collects the interest the borrower has accrued on the principal.
+    //
+    // The client used to supply this figure, which meant the screen decided what
+    // a customer owed. It is derived here from the loan's own recorded rate, so
+    // the amount collected is the amount the contract states. A client that
+    // sends a different number is refused rather than quietly trusted - a
+    // renewal receipt is an audit record, and one that can be set by whoever is
+    // at the counter is not one.
+    //
+    // CHECKED FIRST, BEFORE ANY WRITE. This validation used to run after the
+    // ticket had already been transitioned to ACTIVE and its expiry, grace and
+    // forfeiture dates rewritten - so a renewal rejected for the wrong amount
+    // still handed the pawner another 30 days and buried the mismatch in the
+    // database with no payment, no receipt and no proof. The refusal has to
+    // leave the loan exactly as it was found.
+    const expectedInterest = this.accruedInterestFor(loan);
+
+    if (!settlesAmount(dto.interestAmount, expectedInterest)) {
+      this.logger.warn(
+        `Renewal on loan ${loan.id} tendered ${dto.interestAmount} against ${expectedInterest} of accrued interest`,
+      );
+      throw new BadRequestException(
+        `Renewal interest is ${expectedInterest.toFixed(2)} at the rate recorded on this loan. ` +
+          `Received ${Number(dto.interestAmount).toFixed(2)}.`,
+      );
+    }
 
     if (
       ticket.lifecycleStatus === 'OVERDUE' ||
@@ -873,33 +993,6 @@ export class LoanService {
       where: { id: loan.id },
       data: { status: 'ACTIVE' },
     });
-
-    // A renewal collects the interest the borrower has accrued on the principal.
-    //
-    // The client used to supply this figure, which meant the screen decided what
-    // a customer owed. It is derived here from the loan's own recorded rate, so
-    // the amount collected is the amount the contract states. A client that
-    // sends a different number is refused rather than quietly trusted - a
-    // renewal receipt is an audit record, and one that can be set by whoever is
-    // at the counter is not one.
-    const expectedInterest = interestFor(loan.principalAmount, {
-      monthlyInterestRate:
-        typeof loan.interestRate === 'number' && loan.interestRate > 0
-          ? loan.interestRate
-          : DEFAULT_MONTHLY_INTEREST_RATE,
-      serviceFeeRate: DEFAULT_SERVICE_FEE_RATE,
-      latePenaltyRate: DEFAULT_LATE_PENALTY_RATE,
-    });
-
-    if (!settlesAmount(dto.interestAmount, expectedInterest)) {
-      this.logger.warn(
-        `Renewal on loan ${loan.id} tendered ${dto.interestAmount} against ${expectedInterest} of accrued interest`,
-      );
-      throw new BadRequestException(
-        `Renewal interest is ${expectedInterest.toFixed(2)} at the rate recorded on this loan. ` +
-          `Received ${Number(dto.interestAmount).toFixed(2)}.`,
-      );
-    }
 
     const payment = await this.prisma.payment.create({
       data: {

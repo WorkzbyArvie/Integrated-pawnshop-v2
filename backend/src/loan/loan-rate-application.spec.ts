@@ -21,6 +21,17 @@ import { TierService } from '../tier/tier.service';
  *
  * The amount is now derived from the loan's own recorded rate, and a tender that
  * does not match is refused rather than quietly accepted.
+ *
+ * Two things the interest test could not have caught, and which this file also
+ * covers because they live in the same method:
+ *
+ * - The ticket and the loan were fetched independently and never checked against
+ *   each other, so a renewal could extend one pawn's dates while collecting
+ *   another loan's interest.
+ *
+ * - The refusal check ran after the ticket had already been transitioned and its
+ *   dates rewritten, so a renewal rejected for the wrong amount still granted the
+ *   pawner 30 more days. A refusal has to leave the loan as it was found.
  */
 
 const TICKET_ID = 501;
@@ -47,12 +58,16 @@ describe('renewLoan interest', () => {
     id: LOAN_ID,
     principalAmount: principal,
     interestRate,
+    // The ticket now arrives through the loan rather than as a second
+    // independent lookup. `renewLoan` reads them as one record, because a
+    // renewal that trusted two unrelated ids could extend one pawn's dates
+    // while collecting another loan's interest.
+    ticket: baseTicket,
   });
 
   const build = async (loan: ReturnType<typeof makeLoan>) => {
     prisma = {
       ticket: {
-        findUnique: jest.fn().mockResolvedValue(baseTicket),
         update: jest.fn().mockResolvedValue(baseTicket),
       },
       loan: {
@@ -212,5 +227,177 @@ describe('renewLoan interest', () => {
     // rather than inheriting whatever remained.
     expect(graceDays).toBe(90);
     expect(forfeitDays).toBe(15);
+  });
+
+  it('refuses a loan that belongs to a different ticket', async () => {
+    // The endpoint took a ticketId and a loanId and trusted both. Nothing
+    // checked they were related, so a renewal could extend one pawn's dates
+    // while collecting another loan's interest - leaving a payment pointing at
+    // one loan and a proof and receipt pointing at the other.
+    await build(makeLoan(0.035));
+    await expect(
+      service.renewLoan({
+        ticketId: TICKET_ID + 1,
+        loanId: LOAN_ID,
+        interestAmount: 350,
+        paymentMethod: 'CASH' as never,
+        processedBy: 'staff-1',
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(prisma.ticket.update).not.toHaveBeenCalled();
+  });
+
+  it('refuses a loan with no ticket attached', async () => {
+    await build({ ...makeLoan(0.035), ticket: null });
+    await expect(renew(350)).rejects.toThrow(/not attached to a pawn ticket/i);
+    expect(prisma.ticket.update).not.toHaveBeenCalled();
+  });
+
+  it('leaves the loan untouched when the tender is refused', async () => {
+    // The ordering bug. Validation used to run AFTER the ticket had been
+    // transitioned to ACTIVE with its expiry, grace and forfeiture dates
+    // rewritten, so a renewal rejected for the wrong amount still handed the
+    // pawner another 30 days - and buried the mismatch in the database with no
+    // payment, no receipt and no proof to show for it.
+    await build(makeLoan(0.035));
+    await expect(renew(10)).rejects.toBeInstanceOf(BadRequestException);
+
+    expect(prisma.ticket.update).not.toHaveBeenCalled();
+    expect(prisma.loan.update).not.toHaveBeenCalled();
+    expect(stateMachine.transition).not.toHaveBeenCalled();
+    expect(prisma.payment.create).not.toHaveBeenCalled();
+  });
+
+  it('leaves a grace-period loan in grace when the tender is refused', async () => {
+    // The state machine transition is the most damaging write of the three: an
+    // OVERDUE or GRACE_PERIOD ticket that a refused renewal had already pulled
+    // back to ACTIVE would stop counting toward forfeiture.
+    prisma = undefined as never;
+    await build({
+      ...makeLoan(0.035),
+      ticket: { ...baseTicket, lifecycleStatus: 'GRACE_PERIOD' },
+    });
+    await expect(renew(1)).rejects.toBeInstanceOf(BadRequestException);
+    expect(stateMachine.transition).not.toHaveBeenCalled();
+    expect(prisma.ticket.update).not.toHaveBeenCalled();
+  });
+});
+
+describe('quoteRenewal', () => {
+  let service: LoanService;
+  let prisma: Record<string, Record<string, jest.Mock>>;
+
+  const TICKET_ID = 500;
+  const LOAN_ID = 900;
+  const PAWNSHOP_ID = 'shop-1';
+
+  const ticket = {
+    id: TICKET_ID,
+    ticketNumber: 'TKT-9001',
+    pawnshopId: PAWNSHOP_ID,
+    customerId: 'cust-1',
+    lifecycleStatus: 'ACTIVE',
+    status: 'ACTIVE',
+    expiryDate: new Date('2026-10-01T00:00:00.000Z'),
+    gracePeriodEnd: new Date('2026-12-30T00:00:00.000Z'),
+    forfeitureDate: new Date('2027-01-14T00:00:00.000Z'),
+    customer: { fullName: 'Juan Dela Cruz' },
+  };
+
+  const build = async (interestRate: number | null, principal = 10000) => {
+    prisma = {
+      ticket: { update: jest.fn().mockResolvedValue(ticket) },
+      loan: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: LOAN_ID,
+          principalAmount: principal,
+          interestRate,
+          ticket,
+        }),
+        update: jest.fn().mockResolvedValue({}),
+      },
+      payment: { create: jest.fn().mockResolvedValue({ id: 'pay-1' }) },
+      pawnshop: { findUnique: jest.fn().mockResolvedValue({ settings: {} }) },
+    };
+
+    const moduleRef = await Test.createTestingModule({
+      providers: [
+        LoanService,
+        { provide: PrismaService, useValue: prisma },
+        { provide: FinanceService, useValue: { createEntry: jest.fn() } },
+        { provide: LegalProofService, useValue: { createProof: jest.fn() } },
+        { provide: ReceiptService, useValue: { generateReceipt: jest.fn() } },
+        { provide: StateMachineService, useValue: { transition: jest.fn() } },
+        { provide: NotificationService, useValue: { sendNotification: jest.fn() } },
+        { provide: TierService, useValue: { getTierForCustomer: jest.fn() } },
+      ],
+    }).compile();
+
+    service = moduleRef.get(LoanService);
+  };
+
+  /**
+   * The quote exists because `renewLoan` refuses a tender that does not settle
+   * the accrued interest. Without it the only way for the screen to learn the
+   * figure was to guess, take a 400, and read the number out of the error
+   * message - which is exactly the state in which a teller is reading money
+   * off an exception rather than off the system.
+   */
+  it('quotes the same figure the renewal will demand', async () => {
+    await build(0.035);
+    const quote = await service.quoteRenewal(LOAN_ID);
+    expect(quote.interestDue).toBe(350);
+
+    // And a tender of that figure is accepted.
+    await build(0.035);
+    await expect(
+      service.renewLoan({
+        ticketId: TICKET_ID,
+        loanId: LOAN_ID,
+        interestAmount: quote.interestDue,
+        paymentMethod: 'CASH' as never,
+        processedBy: 'staff-1',
+      }),
+    ).resolves.toMatchObject({ interestPaid: 350 });
+  });
+
+  it('quotes at the rate recorded on the loan, not the platform default', async () => {
+    await build(0.04);
+    expect((await service.quoteRenewal(LOAN_ID)).interestDue).toBe(400);
+  });
+
+  it('falls back to the default for a loan with no usable rate', async () => {
+    await build(null);
+    expect((await service.quoteRenewal(LOAN_ID)).interestDue).toBe(350);
+  });
+
+  it('states the dates the renewal would produce, so the customer is told', async () => {
+    await build(0.035);
+    const quote = await service.quoteRenewal(LOAN_ID);
+
+    expect(quote.extensionDays).toBe(30);
+    const days = (a: Date, b: Date) =>
+      Math.round((a.getTime() - b.getTime()) / 86_400_000);
+    expect(days(new Date(quote.newGracePeriodEnd), new Date(quote.newExpiry))).toBe(90);
+    expect(days(new Date(quote.newForfeitureDate), new Date(quote.newGracePeriodEnd))).toBe(15);
+  });
+
+  it('writes nothing', async () => {
+    await build(0.035);
+    await service.quoteRenewal(LOAN_ID);
+    expect(prisma.loan.update).not.toHaveBeenCalled();
+    expect(prisma.ticket.update).not.toHaveBeenCalled();
+    expect(prisma.payment.create).not.toHaveBeenCalled();
+  });
+
+  it('refuses to quote a ticket that cannot be renewed', async () => {
+    await build(0.035);
+    prisma.loan.findUnique.mockResolvedValue({
+      id: LOAN_ID,
+      principalAmount: 10000,
+      interestRate: 0.035,
+      ticket: { ...ticket, lifecycleStatus: 'REDEEMED' },
+    });
+    await expect(service.quoteRenewal(LOAN_ID)).rejects.toThrow(/cannot be renewed/i);
   });
 });

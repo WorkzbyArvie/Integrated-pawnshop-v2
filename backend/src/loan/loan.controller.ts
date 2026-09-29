@@ -267,13 +267,38 @@ export class LoanController {
   // RENEWAL ENDPOINTS
   // ============================================================================
 
+  /**
+   * What a renewal costs, before the customer is asked to pay it.
+   *
+   * `renewLoan` already refuses a tender that does not settle the accrued
+   * interest, so without this the only way a client could learn the figure was
+   * to guess it, get a 400, and read the expected amount out of the error
+   * message. The screen needs the number up front, from the loan's own recorded
+   * rate, and the two must come from the same evaluation.
+   */
+  @AuditLog('QUOTE_RENEWAL')
+  @Get(':loanId/renewal-quote')
+  @RequiresPermission(PERMISSIONS['loan.collect'])
+  async quoteRenewal(@Param('loanId') loanId: string) {
+    return this.loanService.quoteRenewal(parseInt(loanId, 10));
+  }
+
   @AuditLog('RENEW_LOAN')
   @Throttle({ ttl: 60_000, limit: 10 })
   @Post('renew')
   @HttpCode(HttpStatus.OK)
   @RequiresPermission(PERMISSIONS['loan.collect'])
-  renewLoan(@Body() dto: RenewLoanDto) {
-    return this.loanService.renewLoan(dto);
+  renewLoan(@Body() dto: RenewLoanDto, @Req() req: Request) {
+    const user = (req as any).user as { id: string; role: string } | undefined;
+    // `processedBy` and `userRole` came from the request body, so the audit
+    // record named whoever the caller chose to type. The identity that signs a
+    // receipt has to be the one the server authenticated - a proof whose author
+    // is client-supplied is not a proof of anything.
+    return this.loanService.renewLoan({
+      ...dto,
+      processedBy: user?.id ?? '',
+      userRole: user?.role,
+    });
   }
 
   // ============================================================================

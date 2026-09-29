@@ -51,11 +51,36 @@ interface RedemptionItem {
 interface RedemptionQuote {
   ticketId: number;
   ticketNumber: string;
+  loanId: number;
   principal: number;
   interest: number;
   serviceFee: number;
   total: number;
   interestRate: number;
+  daysUntilForfeiture: number | null;
+}
+
+/**
+ * A renewal, priced on the server.
+ *
+ * The endpoint refuses a tender that does not settle the accrued interest, so
+ * the figure has to reach the screen before the customer is asked for it -
+ * otherwise the only way to learn it is to guess, take a 400, and read the
+ * number out of the error message.
+ */
+interface RenewalQuote {
+  loanId: number;
+  ticketId: number;
+  ticketNumber: string;
+  customerName: string | null;
+  principal: number;
+  interestDue: number;
+  interestRate: number;
+  extensionDays: number;
+  currentExpiry: string | null;
+  newExpiry: string;
+  newGracePeriodEnd: string;
+  newForfeitureDate: string;
   daysUntilForfeiture: number | null;
 }
 
@@ -84,6 +109,8 @@ export function Redemption({ branchId, activeBranchId }: RedemptionProps) {
   // figure that has not been confirmed.
   const [quote, setQuote] = useState<RedemptionQuote | null>(null);
   const [isQuoting, setIsQuoting] = useState(false);
+  const [renewalQuote, setRenewalQuote] = useState<RenewalQuote | null>(null);
+  const [isRenewing, setIsRenewing] = useState(false);
 
   const { showToast } = useToast();
 
@@ -144,6 +171,7 @@ export function Redemption({ branchId, activeBranchId }: RedemptionProps) {
     fetchVault();
     setSelectedItem(null); // Clear selection if branch changes
     setQuote(null);
+    setRenewalQuote(null);
   }, [branchId, activeBranchId]);
 
   /**
@@ -156,6 +184,7 @@ export function Redemption({ branchId, activeBranchId }: RedemptionProps) {
   const selectTicket = async (item: RedemptionItem) => {
     setSelectedItem(item);
     setQuote(null);
+    setRenewalQuote(null);
     setIsQuoting(true);
     try {
       const priced = await api.post<RedemptionQuote>('/appraisal/redemption-quote', {
@@ -170,6 +199,99 @@ export function Redemption({ branchId, activeBranchId }: RedemptionProps) {
       setSelectedItem(null);
     } finally {
       setIsQuoting(false);
+    }
+  };
+
+  /**
+   * Price a renewal, on demand.
+   *
+   * Priced from the loan rather than derived here, and deliberately a separate
+   * action from settling: a customer at this counter may be redeeming in full or
+   * paying the accrued interest to keep the item, and the two produce different
+   * records.
+   */
+  const loadRenewalQuote = async (loanId: number) => {
+    setIsRenewing(true);
+    try {
+      setRenewalQuote(await api.get<RenewalQuote>(`/loan/${loanId}/renewal-quote`));
+    } catch (err: unknown) {
+      showToast(
+        `This ticket cannot be renewed: ${err instanceof Error ? err.message : String(err)}`,
+        'error',
+      );
+      setRenewalQuote(null);
+    } finally {
+      setIsRenewing(false);
+    }
+  };
+
+  const handleRenew = async () => {
+    if (!renewalQuote || !quote) return;
+    const confirm = await Swal.fire({
+      title: 'Confirm Renewal',
+      html:
+        `Collect <b>${formatCurrency(renewalQuote.interestDue)}</b> interest on ` +
+        `ticket ${renewalQuote.ticketNumber}?<br/>` +
+        `<span style="font-size:0.85em">Extends maturity by ${renewalQuote.extensionDays} days ` +
+        `and restores the full 90-day redemption period.</span>`,
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonColor: '#C9A05C',
+      cancelButtonColor: '#8A8279',
+      confirmButtonText: 'Yes, renew',
+      cancelButtonText: 'Cancel',
+    });
+    if (!confirm.isConfirmed) return;
+
+    setIsRenewing(true);
+    try {
+      // Re-quoted at the moment of renewal: a rate change between pricing and
+      // tendering must not be settled at the stale figure.
+      const finalQuote = await api.get<RenewalQuote>(
+        `/loan/${renewalQuote.loanId}/renewal-quote`,
+      );
+      if (Math.abs(finalQuote.interestDue - renewalQuote.interestDue) > 0.01) {
+        const proceed = await Swal.fire({
+          title: 'Amount changed',
+          html: `Interest due is now <b>${formatCurrency(finalQuote.interestDue)}</b>, was ${formatCurrency(renewalQuote.interestDue)}.<br/>Renew at the new amount?`,
+          icon: 'warning',
+          showCancelButton: true,
+          confirmButtonColor: '#C9A05C',
+          cancelButtonColor: '#8A8279',
+          confirmButtonText: 'Renew at new amount',
+          cancelButtonText: 'Cancel',
+        });
+        if (!proceed.isConfirmed) {
+          setRenewalQuote(finalQuote);
+          return;
+        }
+      }
+
+      // The server derives the interest from the loan's own recorded rate and
+      // refuses a tender that does not settle it, so the amount sent here is
+      // the quoted figure - never one the screen has adjusted.
+      await api.post('/loan/renew', {
+        ticketId: finalQuote.ticketId,
+        loanId: finalQuote.loanId,
+        interestAmount: finalQuote.interestDue,
+        paymentMethod: 'CASH',
+      });
+
+      showToast(
+        `Ticket ${finalQuote.ticketNumber} renewed for ${formatCurrency(finalQuote.interestDue)}.`,
+        'success',
+      );
+      setRenewalQuote(null);
+      setSelectedItem(null);
+      setQuote(null);
+      void fetchVault();
+    } catch (err: unknown) {
+      showToast(
+        `Renewal failed: ${err instanceof Error ? err.message : String(err)}`,
+        'error',
+      );
+    } finally {
+      setIsRenewing(false);
     }
   };
 
@@ -369,7 +491,11 @@ export function Redemption({ branchId, activeBranchId }: RedemptionProps) {
                     </div>
                     <div className="flex justify-between items-center pb-4 border-b border-white/5">
                       <span className="text-[10px] font-black text-[#8A8279] uppercase">
-                        Interest ({quote.interestRate.toFixed(2)}%)
+                        {/* `interestRate` is a FRACTION, so it is scaled before it
+                            is displayed. Printing the raw 0.035 as a percentage
+                            renders "0.04%" on a loan issued at 3.5% - a number a
+                            customer is very unlikely to query. */}
+                        Interest ({(quote.interestRate * 100).toFixed(2)}%)
                       </span>
                       <span className="font-bold text-blue-400">+ {formatCurrency(quote.interest)}</span>
                     </div>
@@ -392,6 +518,58 @@ export function Redemption({ branchId, activeBranchId }: RedemptionProps) {
                 )}
               </div>
 
+              {renewalQuote && (
+                <div className="rounded-3xl p-6 bg-[#C9A05C]/10 border border-[rgba(201,160,92,0.25)] mb-6">
+                  <p className="text-[10px] font-black text-[#C9A05C] uppercase tracking-widest mb-4">
+                    Renewal Instead
+                  </p>
+                  <div className="space-y-3">
+                    <div className="flex justify-between items-center">
+                      <span className="text-[10px] text-[#8A8279] font-black uppercase">Interest to collect</span>
+                      <span className="font-black text-lg text-[#F5F0E8]">
+                        {formatCurrency(renewalQuote.interestDue)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-[10px] text-[#8A8279] font-black uppercase">Rate on this loan</span>
+                      <span className="font-bold text-sm text-[#B8B0A4]">
+                        {(renewalQuote.interestRate * 100).toFixed(2)}%
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-[10px] text-[#8A8279] font-black uppercase">Extends by</span>
+                      <span className="font-bold text-sm text-[#B8B0A4]">
+                        {renewalQuote.extensionDays} days
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-[10px] text-[#8A8279] font-black uppercase">New maturity</span>
+                      <span className="font-bold text-sm text-[#B8B0A4]">
+                        {new Date(renewalQuote.newExpiry).toLocaleDateString()}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-[10px] text-[#8A8279] font-black uppercase">Grace period ends</span>
+                      <span className="font-bold text-sm text-[#B8B0A4]">
+                        {new Date(renewalQuote.newGracePeriodEnd).toLocaleDateString()}
+                      </span>
+                    </div>
+                  </div>
+                  <p className="mt-4 text-[9px] text-[#5C574F] uppercase tracking-wider leading-relaxed">
+                    A renewal restores the full 90-day redemption period under
+                    P.D. 114 s.13, not whatever remained. The principal is unchanged.
+                  </p>
+                  <button
+                    onClick={handleRenew}
+                    disabled={isRenewing}
+                    className="mt-5 w-full py-4 bg-[#C9A05C] text-[#0A0A0F] hover:bg-[#E0BC7E] rounded-2xl font-black uppercase text-[10px] transition-all flex items-center justify-center gap-3 disabled:opacity-50"
+                  >
+                    {isRenewing ? <Loader2 className="animate-spin w-4 h-4" /> : <RotateCcw className="w-4 h-4" />}
+                    Collect Interest &amp; Renew
+                  </button>
+                </div>
+              )}
+
               <button 
                 onClick={() => handleRedeem(selectedItem.id)}
                 disabled={isLoading || isQuoting || !quote}
@@ -400,9 +578,20 @@ export function Redemption({ branchId, activeBranchId }: RedemptionProps) {
                 {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <PackageCheck className="w-5 h-5" />}
                 Authorize Release
               </button>
+
+              {!renewalQuote && quote && (
+                <button
+                  onClick={() => loadRenewalQuote(quote.loanId)}
+                  disabled={isRenewing}
+                  className="w-full mt-4 py-3 border border-[rgba(201,160,92,0.3)] text-[#C9A05C] hover:bg-[#C9A05C]/10 rounded-2xl font-black uppercase text-[10px] transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                >
+                  {isRenewing ? <Loader2 className="animate-spin w-4 h-4" /> : <RotateCcw className="w-4 h-4" />}
+                  Customer is renewing instead
+                </button>
+              )}
               
               <button 
-                onClick={() => { setSelectedItem(null); setQuote(null); }}
+                onClick={() => { setSelectedItem(null); setQuote(null); setRenewalQuote(null); }}
                 className="w-full mt-4 py-2 text-[#8A8279] font-black uppercase text-[10px] hover:text-white transition-colors"
               >
                 Cancel
