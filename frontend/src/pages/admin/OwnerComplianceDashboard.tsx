@@ -21,7 +21,7 @@ interface ComplianceData {
     expiryDate: string | null;
     daysUntilExpiry: number | null;
     fileName: string;
-    rejectionReason?: string;
+    denialReason?: string;
   }>;
   summary: {
     totalRequired: number;
@@ -66,9 +66,9 @@ const STATUS_CONFIG: Record<string, { color: string; bg: string; icon: React.Rea
     bg: 'bg-emerald-500/10',
     icon: <CheckCircle className="w-4 h-4" />,
   },
-  REJECTED: {
-    color: 'text-red-400',
-    bg: 'bg-red-500/10',
+  DENIED: {
+    color: 'text-amber-400',
+    bg: 'bg-amber-500/10',
     icon: <XCircle className="w-4 h-4" />,
   },
   EXPIRED: {
@@ -391,7 +391,7 @@ export default function OwnerComplianceDashboard() {
               const tone = expiryTone(doc.daysUntilExpiry);
               const needsAttention =
                 doc.status === 'EXPIRED' ||
-                doc.status === 'REJECTED' ||
+                doc.status === 'DENIED' ||
                 doc.status === 'NOT_UPLOADED' ||
                 doc.status === 'UNDER_REVIEW' ||
                 (doc.daysUntilExpiry !== null && doc.daysUntilExpiry <= EXPIRY_WARNING_DAYS);
@@ -430,9 +430,9 @@ export default function OwnerComplianceDashboard() {
                               )}
                           </div>
                         )}
-                        {doc.rejectionReason && doc.status === 'REJECTED' && (
-                          <div className="text-xs text-red-400 mt-0.5">
-                            Reason: {doc.rejectionReason}
+                        {doc.denialReason && doc.status === 'DENIED' && (
+                          <div className="text-xs text-amber-400 mt-0.5">
+                            Not approved: {doc.denialReason}
                           </div>
                         )}
                       </div>
@@ -534,10 +534,10 @@ export default function OwnerComplianceDashboard() {
                     <p className="px-4 pb-3 text-xs text-gilded-muted">
                       {doc.status === 'NOT_UPLOADED'
                         ? 'Not on file — this counts against your compliance score.'
-                        : doc.status === 'REJECTED'
-                        ? 'Rejected — upload a corrected document.'
+                        : doc.status === 'DENIED'
+                        ? 'Not approved — upload a corrected copy and it will be reviewed again.'
                         : doc.status === 'UNDER_REVIEW'
-                        ? 'Awaiting verification.'
+                        ? 'Awaiting verification by a Super Admin.'
                         : 'Expiring soon — renew to keep the shop operating.'}
                     </p>
                   )}

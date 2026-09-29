@@ -29,7 +29,7 @@ interface PendingReview {
   fileSize?: number | null;
   hasViewed?: boolean;
   status: string;
-  rejectionReason: string | null;
+  denialReason: string | null;
   createdAt: string;
   pawnshop: { id: string; name: string; ownerEmail: string };
 }
@@ -108,7 +108,7 @@ function shortLabel(type: string) {
 }
 
 function isDocMissing(status: string) {
-  return status === 'NOT_UPLOADED' || status === 'REJECTED';
+  return status === 'NOT_UPLOADED' || status === 'DENIED' || status === 'REJECTED';
 }
 
 function missingDocs(ps: PawnshopCompliance) {
@@ -133,8 +133,9 @@ function docStatusBadge(status: string) {
       return { text: 'U', className: 'text-blue-400', title: 'Submitted / pending review' };
     case 'UNDER_REVIEW':
       return { text: '~', className: 'text-amber-400', title: 'Under review' };
+    case 'DENIED':
     case 'REJECTED':
-      return { text: '✗', className: 'text-red-400', title: 'Rejected' };
+      return { text: '✗', className: 'text-amber-400', title: 'Not approved — re-upload' };
     case 'EXPIRED':
       return { text: 'E', className: 'text-red-400', title: 'Expired' };
     default:
@@ -156,10 +157,11 @@ function buildRegisterHtml(all: PawnshopCompliance[]) {
             VERIFIED: '✓ Verified',
             UPLOADED: 'Submitted',
             UNDER_REVIEW: 'Under review',
-            REJECTED: 'Rejected',
+            DENIED: 'Not approved',
+            REJECTED: 'Not approved',
             EXPIRED: 'Expired',
           };
-          const cls = st === 'VERIFIED' ? 'ok' : st === 'NOT_UPLOADED' ? 'miss' : st === 'REJECTED' || st === 'EXPIRED' ? 'bad' : 'pend';
+          const cls = st === 'VERIFIED' ? 'ok' : st === 'NOT_UPLOADED' ? 'miss' : st === 'DENIED' || st === 'REJECTED' || st === 'EXPIRED' ? 'bad' : 'pend';
           return `<td class="${cls}">${map[st] || '—'}</td>`;
         })
         .join('');
@@ -354,9 +356,9 @@ export default function SuperAdminComplianceOverview() {
   const [loading, setLoading] = useState(true);
   const [verifyingId, setVerifyingId] = useState<string | null>(null);
   const [verifyingKycId, setVerifyingKycId] = useState<string | null>(null);
-  const [rejectReason, setRejectReason] = useState('');
+  const [denyReason, setDenyReason] = useState('');
   const [showKycRejectModal, setShowKycRejectModal] = useState<string | null>(null);
-  const [docRejectOpen, setDocRejectOpen] = useState(false);
+  const [docDenyOpen, setDocDenyOpen] = useState(false);
   const [kycRejectReason, setKycRejectReason] = useState('');
   const [activeTab, setActiveTab] = useState<'pending' | 'kyc' | 'overview' | 'register'>('pending');
   const [viewingKyc, setViewingKyc] = useState<KycPendingReview | null>(null);
@@ -381,15 +383,17 @@ export default function SuperAdminComplianceOverview() {
     }
   }, []);
 
-  async function handleVerify(documentId: string, status: 'VERIFIED' | 'REJECTED') {
+  // The reviewer denies a document; the document's resulting state is DENIED.
+  // The button still says "Deny" - that is the action being taken.
+  async function handleVerify(documentId: string, status: 'VERIFIED' | 'DENIED') {
     setVerifyingId(documentId);
     try {
       await api.put(`/compliance/documents/${documentId}/verify`, {
         status,
-        rejectionReason: status === 'REJECTED' ? rejectReason : undefined,
+        denialReason: status === 'DENIED' ? denyReason : undefined,
       });
-      setRejectReason('');
-      setDocRejectOpen(false);
+      setDenyReason('');
+      setDocDenyOpen(false);
       fetchData();
     } catch (err) {
       console.error('Verification failed:', err);
@@ -1014,30 +1018,34 @@ export default function SuperAdminComplianceOverview() {
 
               <SignedDocViewer url={viewingDoc.fileUrl} fileName={viewingDoc.fileName} />
 
-              {docRejectOpen && (
-                <div className="p-4 bg-gilded-darker border border-red-500/30 rounded-lg">
+              {docDenyOpen && (
+                <div className="p-4 bg-gilded-darker border border-amber-500/30 rounded-lg">
                   <label className="block text-sm text-gilded-muted mb-2">
-                    Rejection Reason
+                    What needs to change
                   </label>
                   <textarea
-                    value={rejectReason}
-                    onChange={(e) => setRejectReason(e.target.value)}
+                    value={denyReason}
+                    onChange={(e) => setDenyReason(e.target.value)}
                     className="w-full px-3 py-2 bg-gilded-dark border border-gilded-border rounded-lg text-gilded-light text-sm"
                     rows={3}
-                    placeholder="Enter reason for rejection..."
+                    placeholder="e.g. The permit expired on 30 June — upload the current one."
                   />
-                  <div className="flex gap-2 mt-2">
+                  <p className="text-xs text-gilded-muted mt-2">
+                    The shop sees this and can re-upload immediately. Denying a
+                    document does not close the application.
+                  </p>
+                  <div className="flex gap-2 mt-3">
                     <button
-                      onClick={() => { handleVerify(viewingDoc.id, 'REJECTED'); setViewingDoc(null); }}
-                      disabled={!rejectReason.trim()}
-                      className="px-4 py-1.5 bg-red-500 text-white rounded-lg text-sm font-medium disabled:opacity-50"
+                      onClick={() => { handleVerify(viewingDoc.id, 'DENIED'); setViewingDoc(null); }}
+                      disabled={!denyReason.trim()}
+                      className="px-4 py-1.5 bg-amber-500 text-gilded-darker rounded-lg text-sm font-semibold disabled:opacity-50"
                     >
-                      Confirm Reject
+                      Confirm &amp; Notify
                     </button>
                     <button
                       onClick={() => {
-                        setDocRejectOpen(false);
-                        setRejectReason('');
+                        setDocDenyOpen(false);
+                        setDenyReason('');
                       }}
                       className="px-4 py-1.5 bg-gilded-dark border border-gilded-border rounded-lg text-gilded-light text-sm"
                     >
@@ -1060,12 +1068,12 @@ export default function SuperAdminComplianceOverview() {
                   Approve
                 </button>
                 <button
-                  onClick={() => setDocRejectOpen(true)}
+                  onClick={() => setDocDenyOpen(true)}
                   disabled={verifyingId === viewingDoc.id}
-                  className="flex items-center gap-1.5 px-4 py-2 bg-red-500/10 text-red-400 rounded-lg hover:bg-red-500/20 transition-colors disabled:opacity-50 text-sm font-medium"
+                  className="flex items-center gap-1.5 px-4 py-2 bg-amber-500/10 text-amber-400 rounded-lg hover:bg-amber-500/20 transition-colors disabled:opacity-50 text-sm font-medium"
                 >
                   <XCircle className="w-4 h-4" />
-                  Reject
+                  Deny &amp; request re-upload
                 </button>
               </div>
             </div>

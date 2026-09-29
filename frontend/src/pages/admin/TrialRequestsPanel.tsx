@@ -157,7 +157,9 @@ export function TrialRequestsPanel() {
   const openPreviewAndMarkViewed = async (doc: RegDocument) => {
     setPreviewDoc(doc);
     const normalized = (doc.status ?? '').toUpperCase();
-    if (normalized === 'VERIFIED' || normalized === 'REJECTED') return;
+    // DENIED is the current document status; REJECTED is a pre-migration row.
+    // Either way the document is finalized, so re-marking a view is pointless.
+    if (normalized === 'VERIFIED' || normalized === 'DENIED' || normalized === 'REJECTED') return;
     try {
       await api.post(`/tenant-governance/client-registrations/${selectedRequest?.id}/documents/${doc.id}/view`);
       setViewedDocIds((prev) => new Set(prev).add(doc.id));
@@ -177,11 +179,16 @@ export function TrialRequestsPanel() {
       await api.post(`/tenant-governance/client-registrations/${selectedRequest.id}/documents/${documentId}/review`, {
         decision,
       });
-      showToast(`Document ${decision.toLowerCase()}.`, 'success');
+      showToast(
+        decision === 'APPROVED'
+          ? 'Document verified.'
+          : 'Document not approved. The shop has been asked to re-upload.',
+        'success',
+      );
       await loadDocuments(selectedRequest.id);
       setPreviewDoc((prev) =>
         prev && prev.id === documentId
-          ? { ...prev, status: decision === 'APPROVED' ? 'VERIFIED' : 'REJECTED' }
+          ? { ...prev, status: decision === 'APPROVED' ? 'VERIFIED' : 'DENIED' }
           : prev,
       );
     } catch (err: unknown) {

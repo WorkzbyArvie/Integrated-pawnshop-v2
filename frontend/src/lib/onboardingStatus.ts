@@ -1,5 +1,21 @@
 export type OnboardingOverall = 'INCOMPLETE' | 'PENDING_REVIEW' | 'ACTION_REQUIRED' | 'APPROVED';
 
+/**
+ * Both comparisons below are case-insensitive over a raw database value, which
+ * makes them the two places a status rename breaks *silently*.
+ *
+ * A stale literal does not throw. `rejectedDocumentCount` returns 0, the owner
+ * dashboard stops showing that anything needs attention, and
+ * `canApproveDocument` returns true for a document that was already denied -
+ * which re-opens a finalized decision. The enum value is `DENIED`; these match
+ * on it deliberately and are covered by onboardingStatus.test.ts.
+ */
+const DENIED_STATUSES = new Set(['DENIED', 'REJECTED']);
+
+function isDeniedStatus(status: string | null | undefined): boolean {
+  return DENIED_STATUSES.has((status ?? '').toUpperCase());
+}
+
 export function canApproveDocument(
   docStatus: string | null | undefined,
   serverViewed: boolean | null | undefined,
@@ -7,7 +23,7 @@ export function canApproveDocument(
   documentId: string,
 ): boolean {
   const normalized = (docStatus ?? '').toUpperCase();
-  if (normalized === 'VERIFIED' || normalized === 'REJECTED') {
+  if (normalized === 'VERIFIED' || isDeniedStatus(normalized)) {
     return false;
   }
   return Boolean(serverViewed) || viewedDocIds.has(documentId);
@@ -28,6 +44,6 @@ export function overallLabel(overall: string | null | undefined): string {
   return 'Incomplete';
 }
 
-export function rejectedDocumentCount(docs: Array<{ status?: string | null }>): number {
-  return docs.filter((d) => (d.status ?? '').toUpperCase() === 'REJECTED').length;
+export function deniedDocumentCount(docs: Array<{ status?: string | null }>): number {
+  return docs.filter((d) => isDeniedStatus(d.status)).length;
 }

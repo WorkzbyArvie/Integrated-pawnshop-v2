@@ -290,7 +290,9 @@ describe('TenantGovernanceService', () => {
       expect(prisma.$queryRaw).toHaveBeenCalledTimes(2);
     });
 
-    it('allows REJECTED without viewing', async () => {
+    it('allows a denial without viewing', async () => {
+      // The decision input stays 'REJECTED' - that is the reviewer's verb on the
+      // request. What gets written to the document is DENIED, the document state.
       prisma.$queryRaw
         .mockResolvedValueOnce([{ id: DOC_ID, status: 'UPLOADED', has_viewed: false }])
         .mockResolvedValueOnce(undefined);
@@ -299,7 +301,7 @@ describe('TenantGovernanceService', () => {
         decision: 'REJECTED',
       });
 
-      expect(result).toEqual({ success: true, status: 'REJECTED' });
+      expect(result).toEqual({ success: true, status: 'DENIED' });
       expect(prisma.$queryRaw).toHaveBeenCalledTimes(2);
     });
 
@@ -331,11 +333,15 @@ describe('TenantGovernanceService', () => {
       });
     });
 
-    it('maps any REJECTED document to ACTION_REQUIRED and passes rejection_reason through', async () => {
+    it('maps any DENIED document to ACTION_REQUIRED and passes denial_reason through', async () => {
+      // This is the aggregation that silently broke last time a status was
+      // renamed: the comparison is case-insensitive over the raw column, so a
+      // stale literal would stop flagging denied documents and the owner would
+      // be told everything is merely pending review.
       const docs = requiredTypes.map((t, i) => ({
         document_type: t,
-        status: i === 0 ? 'REJECTED' : 'VERIFIED',
-        rejection_reason: i === 0 ? 'blurry photo' : null,
+        status: i === 0 ? 'DENIED' : 'VERIFIED',
+        denial_reason: i === 0 ? 'blurry photo' : null,
       }));
       prisma.$queryRaw
         .mockResolvedValueOnce([{ id: REQ_ID, status: 'PENDING' }])
@@ -345,11 +351,9 @@ describe('TenantGovernanceService', () => {
 
       expect(result.overall).toBe('ACTION_REQUIRED');
       expect(result.submissionStatus).toBe('PENDING');
-      const rejectedDoc = result.documents.find(
-        (d: any) => d.status === 'REJECTED',
-      );
-      expect(rejectedDoc.document_type).toBe(requiredTypes[0]);
-      expect(rejectedDoc.rejection_reason).toBe('blurry photo');
+      const deniedDoc = result.documents.find((d: any) => d.status === 'DENIED');
+      expect(deniedDoc.document_type).toBe(requiredTypes[0]);
+      expect(deniedDoc.denial_reason).toBe('blurry photo');
     });
 
     it('reports INCOMPLETE when a required document type is missing', async () => {

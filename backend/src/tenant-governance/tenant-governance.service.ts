@@ -1444,7 +1444,7 @@ export class TenantGovernanceService {
     }
 
     const docs = await this.prisma.$queryRaw<Array<Record<string, unknown>>>`
-      SELECT document_type, status, rejection_reason
+      SELECT document_type, status, denial_reason
       FROM public.pawnshop_documents
       WHERE registration_request_id = ${(pickedRow as any).id}::uuid
     `;
@@ -1458,10 +1458,13 @@ export class TenantGovernanceService {
     );
 
     let overall = 'PENDING_REVIEW';
-    const hasRejected = docRows.some(
-      (d) => String((d as any).status).toUpperCase() === 'REJECTED',
+    // Reads the compliance document enum, which carries DENIED, not REJECTED.
+    // Three other enums in this schema still say REJECTED and are deliberately
+    // untouched; this comparison is over pawnshop_documents.status only.
+    const hasDenied = docRows.some(
+      (d) => String((d as any).status).toUpperCase() === 'DENIED',
     );
-    if (hasRejected) {
+    if (hasDenied) {
       overall = 'ACTION_REQUIRED';
     } else {
       const missingRequiredType = [...requiredTypes].some(
@@ -1483,7 +1486,7 @@ export class TenantGovernanceService {
       documents: docRows.map((d) => ({
         document_type: String((d as any).document_type),
         status: String((d as any).status),
-        rejection_reason: (d as any).rejection_reason ?? null,
+        denial_reason: (d as any).denial_reason ?? null,
       })),
       submissionStatus: String((pickedRow as any).status).toUpperCase(),
     };
@@ -2176,7 +2179,7 @@ export class TenantGovernanceService {
     }
 
     const currentStatus = String((docRows[0] as any).status).toUpperCase();
-    if (currentStatus === 'VERIFIED' || currentStatus === 'REJECTED') {
+    if (currentStatus === 'VERIFIED' || currentStatus === 'DENIED') {
       throw new BadRequestException(`Document has already been ${currentStatus.toLowerCase()}.`);
     }
 
@@ -2184,13 +2187,13 @@ export class TenantGovernanceService {
       throw new BadRequestException('Document must be viewed before it can be approved.');
     }
 
-    const newStatus = dto.decision === 'APPROVED' ? 'VERIFIED' : 'REJECTED';
+    const newStatus = dto.decision === 'APPROVED' ? 'VERIFIED' : 'DENIED';
     const reason = dto.decision === 'REJECTED' ? (dto.rejectionReason || null) : null;
 
     await this.prisma.$queryRaw`
       UPDATE public.pawnshop_documents
       SET status = ${newStatus}::"ComplianceDocStatus",
-          rejection_reason = ${reason},
+          denial_reason = ${reason},
           verified_by = ${actorUserId}::uuid,
           verified_at = NOW(),
           updated_at = NOW()

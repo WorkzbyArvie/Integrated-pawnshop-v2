@@ -1810,7 +1810,7 @@ enum ComplianceDocStatus {
   UPLOADED
   UNDER_REVIEW
   VERIFIED
-  REJECTED
+  DENIED
   EXPIRED
   @@schema("public")
 }
@@ -1825,7 +1825,7 @@ model PawnshopDocument {
   fileSize        Int?               @map("file_size")
   status          ComplianceDocStatus @default(UPLOADED)
   expiryDate      DateTime?          @map("expiry_date")
-  rejectionReason String?            @map("rejection_reason")
+  denialReason    String?            @map("denial_reason")
   verifiedBy      String?            @map("verified_by") @db.Uuid
   verifiedAt      DateTime?          @map("verified_at")
   uploadedBy      String             @map("uploaded_by") @db.Uuid

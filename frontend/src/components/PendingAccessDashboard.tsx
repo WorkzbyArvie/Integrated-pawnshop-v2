@@ -2,7 +2,7 @@ import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Clock3, KeyRound, MessageSquare, RefreshCcw, Send, Upload, FileCheck, AlertCircle, LogOut } from 'lucide-react';
 import api from '../lib/apiClient';
-import { overallLabel, overallTone, rejectedDocumentCount } from '../lib/onboardingStatus';
+import { overallLabel, overallTone, deniedDocumentCount } from '../lib/onboardingStatus';
 import { useToast } from '../App';
 import { supabase } from '../lib/supabaseClient';
 
@@ -164,7 +164,7 @@ export function PendingAccessDashboard({
         '/tenant-governance/client-registrations/me/status',
       );
       setStatusSummary({ overall: res.overall, submissionStatus: res.submissionStatus });
-      setRejectedCount(rejectedDocumentCount(res.documents ?? []));
+      setRejectedCount(deniedDocumentCount(res.documents ?? []));
     } catch {
       setStatusSummary((prev) => prev);
     }

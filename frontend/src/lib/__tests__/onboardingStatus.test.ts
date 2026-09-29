@@ -4,7 +4,7 @@ import {
   canApproveDocument,
   overallLabel,
   overallTone,
-  rejectedDocumentCount,
+  deniedDocumentCount,
 } from '../onboardingStatus';
 
 describe('canApproveDocument', () => {
@@ -12,12 +12,20 @@ describe('canApproveDocument', () => {
     expect(canApproveDocument('VERIFIED', true, new Set(['doc-1']), 'doc-1')).toBe(false);
   });
 
-  it('returns false for REJECTED docs even when already viewed', () => {
+  it('returns false for DENIED docs even when already viewed', () => {
+    // The important one. A stale literal here does not throw - it makes an
+    // already-denied document look approvable again, re-opening a decision a
+    // Super Admin already made.
+    expect(canApproveDocument('DENIED', true, new Set(['doc-1']), 'doc-1')).toBe(false);
+  });
+
+  it('still refuses a pre-migration REJECTED doc', () => {
     expect(canApproveDocument('REJECTED', true, new Set(['doc-1']), 'doc-1')).toBe(false);
   });
 
   it('treats status case-insensitively for finalized docs', () => {
     expect(canApproveDocument('verified', true, new Set(['doc-1']), 'doc-1')).toBe(false);
+    expect(canApproveDocument('denied', true, new Set(['doc-1']), 'doc-1')).toBe(false);
     expect(canApproveDocument('rejected', true, new Set(['doc-1']), 'doc-1')).toBe(false);
   });
 
@@ -103,23 +111,31 @@ describe('overallLabel', () => {
   });
 });
 
-describe('rejectedDocumentCount', () => {
-  it('counts only REJECTED documents case-insensitively', () => {
+describe('deniedDocumentCount', () => {
+  it('counts only denied documents, case-insensitively', () => {
     const docs = [
-      { status: 'REJECTED' },
+      { status: 'DENIED' },
       { status: 'VERIFIED' },
-      { status: 'rejected' },
+      { status: 'denied' },
       { status: 'UPLOADED' },
-      { status: 'Rejected' },
+      { status: 'Denied' },
     ];
-    expect(rejectedDocumentCount(docs)).toBe(3);
+    expect(deniedDocumentCount(docs)).toBe(3);
+  });
+
+  it('still counts a pre-migration REJECTED row rather than dropping it', () => {
+    // A denial that exists in the database but no longer matches the current
+    // literal would silently vanish from the owner's "needs attention" count.
+    // The rename migration rewrites existing rows, so this should be empty in
+    // practice - but if it is ever not, counting it is the safe direction.
+    expect(deniedDocumentCount([{ status: 'REJECTED' }, { status: 'Rejected' }])).toBe(2);
   });
 
   it('returns 0 for an empty array', () => {
-    expect(rejectedDocumentCount([])).toBe(0);
+    expect(deniedDocumentCount([])).toBe(0);
   });
 
   it('returns 0 when statuses are null or undefined', () => {
-    expect(rejectedDocumentCount([{ status: null }, { status: undefined }, {}])).toBe(0);
+    expect(deniedDocumentCount([{ status: null }, { status: undefined }, {}])).toBe(0);
   });
 });

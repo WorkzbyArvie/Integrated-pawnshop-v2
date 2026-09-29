@@ -213,8 +213,8 @@ export default function ComplianceExpiryRegister({ isSuperAdmin = false }: { isS
                           <p className="text-[11px] text-gilded-muted truncate">
                             {d.status === 'NOT_UPLOADED'
                               ? 'Not uploaded'
-                              : d.status === 'REJECTED'
-                              ? 'Rejected'
+                              : d.status === 'DENIED' || d.status === 'REJECTED'
+                              ? 'Not approved — re-upload'
                               : d.fileName || d.status.replace(/_/g, ' ')}
                           </p>
                         </div>

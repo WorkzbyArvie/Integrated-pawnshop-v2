@@ -122,7 +122,21 @@ describe('ComplianceGuard verification gate', () => {
     await expect(guard.canActivate(makeContext())).rejects.toThrow(/Mayor's Permit/);
   });
 
-  it('blocks on a rejected document', async () => {
+  it('blocks on a denied document', async () => {
+    documents = ALL_REQUIRED.map((documentType) => ({
+      documentType,
+      status: documentType === 'BSP_LICENSE' ? 'DENIED' : 'VERIFIED',
+      expiryDate: days(365),
+      createdAt: ago(1),
+    }));
+
+    await expect(guard.canActivate(makeContext())).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it('still blocks a pre-migration REJECTED row', async () => {
+    // If the rename migration has not run everywhere, a stale row must not
+    // become an accidental pass. The guard tests for anything that is not
+    // VERIFIED, so this holds for both spellings.
     documents = ALL_REQUIRED.map((documentType) => ({
       documentType,
       status: documentType === 'BSP_LICENSE' ? 'REJECTED' : 'VERIFIED',

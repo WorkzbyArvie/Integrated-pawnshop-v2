@@ -52,7 +52,7 @@ export class ComplianceService {
 
     if (existing) {
       throw new BadRequestException(
-        `A ${dto.documentType} document is already pending review. Wait for verification or rejection before uploading a new one.`,
+        `A ${dto.documentType} document is already pending review. Wait for a decision before uploading a replacement.`,
       );
     }
 
@@ -139,7 +139,7 @@ export class ComplianceService {
     pawnshopId: string | null,
     documentType: string,
     status: ComplianceDocStatus,
-    rejectionReason?: string,
+    denialReason?: string,
   ): Promise<void> {
     if (!pawnshopId) return;
     try {
@@ -150,10 +150,14 @@ export class ComplianceService {
       if (owners.length === 0) return;
 
       const label = documentType.replace(/_/g, ' ').toLowerCase();
-      const rejected = status === 'REJECTED';
-      const title = rejected ? 'Document rejected' : 'Document verified';
-      const body = rejected
-        ? `Your ${label} was rejected${rejectionReason ? `: ${rejectionReason}` : '.'} Upload a corrected document.`
+      const denied = status === 'DENIED';
+      // A denial is a state the document is in with a way out of it. Say what
+      // to do next in the notification itself rather than leaving the shop to
+      // infer it - the notification is the thing they will actually read.
+      const title = denied ? 'Document needs attention' : 'Document verified';
+      const body = denied
+        ? `Your ${label} was not approved${denialReason ? `: ${denialReason}` : '.'} ` +
+          `Upload a corrected copy and it will be reviewed again.`
         : `Your ${label} was verified by a Super Admin.`;
 
       await Promise.all(
@@ -168,7 +172,8 @@ export class ComplianceService {
               documentType,
               pawnshopId,
               status,
-              rejectionReason: rejectionReason ?? null,
+              denialReason: denialReason ?? null,
+              actionRequired: denied,
             },
           }),
         ),
@@ -259,7 +264,7 @@ export class ComplianceService {
         status: dto.status,
         verifiedBy: userId,
         verifiedAt: new Date(),
-        rejectionReason: dto.rejectionReason || null,
+        denialReason: dto.denialReason || null,
       },
     });
 
@@ -267,7 +272,7 @@ export class ComplianceService {
       document.pawnshopId,
       document.documentType,
       dto.status,
-      dto.rejectionReason,
+      dto.denialReason,
     );
 
     return updated;
@@ -337,16 +342,16 @@ export class ComplianceService {
     const updated = await this.prisma.pawnshopDocument.update({
       where: { id: documentId },
       data: {
-        status: 'REJECTED',
+        status: 'DENIED',
         verifiedAt: null,
-        rejectionReason:
+        denialReason:
           document.status === 'EXPIRED'
             ? 'Document has expired. Please upload a renewed copy.'
             : 'Renewal requested by platform. Please upload a new, updated copy of this document.',
       },
     });
 
-    await this.notifyOwnerDocumentReplacement(document.pawnshopId, document.documentType, updated.rejectionReason);
+    await this.notifyOwnerDocumentReplacement(document.pawnshopId, document.documentType, updated.denialReason);
 
     return updated;
   }
@@ -526,7 +531,7 @@ export class ComplianceService {
         fileSize: true,
         hasViewed: true,
         status: true,
-        rejectionReason: true,
+        denialReason: true,
         createdAt: true,
         pawnshop: {
           select: { id: true, name: true, ownerEmail: true },
