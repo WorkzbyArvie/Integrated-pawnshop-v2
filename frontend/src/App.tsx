@@ -1038,14 +1038,15 @@ function App() {
       }
 
       try {
-        const { data, error } = await supabase
-          .from('branch')
-          .select('name')
-          .eq('id', activeOperationalBranchId)
-          .maybeSingle();
-
-        if (error) throw error;
-        setActiveOperationalBranchName(data?.name || null);
+        // Resolved from the tenant-scoped branch list rather than read by id.
+        // `activeOperationalBranchId` comes from localStorage, so a direct read
+        // by that id returned the name of any branch in the database.
+        const response = await api.get<BranchListResponse>('/tenant-governance/branches', {
+          pawnshopId: currentBranchId ?? undefined,
+        });
+        const branches = Array.isArray(response?.branches) ? response.branches : [];
+        const match = branches.find((b) => b.id === activeOperationalBranchId);
+        setActiveOperationalBranchName(match?.name ?? null);
       } catch {
         setActiveOperationalBranchName(null);
       }
