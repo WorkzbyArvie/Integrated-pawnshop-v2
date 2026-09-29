@@ -56,11 +56,16 @@ describe('AnalyticsService', () => {
     beforeEach(() => {
       prismaMock.customer.count.mockResolvedValue(10);
       prismaMock.ticket.count.mockResolvedValue(3);
-      prismaMock.ticket.aggregate.mockImplementation((args: any) =>
-        args?._sum?.interestRate !== undefined
-          ? Promise.resolve({ _sum: { interestRate: 3.5 * 3 } })
-          : Promise.resolve({ _sum: { loanAmount: 1000 } }),
-      );
+      prismaMock.ticket.aggregate.mockResolvedValue({ _sum: { loanAmount: 1000 } });
+      // Interest is summed per ticket now, so the aggregate on `interestRate` is
+      // gone from the query. The fixtures used to model it as a summed rate,
+      // which is what hid the fact that summing rates and multiplying once by
+      // total principal is not an average.
+      prismaMock.ticket.findMany.mockResolvedValue([
+        { loanAmount: 400, interestRate: 0.035 },
+        { loanAmount: 300, interestRate: 0.035 },
+        { loanAmount: 300, interestRate: 0.035 },
+      ] as any);
     });
 
     it('scopes every aggregate to the caller shop', async () => {
@@ -94,7 +99,54 @@ describe('AnalyticsService', () => {
 
       expect(result).not.toHaveProperty('interestEarned');
       expect(result).not.toHaveProperty('growth');
-      expect(result.projectedInterest).toBeCloseTo((1000 * 10.5) / 100, 5);
+      // 1000 * 0.035 = 35. The old expression was (1000 * 10.5) / 100 = 105:
+      // a summed rate multiplied by total principal, then divided by 100 as if
+      // the column were a percentage when it is a fraction.
+      expect(result.projectedInterest).toBeCloseTo(35, 5);
+    });
+
+    it('does not treat a sum of rates as an average', async () => {
+      // The scaling bug. Three tickets at 3.5% summed to 10.5 and were then
+      // multiplied by total principal, so a PHP 1,000 portfolio reported PHP 105
+      // of monthly interest against a true PHP 35 - and the error grew with the
+      // number of tickets, not with the money.
+      const result = await service.getDashboardStats(shopActor());
+      expect(result.projectedInterest).toBeCloseTo(35, 5);
+    });
+
+    it('accrues each ticket at its own rate', async () => {
+      // A shop pricing two of its loans at 2% must not be shown the 3.5% figure.
+      prismaMock.ticket.findMany.mockResolvedValue([
+        { loanAmount: 10_000, interestRate: 0.02 },
+        { loanAmount: 10_000, interestRate: 0.035 },
+      ] as any);
+
+      const result = await service.getDashboardStats(shopActor());
+      expect(result.projectedInterest).toBeCloseTo(550, 5);
+    });
+
+    it('is unaffected by how many tickets there are', async () => {
+      // Same money, same rate, split differently. Interest accrues on principal,
+      // so the figure must not move with the ticket count.
+      prismaMock.ticket.findMany.mockResolvedValue([
+        { loanAmount: 1000, interestRate: 0.035 },
+      ] as any);
+      const one = await service.getDashboardStats(shopActor());
+
+      prismaMock.ticket.findMany.mockResolvedValue([
+        { loanAmount: 500, interestRate: 0.035 },
+        { loanAmount: 500, interestRate: 0.035 },
+      ] as any);
+      const two = await service.getDashboardStats(shopActor());
+
+      expect(two.projectedInterest).toBeCloseTo(one.projectedInterest, 5);
+    });
+
+    it('bounds the per-ticket read', async () => {
+      await service.getDashboardStats(shopActor());
+      expect(prismaMock.ticket.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { pawnshopId: expect.any(String), status: 'ACTIVE' } }),
+      );
     });
 
     it('refuses an account with no tenant rather than returning a platform total', async () => {

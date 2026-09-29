@@ -28,6 +28,7 @@ import {
   toCentavos,
 } from '../finance/interest';
 import {
+  HIGH_RISK_THRESHOLD,
   appraise,
   assessRisk,
   normalizePurity,
@@ -236,6 +237,14 @@ export class PawnTicketService {
     const ticketNumber = `TKT-${Math.floor(Date.now() / 1000)}`;
     const expiryDate = new Date(dto.appraisalDeadline);
 
+    // The shop's own rates, so the rate written on the ticket is the one the
+    // branch actually prices at rather than a platform constant.
+    const shop = await this.prisma.pawnshop.findUnique({
+      where: { id: dto.pawnshopId },
+      select: { settings: true },
+    });
+    const moneyRates = resolveRates(shop?.settings);
+
     if (isNaN(expiryDate.getTime())) {
       throw new Error(`Invalid appraisalDeadline date: ${dto.appraisalDeadline}`);
     }
@@ -244,7 +253,9 @@ export class PawnTicketService {
       ? `${dto.itemDescription}\n\n[PHOTO_URLS] ${JSON.stringify(dto.photoUrls)}`
       : dto.itemDescription;
 
-    const isHighRisk = (dto.riskScore ?? 0) > 40;
+    // The scorer publishes these thresholds; a bare 40 here was a second,
+    // silently divergent copy of the same boundary.
+    const isHighRisk = (dto.riskScore ?? 0) >= HIGH_RISK_THRESHOLD;
 
     let ticket: any;
     try {
@@ -262,7 +273,13 @@ export class PawnTicketService {
           status: 'PENDING',
           lifecycleStatus: 'RECEIVED',
           isHighRisk,
-          interestRate: 3.5,
+          // The shop's configured rate, as a FRACTION. This was hardcoded to 3.5
+          // — a percentage — into a column that stores a fraction, so every POS
+          // ticket recorded 350% interest and a redemption priced off that
+          // column would have demanded 3.5x principal. The per-shop rate is
+          // resolved the same way as everywhere else; see
+          // DEFAULT_MONTHLY_INTEREST_RATE for the units.
+          interestRate: moneyRates.monthlyInterestRate,
         },
       });
     } catch (err: any) {

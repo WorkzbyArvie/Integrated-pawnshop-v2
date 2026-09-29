@@ -38,6 +38,27 @@ interface RedemptionItem {
   loyaltyTier: string;
 }
 
+/**
+ * Settlement figures as the server prices them.
+ *
+ * These used to be computed in this file as `principal * 0.03` plus a flat
+ * PHP 50 fee, then displayed *and* sent as `amountPaid`. Two problems: loans
+ * were being issued at 3.5%, so the branch absorbed the difference on every
+ * redemption; and P.D. 114 Section 10 caps the service fee at the lesser of 1%
+ * of principal and PHP 5, so the flat 50 was up to ten times the legal maximum.
+ * A ticket is money already owed, so the figure comes from the loan.
+ */
+interface RedemptionQuote {
+  ticketId: number;
+  ticketNumber: string;
+  principal: number;
+  interest: number;
+  serviceFee: number;
+  total: number;
+  interestRate: number;
+  daysUntilForfeiture: number | null;
+}
+
 /** Row shape returned by `GET /tickets`; camelCase from Prisma. */
 interface ApiTicket {
   id: number;
@@ -58,6 +79,11 @@ export function Redemption({ branchId, activeBranchId }: RedemptionProps) {
   const [isFetching, setIsFetching] = useState(true);
   const [redeemedTicketId, setRedeemedTicketId] = useState<string | null>(null);
   const [showReceipt, setShowReceipt] = useState(false);
+  // Priced by the server when a ticket is selected, not in this file. Null
+  // while the quote is in flight, which the panel renders rather than showing a
+  // figure that has not been confirmed.
+  const [quote, setQuote] = useState<RedemptionQuote | null>(null);
+  const [isQuoting, setIsQuoting] = useState(false);
 
   const { showToast } = useToast();
 
@@ -117,13 +143,43 @@ export function Redemption({ branchId, activeBranchId }: RedemptionProps) {
   useEffect(() => {
     fetchVault();
     setSelectedItem(null); // Clear selection if branch changes
+    setQuote(null);
   }, [branchId, activeBranchId]);
 
+  /**
+   * Price a settlement on the server, on selection.
+   *
+   * The quote is fetched when the row is picked rather than when the screen
+   * mounts, so a stale figure cannot survive a rate change between viewing the
+   * list and settling the ticket.
+   */
+  const selectTicket = async (item: RedemptionItem) => {
+    setSelectedItem(item);
+    setQuote(null);
+    setIsQuoting(true);
+    try {
+      const priced = await api.post<RedemptionQuote>('/appraisal/redemption-quote', {
+        ticketId: Number(item.id),
+      });
+      setQuote(priced);
+    } catch (err: unknown) {
+      showToast(
+        `Could not price this ticket: ${err instanceof Error ? err.message : String(err)}`,
+        'error',
+      );
+      setSelectedItem(null);
+    } finally {
+      setIsQuoting(false);
+    }
+  };
+
   const handleRedeem = async (id: string) => {
-    if (!selectedItem) return;
+    // No quote means no figure to charge, and the release button stays disabled
+    // until one arrives - the client is not allowed to invent the total.
+    if (!selectedItem || !quote) return;
     const confirm = await Swal.fire({
       title: 'Confirm Action',
-      text: `Authorize release for ticket ${selectedItem.ticketId}? Total due: ${formatCurrency(calculateTotal(selectedItem.loanAmount).total)}`,
+      text: `Authorize release for ticket ${selectedItem.ticketId}? Total due: ${formatCurrency(quote.total)}`,
       icon: 'question',
       showCancelButton: true,
       confirmButtonColor: '#C9A05C',
@@ -135,14 +191,35 @@ export function Redemption({ branchId, activeBranchId }: RedemptionProps) {
     
     setIsLoading(true);
     try {
-      const totalDue = calculateTotal(selectedItem.loanAmount).total;
+      // The quoted total, re-read from the server at settlement time. If the
+      // shop's rates changed since the quote was taken, the branch is warned
+      // rather than silently charging the old figure.
+      const finalQuote = await api.post<RedemptionQuote>('/appraisal/redemption-quote', {
+        ticketId: Number(id),
+      });
+
+      if (Math.abs(finalQuote.total - quote.total) > 0.01) {
+        const proceed = await Swal.fire({
+          title: 'Amount changed',
+          html: `The settlement total is now <b>${formatCurrency(finalQuote.total)}</b>, was ${formatCurrency(quote.total)}.<br/>Release at the new amount?`,
+          icon: 'warning',
+          showCancelButton: true,
+          confirmButtonColor: '#C9A05C',
+          cancelButtonColor: '#8A8279',
+          confirmButtonText: 'Release at new amount',
+          cancelButtonText: 'Cancel',
+        });
+        if (!proceed.isConfirmed) return;
+        setQuote(finalQuote);
+      }
+
       const res = await api.post<{
         requiresApproval?: boolean;
         approvalId?: string;
         message?: string;
       }>(
         `/pawn-tickets/${id}/redeem`,
-        { amountPaid: totalDue, paymentMethod: 'CASH', notes: `In-person redemption` }
+        { amountPaid: finalQuote.total, paymentMethod: 'CASH', notes: `In-person redemption` }
       );
 
       if (res?.requiresApproval) {
@@ -151,15 +228,17 @@ export function Redemption({ branchId, activeBranchId }: RedemptionProps) {
           "success",
         );
         setSelectedItem(null);
+        setQuote(null);
         void fetchVault();
         return;
       }
 
-      showToast(`Ticket #${selectedItem.ticketId} redeemed! ${formatCurrency(totalDue)} collected.`, "success");
+      showToast(`Ticket #${selectedItem.ticketId} redeemed! ${formatCurrency(finalQuote.total)} collected.`, "success");
       setItems(prev => prev.filter(item => item.id !== id));
       setRedeemedTicketId(id);
       setShowReceipt(true);
       setSelectedItem(null);
+      setQuote(null);
       
     } catch (error: any) {
       console.error("Redemption failed:", error);
@@ -167,16 +246,6 @@ export function Redemption({ branchId, activeBranchId }: RedemptionProps) {
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const calculateTotal = (principal: number) => {
-    const interest = principal * 0.03; // 3% matches DB interestRate default
-    const serviceFee = 50;
-    return {
-      interest,
-      serviceFee,
-      total: principal + interest + serviceFee
-    };
   };
 
   const filteredItems = items.filter(item => 
@@ -248,7 +317,7 @@ export function Redemption({ branchId, activeBranchId }: RedemptionProps) {
                       <td className="px-8 py-6 font-black text-[#F5F0E8]">{formatCurrency(item.loanAmount)}</td>
                       <td className="px-8 py-6 text-right">
                         <button 
-                          onClick={() => setSelectedItem(item)} 
+                          onClick={() => selectTicket(item)} 
                           className="bg-slate-900 text-white px-5 py-2.5 rounded-xl text-[10px] font-black uppercase hover:bg-blue-600 transition-all"
                         >
                           Calculate
@@ -285,29 +354,47 @@ export function Redemption({ branchId, activeBranchId }: RedemptionProps) {
               </div>
               
               <div className="space-y-4 mb-10">
-                <div className="flex justify-between items-center pb-4 border-b border-white/5">
-                  <span className="text-[10px] font-black text-[#8A8279] uppercase">Principal</span>
-                  <span className="font-bold text-lg">{formatCurrency(selectedItem.loanAmount)}</span>
-                </div>
-                <div className="flex justify-between items-center pb-4 border-b border-white/5">
-                  <span className="text-[10px] font-black text-[#8A8279] uppercase">Interest (3%)</span>
-                  <span className="font-bold text-blue-400">+ {formatCurrency(calculateTotal(selectedItem.loanAmount).interest)}</span>
-                </div>
-                <div className="flex justify-between items-center pb-4 border-b border-white/5">
-                  <span className="text-[10px] font-black text-[#8A8279] uppercase">Service Fee</span>
-                  <span className="font-bold text-blue-400">+ {formatCurrency(50)}</span>
-                </div>
-                <div className="pt-6 flex justify-between items-end">
-                  <span className="text-[10px] font-black text-blue-400 uppercase mb-2">Total Due</span>
-                  <span className="text-4xl font-black italic tracking-tighter">
-                    {formatCurrency(calculateTotal(selectedItem.loanAmount).total)}
-                  </span>
-                </div>
+                {isQuoting || !quote ? (
+                  <div className="flex items-center justify-center gap-3 py-10">
+                    <Loader2 className="animate-spin w-5 h-5 text-blue-400" />
+                    <span className="text-[10px] font-black text-[#8A8279] uppercase tracking-widest">
+                      Pricing settlement
+                    </span>
+                  </div>
+                ) : (
+                  <>
+                    <div className="flex justify-between items-center pb-4 border-b border-white/5">
+                      <span className="text-[10px] font-black text-[#8A8279] uppercase">Principal</span>
+                      <span className="font-bold text-lg">{formatCurrency(quote.principal)}</span>
+                    </div>
+                    <div className="flex justify-between items-center pb-4 border-b border-white/5">
+                      <span className="text-[10px] font-black text-[#8A8279] uppercase">
+                        Interest ({quote.interestRate.toFixed(2)}%)
+                      </span>
+                      <span className="font-bold text-blue-400">+ {formatCurrency(quote.interest)}</span>
+                    </div>
+                    <div className="flex justify-between items-center pb-4 border-b border-white/5">
+                      <span className="text-[10px] font-black text-[#8A8279] uppercase">
+                        Service Fee
+                        <span className="block normal-case tracking-normal text-[9px] text-[#5C574F] mt-0.5">
+                          P.D. 114 s.10 — lesser of 1% and &#8369;5
+                        </span>
+                      </span>
+                      <span className="font-bold text-blue-400">+ {formatCurrency(quote.serviceFee)}</span>
+                    </div>
+                    <div className="pt-6 flex justify-between items-end">
+                      <span className="text-[10px] font-black text-blue-400 uppercase mb-2">Total Due</span>
+                      <span className="text-4xl font-black italic tracking-tighter">
+                        {formatCurrency(quote.total)}
+                      </span>
+                    </div>
+                  </>
+                )}
               </div>
 
               <button 
                 onClick={() => handleRedeem(selectedItem.id)}
-                disabled={isLoading}
+                disabled={isLoading || isQuoting || !quote}
                 className="w-full py-5 bg-blue-600 text-white hover:bg-[#C9A05C] hover:text-[#0A0A0F] rounded-[2rem] font-black uppercase text-xs transition-all flex items-center justify-center gap-3 disabled:opacity-50"
               >
                 {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <PackageCheck className="w-5 h-5" />}
@@ -315,7 +402,7 @@ export function Redemption({ branchId, activeBranchId }: RedemptionProps) {
               </button>
               
               <button 
-                onClick={() => setSelectedItem(null)}
+                onClick={() => { setSelectedItem(null); setQuote(null); }}
                 className="w-full mt-4 py-2 text-[#8A8279] font-black uppercase text-[10px] hover:text-white transition-colors"
               >
                 Cancel

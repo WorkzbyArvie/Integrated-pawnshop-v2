@@ -1,5 +1,6 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
+import { toCentavos } from '../finance/interest';
 
 /** Identity attached to the request by `RbacGuard`. */
 export interface AnalyticsActor {
@@ -116,16 +117,6 @@ export class AnalyticsService {
       countsByStatus[key] = (countsByStatus[key] ?? 0) + 1;
     }
 
-    const totals = tickets.reduce(
-      (acc, ticket) => {
-        acc.loanAmount += Number(ticket.loanAmount ?? 0);
-        acc.projectedInterest +=
-          (Number(ticket.loanAmount ?? 0) * Number(ticket.interestRate ?? 0)) / 100;
-        return acc;
-      },
-      { loanAmount: 0, projectedInterest: 0 },
-    );
-
     const categories: Record<string, number> = {};
     const months: Record<string, { tickets: number }> = {};
     for (const ticket of tickets) {
@@ -139,6 +130,20 @@ export class AnalyticsService {
         months[key].tickets += 1;
       }
     }
+
+    const totals = tickets.reduce(
+      (acc, ticket) => {
+        acc.loanAmount += Number(ticket.loanAmount ?? 0);
+        // Per ticket, never rate-times-total. `interestRate` is a fraction - the
+        // column defaults to 0.035 for 3.5% - so no division applies. The old
+        // `/100` understated this 100x, and the fixtures used to assert 3 rather
+        // than 0.035, which is what let the unit mismatch survive.
+        acc.projectedInterest +=
+          Number(ticket.loanAmount ?? 0) * Number(ticket.interestRate ?? 0);
+        return acc;
+      },
+      { loanAmount: 0, projectedInterest: 0 },
+    );
 
     const monthlyTrends = Object.keys(months)
       .sort()
@@ -235,26 +240,38 @@ export class AnalyticsService {
 
     // Scoped to the caller's shop. These counts previously had no `where`
     // clause, so they aggregated every tenant in the database.
-    const [totalCustomers, activeTickets, loanSum, projected] = await Promise.all([
+    const [totalCustomers, activeTickets, loanSum] = await Promise.all([
       this.prisma.customer.count({ where: { pawnshopId } }),
       this.prisma.ticket.count({ where: { pawnshopId, status: 'ACTIVE' } }),
       this.prisma.ticket.aggregate({
         _sum: { loanAmount: true },
         where: { pawnshopId, status: 'ACTIVE' },
       }),
-      this.prisma.ticket.aggregate({
-        _sum: { interestRate: true },
-        where: { pawnshopId, status: 'ACTIVE' },
-      }),
     ]);
 
-    const totalLoansValue = Number(loanSum._sum.loanAmount) || 0;
     const principal = Number(loanSum._sum.loanAmount) || 0;
-    const rateSum = Number(projected._sum.interestRate) || 0;
+
+    // Interest has to be summed PER TICKET: each loan accrues on its own
+    // principal at its own rate. Summing the rate column and multiplying once by
+    // the total principal is not an average - three tickets at 3.5% sum to a
+    // rateSum of 10.5 and report 10.5x the principal as monthly interest. The
+    // previous expression also divided by 100, compounding the error: the
+    // column is a fraction, so the figure came out 100x out on top of that.
+    const activeTicketsForInterest = await this.prisma.ticket.findMany({
+      where: { pawnshopId, status: 'ACTIVE' },
+      select: { loanAmount: true, interestRate: true },
+      take: 5000,
+    });
+
+    const projectedInterest = activeTicketsForInterest.reduce(
+      (sum, ticket) =>
+        sum + Number(ticket.loanAmount ?? 0) * Number(ticket.interestRate ?? 0),
+      0,
+    );
 
     return {
       pawnshopId,
-      totalLoans: totalLoansValue,
+      totalLoans: principal,
       totalCustomers,
       activeTickets,
       /**
@@ -263,7 +280,7 @@ export class AnalyticsService {
        * `totalLoansValue * 0.05` - a hardcoded 5% that matched no rate
        * configured anywhere in the system and had no consumer.
        */
-      projectedInterest: (principal * rateSum) / 100 || 0,
+      projectedInterest: toCentavos(projectedInterest),
     };
   }
 

@@ -476,18 +476,36 @@ describe('GET /analytics/branch-activity — the dashboard aggregate', () => {
   });
 
   it('counts tickets by status and totals principal server-side', async () => {
+    // `interestRate` is a FRACTION. 0.035 is 3.5%, matching the column default
+    // and `DEFAULT_MONTHLY_INTEREST_RATE`. These fixtures previously used 3,
+    // which is what hid a stray `/100` in the aggregation: at 3 the division was
+    // invisible, and at the real 0.035 it understates projected interest 100x.
     ticket.findMany.mockResolvedValue([
-      { id: 1, ticketNumber: 'T-1', category: 'Gold', status: 'ACTIVE', loanAmount: 1000, interestRate: 3, pawnDate: '2026-01-15T00:00:00.000Z' },
-      { id: 2, ticketNumber: 'T-2', category: 'Gold', status: 'ACTIVE', loanAmount: 2000, interestRate: 3, pawnDate: '2026-02-20T00:00:00.000Z' },
-      { id: 3, ticketNumber: 'T-3', category: 'Watch', status: 'REDEEMED', loanAmount: 500, interestRate: 3, pawnDate: '2026-02-25T00:00:00.000Z' },
+      { id: 1, ticketNumber: 'T-1', category: 'Gold', status: 'ACTIVE', loanAmount: 1000, interestRate: 0.035, pawnDate: '2026-01-15T00:00:00.000Z' },
+      { id: 2, ticketNumber: 'T-2', category: 'Gold', status: 'ACTIVE', loanAmount: 2000, interestRate: 0.035, pawnDate: '2026-02-20T00:00:00.000Z' },
+      { id: 3, ticketNumber: 'T-3', category: 'Watch', status: 'REDEEMED', loanAmount: 500, interestRate: 0.035, pawnDate: '2026-02-25T00:00:00.000Z' },
     ]);
 
     const result = await service.getBranchActivity(OWNER_ACTOR);
 
     expect(result.countsByStatus).toEqual({ ACTIVE: 2, REDEEMED: 1 });
     expect(result.totals.loanAmount).toBe(3500);
-    expect(result.totals.projectedInterest).toBe(105);
+    // 3500 * 0.035 = 122.5
+    expect(result.totals.projectedInterest).toBeCloseTo(122.5, 10);
     expect(result.categories).toEqual({ Gold: 2, Watch: 1 });
+  });
+
+  it('projects interest at the recorded rate, not a flat default', async () => {
+    // Two shops pricing differently. A hardcoded 3.5% would show the 2% branch
+    // as earning 75% more than it does.
+    ticket.findMany.mockResolvedValue([
+      { id: 1, ticketNumber: 'T-1', category: 'Gold', status: 'ACTIVE', loanAmount: 10_000, interestRate: 0.02, pawnDate: '2026-01-15T00:00:00.000Z' },
+      { id: 2, ticketNumber: 'T-2', category: 'Gold', status: 'ACTIVE', loanAmount: 10_000, interestRate: 0.035, pawnDate: '2026-01-15T00:00:00.000Z' },
+    ]);
+
+    const result = await service.getBranchActivity(OWNER_ACTOR);
+
+    expect(result.totals.projectedInterest).toBeCloseTo(550, 10);
   });
 
   it('caps the monthly trend at twelve entries', async () => {

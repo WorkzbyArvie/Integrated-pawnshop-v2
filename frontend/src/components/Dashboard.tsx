@@ -269,7 +269,12 @@ export function Dashboard({
 
       const finalStats = {
         totalLoans: totalPrincipal,
-        totalInterest: totalPrincipal * 0.035,
+        // The server already aggregates projected interest per ticket at each
+        // ticket's own recorded rate. This was `totalPrincipal * 0.035`, which
+        // assumed every shop prices at 3.5% and threw away the per-ticket figure
+        // the endpoint had just computed - so a branch configured at 2% saw
+        // itself 75% richer than it was, and one at 5% saw itself 30% poorer.
+        totalInterest: activity.totals?.projectedInterest ?? 0,
         portfolioGrowth: 12.5,
         activeTickets: activeCount,
         staffOnDuty: 4,

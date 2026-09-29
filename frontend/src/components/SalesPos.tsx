@@ -22,6 +22,39 @@ interface SalesPosProps {
   setActiveTab: (tab: string) => void;
 }
 
+/**
+ * A valuation, priced by `POST /appraisal/quote`.
+ *
+ * The rates come back with the figure so the appraisal is reproducible after the
+ * fact — a per-gram constant that changes later must not silently change what a
+ * past ticket was worth.
+ */
+interface AppraisalQuote {
+  itemCategory: string;
+  collateralClass: string;
+  weight: number;
+  gramRate: number;
+  ltvRatio: number;
+  appraisedValue: number;
+  recommendedLoanAmount: number;
+  termDays: number;
+  maturityDate: string;
+  gracePeriodDays: number;
+  gracePeriodEnds: string;
+  risk: {
+    score: number;
+    band: 'LOW' | 'MODERATE' | 'HIGH' | 'CRITICAL';
+    factors: string[];
+    blocking: boolean;
+  };
+  compliance: {
+    statutoryMinLtv: number;
+    belowStatutoryMinimum: boolean;
+    note?: string;
+  };
+  ratesUsed: Record<string, number>;
+}
+
 export function SalesPos({ branchId, activeBranchId }: SalesPosProps) {
   const { showToast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -47,6 +80,9 @@ export function SalesPos({ branchId, activeBranchId }: SalesPosProps) {
 
   const [riskScore, setRiskScore] = useState<number | null>(null);
   const [recommendedAmount, setRecommendedAmount] = useState<number | null>(null);
+  const [isQuoting, setIsQuoting] = useState(false);
+  /** The server's figures behind the score, shown so the appraiser sees the basis. */
+  const [quoteDetails, setQuoteDetails] = useState<AppraisalQuote | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isConfirming, setIsConfirming] = useState(false);
   const [itemPhotoFiles, setItemPhotoFiles] = useState<File[]>([]);
@@ -60,6 +96,8 @@ export function SalesPos({ branchId, activeBranchId }: SalesPosProps) {
     customerContact: string;
     customerAddress: string;
     riskScore: number | null;
+    /** The server's band, so the confirmation shows the same verdict as the quote. */
+    riskBand: string | null;
   } | null>(null);
 
   const [customerDuplicate, setCustomerDuplicate] = useState<{ checking: boolean; exists: boolean; message: string }>({
@@ -169,32 +207,92 @@ export function SalesPos({ branchId, activeBranchId }: SalesPosProps) {
     );
   };
 
-  const calculateRisk = () => {
+  /**
+   * Price the item, on the server.
+   *
+   * This used to be a table in this file:
+   *
+   *   'Gold Jewelry':    { risk: (w) => w > 50  ? 12 : 22, rate: 3200 },
+   *   'Silver Jewelry':  { risk: (w) => w > 100 ? 20 : 32, rate: 42   },
+   *   const amount = weight * config.rate * 0.7;
+   *
+   * Three problems, all now server-side in `backend/src/loan/appraisal.ts`:
+   * nothing recorded what produced the valuation, so a past ticket's worth was
+   * not reproducible; the silver rate of PHP 42/gram is a pre-2020 figure, and
+   * Philippine pawn loans run PHP 70-90, so every silver item was appraised at
+   * about half its value; and the risk curve read `w > 100 ? 20 : 32`, scoring
+   * a heavier item as *safer*, which is backwards on both credit and handling.
+   *
+   * The quote also returns the P.D. 114 Section 9 floor check and the risk
+   * factors behind the score, so the appraiser can see why rather than being
+   * handed a number.
+   */
+  const calculateRisk = async () => {
     const weight = parseFloat(formData.weight);
     if (isNaN(weight) || weight <= 0) {
       showToast("Please enter a valid weight/quantity.", "error");
       return;
     }
+    if (!formData.itemCategory) {
+      showToast("Please select an item category.", "error");
+      return;
+    }
 
-    // Risk & base rate per gram by precious-metal category.
-    const categoryConfig: Record<string, { risk: (w: number) => number; rate: number }> = {
-      'Gold Jewelry':        { risk: (w) => w > 50 ? 12 : 22, rate: 3200 },
-      'Silver Jewelry':      { risk: (w) => w > 100 ? 20 : 32, rate: 42 },
-      'Diamond Jewelry':     { risk: (w) => w > 10 ? 18 : 28, rate: 8000 },
-      'Gold Coins':          { risk: (w) => w > 30 ? 10 : 18, rate: 3500 },
-    };
+    setIsQuoting(true);
+    try {
+      const priced = await api.post<AppraisalQuote>('/appraisal/quote', {
+        itemCategory: formData.itemCategory,
+        weight,
+        // Not yet verified at this point in the flow - the appraiser inspects
+        // the item, so the default is the honest answer and the score reflects
+        // that the item has not been confirmed yet.
+        authenticityVerified: false,
+      });
 
-    const config = categoryConfig[formData.itemCategory] || { risk: () => 50, rate: 500 };
-    const risk = config.risk(weight);
-    setRiskScore(risk);
+      setRiskScore(priced.risk.score);
+      setRecommendedAmount(priced.recommendedLoanAmount);
+      setQuoteDetails(priced);
 
-    const amount = weight * config.rate * 0.7;
-    setRecommendedAmount(Math.round(amount));
+      if (priced.risk.blocking) {
+        showToast(
+          'This item cannot be pawned: it has been flagged as a suspected counterfeit.',
+          'error',
+        );
+        setRiskScore(null);
+        setRecommendedAmount(null);
+        return;
+      }
+
+      if (priced.compliance?.belowStatutoryMinimum) {
+        showToast(
+          'Below the P.D. 114 s.9 minimum of 30% of appraised value — the pawner must sign a written request to borrow less.',
+          'error',
+        );
+      }
+    } catch (err: unknown) {
+      showToast(
+        `Could not price this item: ${err instanceof Error ? err.message : String(err)}`,
+        'error',
+      );
+    } finally {
+      setIsQuoting(false);
+    }
   };
 
   const handleApprove = async () => {
+    // `recommendedAmount` is now the server's figure rather than a local
+    // calculation, so the ticket records the same valuation that was displayed
+    // to the appraiser.
     if (!recommendedAmount) {
       showToast("Please calculate the loan amount first.", "error");
+      return;
+    }
+
+    if (quoteDetails?.risk.blocking) {
+      showToast(
+        'This item was flagged as a suspected counterfeit and cannot be pawned.',
+        'error',
+      );
       return;
     }
 
@@ -233,7 +331,10 @@ export function SalesPos({ branchId, activeBranchId }: SalesPosProps) {
         itemDescription: formData.itemDescription,
         weight: parseFloat(formData.weight),
         loanAmount: recommendedAmount,
-        riskScore: riskScore || undefined,
+        // `||` would turn a score of 0 into undefined. Zero is the score of a
+        // fully-cleared item under the server's model, so it is a real value to
+        // record, not an absence of one.
+        riskScore: riskScore ?? undefined,
         photoUrls: uploadedPhotoUrls,
         appraisalDeadline: formData.appraisalDeadline,
         markForAuction: formData.markForAuction,
@@ -253,6 +354,7 @@ export function SalesPos({ branchId, activeBranchId }: SalesPosProps) {
         customerContact: formData.customerContact,
         customerAddress: formData.customerAddress,
         riskScore,
+        riskBand: quoteDetails?.risk.band ?? null,
       });
 
     } catch (error: any) {
@@ -278,6 +380,7 @@ export function SalesPos({ branchId, activeBranchId }: SalesPosProps) {
     });
     setRiskScore(null);
     setRecommendedAmount(null);
+    setQuoteDetails(null);
     setItemPhotoFiles([]);
     setConfirmData(null);
     if (fileInputRef.current) fileInputRef.current.value = '';
@@ -300,6 +403,22 @@ export function SalesPos({ branchId, activeBranchId }: SalesPosProps) {
 
   const handleEdit = () => {
     setConfirmData(null);
+  };
+
+  /**
+   * Colour a risk band.
+   *
+   * Keyed on the server's band rather than on a second set of score thresholds
+   * here. The old version cut at 30 and 50 while the server cuts at 20, 40 and
+   * 70, so a score of 55 rendered amber on this screen and CRITICAL on the
+   * receipt — two different verdicts for the same pawn, and a panel member
+   * comparing the two would be right to ask which one is authoritative.
+   */
+  const RISK_BAND_STYLE: Record<string, { color: string; bg: string }> = {
+    LOW: { color: 'text-green-600', bg: 'bg-green-50' },
+    MODERATE: { color: 'text-amber-600', bg: 'bg-amber-50' },
+    HIGH: { color: 'text-orange-600', bg: 'bg-orange-50' },
+    CRITICAL: { color: 'text-red-600', bg: 'bg-red-50' },
   };
 
   const getRiskStyle = (score: number) => {
@@ -345,9 +464,10 @@ export function SalesPos({ branchId, activeBranchId }: SalesPosProps) {
             <form onSubmit={(e) => { e.preventDefault(); calculateRisk(); }} className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-3">
-                  <label className="text-[10px] font-black text-[#8A8279] uppercase tracking-widest">Customer Name</label>
+                  <label htmlFor="customerName" className="text-[10px] font-black text-[#8A8279] uppercase tracking-widest">Customer Name</label>
                   <div className="relative">
                     <input
+                      id="customerName"
                       type="text"
                       value={formData.customerName}
                       onChange={(e) => setFormData({ ...formData, customerName: e.target.value })}
@@ -360,8 +480,9 @@ export function SalesPos({ branchId, activeBranchId }: SalesPosProps) {
                 </div>
 
                 <div className="space-y-3">
-                  <label className="text-[10px] font-black text-[#8A8279] uppercase tracking-widest">Item Category</label>
+                  <label htmlFor="itemCategory" className="text-[10px] font-black text-[#8A8279] uppercase tracking-widest">Item Category</label>
                   <select
+                    id="itemCategory"
                     value={formData.itemCategory}
                     onChange={(e) => setFormData({ ...formData, itemCategory: e.target.value })}
                     className="w-full px-6 py-4 rounded-2xl border border-[rgba(201,160,92,0.08)] bg-[#1C1C26]/50 focus:ring-2 focus:ring-[#C9A05C] outline-none transition-all font-bold text-[#F5F0E8] appearance-none"
@@ -394,10 +515,11 @@ export function SalesPos({ branchId, activeBranchId }: SalesPosProps) {
 
                 {formData.hasMobileAccount && (
                   <div className="space-y-2">
-                    <label className="text-[10px] font-black text-[#8A8279] uppercase tracking-widest">
+                    <label htmlFor="accountEmail" className="text-[10px] font-black text-[#8A8279] uppercase tracking-widest">
                       Account Email (optional)
                     </label>
                     <input
+                      id="accountEmail"
                       type="email"
                       value={formData.accountEmail}
                       onChange={(e) => setFormData({ ...formData, accountEmail: e.target.value })}
@@ -412,8 +534,9 @@ export function SalesPos({ branchId, activeBranchId }: SalesPosProps) {
               </div>
 
               <div className="space-y-3">
-                <label className="text-[10px] font-black text-[#8A8279] uppercase tracking-widest">Item Description</label>
+                <label htmlFor="itemDescription" className="text-[10px] font-black text-[#8A8279] uppercase tracking-widest">Item Description</label>
                 <textarea
+                  id="itemDescription"
                   value={formData.itemDescription}
                   onChange={(e) => setFormData({ ...formData, itemDescription: e.target.value })}
                   className="w-full px-6 py-4 rounded-2xl border border-[rgba(201,160,92,0.08)] bg-[#1C1C26]/50 focus:ring-2 focus:ring-[#C9A05C] outline-none transition-all font-bold text-[#F5F0E8]"
@@ -424,9 +547,10 @@ export function SalesPos({ branchId, activeBranchId }: SalesPosProps) {
               </div>
 
               <div className="space-y-3">
-                <label className="text-[10px] font-black text-[#8A8279] uppercase tracking-widest">Item Photos (required for auction listing)</label>
+                <label htmlFor="itemPhotos" className="text-[10px] font-black text-[#8A8279] uppercase tracking-widest">Item Photos (required for auction listing)</label>
                 <input
                   ref={fileInputRef}
+                  id="itemPhotos"
                   type="file"
                   accept="image/*"
                   multiple
@@ -446,9 +570,10 @@ export function SalesPos({ branchId, activeBranchId }: SalesPosProps) {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-3">
-                  <label className="text-[10px] font-black text-[#8A8279] uppercase tracking-widest">Contact Number</label>
+                  <label htmlFor="customerContact" className="text-[10px] font-black text-[#8A8279] uppercase tracking-widest">Contact Number</label>
                   <div className="relative">
                     <input
+                      id="customerContact"
                       type="text"
                       value={formData.customerContact}
                       onChange={(e) => setFormData({ ...formData, customerContact: e.target.value })}
@@ -461,9 +586,10 @@ export function SalesPos({ branchId, activeBranchId }: SalesPosProps) {
                 </div>
 
                 <div className="space-y-3">
-                  <label className="text-[10px] font-black text-[#8A8279] uppercase tracking-widest">Customer Address</label>
+                  <label htmlFor="customerAddress" className="text-[10px] font-black text-[#8A8279] uppercase tracking-widest">Customer Address</label>
                   <div className="relative">
                     <input
+                      id="customerAddress"
                       type="text"
                       value={formData.customerAddress}
                       onChange={(e) => setFormData({ ...formData, customerAddress: e.target.value })}
@@ -493,9 +619,10 @@ export function SalesPos({ branchId, activeBranchId }: SalesPosProps) {
               )}
 
               <div className="space-y-3">
-                <label className="text-[10px] font-black text-[#8A8279] uppercase tracking-widest">Weight (grams)</label>
+                <label htmlFor="itemWeight" className="text-[10px] font-black text-[#8A8279] uppercase tracking-widest">Weight (grams)</label>
                 <div className="relative">
                   <input
+                    id="itemWeight"
                     type="number"
                     step="0.01"
                     value={formData.weight}
@@ -510,8 +637,9 @@ export function SalesPos({ branchId, activeBranchId }: SalesPosProps) {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-3">
-                  <label className="text-[10px] font-black text-[#8A8279] uppercase tracking-widest">Appraisal Deadline</label>
+                  <label htmlFor="appraisalDeadline" className="text-[10px] font-black text-[#8A8279] uppercase tracking-widest">Appraisal Deadline</label>
                   <input
+                    id="appraisalDeadline"
                     type="date"
                     value={formData.appraisalDeadline}
                     onChange={(e) => setFormData({ ...formData, appraisalDeadline: e.target.value })}
@@ -520,9 +648,10 @@ export function SalesPos({ branchId, activeBranchId }: SalesPosProps) {
                   />
                 </div>
                 <div className="space-y-3">
-                  <label className="text-[10px] font-black text-[#8A8279] uppercase tracking-widest">Auction Flag</label>
+                  <label htmlFor="markForAuction" className="text-[10px] font-black text-[#8A8279] uppercase tracking-widest">Auction Flag</label>
                   <div className="flex items-center gap-3 px-6 py-4 rounded-2xl border border-[rgba(201,160,92,0.08)] bg-[#1C1C26]/50">
                     <input
+                      id="markForAuction"
                       type="checkbox"
                       checked={formData.markForAuction}
                       onChange={(e) => setFormData({ ...formData, markForAuction: e.target.checked })}
@@ -544,7 +673,12 @@ export function SalesPos({ branchId, activeBranchId }: SalesPosProps) {
           <div className="bg-[#14141B] rounded-[2.5rem] p-8 shadow-sm border-none sticky top-8">
             <h3 className="text-[10px] font-black text-[#8A8279] uppercase tracking-widest mb-8">Decision Support</h3>
 
-            {riskScore === null ? (
+            {isQuoting ? (
+              <div className="text-center py-20">
+                <Loader2 className="animate-spin mx-auto w-6 h-6 text-[#C9A05C]" />
+                <p className="text-[10px] text-[#8A8279] font-black uppercase tracking-widest mt-4">Pricing item...</p>
+              </div>
+            ) : riskScore === null || !quoteDetails ? (
               <div className="text-center py-20">
                 <p className="text-[10px] text-[#8A8279] font-black uppercase tracking-widest">Awaiting calculations...</p>
               </div>
@@ -552,11 +686,23 @@ export function SalesPos({ branchId, activeBranchId }: SalesPosProps) {
               <div className="space-y-8 animate-in slide-in-from-bottom-4 duration-300">
                 <div>
                   <p className="text-[10px] font-black text-[#8A8279] mb-4 uppercase tracking-widest">Risk Score</p>
-                  <div className={`rounded-3xl p-6 ${getRiskStyle(riskScore).bg}`}>
+                  <div className={`rounded-3xl p-6 ${RISK_BAND_STYLE[quoteDetails.risk.band]?.bg ?? 'bg-gray-50'}`}>
                     <div className="flex items-center gap-5">
-                      <p className={`text-4xl font-black tracking-tighter ${getRiskStyle(riskScore).color}`}>{riskScore}%</p>
-                      <p className={`text-[10px] font-black uppercase tracking-widest ${getRiskStyle(riskScore).color}`}>{getRiskStyle(riskScore).label}</p>
+                      <p className={`text-4xl font-black tracking-tighter ${RISK_BAND_STYLE[quoteDetails.risk.band]?.color ?? 'text-gray-600'}`}>{riskScore}%</p>
+                      <p className={`text-[10px] font-black uppercase tracking-widest ${RISK_BAND_STYLE[quoteDetails.risk.band]?.color ?? 'text-gray-600'}`}>{quoteDetails.risk.band}</p>
                     </div>
+                    {/* The factors behind the score. A risk number the appraiser
+                        cannot interrogate is a number they have to trust, and the
+                        old client-side curve gave no basis to question at all. */}
+                    {quoteDetails.risk.factors.length > 0 && (
+                      <ul className="mt-4 pt-4 border-t border-white/5 space-y-1">
+                        {quoteDetails.risk.factors.map((factor) => (
+                          <li key={factor} className="text-[10px] text-[#8A8279] font-bold uppercase tracking-wider">
+                            • {factor}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
                   </div>
                 </div>
 
@@ -564,8 +710,34 @@ export function SalesPos({ branchId, activeBranchId }: SalesPosProps) {
                   <p className="text-[10px] font-black text-[#8A8279] mb-4 uppercase tracking-widest">Loan Recommendation</p>
                   <div className="rounded-3xl p-6 bg-[#C9A05C]/10/50 border border-[rgba(201,160,92,0.15)]/50">
                     <p className="text-4xl font-black text-indigo-900 tracking-tighter">{formatCurrency(recommendedAmount)}</p>
+                    {/* The basis of the figure, so the appraisal is auditable
+                        rather than a bare number. */}
+                    <dl className="mt-4 pt-4 border-t border-[rgba(201,160,92,0.15)] grid grid-cols-2 gap-y-1 text-[10px]">
+                      <dt className="text-[#8A8279] font-bold uppercase tracking-wider">Appraised</dt>
+                      <dd className="text-right font-black text-[#F5F0E8]">{formatCurrency(quoteDetails.appraisedValue)}</dd>
+                      <dt className="text-[#8A8279] font-bold uppercase tracking-wider">Rate / gram</dt>
+                      <dd className="text-right font-black text-[#F5F0E8]">{formatCurrency(quoteDetails.gramRate)}</dd>
+                      <dt className="text-[#8A8279] font-bold uppercase tracking-wider">LTV</dt>
+                      <dd className="text-right font-black text-[#F5F0E8]">{(quoteDetails.ltvRatio * 100).toFixed(0)}%</dd>
+                      <dt className="text-[#8A8279] font-bold uppercase tracking-wider">Term</dt>
+                      <dd className="text-right font-black text-[#F5F0E8]">{quoteDetails.termDays} days</dd>
+                    </dl>
+                    <p className="mt-3 text-[9px] text-[#5C574F] uppercase tracking-wider">
+                      Pawn/melt basis, not spot
+                    </p>
                   </div>
                 </div>
+
+                {quoteDetails.compliance.belowStatutoryMinimum && (
+                  <div className="rounded-3xl p-5 bg-amber-500/10 border border-amber-500/30">
+                    <p className="text-[10px] font-black text-amber-400 uppercase tracking-widest mb-2">
+                      Below statutory minimum
+                    </p>
+                    <p className="text-[11px] text-[#B8B0A4] leading-relaxed">
+                      {quoteDetails.compliance.note}
+                    </p>
+                  </div>
+                )}
 
                 <div className="space-y-4 pt-6">
                   <button 
@@ -635,8 +807,12 @@ export function SalesPos({ branchId, activeBranchId }: SalesPosProps) {
               {confirmData.riskScore != null && (
                 <div className="flex justify-between px-4 py-3 rounded-2xl" style={{ background: 'rgba(255,255,255,0.035)' }}>
                   <span className="text-[11px] text-[#8A8279]">Risk Score</span>
-                  <span className={`text-[11px] font-semibold ${getRiskStyle(confirmData.riskScore).color}`}>
-                    {confirmData.riskScore}% — {getRiskStyle(confirmData.riskScore).label}
+                  <span
+                    className={`text-[11px] font-semibold ${
+                      (RISK_BAND_STYLE[confirmData.riskBand ?? ''] ?? getRiskStyle(confirmData.riskScore)).color
+                    }`}
+                  >
+                    {confirmData.riskScore}% — {confirmData.riskBand ?? getRiskStyle(confirmData.riskScore).label}
                   </span>
                 </div>
               )}
