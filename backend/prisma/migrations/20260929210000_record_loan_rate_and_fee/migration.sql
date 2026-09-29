@@ -39,6 +39,15 @@
 -- already applied legible, which is what an auditor - or a panel member - needs.
 -- =============================================================================
 
+-- IDEMPOTENCE.
+--
+-- This change may already have been applied by hand in the Supabase SQL editor
+-- before the deploy pipeline saw it. The two ADD COLUMN statements below are
+-- already `IF NOT EXISTS`, so they are safe to re-run. The backfill is guarded
+-- the same way: it only writes rows whose rate is still the untouched column
+-- default, so a second run cannot overwrite a rate that has since been set
+-- deliberately, and cannot compound the rounding a second time.
+
 BEGIN;
 
 ALTER TABLE public."loan"
@@ -48,17 +57,22 @@ ALTER TABLE public."loan"
 -- Backfill the rate from the ratio the loan was actually issued at.
 -- Guarded on a positive principal: a zero or NULL principal would make the ratio
 -- NULL or divide by zero, and NULL violates the NOT NULL constraint.
+-- Guarded on the column default so a re-run is a no-op rather than a second
+-- pass of arithmetic over already-corrected values.
 UPDATE public."loan"
 SET "interestrate" = ROUND(("interestamount" / "principalamount")::numeric, 6)::double precision
 WHERE "principalamount" IS NOT NULL
   AND "principalamount" > 0
   AND "interestamount" IS NOT NULL
+  AND "interestrate" = 0.035
   AND ("interestamount" / "principalamount") BETWEEN 0 AND 0.2;
 
 COMMIT;
 
 -- -----------------------------------------------------------------------------
--- Verification - ONE statement, one grid.
+-- Verification - ONE statement, one grid. Run this by hand, after the change has
+-- been applied - by the deploy pipeline or in the Supabase SQL editor. Nothing
+-- below executes during a deploy.
 --
 -- expect: loans_total = loans_backfilled + loans_at_default
 --
