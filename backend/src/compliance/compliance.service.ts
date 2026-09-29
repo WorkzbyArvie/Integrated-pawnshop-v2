@@ -69,7 +69,115 @@ export class ComplianceService {
       },
     });
 
+    await this.notifyReviewers(
+      profile.pawnshopId,
+      dto.documentType,
+      document.expiryDate,
+    );
+
     return document;
+  }
+
+  /**
+   * Tell the Super Admins a document is waiting.
+   *
+   * A submission that nobody is told about is a submission nobody reviews, and
+   * the shop stays locked out with no way to tell whether the wait is the system
+   * working or the system broken. The upload is the only moment the reviewer
+   * cannot already know.
+   */
+  private async notifyReviewers(
+    pawnshopId: string,
+    documentType: string,
+    expiryDate: Date | null,
+  ): Promise<void> {
+    try {
+      const reviewers = await this.prisma.profile.findMany({
+        where: { role: 'SUPER_ADMIN' },
+        select: { id: true },
+      });
+
+      if (reviewers.length === 0) return;
+
+      const pawnshop = await this.prisma.pawnshop.findUnique({
+        where: { id: pawnshopId },
+        select: { name: true },
+      });
+
+      const label = documentType.replace(/_/g, ' ').toLowerCase();
+      const body = `A ${label} was submitted and is awaiting your verification.`;
+
+      await Promise.all(
+        reviewers.map((reviewer) =>
+          this.notificationService.sendNotification({
+            recipientId: reviewer.id,
+            channel: NotificationChannel.IN_APP,
+            type: NotificationType.COMPLIANCE_REMINDER,
+            title: 'Document awaiting verification',
+            body,
+            data: {
+              documentType,
+              pawnshopId,
+              pawnshopName: pawnshop?.name ?? null,
+              expiryDate: expiryDate ? expiryDate.toISOString() : null,
+            },
+          }),
+        ),
+      );
+    } catch (err: any) {
+      // A failed notification must not fail the upload. The document is on file
+      // and still visible in the review queue; a missing ping is recoverable, a
+      // rejected upload is not.
+      this.logger.error(
+        `Failed to notify reviewers of ${documentType}: ${err?.message}`,
+      );
+    }
+  }
+
+  /** Tell the shop what a Super Admin decided about its document. */
+  private async notifyUploadOutcome(
+    pawnshopId: string | null,
+    documentType: string,
+    status: ComplianceDocStatus,
+    rejectionReason?: string,
+  ): Promise<void> {
+    if (!pawnshopId) return;
+    try {
+      const owners = await this.prisma.profile.findMany({
+        where: { pawnshopId, role: { in: ['OWNER', 'ADMIN'] } },
+        select: { id: true },
+      });
+      if (owners.length === 0) return;
+
+      const label = documentType.replace(/_/g, ' ').toLowerCase();
+      const rejected = status === 'REJECTED';
+      const title = rejected ? 'Document rejected' : 'Document verified';
+      const body = rejected
+        ? `Your ${label} was rejected${rejectionReason ? `: ${rejectionReason}` : '.'} Upload a corrected document.`
+        : `Your ${label} was verified by a Super Admin.`;
+
+      await Promise.all(
+        owners.map((owner) =>
+          this.notificationService.sendNotification({
+            recipientId: owner.id,
+            channel: NotificationChannel.IN_APP,
+            type: NotificationType.COMPLIANCE_REMINDER,
+            title,
+            body,
+            data: {
+              documentType,
+              pawnshopId,
+              status,
+              rejectionReason: rejectionReason ?? null,
+            },
+          }),
+        ),
+      );
+    } catch (err: any) {
+      this.logger.error(
+        `Failed to notify shop of ${documentType} ${status}: ${err?.message}`,
+      );
+    }
   }
 
   /**
@@ -154,6 +262,13 @@ export class ComplianceService {
         rejectionReason: dto.rejectionReason || null,
       },
     });
+
+    await this.notifyUploadOutcome(
+      document.pawnshopId,
+      document.documentType,
+      dto.status,
+      dto.rejectionReason,
+    );
 
     return updated;
   }
