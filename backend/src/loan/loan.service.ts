@@ -2,11 +2,25 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  Logger,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 import { FinanceService } from '../finance/finance.service';
 import { CreatePaymentDto } from './dto/payment.dto';
 import { RenewLoanDto } from './dto/renew-loan.dto';
+import {
+  RENEWAL_EXTENSION_DAYS,
+  forfeitureDateFrom,
+  gracePeriodEndFrom,
+  maturityDateFrom,
+} from './loan-terms';
+import {
+  DEFAULT_LATE_PENALTY_RATE,
+  DEFAULT_MONTHLY_INTEREST_RATE,
+  DEFAULT_SERVICE_FEE_RATE,
+  interestFor,
+  settlesAmount,
+} from '../finance/interest';
 import { LedgerEntryType, LedgerCategory, NotificationChannel, NotificationType } from '@prisma/client';
 import { LegalProofService } from './legal-proof.service';
 import { ReceiptService } from '../receipt/receipt.service';
@@ -16,6 +30,8 @@ import { TierService } from '../tier/tier.service';
 
 @Injectable()
 export class LoanService {
+  private readonly logger = new Logger(LoanService.name);
+
   constructor(
     private prisma: PrismaService,
     private financeService: FinanceService,
@@ -819,14 +835,15 @@ export class LoanService {
       );
     }
 
-    const extensionDays = dto.extensionDays || 30;
+    // The renewal window and the two deadlines that follow it now come from
+    // loan-terms.ts. These were three inline literals - 30, 30, 15 - and the
+    // grace/forfeiture spacing is what a panel will ask about, so it should not
+    // be restatable three different ways in three files.
+    const extensionDays = dto.extensionDays || RENEWAL_EXTENSION_DAYS;
     const now = new Date();
-    const newExpiry = new Date(now);
-    newExpiry.setDate(newExpiry.getDate() + extensionDays);
-    const newGracePeriodEnd = new Date(newExpiry);
-    newGracePeriodEnd.setDate(newGracePeriodEnd.getDate() + 30);
-    const newForfeitureDate = new Date(newGracePeriodEnd);
-    newForfeitureDate.setDate(newForfeitureDate.getDate() + 15);
+    const newExpiry = maturityDateFrom(extensionDays, now);
+    const newGracePeriodEnd = gracePeriodEndFrom(newExpiry);
+    const newForfeitureDate = forfeitureDateFrom(newGracePeriodEnd);
 
     if (
       ticket.lifecycleStatus === 'OVERDUE' ||
@@ -857,11 +874,38 @@ export class LoanService {
       data: { status: 'ACTIVE' },
     });
 
+    // A renewal collects the interest the borrower has accrued on the principal.
+    //
+    // The client used to supply this figure, which meant the screen decided what
+    // a customer owed. It is derived here from the loan's own recorded rate, so
+    // the amount collected is the amount the contract states. A client that
+    // sends a different number is refused rather than quietly trusted - a
+    // renewal receipt is an audit record, and one that can be set by whoever is
+    // at the counter is not one.
+    const expectedInterest = interestFor(loan.principalAmount, {
+      monthlyInterestRate:
+        typeof loan.interestRate === 'number' && loan.interestRate > 0
+          ? loan.interestRate
+          : DEFAULT_MONTHLY_INTEREST_RATE,
+      serviceFeeRate: DEFAULT_SERVICE_FEE_RATE,
+      latePenaltyRate: DEFAULT_LATE_PENALTY_RATE,
+    });
+
+    if (!settlesAmount(dto.interestAmount, expectedInterest)) {
+      this.logger.warn(
+        `Renewal on loan ${loan.id} tendered ${dto.interestAmount} against ${expectedInterest} of accrued interest`,
+      );
+      throw new BadRequestException(
+        `Renewal interest is ${expectedInterest.toFixed(2)} at the rate recorded on this loan. ` +
+          `Received ${Number(dto.interestAmount).toFixed(2)}.`,
+      );
+    }
+
     const payment = await this.prisma.payment.create({
       data: {
         customerId: ticket.customerId,
         loanId: loan.id,
-        amount: dto.interestAmount,
+        amount: expectedInterest,
         paymentMethod: dto.paymentMethod,
         paymentType: 'LOAN_REPAYMENT',
         status: 'COMPLETED',

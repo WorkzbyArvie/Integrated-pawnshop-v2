@@ -4,6 +4,14 @@ import { LegalProofService } from './legal-proof.service';
 import { ContractRendererService } from '../contract/contract-renderer.service';
 import { StorageService } from '../common/storage/storage.service';
 import { StateMachineService } from '../common/state-machine/state-machine.service';
+import {
+  GRACE_PERIOD_DAYS,
+  PAWN_TERM_DAYS,
+  maturityDateFrom,
+  toTermDays,
+  toTermMonths,
+} from './loan-terms';
+import { calculateLoanBreakdown, resolveRates } from '../finance/interest';
 import { createHash, randomUUID } from 'crypto';
 import PDFDocument from 'pdfkit';
 
@@ -40,6 +48,17 @@ export class LoanContractService {
     const legalEntity = application.pawnshop?.legalEntity;
 
     const loan = application.loan;
+
+    // Read the issuing shop's configured rates and derive every money figure on
+    // the contract from them. A contract whose interest rate disagrees with the
+    // loan it describes is the single worst document this system can print.
+    const pawnshopSettings = await this.prisma.pawnshop.findUnique({
+      where: { id: application.pawnshopId },
+      select: { settings: true },
+    });
+    const rates = resolveRates(pawnshopSettings?.settings);
+    const breakdown = calculateLoanBreakdown(application.loanAmount, rates);
+
     const templateData = {
       contractNumber,
       generatedDate: new Date().toLocaleDateString('en-PH'),
@@ -50,13 +69,21 @@ export class LoanContractService {
       customerIdNumber: 'N/A',
       customerAddress: application.customer.address || 'N/A',
       loanAmount: application.loanAmount.toFixed(2),
-      interestRate: application.loanType === 'PERSONAL' ? '3' : '2',
-      serviceFee: (application.loanAmount * 0.02).toFixed(2),
-      serviceFeeRate: '2',
-      loanTerm: application.termMonths.toString(),
+      interestRate: (rates.monthlyInterestRate * 100).toFixed(2),
+      // The contract is the document the pawnshop is held to, so its figures
+      // come from the same calculation as the loan record rather than from
+      // literals. These were `loanAmount * 0.02` and a hardcoded '2'/'3', and
+      // they did not match what the redemption screen quoted.
+      serviceFee: breakdown.serviceFee.toFixed(2),
+      serviceFeeRate: (rates.serviceFeeRate * 100).toFixed(2),
+      // The contract, the ticket and the renewal all read the term from
+      // loan-terms.ts. This used to be `termMonths * 30 * 24 * 60 * 60 * 1000`,
+      // which drifts from a real calendar month and let a contract state a
+      // maturity date the ticket disagreed with.
+      loanTerm: `${toTermDays(application.termMonths)} days`,
       loanDate: new Date().toLocaleDateString('en-PH'),
-      maturityDate: new Date(Date.now() + application.termMonths * 30 * 24 * 60 * 60 * 1000).toLocaleDateString('en-PH'),
-      graceDays: '30',
+      maturityDate: maturityDateFrom(toTermDays(application.termMonths)).toLocaleDateString('en-PH'),
+      graceDays: String(GRACE_PERIOD_DAYS),
       latePenaltyRate: '3',
       itemDescription: this.stripPhotoUrls(application.purpose),
       itemCategory: loan?.category || application.purpose || application.loanType,
@@ -117,6 +144,9 @@ export class LoanContractService {
         loanAmount: application.loanAmount,
         loanType: application.loanType,
         termMonths: application.termMonths,
+        // Provenance in days, so an auditor reading the proof record is not
+        // left converting a month count themselves.
+        termDays: toTermDays(application.termMonths),
         generatedAt: contract.generatedAt.toISOString(),
       },
     });

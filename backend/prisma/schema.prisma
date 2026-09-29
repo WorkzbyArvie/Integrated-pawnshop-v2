@@ -154,6 +154,16 @@ model Loan {
   ticketId           Int?                 @map("ticketid")
   principalAmount    Float                @map("principalamount")
   interestAmount     Float                @map("interestamount")
+  /// Rate actually applied to `principalAmount`, as a fraction.
+  ///
+  /// Recorded on the loan so a later rate change cannot retroactively alter
+  /// what a customer owes, and so the contract, the quote and the receipt can be
+  /// checked against the terms the borrower actually agreed to. The rate is
+  /// written explicitly at issuance; it is not left to a column default,
+  /// because a default nobody sets is a default nobody means.
+  interestRate       Float                @map("interestrate") @default(0.035)
+  /// Service fee charged once on issuance, as a fraction of principal.
+  serviceFeeAmount   Float                @map("servicefeeamount") @default(0)
   customerName       String?              @map("customername")
   category           String?
   weight             Decimal?

@@ -11,6 +11,8 @@ import { ReceiptService } from '../receipt/receipt.service';
 import { FinanceService } from '../finance/finance.service';
 import { NotificationService } from '../notification/notification.service';
 import { TierService } from '../tier/tier.service';
+import { PAWN_TERM_DAYS, toTermMonths } from './loan-terms';
+import { interestFor, resolveRates, toCentavos } from '../finance/interest';
 import { LedgerEntryType, LedgerCategory, NotificationChannel, NotificationType, PaymentMethod, Prisma, TicketLifecycleStatus } from '@prisma/client';
 
 export function assertCustomerKycVerified(
@@ -296,13 +298,26 @@ export class PawnTicketService {
       { userRole },
     );
 
+    // Rates are the shop's own. A pawnshop on this platform may quote different
+    // terms from its neighbour, and a branch changing its pricing should not
+    // require a code change.
+    const pawnshop = await this.prisma.pawnshop.findUnique({
+      where: { id: this.assertPawnshopId(ticket) },
+      select: { settings: true },
+    });
+    const rates = resolveRates(pawnshop?.settings);
+
     const loanApp = await this.prisma.loanApplication.create({
       data: {
         customerId: ticket.customerId,
         pawnshopId: this.assertPawnshopId(ticket),
         loanAmount: ticket.loanAmount,
         loanType: 'PAWN',
-        termMonths: 1,
+        // Was a bare `1`, meaning "one month", while the application DTO
+        // accepted up to 60 and the renewal worked in days. Derived from the
+        // shared term so the stored value, the contract and the renewal cannot
+        // disagree.
+        termMonths: toTermMonths(PAWN_TERM_DAYS),
         purpose: ticket.description || ticket.category,
         status: 'APPROVED',
         approvedBy,
@@ -317,7 +332,14 @@ export class PawnTicketService {
         pawnshopId: this.assertPawnshopId(ticket),
         customerName: ticket.customer?.fullName || 'Customer',
         principalAmount: ticket.loanAmount,
-        interestAmount: Math.round(ticket.loanAmount * 0.035),
+        // Was `Math.round(ticket.loanAmount * 0.035)`, which disagreed with the
+        // column default the redemption screen quoted from. The rate is read
+        // from the shop's own settings so two shops on this platform may quote
+        // different terms, and is written explicitly rather than left to the
+        // column default - a default nobody sets is a default nobody means.
+        interestAmount: interestFor(ticket.loanAmount, rates),
+        interestRate: rates.monthlyInterestRate,
+        serviceFeeAmount: toCentavos(ticket.loanAmount * rates.serviceFeeRate),
         category: ticket.category,
         weight: ticket.weight,
         status: 'RECEIVED',

@@ -8,6 +8,10 @@ import {
   Max,
   MinLength,
 } from 'class-validator';
+import { MAX_LOAN_TERM_DAYS, PAWN_TERM_DAYS } from '../loan-terms';
+
+/** Longest term the API accepts, expressed in the stored unit (months). */
+const MAX_TERM_MONTHS = Math.ceil(MAX_LOAN_TERM_DAYS / PAWN_TERM_DAYS);
 
 export enum LoanTypeEnum {
   PERSONAL = 'Personal',
@@ -31,9 +35,15 @@ export class CreateLoanApplicationDto {
   @IsEnum(LoanTypeEnum)
   loanType: LoanTypeEnum;
 
+  /**
+   * Stored as months for schema compatibility, but bounded to what the system
+   * actually operates on. The upper limit was 60 months while the pawn flow
+   * hardcoded 1 and the lifecycle works in days, so a caller could create a
+   * five-year pawn that no other part of the system agreed with.
+   */
   @IsInt()
   @Min(1)
-  @Max(60)
+  @Max(MAX_TERM_MONTHS)
   termMonths: number;
 
   @IsString()

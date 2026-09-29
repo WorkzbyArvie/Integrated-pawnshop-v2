@@ -27,6 +27,10 @@ const mockPrisma = {
   loanApplication: { create: jest.fn() },
   payment: { create: jest.fn() },
   approvalRecord: { create: jest.fn(), findFirst: jest.fn(), findUnique: jest.fn(), update: jest.fn() },
+  // Read at issuance to resolve the shop's configured interest and fee rates.
+  // `{}` means the shop has set none, so the platform defaults apply - the same
+  // path a freshly registered shop takes.
+  pawnshop: { findUnique: jest.fn().mockResolvedValue({ settings: {} }) },
 };
 
 const mockLegalProofService = { createProof: jest.fn().mockResolvedValue({ id: 'proof-1' }) };
