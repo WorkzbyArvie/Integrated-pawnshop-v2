@@ -95,6 +95,7 @@ export const ROLE_PERMISSIONS: Record<string, PermissionName[]> = {
     'kyc.verify',
     'customer.view_history',
     'pawn_ticket.view',
+    'loan.manage',
   ],
   MANAGER: [
     'tenant.manage_branches',

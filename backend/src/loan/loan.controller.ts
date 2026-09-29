@@ -60,20 +60,26 @@ export class LoanController {
   }
 
   @Get('applications')
+  @RequiresPermission(PERMISSIONS['loan.manage'])
   getApplications(
-    @Query('pawnshopId') pawnshopId?: string,
+    @Req() req: Request,
     @Query('customerId') customerId?: string,
     @Query('status') status?: string,
     @Query('limit') limit?: string,
     @Query('offset') offset?: string,
   ) {
-    return this.loanApplicationService.getApplications({
-      pawnshopId,
-      customerId,
-      status,
-      limit: limit ? parseInt(limit, 10) : undefined,
-      offset: offset ? parseInt(offset, 10) : undefined,
-    });
+    const user = (req as any).user ?? req;
+    // The tenant is taken from the principal. It is no longer a query parameter,
+    // which is what let any caller read another shop's applications.
+    return this.loanApplicationService.getApplications(
+      {
+        customerId,
+        status,
+        limit: limit ? parseInt(limit, 10) : undefined,
+        offset: offset ? parseInt(offset, 10) : undefined,
+      },
+      user?.pawnshopId,
+    );
   }
 
   @Get('applications/:id')

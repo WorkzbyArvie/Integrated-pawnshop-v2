@@ -2,6 +2,7 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 import { LegalProofService } from './legal-proof.service';
@@ -94,19 +95,31 @@ export class LoanApplicationService {
   }
 
   /**
-   * Get all loan applications with optional filters
+   * Get all loan applications with optional filters.
+   *
+   * `callerPawnshopId` is required and non-optional: the tenant comes from the
+   * authenticated principal. Previously an omitted `pawnshopId` produced an
+   * empty `where` and returned every tenant's applications, and a supplied one
+   * was never compared against the caller.
    */
-  async getApplications(filters?: {
-    pawnshopId?: string;
-    customerId?: string;
-    status?: string;
-    limit?: number;
-    offset?: number;
-  }) {
-    const where: any = {};
+  async getApplications(
+    filters?: {
+      pawnshopId?: string;
+      customerId?: string;
+      status?: string;
+      limit?: number;
+      offset?: number;
+    },
+    callerPawnshopId?: string,
+  ) {
+    const where: any = { pawnshopId: callerPawnshopId };
 
-    if (filters?.pawnshopId) {
-      where.pawnshopId = filters.pawnshopId;
+    if (!callerPawnshopId) {
+      throw new ForbiddenException('This account is not attached to a shop');
+    }
+
+    if (filters?.pawnshopId && filters.pawnshopId !== callerPawnshopId) {
+      throw new ForbiddenException('Cannot read loan applications for another shop');
     }
 
     if (filters?.customerId) {

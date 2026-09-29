@@ -8,7 +8,6 @@ import {
   PackageCheck
 } from 'lucide-react';
 import { useToast } from '../App';
-import { supabase } from '../lib/supabaseClient';
 import api from '../lib/apiClient';
 import { formatCurrency } from '../lib/formatters';
 import { ReceiptViewer } from './ReceiptViewer';
@@ -37,6 +36,18 @@ interface RedemptionItem {
   expiryDate: string;
   status: string;
   loyaltyTier: string;
+}
+
+/** Row shape returned by `GET /tickets`; camelCase from Prisma. */
+interface ApiTicket {
+  id: number;
+  ticketNumber: string;
+  description?: string | null;
+  loanAmount?: number | null;
+  expiryDate?: string | null;
+  status: string;
+  lifecycleStatus?: string | null;
+  customer?: { id: string; fullName: string; loyaltyTier?: string | null } | null;
 }
 
 export function Redemption({ branchId, activeBranchId }: RedemptionProps) {
@@ -73,42 +84,26 @@ export function Redemption({ branchId, activeBranchId }: RedemptionProps) {
 
     setIsFetching(true);
     try {
-      let query = supabase
-        .from('ticket')
-        .select(`
-          id, 
-          ticket_number, 
-          description, 
-          loan_amount, 
-          expiry_date, 
-          status, 
-          customer:customer_id (
-            full_name,
-            loyaltytier
-          )
-        `);
+      // Reads through the backend, which resolves the tenant from the session.
+      // The direct `ticket` read this replaced applied its pawnshop filter only
+      // when a shop was selected, so an unset filter meant a platform-wide read.
+      const rows = await api.get<ApiTicket[]>('/tickets', {
+        branchId: hasActiveOperationalBranch ? activeOperationalBranchId : undefined,
+        limit: 500,
+      });
 
-      if (activePawnshopId) {
-        query = query.eq('pawnshop_id', activePawnshopId as any);
-      }
-      if (hasActiveOperationalBranch) {
-        query = query.eq('branch_id', activeOperationalBranchId as any);
-      }
-
-      const { data, error } = await query.eq('lifecycle_status', 'ACTIVE'); 
-
-      if (error) throw error;
-
-      const activeItems: RedemptionItem[] = (data || []).map((ticket: any) => ({
-        id: ticket.id,
-        ticketId: ticket.ticket_number,
-        customerName: ticket.customer?.full_name || 'Unknown Customer',
-        itemDetails: sanitizeAssetDetails(ticket.description),
-        loanAmount: Number(ticket.loan_amount) || 0,
-        expiryDate: ticket.expiry_date,
-        status: ticket.status,
-        loyaltyTier: ticket.customer?.loyaltytier || 'Standard',
-      }));
+      const activeItems: RedemptionItem[] = (rows || [])
+        .filter((ticket) => ticket.lifecycleStatus === 'ACTIVE')
+        .map((ticket) => ({
+          id: String(ticket.id),
+          ticketId: ticket.ticketNumber,
+          customerName: ticket.customer?.fullName || 'Unknown Customer',
+          itemDetails: sanitizeAssetDetails(ticket.description ?? undefined),
+          loanAmount: Number(ticket.loanAmount) || 0,
+          expiryDate: ticket.expiryDate ?? '',
+          status: ticket.status,
+          loyaltyTier: ticket.customer?.loyaltyTier || 'Standard',
+        }));
 
       setItems(activeItems);
     } catch (err: unknown) {

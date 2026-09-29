@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Param, Body, Req, Query, HttpCode, HttpStatus, Logger, InternalServerErrorException } from '@nestjs/common';
+import { Controller, Post, Get, Param, Body, Req, Query, HttpCode, HttpStatus, Logger, InternalServerErrorException, ForbiddenException } from '@nestjs/common';
 import type { Request } from 'express';
 import { PawnTicketService } from './pawn-ticket.service';
 import { CreatePawnTicketDto } from './dto/create-pawn-ticket.dto';
@@ -97,9 +97,20 @@ export class PawnTicketController {
     @Query('pawnshopId') pawnshopId?: string,
     @Query('branchId') branchId?: string,
   ) {
-    const user = (req as any).user as { pawnshopId?: string } | undefined;
+    const user = (req as any).user as { role?: string; pawnshopId?: string } | undefined;
+    // The caller's own tenant wins. A query param may only *narrow* the read for
+    // the platform operator; it used to take precedence outright, which let any
+    // account holding `pawn_ticket.approve` read another shop's pending tickets.
+    const isPlatform = user?.role === 'SUPER_ADMIN';
+    const callerPawnshopId = user?.pawnshopId ?? '';
+    const scopedPawnshopId = isPlatform ? pawnshopId || callerPawnshopId : callerPawnshopId;
+
+    if (!scopedPawnshopId) {
+      throw new ForbiddenException('A tenant must be identified to read pending approvals');
+    }
+
     return this.pawnTicketService.getPendingApprovalTickets(
-      pawnshopId || user?.pawnshopId || '',
+      scopedPawnshopId,
       branchId ? parseInt(branchId, 10) : undefined,
     );
   }

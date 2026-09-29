@@ -308,6 +308,10 @@ const MATRIX: Record<string, { tuple: string[]; permission: string }> = {
     tuple: ['OWNER', 'MANAGER'],
     permission: 'inventory.manage',
   },
+  'loan.controller.ts::getApplications': {
+    tuple: ['OWNER', 'ADMIN', 'MANAGER'],
+    permission: 'loan.manage',
+  },
   'approval.controller.ts::getQueue': {
     tuple: ['OWNER', 'ADMIN', 'MANAGER', 'CASHIER_TELLER', 'APPRAISER'],
     permission: 'approval.view_queue',
@@ -512,7 +516,7 @@ describe('permission catalog consistency', () => {
 
   it('ROLE_PERMISSIONS references only const values and sums to 117 mappings', () => {
     const mapped = Object.values(ROLE_PERMISSIONS).flat();
-    expect(mapped.length).toBe(117);
+    expect(mapped.length).toBe(118);
     for (const name of mapped) {
       expect(PERMISSIONS[name]).toBe(name);
     }
@@ -594,18 +598,19 @@ describe('69-site equivalence scan', () => {
     }
   });
 
-  it('finds all 94 guarded endpoints across the controllers', () => {
-    // Calibration tripwire. Raised from 90 across four additions: the two
-    // customer-ledger reads, the ticket-vault read, and the ticket description
-    // write. All four were previously unguarded *and* unscoped - any
-    // authenticated profile could list every customer in the platform, fetch one
-    // by id across tenants, list every ticket platform-wide along with each
-    // customer's full row, or write to any ticket by id.
+  it('finds all 95 guarded endpoints across the controllers', () => {
+    // Calibration tripwire. Raised from 90 across five additions: the two
+    // customer-ledger reads, the ticket-vault read, the ticket description
+    // write, and the loan-application list. All five were previously unguarded
+    // *and* unscoped - any authenticated profile could list every customer in
+    // the platform, fetch one by id across tenants, list every ticket
+    // platform-wide along with each customer's full row, write to any ticket by
+    // id, or read every tenant's loan applications.
     const total = [...sitesByFile.values()].reduce((sum, sites) => {
       const withAny = sites.filter((s) => s.roles || s.permissions);
       return sum + withAny.length;
     }, 0);
-    expect(total).toBe(94);
+    expect(total).toBe(95);
   });
 
   it('matrix tuples match the current @Roles tuples (RED-phase calibration)', () => {
