@@ -1,18 +1,21 @@
 # PawnGold — Session Handoff (end of 2026-09-29, session 2)
 
 **Defense: 3rd week of October 2026.** Roughly two and a half weeks.
-**HEAD at handoff:** `fecec05` — 7 commits on top of the previous handoff's
-`5db6f10`. Working tree clean apart from unrelated `.planning/` edits.
 
-Supersedes `5db6f10`'s handoff for the RLS work. Read section 1 first: the
-previous handoff said this task was scoped; it was not.
+**HEAD:** `5c6f85a`, pushed to `origin/main`. 10 commits on top of the previous
+handoff's `5db6f10`. **Both services are deployed and verified live** — the code
+work, the database migration, and the rollout are all done.
+
+Supersedes `5db6f10`'s handoff. Read section 1 first: the previous handoff said
+this task was scoped; it was not.
 
 ---
 
 ## 1. What happened this session
 
-Section 2a and 3 of the previous handoff are **code-complete and committed**. The
-migration is written but **not applied** — see section 3.
+Section 2a and 3 of the previous handoff are **complete, deployed, and verified**.
+The migration is applied to production. There is no outstanding action on the
+security work.
 
 The previous handoff listed 4 call sites to fix. The real number was **25**,
 across 6 tables, and two of them were worse than anything documented:
@@ -40,7 +43,10 @@ customer's full row attached.
 | `36c4ebf` | The email-fallback oracle is gone. New `GET /profile/session-context`. SystemSettings + App branding moved to guarded endpoints. |
 | `766af21` | Dashboard and BranchAnalytics stop trusting `?pawnshop=`. New `GET /analytics/branch-activity`. |
 | `c8447a7` | Branch name resolved from the tenant-scoped branch list instead of by localStorage id. |
-| `fecec05` | The RLS migration + 46 containment assertions. **Not applied.** |
+| `fecec05` | The RLS migration + 46 containment assertions. |
+| `3acd657` | First rewrite of this handoff. |
+| `4b4771a` | Handoff updated once the migration was verified live. |
+| `5c6f85a` | `.gitattributes` pins `*.sql text eol=lf` so Prisma migration checksums stay stable. **Pushed.** |
 
 Backend 867 tests across 55 suites, all green. Frontend 256 passing, tsc clean
 both sides. Three pre-existing frontend failures remain (`kycDocs` ×2), still out
@@ -74,25 +80,44 @@ SELECT ... TO anon` on any 42501. That hint is generic and applying it would
 re-create the breach condition — RLS would still deny, but the only remaining
 barrier would be a single policy someone could later drop.
 
-## 3a. Still to do: deploy, in this order
+## 3a. Deployed and verified live
 
-**Backend to Render first, then the frontend to Vercel.** The new frontend calls
-eight endpoints that do not exist on the deployed backend yet. Shipping the
-frontend first breaks sign-in outright (`/profile/session-context` 404s), plus
-the app shell, System Settings, Staff Matrix, Dashboard and Branch Analytics.
+`main` fast-forwarded `5db6f10..5c6f85a` and pushed. Both services redeployed.
+Verified from outside, by reading the deployed artifacts rather than trusting a
+200:
 
-After deploying, check in this order — the first is the highest risk:
+| | Evidence |
+|---|---|
+| Backend is the new build | `/profile/session-context` returns **401, not 404**. The route did not exist before this push, so a 404 would have meant the old build. 401 is correct — the route exists and refuses an unauthenticated call. |
+| Frontend is the new build | entry chunk changed `index-BUja1-EP.js` → `index-D02rnHjY.js`; every rewritten lazy chunk confirmed to call the backend and to contain **zero** `.from()` table calls |
 
-1. Sign in as an OWNER (depends on a brand-new endpoint).
-2. Dashboard loads with non-zero counts. It will **stop live-updating** — that
-   is the documented Realtime consequence, not a regression: the data now comes
+Confirmed per chunk in the served bundle: `CrmTable` → `/customers`, `Dashboard`
+→ `/analytics/branch-activity`, `StaffMatrix` → `/tenant-governance/staff`,
+`InventoryVault` and `Redemption` → `/tickets`, `SystemSettings` →
+`/tenant-governance/pawnshops/`. The old direct reads of `customer`, `profiles`,
+`ticket` and `pawnshops` are absent from all of them.
+
+The backend happened to finish before the frontend, so the window where a new
+frontend was live against an old backend never opened. **That was luck.** Vite
+builds faster than the NestJS build, so the normal outcome is the opposite, and
+the frontend would be live calling endpoints that do not exist — sign-in breaks
+first. If deploying again, expect to wait on Render before testing on Vercel.
+
+### Not yet done — a human needs to eyeball this
+
+The rollout is verified structurally. Nobody has clicked through the app. Check,
+in this order:
+
+1. **Sign in.** Highest risk — it depends on a brand-new endpoint.
+2. **Dashboard** — counts non-zero. It will **stop live-updating**; that is the
+   documented Realtime consequence, not a regression, because the data now comes
    from `GET /analytics/branch-activity`.
-3. Inventory Vault, Redemption, CRM, Staff Matrix, System Settings, Branch
-   Analytics — the six surfaces moved to the backend.
-4. Sign out and back in, then confirm someone shows as **Active**, not Offline.
-   This is the one that would expose a mistake in the `profiles` column grant:
-   if it were wrong, the presence heartbeat would fail silently and every user
-   would look permanently offline.
+3. **Inventory Vault, Redemption, CRM, Staff Matrix, System Settings, Branch
+   Analytics** — the six surfaces moved to the backend.
+4. **Sign out, sign back in, confirm someone shows Active.** This is the one that
+   would expose a mistake in the `profiles` column grant: if the grant were wrong
+   the presence heartbeat fails silently and every user looks permanently
+   offline.
 
 ## 4. Why the policy set is smaller than expected
 
@@ -126,9 +151,9 @@ widens to include `role`.
   `WITH CHECK`, widen the grant to `role`, remove `SECURITY DEFINER` — are all
   caught.
 
-## 6. Tooling traps — two new ones, both cost real time
+## 6. Tooling traps — six new ones, all cost real time
 
-The previous handoff's list still stands. Five more:
+The previous handoff's list still stands. Six more:
 
 8. **A mutation harness must restore in a `finally`, not after the loop.** An
    early throw once left `app.service.ts` holding a mutated `tenantId`, and the
@@ -159,6 +184,21 @@ The previous handoff's list still stands. Five more:
     it. Resetting it breaks the Render backend until that service's env is
     updated, which is why applying the migration through the SQL editor was the
     better call.
+14. **A code-split bundle hides most of the app from the entry chunk.** Verifying
+    the deployed frontend by grepping `index-*.js` for new API paths reported
+    "PARTIAL" and looked like a failed deploy. It was not: Dashboard, StaffMatrix,
+    CrmTable, InventoryVault, Redemption and SystemSettings are all lazy chunks
+    listed in the entry's dynamic-import map, which the script was not following
+    because Vite references them relatively (`./Dashboard-BxY.js`) rather than by
+    absolute `/assets/...` path. Dump the `.js` string literals in the entry chunk
+    to learn the real naming, then fetch the chunks you care about.
+15. **Pick verification markers that cannot be confused with a near-miss.** I
+    searched for `/tickets/` and reported a false alarm on `Redemption`; the code
+    calls `api.get('/tickets')` with no trailing slash, and only the vault matched
+    because its photo path is a template literal that happens to contain that
+    prefix. A marker that is a near-miss of the real string produces a wrong
+    answer with total confidence. Match the exact call, and when a check fails,
+    confirm the marker is right before believing the result.
 
 Also still true: never read `.env` through the shell - the secret guard blocks
 it, correctly. To check whether a key exists, parse it in a Node script and print
@@ -166,6 +206,10 @@ only presence and length.
 
 ## 7. Still open
 
+**Nothing in the security work is outstanding.** These are the rest:
+
+- **Click through the deployed app** (section 3a) — the rollout is verified
+  structurally, but nobody has used it yet. Sign-in first.
 - **§2b from the old handoff, still yours:** rotate `service_role` in Supabase →
   update Render env → redeploy, then rotate the JWT secret. The key is in Git
   history via `d9d199a`. Unaffected by anything here, and it was true before.
@@ -173,7 +217,13 @@ only presence and length.
   required for this account" when the **MFA assertion** is missing. Misleading;
   two-line fix.
 - **43 orphan auth accounts** (no `profiles` row). Registration verified correct;
-  these are historical test residue.
+  these are historical test residue. Note that with `profiles` now locked to
+  `auth.uid()`, nothing in the browser can read them, which is the intent.
+- **The DB credential in `backend/.env` is dead.** `prisma migrate status` fails
+  with P1000 locally. Resetting it is optional but worth doing so a future session
+  can verify the database independently instead of relying on screenshots — the
+  live claims in section 3 all rest on operator-run queries, not on a connection
+  of my own.
 - **Thesis prose reconciliation** (~1h, draft-level): renewal "8 months" → 30
   days; drop the at-rest encryption claim; narrow "weighted forecasts"; fix
   "Forfeiture" (state seizure → lender takes collateral); "Based on google";
@@ -187,3 +237,6 @@ only presence and length.
 - **`.planning/STATE.md` and `state.json` disagree** with each other and with this
   file. They are GSD bookkeeping and were not maintained this session. Treat this
   file as authoritative.
+- **Dashboard live-update is gone** and has not been replaced. If it matters for
+  the defense, the fix is a Realtime broadcast fed by a database trigger, not a
+  browser SELECT policy on `ticket` — the latter would undo section 3 entirely.
