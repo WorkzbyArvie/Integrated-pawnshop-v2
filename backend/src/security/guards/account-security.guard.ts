@@ -124,7 +124,7 @@ export class AccountSecurityGuard implements CanActivate {
       this.logger.warn(
         `MFA session context unavailable for profile ${userId}; denying request`,
       );
-      throw this.mfaRequired();
+      throw this.mfaRequired('session');
     }
 
     let valid = false;
@@ -138,7 +138,7 @@ export class AccountSecurityGuard implements CanActivate {
       this.logger.warn(
         `MFA assertion rejected for profile ${userId}; denying request`,
       );
-      throw this.mfaRequired();
+      throw this.mfaRequired('assertion');
     }
   }
 
@@ -153,11 +153,15 @@ export class AccountSecurityGuard implements CanActivate {
     return typeof value === 'string' && value.trim() ? value : undefined;
   }
 
-  private mfaRequired(): ForbiddenException {
+  private mfaRequired(reason: 'session' | 'assertion'): ForbiddenException {
     return new ForbiddenException({
       success: false,
       error: MFA_ASSERTION_ERROR_CODES.VERIFICATION_REQUIRED,
-      message: 'Email verification is required for this account.',
+      reason,
+      message:
+        reason === 'session'
+          ? 'Your session could not be verified. Sign in again.'
+          : 'Multi-factor verification is required for this account.',
     });
   }
 

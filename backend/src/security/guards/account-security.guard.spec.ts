@@ -260,13 +260,31 @@ describe('AccountSecurityGuard', () => {
       credentialState.getRequired.mockResolvedValue(MFA_ENABLED);
 
       await expect(buildGuard().canActivate(context as never)).rejects.toMatchObject({
-        response: expect.objectContaining({ error: 'MFA_VERIFICATION_REQUIRED' }),
+        response: expect.objectContaining({
+          error: 'MFA_VERIFICATION_REQUIRED',
+          reason: 'assertion',
+        }),
       });
       expect(assertions.validate).toHaveBeenCalledWith(
         'profile-1',
         'session-current',
         undefined,
       );
+    });
+
+    it('distinguishes an unresolvable session from a rejected assertion', async () => {
+      credentialState.getRequired.mockResolvedValue(MFA_ENABLED);
+      authUser.getAuthContextFromAuthHeader.mockRejectedValue(
+        new Error('no session'),
+      );
+
+      await expect(buildGuard().canActivate(context as never)).rejects.toMatchObject({
+        response: expect.objectContaining({
+          error: 'MFA_VERIFICATION_REQUIRED',
+          reason: 'session',
+        }),
+      });
+      expect(assertions.validate).not.toHaveBeenCalled();
     });
 
     it('denies an assertion that was issued for another session', async () => {

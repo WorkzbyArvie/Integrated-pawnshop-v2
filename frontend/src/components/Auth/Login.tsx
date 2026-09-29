@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabaseClient';
-import api from '../../lib/apiClient';
+import api, { getApiErrorDetails } from '../../lib/apiClient';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Loader2, Lock, Mail, AlertTriangle, ChevronLeft } from "lucide-react";
 import { PasswordField } from './PasswordField';
@@ -61,13 +61,40 @@ export default function Login() {
         branchId: number | null;
       } | null = null;
 
+      let sessionContextError: unknown = null;
       try {
         profileData = await api.get('/profile/session-context');
       } catch (err: unknown) {
+        sessionContextError = err;
         console.warn('[LOGIN] Session context fetch failed:', err);
       }
 
       if (!profileData) {
+        // The Supabase session is valid; it is the *profile* read that failed. Which
+        // failure decides whether this login can continue.
+        //
+        // A guard denial is not "no profile". It means the server identified the
+        // caller and refused the read - MFA assertion missing, or a forced password
+        // change. Building a profile out of user_metadata in that state fabricates
+        // a role and a tenant the server never granted, then writes them to
+        // localStorage as if they were authoritative. That is what produced a
+        // signed-in user staring at an empty dashboard while every request 403'd,
+        // and it is how a client-supplied tenant got a foothold in the first place.
+        // Hand off to App.tsx, which already gates on server-owned credential
+        // state, instead of inventing an identity here.
+        const guardCode = getApiErrorDetails(sessionContextError).code;
+        if (
+          guardCode === 'MFA_VERIFICATION_REQUIRED' ||
+          guardCode === 'PASSWORD_CHANGE_REQUIRED'
+        ) {
+          localStorage.removeItem('user_role');
+          localStorage.removeItem('active_pawnshop_id');
+          localStorage.removeItem('active_branch_id');
+          setPassword('');
+          navigate('/', { replace: true });
+          return;
+        }
+
         console.warn('[LOGIN] No profile found, using metadata/local fallback');
         const fallbackRole = authData.user?.user_metadata?.role || authData.user?.app_metadata?.role || 'STAFF';
         const fallbackPawnshopId = authData.user?.user_metadata?.pawnshop_id || authData.user?.app_metadata?.pawnshop_id || null;

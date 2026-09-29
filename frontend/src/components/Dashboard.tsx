@@ -170,33 +170,19 @@ export function Dashboard({
     }
   }, [targetUuid, activeOperationalBranchId]);
 
-  // Real-time sync: subscribe to Ticket changes and refresh dashboard
-  useEffect(() => {
-    if (!targetUuid) return;
-    let mounted = true;
-
-    const channel = supabase
-      .channel('dashboard_sync')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'ticket' }, () => {
-        if (mounted) {
-          loadDashboardData();
-        }
-      })
-      .subscribe((status) => {
-        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-          if (mounted) {
-            loadDashboardData();
-          }
-        }
-      });
-
-    return () => {
-      mounted = false;
-      try {
-        supabase.removeChannel(channel);
-      } catch {}
-    };
-  }, [targetUuid, activeOperationalBranchId]);
+  // Real-time sync was removed with the RLS lockdown.
+  //
+  // This subscribed to postgres_changes on `ticket`, and the migration that locked
+  // the six tables revoked every `anon`/`authenticated` privilege on that table.
+  // The subscription could never deliver an event again. It was worse than inert:
+  // the CHANNEL_ERROR / TIMED_OUT handler called loadDashboardData() on every
+  // failed channel status, so a subscription that could not work by construction
+  // drove a full dashboard refetch - which fired more requests, some of which
+  // errored, which is the reload storm this page was showing.
+  //
+  // Live updates are now a server-side concern: a Realtime broadcast fed by a
+  // database trigger, or the SOLD to the backend. Reintroducing a browser SELECT
+  // on `ticket` to get them back would undo the containment.
 
   const loadDashboardData = async () => {
     setLoading(true);

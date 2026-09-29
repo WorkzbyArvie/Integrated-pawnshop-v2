@@ -19,6 +19,33 @@
     background: rgba(201, 160, 92, 0.3);
     color: #E5C88C;
   }
+
+  /*
+   * Native form controls render in the OS light scheme by default, so a
+   * `<select>` on the dark theme produced white popup panels with near-white
+   * text: every option was unreadable. `color-scheme` opts the whole control -
+   * including the popup list and the date picker - into the dark palette, and
+   * the explicit option colours cover the browsers that ignore it.
+   */
+  :root {
+    color-scheme: dark;
+  }
+
+  select option,
+  optgroup {
+    background-color: #14141B;
+    color: #E5C88C;
+  }
+
+  select option:checked {
+    background-color: #C9A05C;
+    color: #0A0A0F;
+  }
+
+  input[type='date']::-webkit-calendar-picker-indicator {
+    filter: invert(0.8) sepia(0.4) saturate(3) hue-rotate(5deg);
+    cursor: pointer;
+  }
 }
 
 body::after {
