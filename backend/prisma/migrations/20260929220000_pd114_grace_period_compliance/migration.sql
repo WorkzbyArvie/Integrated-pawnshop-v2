@@ -66,8 +66,6 @@
 -- computable. It is not by itself the notice.
 -- =============================================================================
 
-BEGIN;
-
 -- 1. Recompute the grace period on tickets still within the borrower's window.
 --
 --   Guarded on lifecycle_status so a ticket that has already moved past
@@ -86,8 +84,6 @@ SET "forfeituredate" = "grace_period_end" + INTERVAL '15 days',
 WHERE "grace_period_end" IS NOT NULL
   AND "lifecycle_status" IN ('ACTIVE', 'OVERDUE', 'GRACE_PERIOD')
   AND ("forfeituredate" IS DISTINCT FROM "grace_period_end" + INTERVAL '15 days');
-
-COMMIT;
 
 -- -----------------------------------------------------------------------------
 -- Verification - ONE statement, one grid. snake_case, as above.
@@ -164,3 +160,20 @@ ORDER BY "lifecycle_status";
 -- Idempotent. Applied to a database that already holds 90-day windows it is a
 -- no-op, so it is safe to run more than once.
 -- =============================================================================
+
+-- -----------------------------------------------------------------------------
+-- TRANSACTION
+--
+-- No BEGIN/COMMIT here, deliberately. Prisma wraps every migration in a
+-- transaction on PostgreSQL, so a nested BEGIN is at best a no-op and at worst
+-- commits Prisma's transaction before its bookkeeping runs.
+--
+-- The cost of getting that wrong was a deploy that failed with
+-- "current transaction is aborted, commands ignored until end of transaction
+-- block" instead of the real error - which was a column name that did not
+-- exist. An aborted transaction reports the abort, not the cause, and Prisma
+-- logs what Postgres said last. The genuine error is now visible in the log,
+-- which is the only reason to care about this.
+--
+-- If you are running one of these by hand in the SQL editor rather than through
+-- the pipeline, wrap your paste in BEGIN/COMMIT yourself.

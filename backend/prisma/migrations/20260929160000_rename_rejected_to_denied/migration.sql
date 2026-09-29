@@ -39,8 +39,6 @@
 -- `ALTER TYPE ... RENAME VALUE` rewrites the value list in place: every existing
 -- row keeps its data and its meaning, and no table rewrite happens.
 
-BEGIN;
-
 -- 1. The enum value, only if the old label is still there.
 DO $$
 BEGIN
@@ -70,8 +68,6 @@ BEGIN
 END
 $$;
 
-COMMIT;
-
 -- -----------------------------------------------------------------------------
 -- ROLLBACK
 --
@@ -87,3 +83,19 @@ COMMIT;
 -- will fail on the unknown enum value. Change one or the other, not both.
 -- =============================================================================
 
+-- -----------------------------------------------------------------------------
+-- TRANSACTION
+--
+-- No BEGIN/COMMIT here, deliberately. Prisma wraps every migration in a
+-- transaction on PostgreSQL, so a nested BEGIN is at best a no-op and at worst
+-- commits Prisma's transaction before its bookkeeping runs.
+--
+-- The cost of getting that wrong was a deploy that failed with
+-- "current transaction is aborted, commands ignored until end of transaction
+-- block" instead of the real error - which was a column name that did not
+-- exist. An aborted transaction reports the abort, not the cause, and Prisma
+-- logs what Postgres said last. The genuine error is now visible in the log,
+-- which is the only reason to care about this.
+--
+-- If you are running one of these by hand in the SQL editor rather than through
+-- the pipeline, wrap your paste in BEGIN/COMMIT yourself.

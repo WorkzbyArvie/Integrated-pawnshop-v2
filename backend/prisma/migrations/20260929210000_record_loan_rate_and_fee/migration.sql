@@ -48,8 +48,6 @@
 -- default, so a second run cannot overwrite a rate that has since been set
 -- deliberately, and cannot compound the rounding a second time.
 
-BEGIN;
-
 ALTER TABLE public."loan"
   ADD COLUMN IF NOT EXISTS "interestrate" DOUBLE PRECISION NOT NULL DEFAULT 0.035,
   ADD COLUMN IF NOT EXISTS "servicefeeamount" DOUBLE PRECISION NOT NULL DEFAULT 0;
@@ -66,8 +64,6 @@ WHERE "principalamount" IS NOT NULL
   AND "interestamount" IS NOT NULL
   AND "interestrate" = 0.035
   AND ("interestamount" / "principalamount") BETWEEN 0 AND 0.2;
-
-COMMIT;
 
 -- -----------------------------------------------------------------------------
 -- Verification - ONE statement, one grid. Run this by hand, after the change has
@@ -134,3 +130,20 @@ ORDER BY "interestrate";
 -- `interestrate` on every loan; running it against a database where this
 -- migration has not been applied will fail on the unknown column.
 -- =============================================================================
+
+-- -----------------------------------------------------------------------------
+-- TRANSACTION
+--
+-- No BEGIN/COMMIT here, deliberately. Prisma wraps every migration in a
+-- transaction on PostgreSQL, so a nested BEGIN is at best a no-op and at worst
+-- commits Prisma's transaction before its bookkeeping runs.
+--
+-- The cost of getting that wrong was a deploy that failed with
+-- "current transaction is aborted, commands ignored until end of transaction
+-- block" instead of the real error - which was a column name that did not
+-- exist. An aborted transaction reports the abort, not the cause, and Prisma
+-- logs what Postgres said last. The genuine error is now visible in the log,
+-- which is the only reason to care about this.
+--
+-- If you are running one of these by hand in the SQL editor rather than through
+-- the pipeline, wrap your paste in BEGIN/COMMIT yourself.

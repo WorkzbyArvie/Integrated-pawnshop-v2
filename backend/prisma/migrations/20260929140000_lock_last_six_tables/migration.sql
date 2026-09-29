@@ -22,8 +22,6 @@
 -- Rollback: the statements are idempotent and reversible. To reopen a table,
 -- run the commented ROLLBACK block at the very end.
 
-BEGIN;
-
 -- -----------------------------------------------------------------------------
 -- 1. Helper functions
 -- -----------------------------------------------------------------------------
@@ -167,8 +165,6 @@ REVOKE ALL ON public.pawnshops          FROM anon, authenticated;
 REVOKE ALL ON public.branch             FROM anon, authenticated;
 REVOKE ALL ON public.loan_applications  FROM anon, authenticated;
 
-COMMIT;
-
 -- =============================================================================
 -- Verification - run after applying
 -- =============================================================================
@@ -229,3 +225,20 @@ COMMIT;
 -- Note: rolling back re-opens the cross-tenant read paths that the code-side
 -- commits c8c9409..c8447a7 closed. The code is now safe without this migration,
 -- so rolling back costs you the anon-key containment and nothing else.
+
+-- -----------------------------------------------------------------------------
+-- TRANSACTION
+--
+-- No BEGIN/COMMIT here, deliberately. Prisma wraps every migration in a
+-- transaction on PostgreSQL, so a nested BEGIN is at best a no-op and at worst
+-- commits Prisma's transaction before its bookkeeping runs.
+--
+-- The cost of getting that wrong was a deploy that failed with
+-- "current transaction is aborted, commands ignored until end of transaction
+-- block" instead of the real error - which was a column name that did not
+-- exist. An aborted transaction reports the abort, not the cause, and Prisma
+-- logs what Postgres said last. The genuine error is now visible in the log,
+-- which is the only reason to care about this.
+--
+-- If you are running one of these by hand in the SQL editor rather than through
+-- the pipeline, wrap your paste in BEGIN/COMMIT yourself.

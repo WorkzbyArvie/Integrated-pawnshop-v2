@@ -56,6 +56,49 @@
 --       const p='backend/prisma/migrations/'+d+'/migration.sql'; \
 --       if (fs.existsSync(p)) console.log(createHash('sha256').update(fs.readFileSync(p)).digest('hex'), d); }"
 --
+-- CHECKSUMS ARE NOW OBSOLETE FOR THE FIVE MIGRATIONS
+--
+-- The BEGIN/COMMIT wrappers were removed from every one of these files after they
+-- were first recorded, so the hashes above are from before that change. Prisma
+-- verifies a recorded migration against the file on disk and refuses to deploy
+-- on a mismatch, so the block below re-records all of them from the current
+-- files. Run it INSTEAD of the insert above - it supersedes it.
+--
+--   BEGIN;
+--
+--   DELETE FROM public."_prisma_migrations"
+--   WHERE migration_name IN (
+--     '20260929140000_lock_last_six_tables',
+--     '20260929150000_profiles_presence_heartbeat_grant',
+--     '20260929160000_rename_rejected_to_denied',
+--     '20260929210000_record_loan_rate_and_fee',
+--     '20260929220000_pd114_grace_period_compliance'
+--   );
+--
+--   INSERT INTO public."_prisma_migrations"
+--     (id, checksum, migration_name, started_at, finished_at, rolled_back_at, logs, applied_steps_count)
+--   VALUES
+--     (gen_random_uuid(), '510cdf1258b4add6ef06a8907cfa59d90ed0595d0a0f56c4ec0ab586431f1257',
+--      '20260929140000_lock_last_six_tables', NOW(), NOW(), NULL, 'Applied by hand; RLS containment verified live.', 1),
+--     (gen_random_uuid(), '9c4cb23d9047ae87b74f66c7cc7928a89c090f22ad70e1d5f89568c2a264f40b',
+--      '20260929150000_profiles_presence_heartbeat_grant', NOW(), NOW(), NULL, 'Applied by hand in the Supabase SQL editor.', 1),
+--     (gen_random_uuid(), '91b5e80a8843f3c1dbc8edc967f9e28656127695b0219c241717706967f737eb',
+--      '20260929160000_rename_rejected_to_denied', NOW(), NOW(), NULL, 'Applied by hand in the Supabase SQL editor.', 1),
+--     (gen_random_uuid(), '85d26093a8a34909be040f58eac41b63e13bb3e8268cfeef7e102ca1b2d1c720',
+--      '20260929210000_record_loan_rate_and_fee', NOW(), NOW(), NULL, 'Applied by hand in the Supabase SQL editor.', 1),
+--     (gen_random_uuid(), '66fcf6797ae8008d36d944ed3c3179fe343d12140fa077c993f6516ce4c470e0',
+--      '20260929220000_pd114_grace_period_compliance', NOW(), NOW(), NULL,
+--      'Applied by hand in the Supabase SQL editor; verified 0 incorrect, 0 legacy.', 1);
+--
+--   COMMIT;
+--
+-- To recompute after any future edit to one of these files:
+--
+--   node -e "const {createHash}=require('crypto'),fs=require('fs'),p=require('path');
+--     for (const d of fs.readdirSync('backend/prisma/migrations')) {
+--       const f=p.join('backend/prisma/migrations',d,'migration.sql');
+--       if (fs.existsSync(f)) console.log(createHash('sha256').update(fs.readFileSync(f)).digest('hex'), d); }"
+--
 -- PASTE AS ONE BLOCK. Everything below is a single transaction, so a failure
 -- leaves the ledger exactly as it was rather than half-updated.
 -- =============================================================================
@@ -75,18 +118,20 @@ WHERE migration_name IN (
 INSERT INTO public."_prisma_migrations"
   (id, checksum, migration_name, started_at, finished_at, rolled_back_at, logs, applied_steps_count)
 VALUES
-  -- sha256 of backend/prisma/migrations/20260929150000_profiles_presence_heartbeat_grant/migration.sql
-  (gen_random_uuid(), '64b9f24d0a62a88300780e129d4e9e691b5341eb93f839b609ce5fea0228e87d',
+    -- sha256 of backend/prisma/migrations/20260929150000_profiles_presence_heartbeat_grant/migration.sql
+  (gen_random_uuid(), '9c4cb23d9047ae87b74f66c7cc7928a89c090f22ad70e1d5f89568c2a264f40b',
    '20260929150000_profiles_presence_heartbeat_grant',
    NOW(), NOW(), NULL, 'Applied by hand in the Supabase SQL editor.', 1),
   -- sha256 of backend/prisma/migrations/20260929160000_rename_rejected_to_denied/migration.sql
-  (gen_random_uuid(), '1cf03f9321eb7301471dfd95665782ad6ffe52011152028a0d76c8c5b3d6c8c1',
+  (gen_random_uuid(), '91b5e80a8843f3c1dbc8edc967f9e28656127695b0219c241717706967f737eb',
    '20260929160000_rename_rejected_to_denied',
    NOW(), NOW(), NULL, 'Applied by hand in the Supabase SQL editor.', 1),
   -- sha256 of backend/prisma/migrations/20260929210000_record_loan_rate_and_fee/migration.sql
-  (gen_random_uuid(), 'f8ceab0002bd6c8984b0beaabbc520cda03ef1de46f75bc2798eadc161e912db',
+  (gen_random_uuid(), '85d26093a8a34909be040f58eac41b63e13bb3e8268cfeef7e102ca1b2d1c720',
    '20260929210000_record_loan_rate_and_fee',
    NOW(), NOW(), NULL, 'Applied by hand in the Supabase SQL editor.', 1);
+  -- 20260929140000_lock_last_six_tables and 20260929220000_pd114_grace_period_compliance
+  -- are resolved separately; see the note on checksums at the top of this file.
 
 COMMIT;
 

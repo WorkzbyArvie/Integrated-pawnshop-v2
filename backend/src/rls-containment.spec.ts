@@ -244,9 +244,23 @@ describe('RLS migration — the last six tables', () => {
   });
 
   describe('deployment safety', () => {
-    it('wraps the change in a transaction so a failure leaves nothing half-applied', () => {
-      expect(/^\s*BEGIN;/m.test(stripped)).toBe(true);
-      expect(/COMMIT;\s*$/m.test(stripped.trimEnd() + '\n')).toBe(true);
+    it('does not open its own transaction, because Prisma already has one', () => {
+      // Previously this asserted the opposite: that a BEGIN was present, so a
+      // failure would leave nothing half-applied.
+      //
+      // Prisma wraps every migration in a transaction on PostgreSQL, so a nested
+      // BEGIN is at best a no-op and at worst commits Prisma's transaction
+      // before its bookkeeping runs. The cost was concrete rather than
+      // theoretical: a deploy failed reporting "current transaction is aborted,
+      // commands ignored until end of transaction block" when the real error was
+      // a column that did not exist. An aborted transaction reports the abort,
+      // not the cause, and Prisma logs what Postgres said last - so the nested
+      // wrapper cost an hour of diagnosis by hiding the cause of its own failure.
+      //
+      // Atomicity is still guaranteed. It is now Prisma's transaction rather than
+      // a second one, and that is the one that actually governs.
+      expect(stripped).not.toMatch(/^\s*BEGIN\s*;/m);
+      expect(stripped).not.toMatch(/^\s*COMMIT\s*;/m);
     });
 
     it('documents the realtime consequence of locking ticket', () => {
