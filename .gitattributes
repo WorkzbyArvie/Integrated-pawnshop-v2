@@ -1,0 +1,13 @@
+graphify-out/graph.json merge=graphify
+
+# Prisma stores a SHA-256 of each migration file in _prisma_migrations and
+# reports a mismatch as "the migration file was modified". With
+# core.autocrlf=true on Windows a checkout rewrites these to CRLF, which changes
+# the bytes and therefore the hash - so the migration already applied to the
+# database would look tampered with and `migrate deploy` would refuse to run.
+# Pinning SQL to LF makes the hash identical on every platform.
+*.sql text eol=lf
+
+# Same reasoning for the containment spec, which asserts against the migration
+# file's contents by line.
+backend/prisma/migrations/**/*.sql text eol=lf
