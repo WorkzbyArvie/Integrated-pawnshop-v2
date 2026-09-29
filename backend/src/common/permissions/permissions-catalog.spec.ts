@@ -324,6 +324,10 @@ const MATRIX: Record<string, { tuple: string[]; permission: string }> = {
     tuple: ['SUPER_ADMIN'],
     permission: 'platform.manage',
   },
+  'analytics.controller.ts::getBranchActivity': {
+    tuple: ['OWNER', 'MANAGER'],
+    permission: 'reports.view',
+  },
   'approval.controller.ts::getQueue': {
     tuple: ['OWNER', 'ADMIN', 'MANAGER', 'CASHIER_TELLER', 'APPRAISER'],
     permission: 'approval.view_queue',
@@ -611,20 +615,22 @@ describe('69-site equivalence scan', () => {
   });
 
   it('finds all 95 guarded endpoints across the controllers', () => {
-    // Calibration tripwire. Raised from 90 across eight additions: the two
+    // Calibration tripwire. Raised from 90 across nine additions: the two
     // customer-ledger reads, the ticket-vault read, the ticket description
     // write, the loan-application list, the own-shop staff roster, the own-shop
-    // system config, and the platform settings read. All eight were previously
-    // unguarded *and* unscoped - any authenticated profile could list every
-    // customer in the platform, fetch one by id across tenants, list every
-    // ticket platform-wide along with each customer's full row, write to any
-    // ticket by id, read every tenant's loan applications, read every profile on
-    // the platform, or read an arbitrary tenant's feature settings.
+    // system config, the platform settings read, and the branch-activity
+    // aggregate. All nine were previously unguarded *and* unscoped - any
+    // authenticated profile could list every customer in the platform, fetch one
+    // by id across tenants, list every ticket platform-wide along with each
+    // customer's full row, write to any ticket by id, read every tenant's loan
+    // applications, read every profile on the platform, read an arbitrary
+    // tenant's feature settings, or name any shop in `?pawnshop=` and read its
+    // dashboard aggregates.
     const total = [...sitesByFile.values()].reduce((sum, sites) => {
       const withAny = sites.filter((s) => s.roles || s.permissions);
       return sum + withAny.length;
     }, 0);
-    expect(total).toBe(98);
+    expect(total).toBe(99);
   });
 
   it('matrix tuples match the current @Roles tuples (RED-phase calibration)', () => {

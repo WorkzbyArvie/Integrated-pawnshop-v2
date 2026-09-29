@@ -3,6 +3,7 @@ import { LoanApplicationService } from './loan/loan-application.service';
 import { TenantGovernanceController } from './tenant-governance/tenant-governance.controller';
 import { TenantGovernanceService } from './tenant-governance/tenant-governance.service';
 import { ProfileService } from './profile/profile.service';
+import { AnalyticsService } from './analytics/analytics.service';
 import { PERMISSIONS_KEY } from './common/decorators/requires-permission.decorator';
 import { PERMISSIONS } from './common/permissions/permissions.const';
 
@@ -375,6 +376,145 @@ describe('GET /tenant-governance/pawnshops/:id/settings — platform settings', 
       TenantGovernanceController.prototype.getPawnshopSettings,
     );
     expect(required).toContain(PERMISSIONS['platform.manage']);
+  });
+});
+
+describe('GET /analytics/branch-activity — the dashboard aggregate', () => {
+  let service: AnalyticsService;
+  let ticket: { findMany: jest.Mock };
+  let customer: { count: jest.Mock };
+  let branch: { findFirst: jest.Mock };
+
+  const OWNER_ACTOR = { id: 'u-1', role: 'OWNER', pawnshopId: 'shop-a' };
+
+  beforeEach(() => {
+    ticket = { findMany: jest.fn().mockResolvedValue([]) };
+    customer = { count: jest.fn().mockResolvedValue(0) };
+    branch = { findFirst: jest.fn().mockResolvedValue({ id: 3 }) };
+    service = Object.create(AnalyticsService.prototype) as AnalyticsService;
+    (service as any).prisma = { ticket, customer, branch };
+  });
+
+  // The defect: the dashboard assembled these from direct browser reads of
+  // `ticket` and `customer` filtered by a `pawnshop_id` taken from `?pawnshop=`,
+  // so naming another shop's id in the URL read that shop.
+  it('scopes the ticket aggregate to the caller own shop', async () => {
+    await service.getBranchActivity(OWNER_ACTOR);
+
+    expect(ticket.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { pawnshopId: 'shop-a' } }),
+    );
+  });
+
+  it('scopes the customer count to the caller own shop', async () => {
+    await service.getBranchActivity(OWNER_ACTOR);
+
+    expect(customer.count).toHaveBeenCalledWith({ where: { pawnshopId: 'shop-a' } });
+  });
+
+  it('returns no branch filter when none is named', async () => {
+    await service.getBranchActivity(OWNER_ACTOR);
+
+    const [args] = ticket.findMany.mock.calls[0];
+    expect(args.where).not.toHaveProperty('branchId');
+  });
+
+  it('verifies a named branch belongs to the caller shop', async () => {
+    await service.getBranchActivity(OWNER_ACTOR, '3');
+
+    expect(branch.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 3, pawnshopId: 'shop-a' } }),
+    );
+    expect(ticket.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { pawnshopId: 'shop-a', branchId: 3 } }),
+    );
+  });
+
+  it('refuses a branch from another tenant', async () => {
+    branch.findFirst.mockResolvedValue(null);
+
+    await expect(service.getBranchActivity(OWNER_ACTOR, '3')).rejects.toThrow(
+      /not found in this shop/i,
+    );
+    expect(ticket.findMany).not.toHaveBeenCalled();
+  });
+
+  it('rejects a non-numeric branch id before querying', async () => {
+    await expect(service.getBranchActivity(OWNER_ACTOR, 'abc')).rejects.toThrow(
+      /invalid branch id/i,
+    );
+    expect(branch.findFirst).not.toHaveBeenCalled();
+  });
+
+  it('fails closed for an identity with no tenant', async () => {
+    await expect(
+      service.getBranchActivity({ id: 'u-9', role: 'STAFF', pawnshopId: null }),
+    ).rejects.toThrow(/not attached to a shop/i);
+    expect(ticket.findMany).not.toHaveBeenCalled();
+  });
+
+  it('requires a super admin to name a tenant rather than aggregating every shop', async () => {
+    await expect(
+      service.getBranchActivity({ id: 'u-3', role: 'SUPER_ADMIN', pawnshopId: null }),
+    ).rejects.toThrow(/tenant must be identified/i);
+    expect(ticket.findMany).not.toHaveBeenCalled();
+  });
+
+  it('selects only the fields the aggregates need', async () => {
+    await service.getBranchActivity(OWNER_ACTOR);
+
+    const [args] = ticket.findMany.mock.calls[0];
+    expect(Object.keys(args.select).sort()).toEqual(
+      ['category', 'id', 'interestRate', 'loanAmount', 'pawnDate', 'status', 'ticketNumber'].sort(),
+    );
+  });
+
+  it('bounds the ticket read', async () => {
+    await service.getBranchActivity(OWNER_ACTOR);
+
+    expect(ticket.findMany).toHaveBeenCalledWith(expect.objectContaining({ take: 500 }));
+  });
+
+  it('counts tickets by status and totals principal server-side', async () => {
+    ticket.findMany.mockResolvedValue([
+      { id: 1, ticketNumber: 'T-1', category: 'Gold', status: 'ACTIVE', loanAmount: 1000, interestRate: 3, pawnDate: '2026-01-15T00:00:00.000Z' },
+      { id: 2, ticketNumber: 'T-2', category: 'Gold', status: 'ACTIVE', loanAmount: 2000, interestRate: 3, pawnDate: '2026-02-20T00:00:00.000Z' },
+      { id: 3, ticketNumber: 'T-3', category: 'Watch', status: 'REDEEMED', loanAmount: 500, interestRate: 3, pawnDate: '2026-02-25T00:00:00.000Z' },
+    ]);
+
+    const result = await service.getBranchActivity(OWNER_ACTOR);
+
+    expect(result.countsByStatus).toEqual({ ACTIVE: 2, REDEEMED: 1 });
+    expect(result.totals.loanAmount).toBe(3500);
+    expect(result.totals.projectedInterest).toBe(105);
+    expect(result.categories).toEqual({ Gold: 2, Watch: 1 });
+  });
+
+  it('caps the monthly trend at twelve entries', async () => {
+    ticket.findMany.mockResolvedValue(
+      Array.from({ length: 15 }, (_, i) => ({
+        id: i,
+        ticketNumber: `T-${i}`,
+        category: 'Gold',
+        status: 'ACTIVE',
+        loanAmount: 1,
+        interestRate: 1,
+        pawnDate: new Date(Date.UTC(2025, i, 1)).toISOString(),
+      })),
+    );
+
+    const result = await service.getBranchActivity(OWNER_ACTOR);
+
+    expect(result.monthlyTrends.length).toBe(12);
+  });
+
+  it('is guarded by reports.view', () => {
+    const required = Reflect.getMetadata(
+      PERMISSIONS_KEY,
+      require('./analytics/analytics.controller').AnalyticsController.prototype
+        .getBranchActivity,
+    );
+    expect(required).toContain(PERMISSIONS['reports.view']);
   });
 });
 

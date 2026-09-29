@@ -1,4 +1,4 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 
 /** Identity attached to the request by `RbacGuard`. */
@@ -57,6 +57,120 @@ export class AnalyticsService {
     return requested.length
       ? requested.filter((id) => id === actor.pawnshopId)
       : [actor.pawnshopId];
+  }
+
+  /**
+   * Ticket and client aggregates for the caller's shop.
+   *
+   * The browser assembled these from its own reads of `ticket` and `customer`,
+   * filtering by a `pawnshop_id` it had taken from the URL or localStorage. A
+   * client-supplied tenant is not a constraint, so those reads returned whatever
+   * shop the caller named. Here the tenant comes from the principal and a named
+   * branch is verified against it.
+   */
+  async getBranchActivity(actor: AnalyticsActor, branchId?: string) {
+    const pawnshopId = this.resolveTenant(actor);
+
+    let scopedBranchId: number | null = null;
+    if (branchId) {
+      const parsed = parseInt(branchId, 10);
+      if (!Number.isInteger(parsed) || parsed <= 0) {
+        throw new BadRequestException('Invalid branch id');
+      }
+
+      const branch = await this.prisma.branch.findFirst({
+        where: { id: parsed, pawnshopId },
+        select: { id: true },
+      });
+      if (!branch) {
+        throw new NotFoundException('Branch not found in this shop');
+      }
+      scopedBranchId = branch.id;
+    }
+
+    const ticketScope = scopedBranchId != null
+      ? { pawnshopId, branchId: scopedBranchId }
+      : { pawnshopId };
+
+    const [tickets, clientCount] = await Promise.all([
+      this.prisma.ticket.findMany({
+        where: ticketScope,
+        select: {
+          id: true,
+          ticketNumber: true,
+          category: true,
+          status: true,
+          loanAmount: true,
+          interestRate: true,
+          pawnDate: true,
+        },
+        orderBy: { pawnDate: 'desc' },
+        take: 500,
+      }),
+      this.prisma.customer.count({ where: { pawnshopId } }),
+    ]);
+
+    const countsByStatus: Record<string, number> = {};
+    for (const ticket of tickets) {
+      const key = (ticket.status || 'UNKNOWN').toUpperCase();
+      countsByStatus[key] = (countsByStatus[key] ?? 0) + 1;
+    }
+
+    const totals = tickets.reduce(
+      (acc, ticket) => {
+        acc.loanAmount += Number(ticket.loanAmount ?? 0);
+        acc.projectedInterest +=
+          (Number(ticket.loanAmount ?? 0) * Number(ticket.interestRate ?? 0)) / 100;
+        return acc;
+      },
+      { loanAmount: 0, projectedInterest: 0 },
+    );
+
+    const categories: Record<string, number> = {};
+    const months: Record<string, { tickets: number }> = {};
+    for (const ticket of tickets) {
+      const category = ticket.category || 'Uncategorized';
+      categories[category] = (categories[category] ?? 0) + 1;
+
+      if (ticket.pawnDate) {
+        const d = new Date(ticket.pawnDate);
+        const key = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
+        if (!months[key]) months[key] = { tickets: 0 };
+        months[key].tickets += 1;
+      }
+    }
+
+    const monthlyTrends = Object.keys(months)
+      .sort()
+      .slice(-12)
+      .map((key) => {
+        const [year, month] = key.split('-');
+        const label = new Date(Number(year), Number(month) - 1).toLocaleString('default', {
+          month: 'short',
+          year: '2-digit',
+        });
+        return { month: label, ...months[key] };
+      });
+
+    const recentTickets = tickets.slice(0, 8).map((ticket) => ({
+      id: ticket.id,
+      ticketNumber: ticket.ticketNumber || `TKT-${ticket.id}`,
+      category: ticket.category || 'General',
+      status: (ticket.status || 'ACTIVE').toUpperCase(),
+      pawnDate: ticket.pawnDate ? new Date(ticket.pawnDate).toISOString() : null,
+    }));
+
+    return {
+      pawnshopId,
+      branchId: scopedBranchId,
+      totalTickets: tickets.length,
+      countsByStatus,
+      categories,
+      totals,
+      clientCount,
+      monthlyTrends,
+      recentTickets,
+    };
   }
 
   async getBatchBranchStats(actor: AnalyticsActor, requested: string[]) {

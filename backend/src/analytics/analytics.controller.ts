@@ -47,4 +47,22 @@ export class AnalyticsController {
       .filter(Boolean);
     return this.analyticsService.getBatchBranchStats(req.user, requested);
   }
+
+  /**
+   * Ticket and client aggregates for one shop, for the dashboard and the branch
+   * analytics panel.
+   *
+   * These replace five direct browser reads of `ticket` and `customer` that each
+   * filtered by a `pawnshop_id` taken from a URL query parameter or localStorage
+   * - both client-controlled, so none of them constrained the read. The
+   * aggregates are tenant-scoped here and the client cannot widen them.
+   */
+  @Get('branch-activity')
+  @RequiresPermission(PERMISSIONS['reports.view'])
+  getBranchActivity(
+    @Req() req: { user: AnalyticsActor },
+    @Query('branchId') branchId?: string,
+  ) {
+    return this.analyticsService.getBranchActivity(req.user, branchId);
+  }
 }

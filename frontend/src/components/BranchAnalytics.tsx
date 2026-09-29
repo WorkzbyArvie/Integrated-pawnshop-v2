@@ -9,7 +9,6 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Legend,
   AreaChart, Area
 } from 'recharts';
-import { supabase } from '../lib/supabaseClient';
 import api from '../lib/apiClient';
 
 /* â”€â”€ Types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
@@ -29,6 +28,25 @@ interface BranchStats {
   activeTickets: number;
   vaultCapacity: number;
   subscriptionPlan?: string;
+}
+
+/** Aggregate returned by `GET /analytics/branch-activity`. */
+interface BranchActivity {
+  pawnshopId: string;
+  branchId: number | null;
+  totalTickets: number;
+  countsByStatus: Record<string, number>;
+  categories: Record<string, number>;
+  totals: { loanAmount: number; projectedInterest: number };
+  clientCount: number;
+  monthlyTrends: Array<{ month: string; tickets: number }>;
+  recentTickets: Array<{
+    id: number;
+    ticketNumber: string;
+    category: string;
+    status: string;
+    pawnDate: string | null;
+  }>;
 }
 
 interface TicketsByStatus {
@@ -85,13 +103,7 @@ export function BranchAnalytics({ branchId, branchName, onBack }: BranchAnalytic
     setLoading(true);
     setError(null);
     try {
-      await Promise.all([
-        fetchBranchStats(),
-        fetchTicketsByStatus(),
-        fetchMonthlyTrends(),
-        fetchRecentTickets(),
-        fetchLoanApplications(),
-      ]);
+      await Promise.all([fetchBranchStats(), fetchActivity()]);
     } catch (err: unknown) {
       console.error('BranchAnalytics fetch error:', err);
       setError(err instanceof Error ? err.message : String(err));
@@ -105,78 +117,27 @@ export function BranchAnalytics({ branchId, branchName, onBack }: BranchAnalytic
     setStats(stats);
   };
 
-  const fetchTicketsByStatus = async () => {
-    const { data, error } = await supabase
-      .from('ticket')
-      .select('status')
-      .eq('pawnshop_id', branchId);
-    if (error) throw error;
-
-    const counts: Record<string, number> = {};
-    (data || []).forEach((t: any) => {
-      const s = (t.status || 'UNKNOWN').toUpperCase();
-      counts[s] = (counts[s] || 0) + 1;
-    });
+  // One guarded aggregate replaces four direct `ticket` reads filtered by a
+  // client-supplied shop id, plus a `loan_application` read against a table name
+  // that does not exist (the real table is `loan_applications`), which is why the
+  // loan count badge was silently always zero.
+  const fetchActivity = async () => {
+    const activity = await api.get<BranchActivity>('/analytics/branch-activity');
 
     setTicketsByStatus(
-      Object.entries(counts).map(([status, count]) => ({ status, count }))
+      Object.entries(activity.countsByStatus ?? {}).map(([status, count]) => ({ status, count })),
     );
-  };
-
-  const fetchMonthlyTrends = async () => {
-    const { data, error } = await supabase
-      .from('ticket')
-      .select('pawn_date')
-      .eq('pawnshop_id', branchId)
-      .order('pawn_date', { ascending: true });
-    if (error) throw error;
-
-    const monthMap: Record<string, { tickets: number }> = {};
-    (data || []).forEach((t: any) => {
-      if (!t.pawn_date) return;
-      const d = new Date(t.pawn_date);
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-      if (!monthMap[key]) monthMap[key] = { tickets: 0 };
-      monthMap[key].tickets += 1;
-    });
-
-    const months = Object.keys(monthMap).sort().slice(-12);
-    setMonthlyTrends(
-      months.map(m => {
-        const [y, mo] = m.split('-');
-        const label = new Date(Number(y), Number(mo) - 1).toLocaleString('default', { month: 'short', year: '2-digit' });
-        return { month: label, ...monthMap[m] };
-      })
-    );
-  };
-
-  const fetchRecentTickets = async () => {
-    const { data, error } = await supabase
-      .from('ticket')
-      .select('id, ticket_number, category, status, pawn_date')
-      .eq('pawnshop_id', branchId)
-      .order('pawn_date', { ascending: false })
-      .limit(8);
-    if (error) throw error;
-
+    setMonthlyTrends(activity.monthlyTrends ?? []);
     setRecentTickets(
-      (data || []).map((t: any) => ({
+      (activity.recentTickets ?? []).map((t) => ({
         id: t.id,
-        ticketNumber: t.ticket_number || `TKT-${t.id}`,
-        category: t.category || 'General',
-        status: (t.status || 'ACTIVE').toUpperCase(),
-        pawnDate: t.pawn_date ? new Date(t.pawn_date).toLocaleDateString() : '--',
-      }))
+        ticketNumber: t.ticketNumber,
+        category: t.category,
+        status: t.status,
+        pawnDate: t.pawnDate ? new Date(t.pawnDate).toLocaleDateString() : '--',
+      })),
     );
-  };
-
-  const fetchLoanApplications = async () => {
-    const { count, error } = await supabase
-      .from('loan_application')
-      .select('id', { count: 'exact', head: true })
-      .eq('pawnshop_id', branchId);
-    if (error) throw error;
-    setLoanApplicationCount(count || 0);
+    setLoanApplicationCount(activity.clientCount ?? 0);
   };
 
   useEffect(() => { fetchAll(); }, [branchId]);

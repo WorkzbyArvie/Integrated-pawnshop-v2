@@ -6,10 +6,30 @@ import {
   ChevronRight, Box, ShieldCheck, UserCog, CheckCircle2, Copy, Check
 } from "lucide-react";
 import { supabase } from '../lib/supabaseClient';
+import api from '../lib/apiClient';
 import { getBackendUrl } from '../lib/backendUrl';
 import { formatCurrency } from '../lib/formatters';
 import { PasswordErrorSummary, PasswordField } from './Auth/PasswordField';
 import { getPasswordRuleFailures } from './Auth/PasswordRequirements';
+
+/** Aggregate returned by `GET /analytics/branch-activity`. */
+interface BranchActivity {
+  pawnshopId: string;
+  branchId: number | null;
+  totalTickets: number;
+  countsByStatus: Record<string, number>;
+  categories: Record<string, number>;
+  totals: { loanAmount: number; projectedInterest: number };
+  clientCount: number;
+  monthlyTrends: Array<{ month: string; tickets: number }>;
+  recentTickets: Array<{
+    id: number;
+    ticketNumber: string;
+    category: string;
+    status: string;
+    pawnDate: string | null;
+  }>;
+}
 
 const ADMIN_COPY = {
   newPassword: 'New password',
@@ -239,127 +259,33 @@ export function Dashboard({
 
 
       
-      // 1. Fetch Branch Identity
-      const { data: shopData, error: shopError } = await supabase
-        .from('pawnshops')
-        .select('id, name, status')
-        .eq('id', targetUuid)
-        .maybeSingle();
+      // 1. Branch identity
+      //
+      // The shop and branch name reads, the ticket aggregate, and the customer
+      // count all came from direct browser reads filtered by `targetUuid`, which
+      // is taken from the `?pawnshop=` query parameter first. A client-supplied
+      // tenant is not a constraint, so all four reads were cross-tenant-capable.
+      // The activity endpoint resolves the shop from the session instead.
+      const activity = await api.get<BranchActivity>('/analytics/branch-activity', {
+        branchId: hasActiveOperationalBranch ? String(activeOperationalBranchId) : undefined,
+      });
 
-
-
-      if (shopError) {
-        console.error('âŒ [Dashboard] Pawnshop error:', shopError.code, shopError.message);
-        if (shopError.code === '42501') throw new Error("Permission Denied: Pawnshop Access Restricted");
-        throw shopError;
-      }
-
-      if (!shopData) {
-        console.error('âŒ [Dashboard] Pawnshop not found for UUID:', targetUuid);
-        throw new Error(`Pawnshop ${targetUuid} not found`);
-      }
-
-
-
-      let resolvedBranchName = shopData?.name || (targetUuid === HQ_UUID ? "PawnGold HQ" : "Branch Office");
-      if (hasActiveOperationalBranch) {
-        const { data: branchData } = await supabase
-          .from('branch')
-          .select('name')
-          .eq('id', activeOperationalBranchId)
-          .maybeSingle();
-        if (branchData?.name) {
-          resolvedBranchName = branchData.name;
-        }
-      }
-
+      const resolvedBranchName = activeBranchName || (targetUuid === HQ_UUID ? 'PawnGold HQ' : 'Branch Office');
       setActiveBranchName(resolvedBranchName);
 
+      const customerCount = activity.clientCount ?? 0;
 
-      // 2. Parallel Fetch: Tickets and Customer Count
-
-      const ticketsBase = isSupportLiveView
-        ? supabase.from('ticket').select('category,status').eq('pawnshop_id', targetUuid)
-        : supabase.from('ticket').select('loan_amount,category,status').eq('pawnshop_id', targetUuid);
-
-      const ticketsPromise = hasActiveOperationalBranch
-        ? ticketsBase.eq('branch_id', activeOperationalBranchId as any)
-        : ticketsBase;
-
-      const customersPromise = hasActiveOperationalBranch
-        ? supabase
-            .from('ticket')
-            .select('customer_id')
-            .eq('pawnshop_id', targetUuid)
-            .eq('branch_id', activeOperationalBranchId as any)
-        : supabase
-            .from('customer')
-            .select('*', { count: 'exact', head: true })
-            .eq('pawnshop_id', targetUuid);
-
-      const [ticketsRes, customersRes] = await Promise.all([
-        ticketsPromise,
-        customersPromise
-      ]);
-
-      const customerCount = hasActiveOperationalBranch
-        ? new Set(((customersRes as any)?.data || []).map((row: any) => row.customer_id).filter(Boolean)).size
-        : ((customersRes as any)?.count || 0);
-
-
-
-      if (ticketsRes.error) {
-        console.error('âŒ [Dashboard] Tickets query error:', ticketsRes.error);
-        throw ticketsRes.error;
-      }
-      if (customersRes.error) {
-        console.error('âŒ [Dashboard] Customers query error:', customersRes.error);
-        throw customersRes.error;
-      }
-
-      const tickets = ticketsRes.data || [];
-
-      
-      // --- EMPTY STATE HANDLER ---
-      // If no tickets are found, we set default stats and STOP loading to prevent the loop
-      if (tickets.length === 0) {
-        console.warn('âš ï¸  [Dashboard] No tickets found, setting default stats');
-        setStats({
-          totalLoans: 0,
-          totalInterest: 0,
-          portfolioGrowth: 0,
-          activeTickets: 0,
-          staffOnDuty: 0,
-          efficiency: 0,
-          clientCount: customerCount,
-          inventorySummary: []
-        });
-        setLoading(false);
-  
-        return;
-      }
-
-
-      const activeTickets = tickets.filter(t => t.status?.toUpperCase() === 'ACTIVE');
+      const activeCount = activity.countsByStatus?.ACTIVE ?? 0;
       const totalPrincipal = isSupportLiveView
         ? 0
-        : activeTickets.reduce((sum, t: any) => sum + (Number(t.loan_amount) || 0), 0);
-      
-
-      
-      const categoryMap = activeTickets.reduce((acc: any, t: any) => {
-        const catName = t.category || 'Other';
-        acc[catName] = (acc[catName] || 0) + 1;
-        return acc;
-      }, {});
-
-
+        : (activity.totals?.loanAmount ?? 0);
+      const categoryMap = activity.categories ?? {};
 
       const finalStats = {
         totalLoans: totalPrincipal,
         totalInterest: totalPrincipal * 0.035,
         portfolioGrowth: 12.5,
-        activeTickets: activeTickets.length,
+        activeTickets: activeCount,
         staffOnDuty: 4,
         efficiency: totalPrincipal > 0 ? 98 : 0,
         clientCount: customerCount,
