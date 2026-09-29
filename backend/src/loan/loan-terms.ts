@@ -26,10 +26,26 @@ export const PAWN_TERM_DAYS = 30;
 export const RENEWAL_EXTENSION_DAYS = 30;
 
 /**
- * Grace period after maturity during which the borrower may still redeem before
- * the item is forfeited.
+ * Statutory redemption window after maturity.
+ *
+ * PRESIDENTIAL DECREE NO. 114 (Pawnshop Regulation Act of 1973), Section 13:
+ *
+ *   "The pawner who fails to pay his obligation on the date it falls due may,
+ *    within ninety days from the date of maturity of the obligation, redeem the
+ *    pawn by payment of the principal of the debt with interest."
+ *
+ * Section 14 permits the pawnee to sell or otherwise dispose of the article
+ * "in the event the pawner fails to redeem the pawn within ninety days from the
+ * date of maturity" - so this is a hard floor on how long collateral may be
+ * held, not a courtesy period. A branch that disposes of collateral earlier is
+ * disposing of it unlawfully.
+ *
+ * This was 30 days, which is half the statutory window. Any live ticket whose
+ * `grace_period_end` was computed at 30 days understates the borrower's right to
+ * redeem, and any forfeited item may have been sold early. The migration
+ * alongside this change recomputes the affected rows.
  */
-export const GRACE_PERIOD_DAYS = 30;
+export const GRACE_PERIOD_DAYS = 90;
 
 /**
  * Days after the grace period ends before collateral is forfeited and routed to

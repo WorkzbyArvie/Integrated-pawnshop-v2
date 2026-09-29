@@ -12,7 +12,13 @@ import { FinanceService } from '../finance/finance.service';
 import { NotificationService } from '../notification/notification.service';
 import { TierService } from '../tier/tier.service';
 import { PAWN_TERM_DAYS, toTermMonths } from './loan-terms';
-import { interestFor, resolveRates, toCentavos } from '../finance/interest';
+import {
+  interestFor,
+  isBelowStatutoryMinimum,
+  resolveRates,
+  serviceFeeFor,
+  statutoryMinimumLoan,
+} from '../finance/interest';
 import { LedgerEntryType, LedgerCategory, NotificationChannel, NotificationType, PaymentMethod, Prisma, TicketLifecycleStatus } from '@prisma/client';
 
 export function assertCustomerKycVerified(
@@ -339,7 +345,9 @@ export class PawnTicketService {
         // column default - a default nobody sets is a default nobody means.
         interestAmount: interestFor(ticket.loanAmount, rates),
         interestRate: rates.monthlyInterestRate,
-        serviceFeeAmount: toCentavos(ticket.loanAmount * rates.serviceFeeRate),
+        // P.D. 114 s.10 caps the fee at the lesser of 1% and PHP 5, so this is
+        // not `principal * rate` - see serviceFeeFor.
+        serviceFeeAmount: serviceFeeFor(ticket.loanAmount, rates),
         category: ticket.category,
         weight: ticket.weight,
         status: 'RECEIVED',
@@ -753,6 +761,34 @@ export class PawnTicketService {
         : Number.isFinite(appraised) && appraised > 0
           ? appraised
           : ticket.loanAmount;
+
+    // P.D. 114 Section 9.
+    //
+    //   "the amount of loan shall, in no case, be less than thirty per cent (30%)
+    //    of the appraised value of the security offered for the loan unless the
+    //    pawner manifests in writing the desire to borrow a lesser amount."
+    //
+    // Checked here rather than at disbursement because this is where an appraiser
+    // sets the loan against a valuation, which is the only point the ratio is
+    // knowable. Nothing enforced it before, so a typo in the appraisal could
+    // produce a sub-statutory loan with no objection recorded anywhere.
+    //
+    // The appraisal record does not yet carry the borrower's written consent
+    // flag, so a sub-minimum loan is refused rather than assumed to be
+    // permitted. The exception is real and a pawnshop may rely on it, but it has
+    // to be evidenced - which is the whole of what Section 9 asks for.
+    if (
+      Number.isFinite(appraised) &&
+      appraised > 0 &&
+      isBelowStatutoryMinimum(appraised, finalAmount, false)
+    ) {
+      throw new BadRequestException(
+        `A loan of ${finalAmount} is below the statutory minimum of ` +
+          `${statutoryMinimumLoan(appraised)}, which is 30% of the appraised value of ` +
+          `${appraised} (P.D. 114 Section 9). Either raise the loan to the minimum ` +
+          `or record the pawner's written request to borrow less.`,
+      );
+    }
 
     const updatedTicket = await this.prisma.ticket.update({
       where: { id: ticket.id },

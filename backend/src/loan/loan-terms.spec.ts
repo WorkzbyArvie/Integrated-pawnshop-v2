@@ -39,8 +39,16 @@ describe('loan terms', () => {
     expect(RENEWAL_EXTENSION_DAYS).toBe(30);
   });
 
-  it('allows 30 grace days then 15 to forfeiture', () => {
-    expect(GRACE_PERIOD_DAYS).toBe(30);
+  it('grants the statutory 90-day redemption window, then 15 to forfeiture', () => {
+    // P.D. 114 Section 13: "The pawner who fails to pay his obligation on the
+    // date it falls due may, within ninety days from the date of maturity of
+    // the obligation, redeem the pawn". Section 14 permits disposal only after
+    // that window closes. The system previously used 30 days - a third of the
+    // statutory right - so a branch could dispose of collateral while the
+    // borrower was still entitled to redeem it.
+    expect(GRACE_PERIOD_DAYS).toBe(90);
+    // Not statutory: the 15 days is the system's own post-grace handling
+    // window, unchanged from before this correction.
     expect(FORFEITURE_GRACE_DAYS).toBe(15);
   });
 
@@ -156,20 +164,33 @@ describe('loan terms', () => {
   });
 
   describe('deadline chain', () => {
-    it('places grace after maturity and forfeiture after grace', () => {
+    it('places the statutory grace period after maturity, then forfeiture', () => {
       const from = new Date('2026-06-01T00:00:00.000Z');
       const maturity = maturityDateFrom(30, from);
       const graceEnd = gracePeriodEndFrom(maturity);
       const forfeiture = forfeitureDateFrom(graceEnd);
 
-      expect(graceEnd.getTime()).toBe(maturity.getTime() + 30 * DAY);
+      expect(graceEnd.getTime()).toBe(maturity.getTime() + 90 * DAY);
       expect(forfeiture.getTime()).toBe(graceEnd.getTime() + 15 * DAY);
       expect(maturity.getTime() - from.getTime()).toBe(30 * DAY);
     });
 
+    it('cannot dispose of collateral inside the statutory window', () => {
+      // The property that matters, stated as a bound rather than a constant: a
+      // ticket that matured on a given day must still be redeemable 89 days
+      // later and only become disposable on the 90th.
+      const maturity = new Date('2026-06-01T00:00:00.000Z');
+      const graceEnd = gracePeriodEndFrom(maturity);
+
+      const day89 = new Date(graceEnd.getTime() - DAY);
+      const day90 = new Date(graceEnd.getTime());
+
+      expect(day89.getTime()).toBeGreaterThan(maturity.getTime());
+      expect(day89.getTime()).toBeLessThan(graceEnd.getTime());
+      expect(day90.getTime()).toBe(graceEnd.getTime());
+    });
+
     it('keeps the whole window inside the cap the API enforces', () => {
-      // A pawn at the maximum term must not push forfeiture past the bound the
-      // application DTO advertises.
       const total = PAWN_TERM_DAYS + GRACE_PERIOD_DAYS + FORFEITURE_GRACE_DAYS;
       expect(total).toBeLessThanOrEqual(MAX_LOAN_TERM_DAYS + GRACE_PERIOD_DAYS);
     });

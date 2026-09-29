@@ -36,11 +36,31 @@ export const DEFAULT_MONTHLY_INTEREST_RATE = 0.035;
  * Platform default service fee, as a fraction of principal, charged once on
  * issuance.
  *
- * Charged on the principal rather than as a flat amount: a flat fee is a
- * rounding error on a small pawn and a discount on a large one, which is exactly
- * the kind of thing a regulator looks at.
+ * PRESIDENTIAL DECREED NO. 114, Section 10:
+ *
+ *   "In addition to interest charges, pawnshops may impose a maximum service
+ *    charge of five pesos (P5.00), but in no case to exceed one per cent (1%)
+ *    of the principal loan."
+ *
+ * The cap is the LESSER of the two, so this percentage is a ceiling and not a
+ * schedule: on a PHP 10,000 pawn the 1% is 100 and the cap bites at 5. A shop
+ * charging 2% is not permitted, and the earlier default in this module did
+ * exactly that. {@link serviceFeeFor} applies the lesser-of rule; this constant
+ * is only the percentage half of it.
  */
-export const DEFAULT_SERVICE_FEE_RATE = 0.02;
+export const MAX_SERVICE_FEE_PCT = 0.01;
+
+/** Absolute service-fee cap, in pesos. Section 10. */
+export const SERVICE_FEE_CAP_PESOS = 5;
+
+/**
+ * Platform default service fee rate.
+ *
+ * Kept at the statutory ceiling rather than a figure below it, because the
+ * lower of the two caps is what actually governs and a shop pricing below 1%
+ * has not opted out of the statute - it has simply been more conservative.
+ */
+export const DEFAULT_SERVICE_FEE_RATE = MAX_SERVICE_FEE_PCT;
 
 /** Default late penalty on the outstanding principal, as a fraction, per month. */
 export const DEFAULT_LATE_PENALTY_RATE = 0.03;
@@ -56,9 +76,25 @@ export const DEFAULT_LATE_PENALTY_RATE = 0.03;
 export const MIN_INTEREST_RATE = 0;
 export const MAX_INTEREST_RATE = 0.2;
 export const MIN_SERVICE_FEE_RATE = 0;
-export const MAX_SERVICE_FEE_RATE = 0.2;
 export const MIN_LATE_PENALTY_RATE = 0;
 export const MAX_LATE_PENALTY_RATE = 0.2;
+
+/**
+ * P.D. 114 Section 9, the statutory minimum loan.
+ *
+ *   "the amount of loan shall, in no case, be less than thirty per cent (30%)
+ *    of the appraised value of the security offered for the loan unless the
+ *    pawner manifests in writing the desire to borrow a lesser amount."
+ *
+ * A floor, not a ceiling: there is no maximum, and the loan amount is otherwise
+ * whatever the parties agree. Nothing in the system enforced this, so a
+ * mis-valued appraisal could produce a loan below the statutory minimum with
+ * nothing objecting.
+ *
+ * The written-consent exception is recorded rather than assumed - see
+ * {@link isBelowStatutoryMinimum}.
+ */
+export const STATUTORY_MIN_LTV = 0.3;
 
 export interface RateConfig {
   monthlyInterestRate: number;
@@ -71,12 +107,6 @@ export const DEFAULT_RATES: Readonly<RateConfig> = Object.freeze({
   serviceFeeRate: DEFAULT_SERVICE_FEE_RATE,
   latePenaltyRate: DEFAULT_LATE_PENALTY_RATE,
 });
-
-const KEYS = {
-  interest: 'monthlyInterestRate',
-  serviceFee: 'serviceFeeRate',
-  latePenalty: 'latePenaltyRate',
-} as const;
 
 /** Key names as they are stored in `pawnshops.settings`. */
 export const RATE_SETTING_KEYS = {
@@ -135,12 +165,37 @@ export interface LoanBreakdown {
   principal: number;
   /** One month of interest on the principal. */
   interest: number;
-  /** Fee charged once, on the principal. */
+  /** Fee charged once, capped per P.D. 114 s.10. */
   serviceFee: number;
   /** principal + interest + serviceFee. What the customer pays to redeem. */
   total: number;
   interestRate: number;
   serviceFeeRate: number;
+  /**
+   * The fee that would be charged with no cap applied, kept for the contract and
+   * the receipt so the reduction is visible rather than invisible. A pawner
+   * seeing PHP 5 charged where 1% would have been PHP 100 is entitled to know
+   * that the cap, not the rate, produced the figure.
+   */
+  serviceFeeUncapped: number;
+  /** True when the flat peso cap bound rather than the percentage. */
+  serviceFeeCappedByStatute: boolean;
+}
+
+/**
+ * The service fee, applying the P.D. 114 Section 10 cap.
+ *
+ * The cap is the LESSER of a percentage of principal and a flat peso amount, so
+ * the fee is not proportional: on a PHP 500 pawn the 1% is PHP 5 and the flat cap
+ * is also PHP 5, while on a PHP 10,000 pawn the 1% is PHP 100 and the flat cap
+ * still binds at PHP 5. Treating the percentage as a schedule - which is what an
+ * earlier version of this module did - charges 200% of the permitted fee on a
+ * large loan, which is a statutory violation and not a rounding difference.
+ */
+export function serviceFeeFor(principal: number, rates: RateConfig = DEFAULT_RATES): number {
+  const safePrincipal = Number.isFinite(principal) && principal > 0 ? principal : 0;
+  const percentage = safePrincipal * Math.min(rates.serviceFeeRate, MAX_SERVICE_FEE_PCT);
+  return toCentavos(Math.min(percentage, SERVICE_FEE_CAP_PESOS));
 }
 
 /**
@@ -157,8 +212,9 @@ export function calculateLoanBreakdown(
 ): LoanBreakdown {
   const safePrincipal = Number.isFinite(principal) && principal > 0 ? principal : 0;
   const interest = toCentavos(safePrincipal * rates.monthlyInterestRate);
-  const serviceFee = toCentavos(safePrincipal * rates.serviceFeeRate);
+  const serviceFee = serviceFeeFor(safePrincipal, rates);
 
+  const uncapped = toCentavos(safePrincipal * rates.serviceFeeRate);
   return {
     principal: toCentavos(safePrincipal),
     interest,
@@ -166,7 +222,34 @@ export function calculateLoanBreakdown(
     total: toCentavos(safePrincipal + interest + serviceFee),
     interestRate: rates.monthlyInterestRate,
     serviceFeeRate: rates.serviceFeeRate,
+    serviceFeeUncapped: uncapped,
+    serviceFeeCappedByStatute: serviceFee < uncapped,
   };
+}
+
+/**
+ * Whether a loan would fall below the P.D. 114 Section 9 minimum.
+ *
+ * Section 9 permits a loan under 30% of appraised value only where "the pawner
+ * manifests in writing the desire to borrow a lesser amount". The consent is
+ * therefore an input, not an assumption: a branch that cannot record the
+ * borrower's written request cannot lawfully make the loan.
+ */
+export function isBelowStatutoryMinimum(
+  appraisedValue: number,
+  loanAmount: number,
+  writtenConsentObtained = false,
+): boolean {
+  if (!Number.isFinite(appraisedValue) || appraisedValue <= 0) return true;
+  if (!Number.isFinite(loanAmount) || loanAmount <= 0) return true;
+  if (writtenConsentObtained) return false;
+  return loanAmount < appraisedValue * STATUTORY_MIN_LTV;
+}
+
+/** The least a loan may be without the borrower's written consent. */
+export function statutoryMinimumLoan(appraisedValue: number): number {
+  if (!Number.isFinite(appraisedValue) || appraisedValue <= 0) return 0;
+  return toCentavos(appraisedValue * STATUTORY_MIN_LTV);
 }
 
 /** One month of interest on a principal. What a renewal collects. */
@@ -202,5 +285,9 @@ export function changeDue(tendered: number, owed: number): number {
   return Math.max(0, toCentavos(tendered - owed));
 }
 
-/** KEYS is retained so the storage-key mapping is stated in one place too. */
-export { KEYS as RATE_FIELD_NAMES };
+/** The internal field names, exported so storage mapping lives in one place. */
+export const RATE_FIELD_NAMES = {
+  interest: 'monthlyInterestRate',
+  serviceFee: 'serviceFeeRate',
+  latePenalty: 'latePenaltyRate',
+} as const;

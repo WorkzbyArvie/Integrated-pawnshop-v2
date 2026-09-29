@@ -196,7 +196,7 @@ describe('renewLoan interest', () => {
     expect(daysFromNow).toBe(30);
   });
 
-  it('places grace and forfeiture after the extended maturity', async () => {
+  it('places the statutory grace period and forfeiture after the extended maturity', async () => {
     await build(makeLoan(0.035));
     await renew(350);
 
@@ -206,7 +206,11 @@ describe('renewLoan interest', () => {
     const graceDays = Math.round((grace.getTime() - new Date(update.expiryDate).getTime()) / 86_400_000);
     const forfeitDays = Math.round((forfeiture.getTime() - grace.getTime()) / 86_400_000);
 
-    expect(graceDays).toBe(30);
+    // 90 days is P.D. 114 Section 13. A renewal inherits the statutory window:
+    // extending the term must not shorten the redemption right, and a borrower
+    // who renews a day before forfeiture should be returned the full 90 days
+    // rather than inheriting whatever remained.
+    expect(graceDays).toBe(90);
     expect(forfeitDays).toBe(15);
   });
 });
