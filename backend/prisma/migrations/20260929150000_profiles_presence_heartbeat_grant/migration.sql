@@ -1,0 +1,65 @@
+-- The presence heartbeat.
+--
+-- The dashboard writes `is_online` and `last_seen_at` on the signed-in user's own
+-- `profiles` row, straight from the browser to PostgREST. That is the only write
+-- the browser makes to any locked table.
+--
+-- The lock migration granted exactly that and nothing more:
+--
+--     CREATE POLICY "profiles_update_own" ON public.profiles
+--       FOR UPDATE TO authenticated
+--       USING (id = auth.uid()) WITH CHECK (id = auth.uid());
+--
+--     REVOKE ALL ON public.profiles FROM anon, authenticated;
+--     GRANT UPDATE (is_online, last_seen_at) ON public.profiles TO authenticated;
+--
+-- A Postgres UPDATE policy is evaluated by reading the row it is deciding about,
+-- and this one qualifies on the `id` column. `REVOKE ALL` removed table-level
+-- SELECT and the column grant covers only the two presence columns, so
+-- `authenticated` cannot read `id`. The policy therefore cannot be evaluated and
+-- every heartbeat is refused. Observed in the deployed app as:
+--
+--     PATCH https://<project>.supabase.co/rest/v1/profiles?id=eq.<uuid>
+--     403 (Forbidden)
+--
+-- This fails closed and quietly, which is why it is easy to miss: no user can ever
+-- be marked online, so "STAFF ON DUTY" reads 0 and the platform looks unstaffed,
+-- with no error anywhere a member of staff would notice.
+--
+-- The grant below is column-scoped to `id` on purpose.
+--
+--   * It exposes a UUID the caller already knows - it is `auth.uid()`, the
+--     subject of their own token. It reveals nothing about any other row.
+--   * It does NOT reopen the breach condition the lock closed. The lock's
+--     containment rested on there being no anon/authenticated read path into the
+--     six tables; a SELECT on one column of one of them, pinned to the caller's
+--     own row by the policy, is not a read path. It cannot enumerate rows, and it
+--     cannot return another user's id, email, role or tenant.
+--   * It must NOT be widened. `role` is the column that matters: a table-level
+--     SELECT including `role` would let a signed-in STAFF read roles across the
+--     platform, and a broader UPDATE would let them write their own role to OWNER
+--     and satisfy every @Roles() check in the backend. rls-containment.spec.ts
+--     asserts this grant stays single-column and name-free, and fails if it ever
+--     widens to include `role`.
+--
+-- Verify the diagnosis before applying, and verify the result after. Both are in
+-- step2-apply.sql in this directory.
+--
+-- Rollback, if the heartbeat must be withdrawn:
+--
+--     REVOKE SELECT (id) ON public.profiles FROM authenticated;
+--
+-- Note the consequence: presence tracking stops working again and every user
+-- reads offline. That is the correct failure direction - denied, not permissive.
+--
+-- Do NOT follow the Postgres suggestion to add table grants back. On a 42501
+-- Postgres emits a generic `HINT: Grant SELECT ... TO anon`. That hint is
+-- boilerplate, is not specific to this policy, and acting on it would re-create
+-- the breach the lock closed. RLS would still deny, but the only remaining
+-- barrier would be a single policy someone could later drop.
+
+BEGIN;
+
+GRANT SELECT (id) ON public.profiles TO authenticated;
+
+COMMIT;

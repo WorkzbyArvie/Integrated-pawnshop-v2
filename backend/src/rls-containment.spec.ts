@@ -23,7 +23,24 @@ const FULLY_LOCKED = TABLES.filter((t) => t !== 'profiles');
 const MIGRATION =
   'prisma/migrations/20260929140000_lock_last_six_tables/migration.sql';
 
-const sql = fs.readFileSync(path.join(__dirname, '..', MIGRATION), 'utf8');
+/**
+ * The presence-heartbeat grant ships as a follow-up migration rather than an edit
+ * to the lock, so the lock's own checksum stays stable and the two changes can be
+ * applied independently. It is concatenated here so the assertions below see one
+ * body: a `REVOKE ALL` in the lock and a later narrow `GRANT` are the same
+ * statement sequence, and reading only the first file would assert against a
+ * half-applied policy set.
+ */
+const FOLLOW_UP_MIGRATIONS = [
+  'prisma/migrations/20260929150000_profiles_presence_heartbeat_grant/migration.sql',
+];
+
+const sql = [
+  MIGRATION,
+  ...FOLLOW_UP_MIGRATIONS,
+]
+  .map((m) => fs.readFileSync(path.join(__dirname, '..', m), 'utf8'))
+  .join('\n');
 
 /** Statements with SQL comments and string literals stripped. */
 const stripped = sql
@@ -149,6 +166,57 @@ describe('RLS migration — the last six tables', () => {
         expect(allowed).not.toContain('role');
         expect(allowed).not.toContain('pawnshop_id');
         expect(allowed).not.toContain('staff_type');
+      }
+    });
+
+    // The heartbeat grant.
+    //
+    // `profiles_update_own` qualifies on `id = auth.uid()`. A Postgres UPDATE
+    // policy is evaluated by reading the row it is deciding about, and
+    // `REVOKE ALL` left `authenticated` unable to read `id`, so the policy could
+    // not be evaluated and every presence write was refused with a 403 that no
+    // user would ever see. `GRANT SELECT (id)` is the minimum that makes the
+    // existing policy evaluable.
+    //
+    // It is a read of the caller's own identifier and nothing else. It does not
+    // reopen the breach the lock closed: it cannot enumerate rows, and the policy
+    // pins the row to `auth.uid()`. The thing that must not come back is a read
+    // or write of `role` - that is what would let a STAFF satisfy @Roles().
+    it('grants select on the id column so the update policy can be evaluated', () => {
+      expect(
+        /GRANT\s+SELECT\s*\(\s*id\s*\)\s+ON\s+(?:public\.)?profiles\s+TO\s+authenticated/i.test(
+          stripped,
+        ),
+      ).toBe(true);
+    });
+
+    it('never grants a blanket select on profiles', () => {
+      expect(
+        /GRANT\s+ALL\s+ON\s+(?:public\.)?profiles\s+TO\s+authenticated/i.test(stripped),
+      ).toBe(false);
+      expect(
+        /GRANT\s+SELECT\s+ON\s+(?:public\.)?profiles\s+TO\s+authenticated/i.test(
+          stripped,
+        ),
+      ).toBe(false);
+    });
+
+    it('keeps role unreadable by authenticated', () => {
+      const selectGrants = [
+        ...stripped.matchAll(
+          /GRANT\s+SELECT\s*\(([^)]*)\)\s+ON\s+[^;]*profiles[^;]*TO\s+(\w+)/gi,
+        ),
+      ];
+      expect(selectGrants.length).toBeGreaterThan(0);
+      for (const [, columns, grantee] of selectGrants) {
+        expect(grantee).toBe('authenticated');
+        const allowed = columns.split(',').map((c) => c.trim().toLowerCase());
+        expect(allowed.sort()).toEqual(['id']);
+        // Reading roles across the platform is the enumeration path back in.
+        expect(allowed).not.toContain('role');
+        expect(allowed).not.toContain('email');
+        expect(allowed).not.toContain('pawnshop_id');
+        expect(allowed).not.toContain('full_name');
       }
     });
   });
