@@ -143,6 +143,19 @@ export function MfaChallenge({
   // did nothing, because no re-render was scheduled to read it.
   const [now, setNow] = useState(() => Date.now());
 
+  // Synchronous in-flight lock for verify. See handleVerify.
+  const verifyInFlightRef = useRef(false);
+  // Same problem on the request side: requestChallenge's `requesting` state has
+  // the same commit delay, and MFA_LOGIN_THROTTLE is only 5/min.
+  const requestInFlightRef = useRef(false);
+
+  useEffect(() => {
+    return () => {
+      verifyInFlightRef.current = false;
+      requestInFlightRef.current = false;
+    };
+  }, []);
+
   useEffect(() => {
     if (resendAt === null) return;
     setNow(Date.now());
@@ -164,7 +177,8 @@ export function MfaChallenge({
   }, []);
 
   const requestChallenge = useCallback(async () => {
-    if (requesting) return;
+    if (requesting || requestInFlightRef.current) return;
+    requestInFlightRef.current = true;
     setRequesting(true);
     setCodeError(null);
     setAlert(null);
@@ -189,6 +203,7 @@ export function MfaChallenge({
       }
     } finally {
       setRequesting(false);
+      requestInFlightRef.current = false;
     }
   }, [email, maskedEmail, requesting]);
 
@@ -204,6 +219,17 @@ export function MfaChallenge({
 
   const handleVerify = useCallback(async () => {
     if (!challenge || !challenge.challengeId || verificationLocked) return;
+
+    // A ref, not just the `verifying` state, guards the in-flight window.
+    //
+    // `setVerifying(true)` does not take effect until React re-renders, so an
+    // Enter keypress and a click on Verify inside the same tick both read
+    // `verifying === false` and both fire. Repeats of that pattern exhausted the
+    // server's verify throttle and turned a mistyped code into a 60-second
+    // lockout. A ref is written synchronously, so the second call sees it.
+    if (verifyInFlightRef.current) return;
+    verifyInFlightRef.current = true;
+
     setVerifying(true);
     setCodeError(null);
     setAlert(null);
@@ -225,6 +251,7 @@ export function MfaChallenge({
       });
       setCode('');
       setVerifying(false);
+      verifyInFlightRef.current = false;
       await onVerified();
     } catch (error) {
       setCode('');
@@ -234,6 +261,7 @@ export function MfaChallenge({
         setCodeError(MFA_LOGIN_CHALLENGE_COPY.invalidCode);
       }
       setVerifying(false);
+      verifyInFlightRef.current = false;
       focusCode();
     }
   }, [challenge, code, focusCode, onVerified, userId, verificationLocked]);

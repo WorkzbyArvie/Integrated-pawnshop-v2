@@ -77,10 +77,82 @@ export function getMfaAssertion(): string | null {
   return mfaAssertion;
 }
 
+const MFA_ASSERTION_DENIED = 'MFA_VERIFICATION_REQUIRED';
+
+/**
+ * Whether the server has refused this session for want of an MFA assertion.
+ *
+ * Every protected route answers 403 with this code while the account is
+ * MFA-enabled and the assertion is absent, stale or bound to another session.
+ * Until an assertion is held, *no* tenant-scoped call can succeed, so firing them
+ * is not merely wasteful - it is guaranteed noise, and it drove the reload storm
+ * and the 403 storm that made the app look broken on first paint.
+ *
+ * Set the first time a denial is seen and cleared by `clearMfaAssertion`, so a
+ * caller can ask "is this session still waiting on MFA?" without inspecting
+ * error shapes at each call site.
+ */
+let mfaAssertionDenied = false;
+
+/**
+ * Routes the AccountSecurityGuard exempts from the MFA decision. The challenge
+ * and the credential-status read have to keep working while the assertion is
+ * still missing - that is how the app learns MFA is on and asks for a code - so
+ * they must not be short-circuited by the guard below.
+ */
+const MFA_EXEMPT_ROUTES = new Set([
+  'GET /security/credential-status',
+  'POST /security/change-password',
+  'POST /security/recovery/complete',
+  'GET /security/activity',
+  'GET /security/activity-log',
+  'GET /auth/credential-status',
+  'POST /auth/logout',
+  'POST /auth/sign-out',
+  'POST /security/mfa/enable-challenge',
+  'POST /security/mfa/verify',
+  'POST /security/mfa/login-challenge',
+  'POST /security/mfa/disable',
+]);
+
+/**
+ * Declare that the current session is known to be MFA-blocked, from the
+ * server-owned credential status rather than from a 403 already seen.
+ *
+ * The 403-driven flag arrives too late to help: a screen-mount burst fires many
+ * calls concurrently, so they are all in flight before the first denial comes
+ * back. Setting this the moment `mfaEnabled` is known lets `request` refuse them
+ * up front, which is what turns a wall of console errors into a single pending
+ * challenge.
+ */
+export function markMfaAssertionPending(pending: boolean): void {
+  if (pending) mfaAssertionDenied = true;
+  else clearMfaAssertion();
+}
+
+export function isMfaAssertionPending(): boolean {
+  return mfaAssertionDenied && getMfaAssertion() === null;
+}
+
+function isMfaExempt(method: string, path: string): boolean {
+  const normalized =
+    path.length > 1 && path.endsWith('/') ? path.slice(0, -1) : path;
+  return MFA_EXEMPT_ROUTES.has(`${method.toUpperCase()} ${normalized}`);
+}
+
+/** True when a 403 carries the server's MFA-verification code. */
+export function isMfaDenial(error: unknown): boolean {
+  if (error instanceof ApiError) {
+    return error.status === 403 && error.code === MFA_ASSERTION_DENIED;
+  }
+  return getApiErrorDetails(error).code === MFA_ASSERTION_DENIED;
+}
+
 export function clearMfaAssertion(): void {
   mfaAssertion = null;
   mfaAssertionExpiresAt = null;
   mfaAssertionUserId = null;
+  mfaAssertionDenied = false;
 }
 
 /**
@@ -216,6 +288,23 @@ async function request<T = unknown>(
   queryParams?: Record<string, string | number | boolean | undefined>,
   retryCount = 0,
 ): Promise<T> {
+  // Refuse before the network, not after.
+  //
+  // While the session is waiting on an MFA assertion the server answers every
+  // protected route with the same 403. Firing them anyway produced the 403 storm
+  // on first paint and, where a component retried, a retry storm that tripped the
+  // verify throttle. One local failure here is indistinguishable to callers and
+  // costs nothing; the same call in flight costs a round trip and console noise.
+  // Exempt routes - the challenge itself, and the status read that reports
+  // `mfaEnabled` - must still reach the server or the user can never get in.
+  if (isMfaAssertionPending() && !isMfaExempt(method, path)) {
+    throw new ApiError('Multi-factor verification is required for this account.', 403, {
+      success: false,
+      error: MFA_ASSERTION_DENIED,
+      reason: 'assertion',
+    });
+  }
+
   const headers = await getHeaders();
 
   let url = `${BACKEND_URL}${path.startsWith('/') ? path : `/${path}`}`;
@@ -296,6 +385,19 @@ async function parseResponse<T>(
       (data as any)?.message ||
       (data as any)?.error ||
       `Request failed with status ${res.status}`;
+
+    // Record that this session is waiting on an MFA assertion. The app reads
+    // `isMfaAssertionPending()` to hold back tenant-scoped work, so without this
+    // a screen-mount burst fires into a wall of 403s before the challenge has
+    // ever been answered. `clearMfaAssertion` resets the flag, so this cannot
+    // latch on past a successful verification.
+    if (
+      res.status === 403 &&
+      (data as any)?.error === MFA_ASSERTION_DENIED
+    ) {
+      mfaAssertionDenied = true;
+    }
+
     throw new ApiError(
       typeof message === 'string' ? message : JSON.stringify(message),
       res.status,

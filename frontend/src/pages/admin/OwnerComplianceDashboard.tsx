@@ -98,14 +98,57 @@ function formatExpiryDate(value: string) {
   return date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
 }
 
+/**
+ * One upload control per document, not one shared form plus seven buttons.
+ *
+ * The previous shape rendered an "Upload" button on every row that only set the
+ * type and scrolled to a single form at the bottom. From the row it read as
+ * "upload this document" and did something else entirely, so the obvious click
+ * looked broken and the correct flow was a scroll away and easy to miss.
+ *
+ * Each row now owns its own file, its own expiry and its own submit, so the
+ * button on a row means the thing it says.
+ */
+interface DocumentDraft {
+  file: File | null;
+  expiryDate: string;
+}
+
+const EMPTY_DRAFT: DocumentDraft = { file: null, expiryDate: '' };
+
+/** Days before expiry at which a document is called out as needing attention. */
+const EXPIRY_WARNING_DAYS = 30;
+
+function expiryTone(days: number | null): { label: string; className: string } {
+  if (days === null) {
+    return {
+      label: 'No expiry set',
+      className: 'bg-gray-500/10 text-gilded-muted',
+    };
+  }
+  if (days < 0) {
+    return { label: `Expired ${Math.abs(days)}d ago`, className: 'bg-red-500/20 text-red-400' };
+  }
+  if (days <= 7) {
+    return { label: `${days}d left`, className: 'bg-red-500/20 text-red-400' };
+  }
+  if (days <= 14) {
+    return { label: `${days}d left`, className: 'bg-orange-500/20 text-orange-400' };
+  }
+  if (days <= EXPIRY_WARNING_DAYS) {
+    return { label: `${days}d left`, className: 'bg-yellow-500/20 text-yellow-400' };
+  }
+  return { label: `${days}d left`, className: 'bg-emerald-500/10 text-emerald-400' };
+}
+
 export default function OwnerComplianceDashboard() {
   const [compliance, setCompliance] = useState<ComplianceData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [uploading, setUploading] = useState(false);
-  const [selectedType, setSelectedType] = useState('');
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [expiryDate, setExpiryDate] = useState('');
-  const [renewMessage, setRenewMessage] = useState('');
+  /** Per-document upload state, keyed by document type. */
+  const [drafts, setDrafts] = useState<Record<string, DocumentDraft>>({});
+  const [openRow, setOpenRow] = useState<string | null>(null);
+  const [uploadingType, setUploadingType] = useState<string | null>(null);
+  const [rowErrors, setRowErrors] = useState<Record<string, string>>({});
   const [view, setView] = useState<'docs' | 'register'>('docs');
 
   useEffect(() => {
@@ -124,21 +167,63 @@ export default function OwnerComplianceDashboard() {
     }
   }
 
-  async function handleUpload() {
-    if (!selectedType || !selectedFile) return;
-    setUploading(true);
-    setRenewMessage('');
+  function setDraft(type: string, patch: Partial<DocumentDraft>) {
+    setDrafts((prev) => ({ ...prev, [type]: { ...EMPTY_DRAFT, ...prev[type], ...patch } }));
+  }
+
+  function toggleRow(type: string) {
+    setRowErrors((prev) => {
+      if (!(type in prev)) return prev;
+      const next = { ...prev };
+      delete next[type];
+      return next;
+    });
+    setOpenRow((prev) => {
+      if (prev === type) {
+        setDrafts((d) => ({ ...d, [type]: EMPTY_DRAFT }));
+        return null;
+      }
+      return type;
+    });
+  }
+
+  async function handleUpload(type: string) {
+    const draft = drafts[type] ?? EMPTY_DRAFT;
+    if (!draft.file) {
+      setRowErrors((prev) => ({ ...prev, [type]: 'Choose a file first.' }));
+      return;
+    }
+
+    // Expiry is required rather than optional.
+    //
+    // The compliance guard scores a `notExpired` band, and it used to count a
+    // document with no expiry as valid forever. That is the opposite of what a
+    // legality argument needs: a document nobody is obliged to renew is a
+    // document that silently stops being enforced. Requiring the date at upload
+    // means the shop is making an explicit, dated assertion about validity, and
+    // the shop is the one that has to come back when it lapses.
+    if (!draft.expiryDate) {
+      setRowErrors((prev) => ({ ...prev, [type]: 'Enter the expiry date for this document.' }));
+      return;
+    }
+
+    setUploadingType(type);
+    setRowErrors((prev) => {
+      const next = { ...prev };
+      delete next[type];
+      return next;
+    });
+
     try {
-      const ext = selectedFile.name.includes('.')
-        ? selectedFile.name.split('.').pop()
-        : 'bin';
+      const file = draft.file;
+      const ext = file.name.includes('.') ? file.name.split('.').pop() : 'bin';
       const safeExt = (ext || 'bin').toLowerCase().replace(/[^a-z0-9]/g, '') || 'bin';
-      const storagePath = `compliance-docs/${selectedType}_${Date.now()}.${safeExt}`;
+      const storagePath = `compliance-docs/${type}_${Date.now()}.${safeExt}`;
 
       const { error: uploadError } = await supabase.storage
         .from('kyc-documents')
-        .upload(storagePath, selectedFile, {
-          contentType: selectedFile.type || 'application/octet-stream',
+        .upload(storagePath, file, {
+          contentType: file.type || 'application/octet-stream',
           upsert: true,
         });
 
@@ -152,29 +237,24 @@ export default function OwnerComplianceDashboard() {
       const fileUrl = urlData?.publicUrl || storagePath;
 
       await api.post('/compliance/documents', {
-        documentType: selectedType,
+        documentType: type,
         fileUrl,
-        fileName: selectedFile.name,
-        fileSize: selectedFile.size,
-        expiryDate: expiryDate || undefined,
+        fileName: file.name,
+        fileSize: file.size,
+        expiryDate: draft.expiryDate,
       });
-      setSelectedType('');
-      setSelectedFile(null);
-      setExpiryDate('');
-      fetchData();
-    } catch (err: any) {
-      setRenewMessage(err.message || 'Upload failed');
-    } finally {
-      setUploading(false);
-    }
-  }
 
-  function handleRenew(type: string) {
-    setSelectedType(type);
-    setSelectedFile(null);
-    setExpiryDate('');
-    setRenewMessage('');
-    document.getElementById('upload-form')?.scrollIntoView({ behavior: 'smooth' });
+      setDrafts((prev) => ({ ...prev, [type]: EMPTY_DRAFT }));
+      setOpenRow(null);
+      await fetchData();
+    } catch (err: unknown) {
+      setRowErrors((prev) => ({
+        ...prev,
+        [type]: err instanceof Error ? err.message : 'Upload failed',
+      }));
+    } finally {
+      setUploadingType(null);
+    }
   }
 
   if (loading) {
@@ -303,137 +383,167 @@ export default function OwnerComplianceDashboard() {
           <div className="space-y-3">
             {compliance?.documents.map((doc) => {
               const config = STATUS_CONFIG[doc.status] || STATUS_CONFIG.NOT_UPLOADED;
+              const label = DOCUMENT_LABELS[doc.type] || doc.type;
+              const draft = drafts[doc.type] ?? EMPTY_DRAFT;
+              const isOpen = openRow === doc.type;
+              const isUploading = uploadingType === doc.type;
+              const error = rowErrors[doc.type];
+              const tone = expiryTone(doc.daysUntilExpiry);
+              const needsAttention =
+                doc.status === 'EXPIRED' ||
+                doc.status === 'REJECTED' ||
+                doc.status === 'NOT_UPLOADED' ||
+                doc.status === 'UNDER_REVIEW' ||
+                (doc.daysUntilExpiry !== null && doc.daysUntilExpiry <= EXPIRY_WARNING_DAYS);
+              const uploadDisabled =
+                !draft.file || !draft.expiryDate || isUploading;
+
               return (
                 <div
                   key={doc.type}
-                  className={`flex items-center justify-between p-4 rounded-lg ${config.bg} border border-gilded-border`}
+                  className={`rounded-lg ${config.bg} border ${
+                    isOpen ? 'border-gilded-gold/50' : 'border-gilded-border'
+                  }`}
                 >
-                  <div className="flex items-center gap-3">
-                    {config.icon}
-                    <div>
-                      <div className="font-medium text-gilded-light">
-                        {DOCUMENT_LABELS[doc.type] || doc.type}
+                  <div className="flex items-center justify-between p-4 gap-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      {config.icon}
+                      <div className="min-w-0">
+                        <div className="font-medium text-gilded-light">{label}</div>
+                        {doc.fileName && (
+                          <div className="text-xs text-gilded-muted mt-0.5 truncate">
+                            {doc.fileName}
+                          </div>
+                        )}
+                        {doc.expiryDate && (
+                          <div
+                            className={`text-xs mt-0.5 ${
+                              doc.daysUntilExpiry !== null && doc.daysUntilExpiry <= EXPIRY_WARNING_DAYS
+                                ? 'text-amber-400 font-medium'
+                                : 'text-gilded-muted'
+                            }`}
+                          >
+                            Expires {formatExpiryDate(doc.expiryDate)}
+                            {doc.daysUntilExpiry !== null &&
+                              doc.daysUntilExpiry <= EXPIRY_WARNING_DAYS && (
+                                <> — replace before it lapses</>
+                              )}
+                          </div>
+                        )}
+                        {doc.rejectionReason && doc.status === 'REJECTED' && (
+                          <div className="text-xs text-red-400 mt-0.5">
+                            Reason: {doc.rejectionReason}
+                          </div>
+                        )}
                       </div>
-                      {doc.fileName && (
-                        <div className="text-xs text-gilded-muted mt-0.5">{doc.fileName}</div>
-                      )}
-                      {doc.expiryDate && (
-                        <div
-                          className={`text-xs mt-0.5 ${
-                            doc.status === 'EXPIRED'
-                              ? 'text-red-400 font-medium'
-                              : doc.daysUntilExpiry !== null && doc.daysUntilExpiry <= 30
-                              ? 'text-amber-400 font-medium'
-                              : 'text-gilded-muted'
-                          }`}
-                        >
-                          {doc.status === 'EXPIRED' ? 'Expired: ' : 'Expires: '}
-                          {formatExpiryDate(doc.expiryDate)}
-                          {doc.status !== 'EXPIRED' && doc.daysUntilExpiry !== null && doc.daysUntilExpiry <= 30 && (
-                            <> ({doc.daysUntilExpiry}d left — replace soon)</>
-                          )}
-                        </div>
-                      )}
-                      {doc.rejectionReason && doc.status === 'REJECTED' && (
-                        <div className="text-xs text-red-400 mt-0.5">
-                          Reason: {doc.rejectionReason}
-                        </div>
-                      )}
+                    </div>
+                    <div className="flex items-center gap-3 shrink-0">
+                      <span className={`text-xs px-2 py-0.5 rounded ${tone.className}`}>
+                        {tone.label}
+                      </span>
+                      <span className={`text-xs font-medium ${config.color}`}>
+                        {doc.status.replace(/_/g, ' ')}
+                      </span>
+                      <button
+                        onClick={() => toggleRow(doc.type)}
+                        aria-expanded={isOpen}
+                        aria-controls={`upload-${doc.type}`}
+                        className="text-[11px] px-2.5 py-1 bg-gilded-gold/10 text-gilded-gold border border-gilded-gold/30 rounded hover:bg-gilded-gold/20 transition-colors"
+                      >
+                        {isOpen
+                          ? 'Cancel'
+                          : doc.status === 'NOT_UPLOADED'
+                          ? 'Upload'
+                          : 'Replace / Renew'}
+                      </button>
                     </div>
                   </div>
-                  <div className="flex items-center gap-3">
-                    {doc.expiryDate && (
-                      <span
-                        className={`text-xs px-2 py-0.5 rounded ${
-                          doc.status === 'EXPIRED'
-                            ? 'bg-red-500/20 text-red-400'
-                            : doc.daysUntilExpiry !== null && doc.daysUntilExpiry <= 7
-                            ? 'bg-red-500/20 text-red-400'
-                            : doc.daysUntilExpiry !== null && doc.daysUntilExpiry <= 14
-                            ? 'bg-orange-500/20 text-orange-400'
-                            : doc.daysUntilExpiry !== null && doc.daysUntilExpiry <= 30
-                            ? 'bg-yellow-500/20 text-yellow-400'
-                            : 'bg-gray-500/10 text-gilded-muted'
-                        }`}
-                      >
-                        {doc.status === 'EXPIRED'
-                          ? 'Expired'
-                          : doc.daysUntilExpiry !== null
-                          ? `${doc.daysUntilExpiry}d left`
-                          : 'No expiry set'}
-                      </span>
-                    )}
-                    <span className={`text-xs font-medium ${config.color}`}>
-                      {doc.status.replace(/_/g, ' ')}
-                    </span>
-                    {(doc.status === 'EXPIRED' || doc.status === 'REJECTED' || doc.status === 'NOT_UPLOADED' ||
-                      (doc.status === 'VERIFIED' && doc.daysUntilExpiry !== null && doc.daysUntilExpiry <= 60)) && (
-                      <button
-                        onClick={() => handleRenew(doc.type)}
-                        className="text-[10px] px-2 py-0.5 bg-gilded-gold/10 text-gilded-gold border border-gilded-gold/30 rounded hover:bg-gilded-gold/20 transition-colors"
-                      >
-                        {doc.status === 'NOT_UPLOADED' ? 'Upload' : 'Replace / Renew'}
-                      </button>
-                    )}
-                  </div>
+
+                  {isOpen && (
+                    <div
+                      id={`upload-${doc.type}`}
+                      className="border-t border-gilded-border p-4 space-y-3"
+                    >
+                      <p className="text-xs text-gilded-muted">
+                        Uploading for{' '}
+                        <span className="text-gilded-light font-medium">{label}</span>. The
+                        expiry date is required — it is what the system uses to warn
+                        you before this document lapses and to lock the shop out
+                        once it does.
+                      </p>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div>
+                          <label
+                            htmlFor={`file-${doc.type}`}
+                            className="block text-xs text-gilded-muted mb-1"
+                          >
+                            File
+                          </label>
+                          <input
+                            id={`file-${doc.type}`}
+                            type="file"
+                            onChange={(e) =>
+                              setDraft(doc.type, { file: e.target.files?.[0] || null })
+                            }
+                            className="w-full px-3 py-2 bg-gilded-darker border border-gilded-border rounded-lg text-gilded-light text-sm file:mr-3 file:py-1 file:px-2.5 file:rounded file:border-0 file:bg-gilded-gold file:text-gilded-darker file:font-medium file:text-xs"
+                          />
+                        </div>
+                        <div>
+                          <label
+                            htmlFor={`expiry-${doc.type}`}
+                            className="block text-xs text-gilded-muted mb-1"
+                          >
+                            Expiry date <span className="text-gilded-gold">required</span>
+                          </label>
+                          <input
+                            id={`expiry-${doc.type}`}
+                            type="date"
+                            value={draft.expiryDate}
+                            onChange={(e) => setDraft(doc.type, { expiryDate: e.target.value })}
+                            className="w-full px-3 py-2 bg-gilded-darker border border-gilded-border rounded-lg text-gilded-light"
+                          />
+                        </div>
+                      </div>
+                      {error && (
+                        <div className="px-3 py-2 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400 text-sm">
+                          {error}
+                        </div>
+                      )}
+                      <div className="flex items-center gap-3">
+                        <button
+                          onClick={() => handleUpload(doc.type)}
+                          disabled={uploadDisabled}
+                          className="px-4 py-2 bg-gilded-gold text-gilded-darker font-semibold text-sm rounded-lg hover:bg-gilded-gold/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {isUploading
+                            ? 'Uploading...'
+                            : doc.status === 'NOT_UPLOADED'
+                            ? 'Upload document'
+                            : 'Replace document'}
+                        </button>
+                        {uploadDisabled && !isUploading && (
+                          <span className="text-xs text-gilded-muted">
+                            {!draft.file ? 'Choose a file.' : 'Enter the expiry date.'}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {!isOpen && needsAttention && (
+                    <p className="px-4 pb-3 text-xs text-gilded-muted">
+                      {doc.status === 'NOT_UPLOADED'
+                        ? 'Not on file — this counts against your compliance score.'
+                        : doc.status === 'REJECTED'
+                        ? 'Rejected — upload a corrected document.'
+                        : doc.status === 'UNDER_REVIEW'
+                        ? 'Awaiting verification.'
+                        : 'Expiring soon — renew to keep the shop operating.'}
+                    </p>
+                  )}
                 </div>
               );
             })}
-          </div>
-        </div>
-
-        <div id="upload-form" className="bg-gilded-dark border border-gilded-border rounded-xl p-6">
-          <h3 className="text-lg font-semibold text-gilded-light mb-4 flex items-center gap-2">
-            <Upload className="w-5 h-5 text-gilded-gold" />
-            {selectedType ? `Renew ${DOCUMENT_LABELS[selectedType] || selectedType}` : 'Upload Document'}
-          </h3>
-          {renewMessage && (
-            <div className="mb-4 px-3 py-2 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400 text-sm">
-              {renewMessage}
-            </div>
-          )}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm text-gilded-muted mb-1">Document Type</label>
-              <select
-                value={selectedType}
-                onChange={(e) => setSelectedType(e.target.value)}
-                className="w-full px-3 py-2 bg-gilded-darker border border-gilded-border rounded-lg text-gilded-light"
-              >
-                <option value="">Select type...</option>
-                {Object.entries(DOCUMENT_LABELS).map(([key, label]) => (
-                  <option key={key} value={key}>
-                    {label}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm text-gilded-muted mb-1">File</label>
-              <input
-                type="file"
-                onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
-                className="w-full px-3 py-2 bg-gilded-darker border border-gilded-border rounded-lg text-gilded-light file:mr-4 file:py-1 file:px-3 file:rounded file:border-0 file:bg-gilded-gold file:text-gilded-darker file:font-medium file:text-sm"
-              />
-            </div>
-            <div>
-              <label className="block text-sm text-gilded-muted mb-1">Expiry Date (optional)</label>
-              <input
-                type="date"
-                value={expiryDate}
-                onChange={(e) => setExpiryDate(e.target.value)}
-                className="w-full px-3 py-2 bg-gilded-darker border border-gilded-border rounded-lg text-gilded-light"
-              />
-            </div>
-            <div className="flex items-end">
-              <button
-                onClick={handleUpload}
-                disabled={!selectedType || !selectedFile || uploading}
-                className="px-6 py-2 bg-gilded-gold text-gilded-darker font-semibold rounded-lg hover:bg-gilded-gold/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {uploading ? 'Uploading...' : 'Upload'}
-              </button>
-            </div>
           </div>
         </div>
         </>

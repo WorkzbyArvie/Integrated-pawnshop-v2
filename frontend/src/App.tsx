@@ -38,7 +38,7 @@ import {
 
 // Import Libs
 import { supabase } from './lib/supabaseClient';
-import api, { ApiError, clearMfaAssertion, getMfaAssertion } from './lib/apiClient';
+import api, { ApiError, clearMfaAssertion, getMfaAssertion, markMfaAssertionPending } from './lib/apiClient';
 import { setBlockingSurface } from './lib/blockingSurface';
 import {
   fetchCredentialStatus,
@@ -393,6 +393,12 @@ function App() {
 
   const lastConfirmedStatus = useRef<CredentialStatus | null>(null);
 
+  // Mirror of `session` for callbacks that must not re-create when it changes.
+  const sessionRef = useRef(session);
+  useEffect(() => {
+    sessionRef.current = session;
+  }, [session]);
+
   const loadCredentialStatus = useCallback(
     async (options?: { keepGate?: boolean }): Promise<CredentialStatus | null> => {
       if (!options?.keepGate) setCredentialState('loading');
@@ -402,6 +408,13 @@ function App() {
 
       const apply = (next: CredentialStatus | null) => {
         if (next) lastConfirmedStatus.current = next;
+        // Report the server's own answer to the api client before anything
+        // mounts and fires. Otherwise the client only discovers it is MFA-blocked
+        // from the first 403, by which point a screen-mount burst is already in
+        // flight and every one of those calls was guaranteed to fail.
+        markMfaAssertionPending(
+          Boolean(sessionRef.current) && next?.mfaEnabled === true && getMfaAssertion() === null,
+        );
         setCredentialStatus(next);
         setCredentialState(next ? 'ready' : 'unavailable');
         return next;
@@ -441,7 +454,12 @@ function App() {
         return apply(null);
       }
     },
-    [],
+    // `session` is read through a ref rather than a dependency so the loader
+    // stays referentially stable. The mount effect depends on this callback, so
+    // listing `session` would re-fire the credential-status read - and a second
+    // read on every session change is exactly the duplicate-request pattern this
+    // work is removing.
+    [sessionRef],
   );
 
   const credentialPreflightRequired = Boolean(session) && !isLegalDocRoute && !isResetPasswordRoute;

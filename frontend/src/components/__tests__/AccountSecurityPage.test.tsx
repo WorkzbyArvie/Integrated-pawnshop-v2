@@ -42,6 +42,7 @@ const apiPost = vi.fn();
 const setMfaAssertion = vi.fn();
 const clearMfaAssertion = vi.fn();
 const getMfaAssertion = vi.fn<() => string | null>(() => null);
+const markMfaAssertionPending = vi.fn();
 
 vi.mock('../../lib/apiClient', () => ({
   ApiError: class ApiError extends Error {
@@ -63,6 +64,11 @@ vi.mock('../../lib/apiClient', () => ({
     setMfaAssertion(assertion, options),
   clearMfaAssertion: () => clearMfaAssertion(),
   getMfaAssertion: () => getMfaAssertion(),
+  // Every named export `App.tsx` imports has to appear here. This mock is a
+  // closed list, not a partial one: omitting an export makes it `undefined` at
+  // the import site, so a missing entry fails as a TypeError thrown from deep
+  // inside a loader rather than as an obvious "mock is incomplete".
+  markMfaAssertionPending: (pending: boolean) => markMfaAssertionPending(pending),
   default: {
     get: (...args: unknown[]) => apiGet(...args),
     post: (...args: unknown[]) => apiPost(...args),

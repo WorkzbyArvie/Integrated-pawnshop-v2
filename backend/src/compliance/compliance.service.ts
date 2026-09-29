@@ -40,6 +40,8 @@ export class ComplianceService {
       throw new BadRequestException('No pawnshop associated with your account');
     }
 
+    this.assertUsableExpiry(dto.expiryDate);
+
     const existing = await this.prisma.pawnshopDocument.findFirst({
       where: {
         pawnshopId: profile.pawnshopId,
@@ -68,6 +70,41 @@ export class ComplianceService {
     });
 
     return document;
+  }
+
+  /**
+   * A document only counts as a valid licence if its expiry is a real, future
+   * date.
+   *
+   * The DTO already requires the field, so this is the second half: a date that
+   * has already passed satisfies "an expiry exists" while contributing nothing,
+   * which would let a shop clear the requirement with a document that lapsed
+   * last month. Compared as a timestamp at day granularity so a shop cannot lose
+   * a day to a timezone offset between its browser and the server.
+   */
+  private assertUsableExpiry(expiryDate: string | undefined | null): void {
+    if (!expiryDate) {
+      throw new BadRequestException(
+        'An expiry date is required. Legality depends on knowing when this document lapses.',
+      );
+    }
+
+    const parsed = new Date(expiryDate);
+    if (Number.isNaN(parsed.getTime())) {
+      throw new BadRequestException('The expiry date is not a valid date.');
+    }
+
+    const todayUtc = new Date();
+    const startOfToday = Date.UTC(
+      todayUtc.getUTCFullYear(),
+      todayUtc.getUTCMonth(),
+      todayUtc.getUTCDate(),
+    );
+    if (parsed.getTime() < startOfToday) {
+      throw new BadRequestException(
+        'The expiry date is in the past. Upload a document that is currently valid.',
+      );
+    }
   }
 
   async getDocuments(userId: string, pawnshopId?: string) {
@@ -138,6 +175,8 @@ export class ComplianceService {
     if (oldDocument.pawnshopId !== profile.pawnshopId) {
       throw new ForbiddenException('Not your document');
     }
+
+    this.assertUsableExpiry(dto.expiryDate);
 
     await this.prisma.pawnshopDocument.update({
       where: { id: documentId },
