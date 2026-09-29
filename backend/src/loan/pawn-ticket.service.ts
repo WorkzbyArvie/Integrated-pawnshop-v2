@@ -11,14 +11,29 @@ import { ReceiptService } from '../receipt/receipt.service';
 import { FinanceService } from '../finance/finance.service';
 import { NotificationService } from '../notification/notification.service';
 import { TierService } from '../tier/tier.service';
-import { PAWN_TERM_DAYS, toTermMonths } from './loan-terms';
+import {
+  GRACE_PERIOD_DAYS,
+  PAWN_TERM_DAYS,
+  gracePeriodEndFrom,
+  maturityDateFrom,
+  toTermMonths,
+} from './loan-terms';
 import {
   interestFor,
   isBelowStatutoryMinimum,
   resolveRates,
   serviceFeeFor,
   statutoryMinimumLoan,
+  STATUTORY_MIN_LTV,
+  toCentavos,
 } from '../finance/interest';
+import {
+  appraise,
+  assessRisk,
+  normalizePurity,
+  resolveAppraisalRates,
+} from './appraisal';
+import { QuoteAppraisalDto, RedemptionQuoteDto } from './dto/appraise-item.dto';
 import { LedgerEntryType, LedgerCategory, NotificationChannel, NotificationType, PaymentMethod, Prisma, TicketLifecycleStatus } from '@prisma/client';
 
 export function assertCustomerKycVerified(
@@ -43,6 +58,171 @@ export class PawnTicketService {
     private notificationService: NotificationService,
     private tierService: TierService,
   ) {}
+
+  /**
+   * Price a prospective pawn without creating anything.
+   *
+   * The POS screen used to compute all of this in the browser from a table
+   * hardcoded in the component, with no record of the rates and no way for a
+   * branch to price to its own market. The response carries the rates that
+   * produced the figures so the appraisal is reproducible later - a per-gram
+   * constant that changes should not silently change what a past ticket says
+   * it was worth.
+   */
+  async quoteAppraisal(dto: QuoteAppraisalDto, requestedBy: string) {
+    const profile = await this.prisma.profile.findUnique({
+      where: { id: requestedBy },
+      select: { pawnshopId: true },
+    });
+
+    const pawnshopId = profile?.pawnshopId ?? null;
+    if (!pawnshopId) {
+      throw new BadRequestException(
+        'No pawnshop associated with your account. Select a shop before appraising.',
+      );
+    }
+
+    const pawnshop = await this.prisma.pawnshop.findUnique({
+      where: { id: pawnshopId },
+      select: { settings: true },
+    });
+
+    const rates = resolveAppraisalRates(pawnshop?.settings);
+    const moneyRates = resolveRates(pawnshop?.settings);
+
+    // Purity scales the per-gram rate, and is the largest single source of
+    // error in a per-gram appraisal: an 18K chain and a 24K one of the same
+    // weight differ by a quarter. A 925-standard field (sterling) is normalised
+    // to a percentage first, because "925" and "92.5" mean the same thing and a
+    // pawner who writes 925 in a purity field should not get a 10x value.
+    const purity = normalizePurity(dto.purityPercent);
+    const appraisal = appraise(dto.itemCategory, dto.weight, rates);
+
+    const scaledAppraised = toCentavos(appraisal.appraisedValue * (purity ?? 1));
+    const loanAtLtv = toCentavos(scaledAppraised * appraisal.ltvRatio);
+
+    const risk = assessRisk({
+      authenticityVerified: dto.authenticityVerified,
+      authenticitySuspect: dto.authenticitySuspect,
+      idVerified: dto.idVerified,
+      kycStatus: dto.kycStatus,
+      weight: dto.weight,
+      appraisedValue: scaledAppraised,
+    });
+
+    if (risk.blocking) {
+      throw new BadRequestException(
+        'This item cannot be pawned: the appraiser has flagged it as suspected counterfeit. ' +
+          'Holding it would leave the branch with worthless collateral and a claim from the rightful owner.',
+      );
+    }
+
+    // The statutory floor, P.D. 114 Section 9. A loan below 30% of appraised
+    // value needs the pawner's written request on file, so it is surfaced here
+    // rather than discovered at disbursement.
+    const belowStatutoryMinimum =
+      loanAtLtv < scaledAppraised * STATUTORY_MIN_LTV;
+
+    return {
+      itemCategory: dto.itemCategory,
+      collateralClass: appraisal.collateralClass,
+      weight: appraisal.weight,
+      purityPercent: purity,
+      gramRate: appraisal.gramRate,
+      gramRateBasis: 'pawn/melt value, not spot',
+      ltvRatio: appraisal.ltvRatio,
+      appraisedValue: scaledAppraised,
+      recommendedLoanAmount: loanAtLtv,
+      money: {
+        interest: interestFor(loanAtLtv, moneyRates),
+        serviceFee: serviceFeeFor(loanAtLtv, moneyRates),
+        interestRate: moneyRates.monthlyInterestRate,
+        serviceFeeNote: 'P.D. 114 s.10: the fee is the lesser of 1% of principal and PHP 5.',
+      },
+      termDays: PAWN_TERM_DAYS,
+      maturityDate: maturityDateFrom(PAWN_TERM_DAYS).toISOString(),
+      gracePeriodDays: GRACE_PERIOD_DAYS,
+      gracePeriodEnds: gracePeriodEndFrom(
+        maturityDateFrom(PAWN_TERM_DAYS),
+      ).toISOString(),
+      risk,
+      compliance: {
+        statutoryMinLtv: STATUTORY_MIN_LTV,
+        belowStatutoryMinimum,
+        note: belowStatutoryMinimum
+          ? 'P.D. 114 Section 9 permits a loan below 30% of appraised value only where the pawner manifests in writing the desire to borrow less.'
+          : undefined,
+      },
+      ratesUsed: rates,
+      appraiserNotes: dto.appraiserNotes ?? null,
+    };
+  }
+
+  /**
+   * The full cost to settle an existing ticket.
+   *
+   * Derived from the loan's own recorded rate, not from whatever the client
+   * asks for. The redemption screen used to compute `principal * 0.03` and send
+   * that as `amountPaid`, while loans were issued at 3.5%, so the branch
+   * silently absorbed the difference on every redemption.
+   */
+  async quoteRedemption(dto: RedemptionQuoteDto, requestedBy: string) {
+    const ticket = await this.prisma.ticket.findUnique({
+      where: { id: dto.ticketId },
+      include: { customer: true, loans: true },
+    });
+    if (!ticket) throw new NotFoundException('Ticket not found');
+    if (!ticket.pawnshopId) throw new BadRequestException('Ticket has no pawnshop');
+
+    const loan = ticket.loans?.[0];
+    if (!loan) {
+      throw new BadRequestException(
+        `No loan is recorded for ticket ${ticket.ticketNumber}, so there is nothing to settle.`,
+      );
+    }
+
+    const pawnshop = await this.prisma.pawnshop.findUnique({
+      where: { id: ticket.pawnshopId },
+      select: { settings: true },
+    });
+    const moneyRates = resolveRates(pawnshop?.settings);
+
+    // The loan's recorded rate wins. A shop that has since changed its pricing
+    // must still settle the loan it issued at the rate it issued it under.
+    const rateForLoan =
+      typeof loan.interestRate === 'number' && loan.interestRate > 0
+        ? {
+            ...moneyRates,
+            monthlyInterestRate: loan.interestRate,
+          }
+        : moneyRates;
+
+    const principal = loan.principalAmount ?? ticket.loanAmount ?? 0;
+    const interest = interestFor(principal, rateForLoan);
+    const serviceFee = serviceFeeFor(principal, rateForLoan);
+
+    return {
+      ticketId: ticket.id,
+      ticketNumber: ticket.ticketNumber,
+      customerName: ticket.customer?.fullName ?? null,
+      principal: toCentavos(principal),
+      interest,
+      serviceFee,
+      total: toCentavos(principal + interest + serviceFee),
+      interestRate: rateForLoan.monthlyInterestRate,
+      serviceFeeNote: 'P.D. 114 s.10: the fee is the lesser of 1% of principal and PHP 5.',
+      lifecycleStatus: ticket.lifecycleStatus,
+      expiryDate: ticket.expiryDate,
+      gracePeriodEnd: ticket.gracePeriodEnd,
+      forfeitedAt: ticket.forfeitureDate,
+      // The redemption right, so the screen can say why a ticket is still
+      // redeemable rather than making staff count days themselves.
+      daysUntilForfeiture: ticket.forfeitureDate
+        ? Math.ceil((ticket.forfeitureDate.getTime() - Date.now()) / 86_400_000)
+        : null,
+      quotedFor: requestedBy,
+    };
+  }
 
   async createTicket(dto: CreatePawnTicketDto, createdBy: string) {
     let customerId: string;

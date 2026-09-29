@@ -88,6 +88,18 @@ const MATRIX: Record<string, { tuple: string[]; permission: string }> = {
     tuple: ['APPRAISER', 'STAFF', 'MANAGER', 'OWNER'],
     permission: 'pawn_ticket.appraise',
   },
+  // Read-only quotes. A valuation reveals the shop's own rates and a ticket's
+  // settlement figure, so both are limited to roles that can already create and
+  // settle pawns - and neither grants anything a quote could not be used to do
+  // anyway, since the same figures are recorded on the resulting ticket.
+  'pawn-ticket.controller.ts::quoteAppraisal': {
+    tuple: ['APPRAISER', 'CASHIER_TELLER', 'STAFF', 'MANAGER', 'OWNER'],
+    permission: 'pawn_ticket.create',
+  },
+  'pawn-ticket.controller.ts::quoteRedemption': {
+    tuple: ['CASHIER_TELLER', 'MANAGER', 'OWNER'],
+    permission: 'pawn_ticket.redeem',
+  },
   'pawn-ticket.controller.ts::redeemTicket': {
     tuple: ['CASHIER_TELLER', 'MANAGER', 'OWNER'],
     permission: 'pawn_ticket.redeem',
@@ -630,7 +642,12 @@ describe('69-site equivalence scan', () => {
       const withAny = sites.filter((s) => s.roles || s.permissions);
       return sum + withAny.length;
     }, 0);
-    expect(total).toBe(99);
+    // Was 99. Two read-only quote endpoints were added so the browser stops
+    // computing money: `quoteAppraisal` prices a prospective pawn and
+    // `quoteRedemption` prices a settlement. Both are guarded, so both are
+    // counted here - the invariant is that every guarded site is in the matrix,
+    // and this number is the tripwire for that.
+    expect(total).toBe(101);
   });
 
   it('matrix tuples match the current @Roles tuples (RED-phase calibration)', () => {

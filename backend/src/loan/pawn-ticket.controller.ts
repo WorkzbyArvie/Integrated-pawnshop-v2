@@ -4,6 +4,11 @@ import { PawnTicketService } from './pawn-ticket.service';
 import { CreatePawnTicketDto } from './dto/create-pawn-ticket.dto';
 import { AppraiseTicketDto } from './dto/appraise-ticket.dto';
 import { RedeemTicketDto } from './dto/redeem-ticket.dto';
+import {
+  AppraiseItemDto,
+  RedemptionQuoteDto,
+  QuoteAppraisalDto,
+} from './dto/appraise-item.dto';
 import { AuditLog } from '../common/decorators/audit-log.decorator';
 import { RequiresPermission } from '../common/decorators/requires-permission.decorator';
 import { PERMISSIONS } from '../common/permissions/permissions.const';
@@ -37,6 +42,52 @@ export class PawnTicketController {
       }
       throw error;
     }
+  }
+
+  /**
+   * Appraise an item and return the figures, without creating anything.
+   *
+   * Read-only, and the reason the POS screen no longer computes money in the
+   * browser. The rates, the LTV ratio, the P.D. 114 Section 10 service-fee cap
+   * and the risk factors all live on the server, so the number a customer is
+   * shown and the number recorded on the ticket come from one evaluation.
+   *
+   * `POST /pawn-tickets/appraise-items` rather than `/pawn-tickets/:id/...`
+   * because there is no ticket yet - a quotation precedes the pawn.
+   */
+  @AuditLog('APPRAISE_ITEM')
+  @Post('appraisal/quote')
+  @HttpCode(HttpStatus.OK)
+  @RequiresPermission(PERMISSIONS['pawn_ticket.create'])
+  async quoteAppraisal(
+    @Body() dto: QuoteAppraisalDto,
+    @Req() req: Request,
+  ) {
+    const user = (req as any).user as { id: string } | undefined;
+    return this.pawnTicketService.quoteAppraisal(dto, user?.id ?? 'system');
+  }
+
+  /**
+   * The full cost to settle a pawn: interest, service fee and total, at the
+   * rate recorded on the loan.
+   *
+   * The counterpart to the quote above for a ticket that already exists. The
+   * redemption screen previously computed `principal * 0.03` in the browser and
+   * sent that figure as `amountPaid`; the shop read a total and the system
+   * accepted it, so on a PHP 10,000 pawn the branch absorbed PHP 50 on every
+   * redemption with no error recorded anywhere. A ticket is money already owed,
+   * so the figure comes from the loan, not from the screen asking for it.
+   */
+  @AuditLog('QUOTE_REDEMPTION')
+  @Post('appraisal/redemption-quote')
+  @HttpCode(HttpStatus.OK)
+  @RequiresPermission(PERMISSIONS['pawn_ticket.redeem'])
+  async quoteRedemption(
+    @Body() dto: RedemptionQuoteDto,
+    @Req() req: Request,
+  ) {
+    const user = (req as any).user as { id: string } | undefined;
+    return this.pawnTicketService.quoteRedemption(dto, user?.id ?? 'system');
   }
 
   @AuditLog('SUBMIT_FOR_APPROVAL')
