@@ -93,6 +93,8 @@ export const ROLE_PERMISSIONS: Record<string, PermissionName[]> = {
     'approval.approve_redemption',
     'kyc.view',
     'kyc.verify',
+    'customer.view_history',
+    'pawn_ticket.view',
   ],
   MANAGER: [
     'tenant.manage_branches',
@@ -118,6 +120,7 @@ export const ROLE_PERMISSIONS: Record<string, PermissionName[]> = {
     'contract.sign',
     'customer.manage_tier',
     'attendance.manage',
+    'customer.view_history',
   ],
   HR: ['payroll.manage', 'attendance.manage'],
   STAFF: [

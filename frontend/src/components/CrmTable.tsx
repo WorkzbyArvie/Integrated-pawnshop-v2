@@ -9,7 +9,7 @@ import {
   Loader2,
   X,
 } from 'lucide-react';
-import { supabase } from '../lib/supabaseClient';
+import api from '../lib/apiClient';
 import { useToast } from '../App';
 import { CustomerHistory } from './CustomerHistory';
 
@@ -23,9 +23,18 @@ interface Customer {
   full_name: string;
   contact_number: string;
   address: string;
-  pawnshop_id: string | null;
   loyaltytier?: string;
   created_at: string;
+}
+
+/** Shape returned by `GET /customers`; camelCase from Prisma. */
+interface ApiCustomer {
+  id: string;
+  fullName: string;
+  contactNumber: string;
+  address: string;
+  loyaltyTier?: string;
+  createdAt: string;
 }
 
 const TIERS = ['Standard', 'Bronze', 'Silver', 'Gold', 'VIP'];
@@ -59,49 +68,27 @@ export function CrmTable({ branchId, activeBranchId }: CrmTableProps) {
       const activeOperationalBranchId = Number.isInteger(activeBranchId as number) ? Number(activeBranchId) : null;
       const hasActiveOperationalBranch = activeOperationalBranchId != null && activeOperationalBranchId > 0;
 
-      let scopedCustomerIds: string[] | null = null;
-      if (branchId) {
-        let ticketsQuery = supabase
-          .from('ticket')
-          .select('customer_id')
-          .eq('pawnshop_id', branchId)
-          .neq('status', 'REJECTED');
+      // The tenant is resolved server-side from the authenticated principal, so
+      // the browser never supplies it. Previously this read went straight to the
+      // `customer` table with the pawnshop filter applied only when `branchId`
+      // happened to be set - an unset filter meant every customer on the platform.
+      // `branchId` is only a scope selector now, and the backend verifies it
+      // belongs to the caller's own shop before using it.
+      const rows = await api.get<ApiCustomer[]>('/customers', {
+        branchId: hasActiveOperationalBranch ? activeOperationalBranchId : undefined,
+        limit: 500,
+      });
 
-        if (hasActiveOperationalBranch) {
-          ticketsQuery = ticketsQuery.eq('branch_id', activeOperationalBranchId as any);
-        }
-
-        const { data: ticketRows, error: ticketError } = await ticketsQuery;
-
-        if (ticketError) throw ticketError;
-
-        scopedCustomerIds = Array.from(
-          new Set((ticketRows || []).map((row: any) => row.customer_id).filter(Boolean))
-        );
-
-        if (scopedCustomerIds.length === 0) {
-          setCustomers([]);
-          return;
-        }
-      }
-
-      let query = supabase
-        .from('customer')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      if (branchId) {
-        query = query.eq('pawnshop_id', branchId);
-      }
-
-      if (scopedCustomerIds) {
-        query = query.in('id', scopedCustomerIds);
-      }
-
-      const { data, error } = await query;
-
-      if (error) throw error;
-      setCustomers(data || []);
+      setCustomers(
+        (rows || []).map((row) => ({
+          id: row.id,
+          full_name: row.fullName,
+          contact_number: row.contactNumber,
+          address: row.address,
+          loyaltytier: row.loyaltyTier,
+          created_at: row.createdAt,
+        })),
+      );
     } catch (error: any) {
       console.error('Fetch error:', error);
       showToast(error.message || 'Failed to sync with customer ledger', 'error');

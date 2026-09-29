@@ -23,6 +23,29 @@ import { getDisplayableStorageUrl } from '../lib/storageUrls';
 import { ReceiptViewer } from './ReceiptViewer';
 import Swal from 'sweetalert2';
 
+/** Row shape returned by `GET /tickets`; camelCase from Prisma. */
+interface ApiTicket {
+  id: number;
+  ticketNumber: string;
+  category?: string | null;
+  description?: string | null;
+  weight?: number | null;
+  loanAmount?: number | null;
+  status: string;
+  lifecycleStatus?: string | null;
+  pawnDate?: string | null;
+  expiryDate?: string | null;
+  forfeitureDate?: string | null;
+  interestRate?: number | null;
+  isHighRisk?: boolean | null;
+  storageLocation?: string | null;
+  pawnshopId?: string | null;
+  branchId?: number | null;
+  contractId?: string | null;
+  customer?: { id: string; fullName: string; loyaltyTier?: string | null } | null;
+  branch?: { id: number; name: string } | null;
+}
+
 function ResolvedVaultImage({ src, alt, className }: { src: string; alt: string; className: string }) {
   const [resolved, setResolved] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
@@ -167,27 +190,15 @@ export function InventoryVault({ branchId, activeBranchId }: InventoryVaultProps
       urls,
     );
 
-    const ticketId = Number(item.id);
-    let updateQuery = supabase
-      .from('ticket')
-      .update({ description: nextDescription })
-      .eq('id', Number.isNaN(ticketId) ? (item.id as any) : (ticketId as any));
+    // Goes through the backend so the write is scoped to the caller's own shop.
+    // The old direct `ticket` update was filtered by `id` only when no shop was
+    // selected, which made it a cross-tenant write.
+    const updated = await api.patch<{ id: number; description: string }>(
+      `/tickets/${item.id}/description`,
+      { description: nextDescription },
+    );
 
-    if (activePawnshopId) {
-      updateQuery = updateQuery.eq('pawnshop_id', activePawnshopId as any);
-    }
-    if (hasActiveOperationalBranch) {
-      updateQuery = updateQuery.eq('branch_id', activeOperationalBranchId as any);
-    }
-
-    const { data, error } = await updateQuery.select('id, description');
-
-    if (error) throw error;
-    if (!data || data.length === 0) {
-      throw new Error('Photo update blocked or record not found.');
-    }
-
-    return String(data[0]?.description || nextDescription);
+    return String(updated?.description || nextDescription);
   };
 
   const uploadTicketPhotos = async (ticketNumber: string, files: File[]): Promise<string[]> => {
@@ -281,45 +292,41 @@ export function InventoryVault({ branchId, activeBranchId }: InventoryVaultProps
     }
 
     try {
-      // Fetch from ticket table; storage_location and pawn_date are direct columns
-      let query = supabase
-        .from('ticket')
-        .select(`
-          id,
-          ticket_number,
-          category,
-          description,
-          weight,
-          loan_amount,
-          status,
-          pawn_date,
-          expiry_date,
-          forfeituredate,
-          interest_rate,
-          ishighrisk,
-          storage_location,
-          pawnshop_id,
-          contract_id,
-          customer:customer_id (
-            full_name
-          )
-        `)
-        .in('status', ['ACTIVE', 'REDEEMED', 'AUCTION'])
-        .order('pawn_date', { ascending: false });
+      // Reads through the backend, which resolves the tenant from the
+      // authenticated principal. The previous direct `ticket` read applied its
+      // pawnshop filter only when `activePawnshopId` was set, so an unset value
+      // listed every ticket on the platform.
+      const rows = await api.get<ApiTicket[]>('/tickets', {
+        branchId: hasActiveOperationalBranch ? activeOperationalBranchId : undefined,
+        limit: 500,
+      });
 
-      if (activePawnshopId) {
-        query = query.eq('pawnshop_id', activePawnshopId as any);
-      }
-      if (hasActiveOperationalBranch) {
-        query = query.eq('branch_id', activeOperationalBranchId as any);
-      }
+      const data = (rows || [])
+        .filter((ticket) => ['ACTIVE', 'REDEEMED', 'AUCTION'].includes(ticket.status))
+        .map((ticket) => ({
+          id: String(ticket.id),
+          ticket_number: ticket.ticketNumber,
+          category: ticket.category,
+          description: ticket.description,
+          weight: ticket.weight,
+          loan_amount: ticket.loanAmount,
+          status: ticket.status,
+          pawn_date: ticket.pawnDate,
+          expiry_date: ticket.expiryDate,
+          forfeituredate: ticket.forfeitureDate,
+          interest_rate: ticket.interestRate,
+          ishighrisk: ticket.isHighRisk,
+          storage_location: ticket.storageLocation,
+          pawnshop_id: ticket.pawnshopId,
+          contract_id: ticket.contractId,
+          customer: ticket.customer ? { full_name: ticket.customer.fullName } : null,
+        }));
 
-      const { data, error } = await query;
-
-      if (error) throw error;
-
-      const transformedData: InventoryItem[] = (data || []).map((ticket: any) => {
-        const customerFullName = (ticket.customer?.full_name ?? (Array.isArray(ticket.customer) ? ticket.customer[0]?.full_name : undefined)) || 'Walk-in Customer';
+      const transformedData: InventoryItem[] = data.map((ticket: any) => {
+        const customerFullName =
+          (ticket.customer?.full_name ??
+            (Array.isArray(ticket.customer) ? ticket.customer[0]?.full_name : undefined)) ||
+          'Walk-in Customer';
         const photoUrls = extractPhotoUrlsFromDescription(ticket.description || '');
         const cleanedDescription = sanitizeDescription(ticket.description || ticket.category || 'Asset');
 

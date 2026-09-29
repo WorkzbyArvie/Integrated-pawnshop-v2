@@ -3,6 +3,8 @@ import {
   ConflictException,
   ServiceUnavailableException,
   BadRequestException,
+  ForbiddenException,
+  NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from './prisma.service';
 import { FinanceService } from './finance/finance.service';
@@ -1814,14 +1816,91 @@ export class AppService {
     );
   }
 
-  async getAllTickets() {
+  /**
+   * Ticket vault listing.
+   *
+   * Tenant comes from the authenticated principal. `include: { customer: true }`
+   * used to be returned here, which handed every caller the full customer row
+   * (address, contact number, KYC status) for every ticket in the platform; the
+   * customer is now a narrow select.
+   */
+  async getAllTickets(
+    actor: { role?: string; pawnshopId?: string | null },
+    query?: { pawnshopId?: string; branchId?: number; limit?: number; offset?: number },
+  ) {
+    const tenantId = this.resolveCustomerTenant(actor, query?.pawnshopId);
+
+    const where: any = { pawnshopId: tenantId };
+
+    if (query?.branchId) {
+      const branch = await this.prisma.branch.findFirst({
+        where: { id: query.branchId, pawnshopId: tenantId },
+        select: { id: true },
+      });
+      if (!branch) {
+        throw new NotFoundException('Branch not found in this shop');
+      }
+      where.branchId = branch.id;
+    }
+
     return await this.prisma.ticket.findMany({
-      include: {
-        customer: true,
-        branch: true, // Included branch details for the UI
+      where,
+      select: {
+        id: true,
+        ticketNumber: true,
+        category: true,
+        description: true,
+        weight: true,
+        loanAmount: true,
+        status: true,
+        lifecycleStatus: true,
+        pawnDate: true,
+        expiryDate: true,
+        forfeitureDate: true,
+        interestRate: true,
+        isHighRisk: true,
+        storageLocation: true,
+        pawnshopId: true,
+        branchId: true,
+        contractId: true,
+        customer: { select: { id: true, fullName: true, loyaltyTier: true } },
+        branch: { select: { id: true, name: true } },
       },
       orderBy: { pawnDate: 'desc' },
+      take: query?.limit ?? 200,
+      skip: query?.offset ?? 0,
     });
+  }
+
+  /**
+   * Appends photo markers to a ticket description.
+   *
+   * Scoped by tenant from the principal. The browser previously issued this as a
+   * direct `ticket` update filtered only by `id` whenever no shop was selected,
+   * which made it a cross-tenant write primitive.
+   */
+  async updateTicketDescription(
+    id: string,
+    description: string,
+    actor: { role?: string; pawnshopId?: string | null },
+  ) {
+    const tenantId = this.resolveCustomerTenant(actor);
+
+    const numericId = Number(id);
+    if (!Number.isInteger(numericId) || numericId <= 0) {
+      throw new BadRequestException('Invalid ticket id');
+    }
+
+    const updated = await this.prisma.ticket.updateMany({
+      where: { id: numericId, pawnshopId: tenantId },
+      data: { description },
+    });
+
+    if (updated.count === 0) {
+      throw new NotFoundException('Ticket not found');
+    }
+
+    return { id: numericId, description };
   }
 
   async deleteTicket(id: number) {
@@ -1935,22 +2014,124 @@ export class AppService {
     return Math.round(R * c * 100) / 100;
   }
 
-  async getAllCustomers() {
+  /**
+   * Resolves which tenant a CRM read may touch.
+   *
+   * Mirrors `AnalyticsService.resolveTenant`: a shop account is pinned to its
+   * own tenant and a request naming another is refused, `SUPER_ADMIN` may name
+   * one explicitly, and an identity with no tenant at all reads nothing rather
+   * than receiving a platform-wide customer list.
+   */
+  private resolveCustomerTenant(
+    actor: { role?: string; pawnshopId?: string | null },
+    requested?: string | null,
+  ): string {
+    const isPlatform = actor?.role === 'SUPER_ADMIN';
+
+    if (isPlatform) {
+      const target = requested ?? actor?.pawnshopId;
+      if (target) return target;
+      throw new ForbiddenException('A tenant must be identified to read the customer ledger');
+    }
+
+    if (!actor?.pawnshopId) {
+      throw new ForbiddenException('This account is not attached to a shop');
+    }
+
+    if (requested && requested !== actor.pawnshopId) {
+      throw new ForbiddenException('Cannot read the customer ledger for another shop');
+    }
+
+    return actor.pawnshopId;
+  }
+
+  async getAllCustomers(
+    actor: { role?: string; pawnshopId?: string | null },
+    query?: { pawnshopId?: string; branchId?: number; search?: string; limit?: number; offset?: number },
+  ) {
+    const tenantId = this.resolveCustomerTenant(actor, query?.pawnshopId);
+
+    const where: any = { pawnshopId: tenantId };
+
+    if (query?.search) {
+      const term = query.search.trim();
+      where.OR = [
+        { fullName: { contains: term, mode: 'insensitive' } },
+        { contactNumber: { contains: term } },
+      ];
+    }
+
+    // `branchId` narrows the ledger to customers holding a ticket at that
+    // branch. The branch must belong to the caller's own tenant, otherwise the
+    // scope selector becomes a cross-tenant read.
+    if (query?.branchId) {
+      const branch = await this.prisma.branch.findFirst({
+        where: { id: query.branchId, pawnshopId: tenantId },
+        select: { id: true },
+      });
+      if (!branch) {
+        throw new NotFoundException('Branch not found in this shop');
+      }
+
+      const ticketOwners = await this.prisma.ticket.findMany({
+        where: { branchId: branch.id, pawnshopId: tenantId },
+        select: { customerId: true },
+        distinct: ['customerId'],
+      });
+      const customerIds = ticketOwners
+        .map((t) => t.customerId)
+        .filter((id): id is string => Boolean(id));
+
+      where.id = { in: customerIds };
+    }
+
     return await this.prisma.customer.findMany({
-      include: {
-        _count: {
-          select: { tickets: true },
-        },
+      where,
+      select: {
+        id: true,
+        fullName: true,
+        contactNumber: true,
+        address: true,
+        loyaltyTier: true,
+        kycStatus: true,
+        createdAt: true,
+        _count: { select: { tickets: true } },
       },
       orderBy: { fullName: 'asc' },
+      take: query?.limit ?? 100,
+      skip: query?.offset ?? 0,
     });
   }
 
-  async getCustomerById(id: string) {
-    return await this.prisma.customer.findUnique({
-      where: { id },
-      include: { tickets: true },
+  async getCustomerById(
+    id: string,
+    actor: { role?: string; pawnshopId?: string | null },
+  ) {
+    const tenantId = this.resolveCustomerTenant(actor);
+
+    const customer = await this.prisma.customer.findFirst({
+      where: { id, pawnshopId: tenantId },
+      select: {
+        id: true,
+        fullName: true,
+        contactNumber: true,
+        address: true,
+        loyaltyTier: true,
+        kycStatus: true,
+        createdAt: true,
+      },
     });
+
+    if (!customer) {
+      throw new NotFoundException('Customer not found');
+    }
+
+    const tickets = await this.prisma.ticket.findMany({
+      where: { customerId: customer.id, pawnshopId: tenantId },
+      orderBy: { pawnDate: 'desc' },
+    });
+
+    return { ...customer, tickets };
   }
 
   async checkEmailAvailability(email: string, role?: string) {

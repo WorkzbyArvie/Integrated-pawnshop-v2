@@ -24,6 +24,9 @@ import { PERMISSIONS } from './common/permissions/permissions.const';
 import { Throttle } from './common/decorators/throttle.decorator';
 import { AppService } from './app.service';
 import { AccountRegistrationDto } from './security/dto/account-registration.dto';
+import { CustomerListQueryDto } from './dto/customer-list-query.dto';
+import { TicketListQueryDto } from './dto/ticket-list-query.dto';
+import { UpdateTicketDescriptionDto } from './dto/update-ticket-description.dto';
 import { StaffPasswordDto } from './security/dto/staff-password.dto';
 import { CredentialStateUnavailableError } from './security/credential-state.service';
 import { StorageService } from './common/storage/storage.service';
@@ -468,8 +471,21 @@ export class AppController {
   }
 
   @Get('tickets')
-  findAllTickets() {
-    return this.appService.getAllTickets();
+  @RequiresPermission(PERMISSIONS['pawn_ticket.view'])
+  findAllTickets(@Query() query: TicketListQueryDto, @Req() req: Request) {
+    const user = (req as any).user ?? req;
+    return this.appService.getAllTickets(user, query);
+  }
+
+  @Patch('tickets/:id/description')
+  @RequiresPermission(PERMISSIONS['inventory.manage'])
+  updateTicketDescription(
+    @Param('id') id: string,
+    @Body() body: UpdateTicketDescriptionDto,
+    @Req() req: Request,
+  ) {
+    const user = (req as any).user ?? req;
+    return this.appService.updateTicketDescription(id, body.description, user);
   }
 
   @Patch('tickets/:id/redeem')
@@ -527,13 +543,17 @@ export class AppController {
 
   // --- CRM / CUSTOMER ENDPOINTS ---
   @Get('customers')
-  findAllCustomers() {
-    return this.appService.getAllCustomers();
+  @RequiresPermission(PERMISSIONS['customer.view_history'])
+  findAllCustomers(@Query() query: CustomerListQueryDto, @Req() req: Request) {
+    const user = (req as any).user ?? req;
+    return this.appService.getAllCustomers(user, query);
   }
 
   @Get('customers/:id')
-  findOneCustomer(@Param('id') id: string) {
-    return this.appService.getCustomerById(id);
+  @RequiresPermission(PERMISSIONS['customer.view_history'])
+  async findOneCustomer(@Param('id') id: string, @Req() req: Request) {
+    const user = (req as any).user ?? req;
+    return this.appService.getCustomerById(id, user);
   }
 
   // Add this inside the AppController class

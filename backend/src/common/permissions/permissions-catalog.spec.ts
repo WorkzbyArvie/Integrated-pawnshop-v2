@@ -292,6 +292,22 @@ const MATRIX: Record<string, { tuple: string[]; permission: string }> = {
     tuple: ['OWNER', 'ADMIN', 'MANAGER', 'SUPER_ADMIN'],
     permission: 'user.manage_staff',
   },
+  'app.controller.ts::findAllCustomers': {
+    tuple: ['OWNER', 'ADMIN', 'MANAGER', 'CASHIER_TELLER', 'APPRAISER'],
+    permission: 'customer.view_history',
+  },
+  'app.controller.ts::findOneCustomer': {
+    tuple: ['OWNER', 'ADMIN', 'MANAGER', 'CASHIER_TELLER', 'APPRAISER'],
+    permission: 'customer.view_history',
+  },
+  'app.controller.ts::findAllTickets': {
+    tuple: ['OWNER', 'ADMIN', 'MANAGER', 'CASHIER_TELLER', 'APPRAISER', 'STAFF'],
+    permission: 'pawn_ticket.view',
+  },
+  'app.controller.ts::updateTicketDescription': {
+    tuple: ['OWNER', 'MANAGER'],
+    permission: 'inventory.manage',
+  },
   'approval.controller.ts::getQueue': {
     tuple: ['OWNER', 'ADMIN', 'MANAGER', 'CASHIER_TELLER', 'APPRAISER'],
     permission: 'approval.view_queue',
@@ -494,9 +510,9 @@ describe('permission catalog consistency', () => {
     expect(new Set(sqlNames)).toEqual(new Set(constNames));
   });
 
-  it('ROLE_PERMISSIONS references only const values and sums to 114 mappings', () => {
+  it('ROLE_PERMISSIONS references only const values and sums to 117 mappings', () => {
     const mapped = Object.values(ROLE_PERMISSIONS).flat();
-    expect(mapped.length).toBe(114);
+    expect(mapped.length).toBe(117);
     for (const name of mapped) {
       expect(PERMISSIONS[name]).toBe(name);
     }
@@ -578,16 +594,18 @@ describe('69-site equivalence scan', () => {
     }
   });
 
-  it('finds all 90 guarded endpoints across the controllers', () => {
-    // Calibration tripwire. Raised from 83 when seven previously undecorated
-    // reads were given an explicit permission: the three analytics reads, the two
-    // decision-support reads, the duplicate-customer lookup, and minting a
-    // receipt PDF link.
+  it('finds all 94 guarded endpoints across the controllers', () => {
+    // Calibration tripwire. Raised from 90 across four additions: the two
+    // customer-ledger reads, the ticket-vault read, and the ticket description
+    // write. All four were previously unguarded *and* unscoped - any
+    // authenticated profile could list every customer in the platform, fetch one
+    // by id across tenants, list every ticket platform-wide along with each
+    // customer's full row, or write to any ticket by id.
     const total = [...sitesByFile.values()].reduce((sum, sites) => {
       const withAny = sites.filter((s) => s.roles || s.permissions);
       return sum + withAny.length;
     }, 0);
-    expect(total).toBe(90);
+    expect(total).toBe(94);
   });
 
   it('matrix tuples match the current @Roles tuples (RED-phase calibration)', () => {
