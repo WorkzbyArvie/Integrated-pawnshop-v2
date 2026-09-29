@@ -52,29 +52,47 @@ of scope and still not ours.
 `loan_applications`. That read has been 404ing silently, so the loan count badge
 has always read zero.
 
-## 3. What you must do — the migration is NOT applied
+## 3. The migration is APPLIED and verified
 
-`backend/.env` and `DIRECT_URL` both point at the same Supabase pooler and **the
-credentials are rejected**. I could not run or verify anything against the live
-database. Two consequences:
+Applied by hand in the Supabase SQL editor on 2026-09-29 (the agent has no
+working DB credential — see section 8). Verified on the live project:
 
-**a) Apply the migration.** Paste
-`backend/prisma/migrations/20260929140000_lock_last_six_tables/migration.sql`
-into the Supabase SQL editor. It is transactional, idempotent, and has a rollback
-block at the bottom. Then run the verification block in the same file — every
-count must be 0.
+| Check | Result |
+|---|---|
+| RLS enabled **and** forced | all six tables `on=true force=true` |
+| Policies on the six | exactly one: `profiles_update_own [UPDATE] roles={authenticated}` |
+| anon / authenticated table grants | **zero rows** — hard-denied at the privilege layer |
+| `authenticated` UPDATE columns on `profiles` | exactly two: `is_online`, `last_seen_at` |
+| Backend unaffected | `customer=17 profiles=34 ticket=33` still readable as owner |
 
-**b) Reset the pooler password** if you want me to be able to verify things
-directly: Supabase → Project Settings → Database → reset the pooler password,
-then update `backend/.env`. The current one is dead.
+So the anon key is now blocked twice over: no table privilege *and* forced RLS.
+`postgres`/`supabase_admin` have `rolbypassrls = true`, which overrides FORCE, so
+the backend on Render is unaffected.
 
-**Behaviour change to expect:** `Dashboard.tsx` subscribes to `postgres_changes`
-on `ticket`. Supabase applies RLS to realtime subscribers, so that live-update
-subscription goes quiet once the migration lands. The dashboard still loads
-correctly on mount and on refresh, because the data now comes from
-`GET /analytics/branch-activity`. If live updates matter for the defense demo,
-the follow-up is a Realtime broadcast fed by a database trigger, not a browser
-SELECT policy on `ticket`.
+**Do not grant the anon role anything back.** Postgres emits a `HINT: Grant
+SELECT ... TO anon` on any 42501. That hint is generic and applying it would
+re-create the breach condition — RLS would still deny, but the only remaining
+barrier would be a single policy someone could later drop.
+
+## 3a. Still to do: deploy, in this order
+
+**Backend to Render first, then the frontend to Vercel.** The new frontend calls
+eight endpoints that do not exist on the deployed backend yet. Shipping the
+frontend first breaks sign-in outright (`/profile/session-context` 404s), plus
+the app shell, System Settings, Staff Matrix, Dashboard and Branch Analytics.
+
+After deploying, check in this order — the first is the highest risk:
+
+1. Sign in as an OWNER (depends on a brand-new endpoint).
+2. Dashboard loads with non-zero counts. It will **stop live-updating** — that
+   is the documented Realtime consequence, not a regression: the data now comes
+   from `GET /analytics/branch-activity`.
+3. Inventory Vault, Redemption, CRM, Staff Matrix, System Settings, Branch
+   Analytics — the six surfaces moved to the backend.
+4. Sign out and back in, then confirm someone shows as **Active**, not Offline.
+   This is the one that would expose a mistake in the `profiles` column grant:
+   if it were wrong, the presence heartbeat would fail silently and every user
+   would look permanently offline.
 
 ## 4. Why the policy set is smaller than expected
 
@@ -110,7 +128,7 @@ widens to include `role`.
 
 ## 6. Tooling traps — two new ones, both cost real time
 
-The previous handoff's list still stands. Two more:
+The previous handoff's list still stands. Five more:
 
 8. **A mutation harness must restore in a `finally`, not after the loop.** An
    early throw once left `app.service.ts` holding a mutated `tenantId`, and the
@@ -120,8 +138,29 @@ The previous handoff's list still stands. Two more:
    whole customer-ledger rewrite once, because the file had uncommitted changes
    from the same session. It restored a *correct* file, so nothing looked broken —
    the code was simply gone. Verify the diff after any checkout.
+10. **Never reason from a truncated diagnostic.** A probe that printed a
+    connection URL with `slice(0, 60)` showed the pooler port as `:65` and
+    briefly sent the diagnosis toward "malformed port" when it is a correct
+    `:6543`. Parse the field and print the field, not a prefix of the string.
+11. **The Supabase SQL editor renders only the last result set of a
+    multi-statement paste, and stops at the first error.** A five-query
+    verification block yields one grid, which reads as "everything else passed"
+    when in fact nothing else was shown. Fold checks into a single `UNION ALL`
+    statement. Related: a `SET ROLE anon` probe *errors* rather than returning
+    rows once the tables are revoked - that error is the result, and reading it
+    as a failure sends you down the wrong path.
+12. **Ignore the Database Migrations page in the Supabase dashboard.** It shows
+    "Run your first migration" because it tracks *Supabase CLI* migrations. This
+    project uses Prisma, there is no `supabase/migrations` directory, and
+    `supabase db push` is the wrong tool entirely.
+13. **There is only one database password.** The panel labelled "Used for direct
+    Postgres connections" and the "Shared pooler" connection string use the same
+    credential - I initially told the user they were different and had to correct
+    it. Resetting it breaks the Render backend until that service's env is
+    updated, which is why applying the migration through the SQL editor was the
+    better call.
 
-Also still true: never read `.env` through the shell — the secret guard blocks
+Also still true: never read `.env` through the shell - the secret guard blocks
 it, correctly. To check whether a key exists, parse it in a Node script and print
 only presence and length.
 
