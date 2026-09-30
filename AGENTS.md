@@ -227,9 +227,17 @@ carry the focus ring, hover treatment and press behaviour already.
    `cursor-pointer`, and a hover transition in the 150–300ms range.
 7. **A destructive action is never one click.** It opens a reason picker and
    stays disabled until a reason exists — see `DeclineReasonPicker.tsx`.
-8. **Test with `jsdom` caveats in mind:** Radix `Select` will not open from
+8. **Overlays stack in sequence, and only one is open at a time.** Closing a
+   dialog must always set the state that opened the next one, otherwise two
+   overlays mount together and the one mounted first wins. Each overlay owns a
+   distinct z-index — base `z-50`, contract `z-[100]` — and equal z-index is
+   never acceptable between two surfaces that can be open simultaneously.
+9. **Test with `jsdom` caveats in mind:** Radix `Select` will not open from
    `pointerDown`; use `keyDown` with `ArrowDown`. Radix `Tabs` activate on
    `mouseDown`, not `click`. Both silently find zero matches otherwise.
+10. **A new test must be shown to fail against the old code.** A test that passes
+    both before and after a fix is asserting nothing — revert the fix, watch it
+    fail, then restore. This has caught two "fixed" bugs that were not.
 
 **Visual harness.** `frontend/harness/` renders a component against fixture
 data with no auth or API, for checking a design without a live backend:

@@ -261,7 +261,15 @@ export function ContractViewer({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+    // Above the app's other overlays (`z-50`). The contract opens on top of a
+    // decision flow - the review dialog, or a toast - and at equal z-index the
+    // one mounted first won, so the contract was unreachable behind it.
+    <div
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Contract"
+    >
       <div className="bg-[#14141B] rounded-[2.5rem] shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto mx-4 animate-in fade-in zoom-in-95 duration-200">
         <div className="sticky top-0 bg-[#14141B] border-b border-[rgba(201,160,92,0.08)] px-8 py-5 flex items-center justify-between rounded-t-[2.5rem] z-10">
           <div className="flex items-center gap-3">
@@ -271,10 +279,12 @@ export function ContractViewer({
             </h2>
           </div>
           <button
+            type="button"
             onClick={onClose}
-            className="w-10 h-10 rounded-xl bg-[#1C1C26] flex items-center justify-center hover:bg-[#222228] transition-colors"
+            aria-label="Close contract"
+            className="w-10 h-10 rounded-xl bg-[#1C1C26] flex items-center justify-center hover:bg-[#222228] transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-[var(--gold)] focus-visible:outline-none"
           >
-            <X className="w-5 h-5 text-[#B8B0A4]" />
+            <X className="w-5 h-5 text-[#B8B0A4]" aria-hidden="true" />
           </button>
         </div>
 

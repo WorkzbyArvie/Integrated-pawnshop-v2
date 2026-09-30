@@ -152,6 +152,40 @@ placeholder is not a label — it disappears on focus and is not announced.
 A greyed-out button with no stated reason reads as broken. Pair the disabled
 state with muted helper text: `Select a reason to decline.`
 
+### 9. Overlays open in sequence, never together
+
+When one dialog hands off to another, the first must close before the second
+opens. Set the state that opened the next surface, and clear the state of the
+one being replaced.
+
+```tsx
+if (applicationId || contractId) {
+  setReviewItem(null);        // the outgoing dialog
+  setContractHandoff({ ... }); // the incoming one
+} else {
+  setReviewItem(null);        // nothing replaces it - still close
+}
+```
+
+The `else` matters as much as the `if`. A redemption produces no contract, so
+nothing would otherwise replace the dialog and the reviewer is left on a decided
+request with live buttons.
+
+**Each overlay owns a distinct z-index.** Two surfaces that can be open at the
+same time must never share one:
+
+| Layer | z-index | Surface |
+|---|---|---|
+| Base overlay | `z-50` | Dialogs, toasts, dropdowns |
+| Contract | `z-[100]` | `ContractViewer` |
+
+At equal z-index, the element mounted first paints on top — which is how
+approving an appraisal appeared to do nothing at all: the contract opened
+correctly, underneath a review dialog that was never told to close.
+
+An overlay also needs `role="dialog"`, `aria-modal="true"` and an accessible
+name, and every icon-only control inside it needs an `aria-label`.
+
 ---
 
 ## jsdom caveats
@@ -174,6 +208,16 @@ keyboard user actually hits.
 wrong value is worse than no test. `interestRate: 3` in a column storing `0.035`
 made a 100× error look correct for months. Assert the property instead: "this
 figure does not move when a loan is split in two."
+
+**Show the test failing before you trust it.** A test that passes both before
+and after a fix is asserting nothing. Revert the fix, run the test, confirm it
+fails, then restore. This is not optional ceremony — it has caught two bugs that
+were reported fixed and were not, including a dialog that stayed open because
+the assertion was checking the wrong element.
+
+A specific trap: asserting that a button is *gone* is not enough. Assert the
+thing the user needs is *present* — the contract dialog opened, not merely that
+the review button vanished.
 
 ---
 

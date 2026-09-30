@@ -220,7 +220,21 @@ export function ApprovalQueue({ branchId, activeBranchId, userRole }: ApprovalQu
         (record) => record.id === id && record.targetType === 'LISTING_EDIT',
       );
       if (applicationId || contractId) {
+        // The review dialog must close before the contract opens. Both are
+        // overlays; leaving this one mounted stacked two dialogs on top of each
+        // other, and because they shared a z-index the contract rendered behind
+        // the still-open review - so approving appeared to do nothing.
+        setReviewItem(null);
+        setReviewDeclineReason(null);
+        setReviewDeclineOpen(false);
         setContractHandoff({ applicationId, contractId, loanId });
+      } else {
+        // No contract to sign - a redemption releases the item, an auction edit
+        // just applies. Nothing replaces this dialog, so leaving it mounted
+        // strands the reviewer on an already-decided request with live buttons.
+        setReviewItem(null);
+        setReviewDeclineReason(null);
+        setReviewDeclineOpen(false);
       }
       showToast(
         isRedemption

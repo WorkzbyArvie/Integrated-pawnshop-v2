@@ -106,6 +106,53 @@ describe('ApprovalQueue (RBAC-05)', () => {
     await waitFor(() => expect(apiMock.get).toHaveBeenCalledTimes(2));
   });
 
+  // Approving opened the contract without closing the review dialog, so two
+  // overlays stacked and - sharing a z-index - the contract rendered behind the
+  // dialog the reviewer was still looking at. Approving appeared to do nothing.
+  it('closes the review dialog before the contract opens', async () => {
+    apiMock.get.mockResolvedValue([pendingRecords[0]]);
+    apiMock.post.mockResolvedValue({ applicationId: 'app-1', contractId: 'ctr-1', loanId: 55 });
+
+    render(<ApprovalQueue />);
+
+    fireEvent.click(await screen.findByRole('button', { name: /review & decide/i }));
+    expect(await screen.findByRole('button', { name: /approve & generate contract/i })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /approve & generate contract/i }));
+
+    await waitFor(() =>
+      expect(screen.queryByRole('button', { name: /approve & generate contract/i })).not.toBeInTheDocument(),
+    );
+  });
+
+  it('closes the review dialog on approve even when no contract is generated', async () => {
+    // A redemption releases the item and produces no contract, so nothing else
+    // would ever replace the dialog - the reviewer would sit on a decided
+    // request with its buttons still live.
+    apiMock.get.mockResolvedValue([
+      {
+        id: 2,
+        targetType: 'REDEMPTION',
+        targetId: 200,
+        status: 'PENDING',
+        ticketNumber: 'TKT-200',
+        createdAt: '2026-08-01T00:00:00.000Z',
+        amountPaid: 1450,
+      },
+    ]);
+    apiMock.post.mockResolvedValue({ id: 2, status: 'APPROVED' });
+
+    render(<ApprovalQueue />);
+
+    fireEvent.mouseDown(screen.getByText('Redemption'));
+    fireEvent.click(await screen.findByRole('button', { name: /review & decide/i }));
+    fireEvent.click(await screen.findByRole('button', { name: /approve & release/i }));
+
+    await waitFor(() =>
+      expect(screen.queryByRole('button', { name: /approve & release/i })).not.toBeInTheDocument(),
+    );
+  });
+
   it('offers no decision controls on the row - they live inside the review dialog', async () => {
     render(<ApprovalQueue />);
 
