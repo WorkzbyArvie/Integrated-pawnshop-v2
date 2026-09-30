@@ -134,6 +134,32 @@
 
 ---
 
+## Knowledge Graph (graphify)
+
+Project knowledge graph is built and queryable — **use it instead of re-reading the codebase**.
+
+- Artifacts: `.planning/graphs/graph.json` (11k+ nodes), `graph.html`, `GRAPH_REPORT.md`
+- Enabled via `graphify.enabled: true` in `.planning/config.json`; PyPI package is `graphifyy`, the CLI binary is `graphify` (Python 3.12, `~/AppData/Local/Programs/Python/Python312/Scripts/graphify.exe`)
+- Graph output (`graphify-out/`, `.planning/graphs/`) is gitignored — regenerate with `graphify update .`
+- Auto-rebuilds after every commit via the `post-commit` / `post-checkout` git hooks (`graphify hook status` to check, `graphify hook uninstall` to remove)
+- The global plugin `~/.config/opencode/plugins/graphify.js` injects this guidance into every new session automatically and puts `graphify` on PATH — you do not need to be reminded
+
+**Querying (token-efficient, prefer these):**
+
+`--graph` is required when your cwd is a subfolder — `graphify` only looks for `./graphify-out` by default.
+
+| Need | Command |
+|------|---------|
+| Architectural hubs | `graphify god-nodes --top 10 --graph "<root>/graphify-out/graph.json"` |
+| Codebase question | `graphify query "<question>" --budget 800 --graph "<root>/graphify-out/graph.json"` |
+| One symbol's context | `graphify explain "<Symbol>" --graph "<root>/graphify-out/graph.json"` |
+| How two things connect | `graphify path "<A>" "<B>" --graph "<root>/graphify-out/graph.json"` |
+| Blast radius of a change | `graphify affected "<Symbol>" --graph "<root>/graphify-out/graph.json"` |
+| GSD-integrated | `node <config>/gsd-core/bin/gsd-tools.cjs graphify query <term>` |
+
+Always pass `--budget` — the default traversal can dump 500+ nodes and burn thousands of tokens.
+`query` truncates silently and prints `[!] TRUNCATED ... N nodes cut`; if you see that, raise the budget or narrow the query rather than concluding a symbol is absent.
+
 ## Coding Conventions
 - **No comments** in source code unless explicitly asked
 - **NestJS modules** follow: controller, service, module, dto/
@@ -156,3 +182,61 @@
 | 2026-07-07 | Phase 5 complete | Legality enforcement: pawn ticket flow now enforces contract generation + signing + disbursement receipt + redemption proof |
 | 2026-07-07 | Contract renderer fallback | Template lookup falls back to `type` when `id` not found (fixes `'loan-contract'` → `LOAN_CONTRACT`) |
 | 2026-07-07 | Phase 7: Gilded Reserve UI redesign | Full dark mode redesign across dashboard + auction frontend — Syne + DM Sans typography, gold (#C9A05C) accent, noise grain overlay, geometric precision, unified design system |
+| 2026-09-30 | UI consistency is a standing rule, not a per-task decision | Any new or reworked UI surface is designed against the Gilded Reserve tokens below, via the `ui-ux-pro-max` skill. Prevents the drift where a dialog was invented ad hoc and did not match the app around it |
+
+## UI Design System — Gilded Reserve (standing rules)
+
+Authoritative for any new or reworked surface. Verify with the `ui-ux-pro-max`
+skill before building; the queries are in `docs/UI-DESIGN-SYSTEM.md`.
+
+**Tokens — use these, never a raw hex.** The app already declares them as CSS
+variables, so a hardcoded `#C9A05C` is a bug even when it matches today.
+
+| Role | Token / value |
+|---|---|
+| Gold accent (primary action) | `--gold` / `#C9A05C` |
+| Destructive (decline, deny, delete) | `--red` / `#D44545` |
+| Caution (high risk, pending) | `--amber` / `#D4A84B` |
+| Positive (low risk, verified) | `--green` / `#3DA86C` |
+| Page background | `--bg-deep` / `#0A0A0F` |
+| Card / dialog surface | `#14141B` |
+| Raised surface (inputs, wells) | `#1C1C26` |
+| Primary / secondary / muted text | `--text-primary` / `--text-secondary` / `--text-muted` |
+| Display font (figures, headings) | `--font-display` (Syne) |
+| Body font | `--font-body` (DM Sans) |
+| Label font (uppercase micro-labels) | `--font-mono` (JetBrains Mono) |
+
+**Components — build on `src/components/ui/`, do not hand-roll.** `Button`,
+`Dialog`, `Badge`, `Input`, `Textarea`, `Select`, `Tabs`, `Table`, `Skeleton` all
+carry the focus ring, hover treatment and press behaviour already.
+
+**Rules that exist because they were each violated:**
+
+1. **One primary action per view.** A screen with two equally-weighted gold
+   buttons has no primary action. Secondary is `outline`; destructive is `destructive`.
+2. **Money gets hierarchy.** A figure the user must act on is `text-4xl` in
+   `--font-display` at `--gold`. Never three equal-weight rows of figures — a
+   valuation and a loan that happen to match must not render as the same number
+   twice. Label which figure is which.
+3. **The action must be visible without scrolling.** In a dialog, the primary
+   action goes in a pinned footer, not at the end of the scroll area.
+4. **Uppercase micro-labels use `--font-mono`,** 9–10px, `tracking-widest`, and
+   are always muted — they are field names, not content.
+5. **No emoji as structural icons.** Lucide only, matching stroke weight.
+6. **Every interactive element** needs a visible `focus-visible` ring, a
+   `cursor-pointer`, and a hover transition in the 150–300ms range.
+7. **A destructive action is never one click.** It opens a reason picker and
+   stays disabled until a reason exists — see `DeclineReasonPicker.tsx`.
+8. **Test with `jsdom` caveats in mind:** Radix `Select` will not open from
+   `pointerDown`; use `keyDown` with `ArrowDown`. Radix `Tabs` activate on
+   `mouseDown`, not `click`. Both silently find zero matches otherwise.
+
+**Visual harness.** `frontend/harness/` renders a component against fixture
+data with no auth or API, for checking a design without a live backend:
+
+```bash
+cd frontend && npx vite dev
+# then open http://127.0.0.1:5173/harness/index.html
+```
+
+It is dev-only and must never be imported from `src/`.

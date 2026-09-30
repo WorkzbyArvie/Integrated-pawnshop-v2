@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   AlertTriangle,
+  CheckCircle2,
   ChevronLeft,
   ChevronRight,
   FileText,
@@ -79,8 +80,32 @@ interface ApprovalQueueProps {
 const ticketNumber = (item: ApprovalQueueItem): string =>
   item.ticketNumber ?? String(item.payload?.ticketNumber ?? `#${item.id}`);
 
-const itemAmount = (item: ApprovalQueueItem): number =>
-  item.amount ?? item.amountPaid ?? Number(item.payload?.amount ?? 0);
+/**
+ * The figure a reviewer decides on.
+ *
+ * This read `item.amount`, a field the endpoint does not return - every branch
+ * fell through to `0`, so every appraisal in the queue showed ₱0.00 while the
+ * review dialog beside it showed the real valuation. The endpoint returns
+ * `appraisedValue` (the valuation) and `recommendedLoanAmount` (the ask), and
+ * `amountPaid` for a redemption. The recommendation is what gets approved, so
+ * it wins; the valuation is the fallback.
+ */
+const itemAmount = (item: ApprovalQueueItem): number => {
+  const candidates = [
+    item.recommendedLoanAmount,
+    item.amountPaid,
+    item.appraisedValue,
+    item.amount,
+    item.payload?.recommendedLoanAmount,
+    item.payload?.amount,
+  ];
+  for (const candidate of candidates) {
+    if (typeof candidate === 'number' && Number.isFinite(candidate) && candidate > 0) {
+      return candidate;
+    }
+  }
+  return 0;
+};
 
 const customerName = (item: ApprovalQueueItem): string =>
   item.customer?.fullName ?? item.requestedBy?.fullName ?? '—';
@@ -491,16 +516,10 @@ export function ApprovalQueue({ branchId, activeBranchId, userRole }: ApprovalQu
           }
         }}
       >
-        <DialogContent className="max-w-lg bg-[#14141B] border border-[rgba(201,160,92,0.15)] text-[#F5F0E8]">
-          <DialogHeader>
-            <DialogTitle className="text-lg font-black uppercase tracking-tight text-[#F5F0E8] flex items-center gap-2">
-              <FileText className="w-4 h-4 text-[#C9A05C]" />
-              Review Request
-            </DialogTitle>
-          </DialogHeader>
-          {reviewItem && (
-            <div className="space-y-4 text-sm">
-              <div className="flex items-center gap-2">
+        <DialogContent className="max-w-2xl bg-[#14141B] border border-[rgba(201,160,92,0.15)] text-[#F5F0E8] p-0 gap-0 flex flex-col max-h-[90vh] overflow-hidden">
+          <DialogHeader className="px-6 pt-6 pb-4 pr-14 border-b shrink-0" style={{ borderColor: 'rgba(201,160,92,0.12)' }}>
+            {reviewItem && (
+              <div className="flex items-center gap-2 mb-2">
                 <Badge
                   className={
                     reviewItem.targetType === 'APPRAISAL'
@@ -516,7 +535,24 @@ export function ApprovalQueue({ branchId, activeBranchId, userRole }: ApprovalQu
                   {ticketNumber(reviewItem)}
                 </span>
               </div>
-              <div className="grid grid-cols-2 gap-3">
+            )}
+            <DialogTitle className="text-lg font-black uppercase tracking-tight text-[#F5F0E8] flex items-center gap-2">
+              <FileText className="w-4 h-4 text-[#C9A05C]" />
+              Review Request
+            </DialogTitle>
+            {reviewItem && (
+              <p className="text-[11px] font-semibold mt-1" style={{ color: 'var(--text-muted)' }}>
+                {reviewItem.requestedBy?.fullName
+                  ? `Requested by ${reviewItem.requestedBy.fullName}`
+                  : 'Requested by staff'}
+                {reviewItem.createdAt ? ` · ${formatDateTime(reviewItem.createdAt)}` : ''}
+              </p>
+            )}
+          </DialogHeader>
+
+          {reviewItem && (
+            <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5 text-sm">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="rounded-2xl p-4" style={{ background: 'rgba(255,255,255,0.035)' }}>
                   <p className="text-[10px] font-black uppercase tracking-widest mb-1" style={{ color: 'var(--text-muted)' }}>
                     Customer
@@ -537,7 +573,7 @@ export function ApprovalQueue({ branchId, activeBranchId, userRole }: ApprovalQu
               </div>
               {(reviewItem.photoUrls?.length ?? 0) > 0 && (
                 <div className="rounded-2xl overflow-hidden" style={{ background: 'rgba(255,255,255,0.035)' }}>
-                  <div className="relative h-48 bg-[#1C1C26] flex items-center justify-center">
+                  <div className="relative h-56 bg-[#1C1C26] flex items-center justify-center">
                     {reviewPhotoSrc && !reviewPhotoFailed ? (
                       <img
                         src={reviewPhotoSrc}
@@ -558,24 +594,26 @@ export function ApprovalQueue({ branchId, activeBranchId, userRole }: ApprovalQu
                     {(reviewItem.photoUrls?.length ?? 0) > 1 && (
                       <>
                         <button
+                          type="button"
                           onClick={() =>
                             setReviewPhotoIndex((index) =>
                               index <= 0 ? (reviewItem.photoUrls?.length ?? 1) - 1 : index - 1,
                             )
                           }
                           aria-label="Previous photo"
-                          className="absolute left-3 top-1/2 -translate-y-1/2 h-8 w-8 rounded-full border border-white/40 bg-black/40 text-white flex items-center justify-center"
+                          className="absolute left-3 top-1/2 -translate-y-1/2 h-9 w-9 rounded-full border border-white/40 bg-black/50 text-white flex items-center justify-center cursor-pointer transition-colors duration-200 hover:bg-black/70 focus-visible:ring-2 focus-visible:ring-[var(--gold)] focus-visible:outline-none"
                         >
                           <ChevronLeft className="w-4 h-4" />
                         </button>
                         <button
+                          type="button"
                           onClick={() =>
                             setReviewPhotoIndex((index) =>
                               index >= (reviewItem.photoUrls?.length ?? 1) - 1 ? 0 : index + 1,
                             )
                           }
                           aria-label="Next photo"
-                          className="absolute right-3 top-1/2 -translate-y-1/2 h-8 w-8 rounded-full border border-white/40 bg-black/40 text-white flex items-center justify-center"
+                          className="absolute right-3 top-1/2 -translate-y-1/2 h-9 w-9 rounded-full border border-white/40 bg-black/50 text-white flex items-center justify-center cursor-pointer transition-colors duration-200 hover:bg-black/70 focus-visible:ring-2 focus-visible:ring-[var(--gold)] focus-visible:outline-none"
                         >
                           <ChevronRight className="w-4 h-4" />
                         </button>
@@ -583,50 +621,14 @@ export function ApprovalQueue({ branchId, activeBranchId, userRole }: ApprovalQu
                     )}
                   </div>
                   {(reviewItem.photoUrls?.length ?? 0) > 1 && (
-                    <p className="py-1.5 text-center text-[10px] font-black uppercase tracking-widest" style={{ color: 'var(--text-muted)' }}>
-                      {reviewPhotoIndex + 1} / {reviewItem.photoUrls!.length}
+                    <p className="py-2 text-center text-[10px] font-black uppercase tracking-widest" style={{ color: 'var(--text-muted)' }}>
+                      Photo {reviewPhotoIndex + 1} of {reviewItem.photoUrls!.length}
                     </p>
                   )}
                 </div>
               )}
               {reviewItem.targetType === 'APPRAISAL' ? (
-                <div
-                  className="rounded-2xl p-4"
-                  style={{ background: 'rgba(201,160,92,0.1)', border: '1px solid rgba(201,160,92,0.15)' }}
-                >
-                  <p className="text-[10px] font-black uppercase tracking-widest mb-2" style={{ color: 'var(--gold)' }}>
-                    Valuation
-                  </p>
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>
-                      Appraised value
-                    </span>
-                    <span className="text-lg font-black text-[#C9A05C]">
-                      {formatCurrency(reviewItem.appraisedValue ?? itemAmount(reviewItem))}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between mt-2">
-                    <span className="text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>
-                      Recommended loan
-                    </span>
-                    <span className="text-sm font-black text-[#F5F0E8]">
-                      {formatCurrency(reviewItem.recommendedLoanAmount ?? itemAmount(reviewItem))}
-                    </span>
-                  </div>
-                  {typeof reviewItem.riskScore === 'number' && (
-                    <div className="flex items-center justify-between mt-2">
-                      <span className="text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>
-                        Risk score
-                      </span>
-                      <span className="text-sm font-black text-[#F5F0E8]">{reviewItem.riskScore}</span>
-                    </div>
-                  )}
-                  {reviewItem.isHighRisk && (
-                    <p className="text-[10px] font-black uppercase tracking-widest mt-2" style={{ color: 'var(--amber)' }}>
-                      High risk
-                    </p>
-                  )}
-                </div>
+                <ReviewValuation item={reviewItem} />
               ) : reviewItem.targetType === 'LISTING_EDIT' ? (
                 <div className="rounded-2xl p-4" style={{ background: 'rgba(255,255,255,0.035)' }}>
                   <p className="text-[10px] font-black uppercase tracking-widest mb-3" style={{ color: 'var(--text-muted)' }}>
@@ -659,19 +661,29 @@ export function ApprovalQueue({ branchId, activeBranchId, userRole }: ApprovalQu
                   </p>
                 </div>
               ) : (
-                <div className="rounded-2xl p-4" style={{ background: 'rgba(255,255,255,0.035)' }}>
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>
-                      Amount paid
-                    </span>
-                    <span className="text-lg font-black text-[#C9A05C]">{formatCurrency(itemAmount(reviewItem))}</span>
-                  </div>
-                  <div className="flex items-center justify-between mt-2">
-                    <span className="text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>
-                      Requires owner approval
-                    </span>
-                    <span className="text-sm font-black text-[#F5F0E8]">Yes</span>
-                  </div>
+                <div
+                  className="rounded-2xl p-5"
+                  style={{ background: 'rgba(201,160,92,0.08)', border: '1px solid rgba(201,160,92,0.18)' }}
+                >
+                  <p className="text-[10px] font-black uppercase tracking-widest mb-3" style={{ color: 'var(--gold)' }}>
+                    Redemption Amount
+                  </p>
+                  <p
+                    className="text-4xl font-black leading-none tracking-tight"
+                    style={{ fontFamily: 'var(--font-display)', color: 'var(--gold)' }}
+                  >
+                    {formatCurrency(itemAmount(reviewItem))}
+                  </p>
+                  <p className="text-[11px] font-semibold mt-2" style={{ color: 'var(--text-muted)' }}>
+                    Releasing this item returns the collateral to the pawner.
+                  </p>
+                  {typeof reviewItem.threshold === 'number' && (
+                    <p className="text-[11px] font-semibold mt-1" style={{ color: 'var(--text-muted)' }}>
+                      {itemAmount(reviewItem) >= reviewItem.threshold
+                        ? 'At or above the owner-approval threshold — this decision is recorded against your name.'
+                        : 'Below the owner-approval threshold, but a release still needs owner sign-off.'}
+                    </p>
+                  )}
                 </div>
               )}
               {reviewItem.appraisalNotes && (
@@ -694,76 +706,83 @@ export function ApprovalQueue({ branchId, activeBranchId, userRole }: ApprovalQu
                   </p>
                 </div>
               )}
-              <p className="text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>
-                {reviewItem.requestedBy?.fullName ? `Requested by ${reviewItem.requestedBy.fullName}` : 'Requested by staff'}
-                {reviewItem.createdAt ? ` · ${formatDateTime(reviewItem.createdAt)}` : ''}
-              </p>
+            </div>
+          )}
 
-              <div className="border-t pt-4 space-y-4" style={{ borderColor: 'rgba(201,160,92,0.12)' }}>
-                {isOwnReviewRequest ? (
-                  <p className="text-xs font-bold" style={{ color: 'var(--amber)' }}>
-                    You cannot decide your own request.
-                  </p>
-                ) : (
-                  <>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <Button
-                        onClick={() => void handleApprove(reviewItem.id)}
+          {/* The decision lives in a pinned footer rather than at the end of the
+              scroll area. On a long record the approve button was below the fold,
+              so the dialog opened with no visible way to act on it. */}
+          {reviewItem && (
+            <div
+              className="shrink-0 border-t px-6 py-4 space-y-4"
+              style={{ borderColor: 'rgba(201,160,92,0.12)', background: 'rgba(10,10,15,0.5)' }}
+            >
+              {isOwnReviewRequest ? (
+                <p className="text-xs font-bold text-center" style={{ color: 'var(--amber)' }}>
+                  You cannot decide your own request.
+                </p>
+              ) : (
+                <>
+                  {reviewDeclineOpen && (
+                    <div className="space-y-3 rounded-2xl p-4" style={{ background: 'rgba(212,69,69,0.06)' }}>
+                      <DeclineReasonPicker
+                        id={`decline-${reviewItem.id}`}
+                        value={reviewDeclineReason}
+                        onChange={setReviewDeclineReason}
+                        options={declineOptionsFor(reviewItem)}
                         disabled={processingId === reviewItem.id}
-                        className="bg-[#C9A05C] text-[#0A0A0F] hover:bg-[#d4b36e] font-black uppercase tracking-wider"
-                      >
-                        {processingId === reviewItem.id ? (
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                        ) : null}
-                        {approveLabelFor(reviewItem)}
-                      </Button>
-                      <Button
-                        variant="outline"
-                        onClick={() => setReviewDeclineOpen((open) => !open)}
-                        disabled={processingId === reviewItem.id}
-                        className="border-[#D44545]/40 text-[#D44545] hover:bg-[#D44545]/10 font-black uppercase tracking-wider"
-                      >
-                        Decline
-                      </Button>
-                    </div>
-                    {reviewDeclineOpen && (
-                      <div className="space-y-3 rounded-2xl p-4" style={{ background: 'rgba(212,69,69,0.06)' }}>
-                        <DeclineReasonPicker
-                          id={`decline-${reviewItem.id}`}
-                          value={reviewDeclineReason}
-                          onChange={setReviewDeclineReason}
-                          options={declineOptionsFor(reviewItem)}
+                      />
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <Button
+                          variant="destructive"
+                          onClick={() => void handleDecline(reviewItem.id, reviewDeclineReason)}
+                          disabled={!isDeclineReasonComplete(reviewDeclineReason) || processingId === reviewItem.id}
+                          className="font-black uppercase tracking-wider"
+                        >
+                          {processingId === reviewItem.id ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : null}
+                          Confirm Decline
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          onClick={() => setReviewDeclineOpen(false)}
                           disabled={processingId === reviewItem.id}
-                        />
-                        <div className="flex items-center gap-2">
-                          <Button
-                            onClick={() => void handleDecline(reviewItem.id, reviewDeclineReason)}
-                            disabled={!isDeclineReasonComplete(reviewDeclineReason) || processingId === reviewItem.id}
-                            className="bg-[#D44545] text-white hover:bg-[#e05a5a] font-black uppercase tracking-wider"
-                          >
-                            {processingId === reviewItem.id ? (
-                              <Loader2 className="w-4 h-4 animate-spin" />
-                            ) : null}
-                            Confirm Decline
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            onClick={() => setReviewDeclineOpen(false)}
-                            disabled={processingId === reviewItem.id}
-                          >
-                            Cancel
-                          </Button>
-                        </div>
-                        {!isDeclineReasonComplete(reviewDeclineReason) && (
-                          <p className="text-[10px] font-semibold" style={{ color: 'var(--text-muted)' }}>
-                            Select a reason to decline.
-                          </p>
-                        )}
+                        >
+                          Cancel
+                        </Button>
                       </div>
-                    )}
-                  </>
-                )}
-              </div>
+                      {!isDeclineReasonComplete(reviewDeclineReason) && (
+                        <p className="text-[10px] font-semibold" style={{ color: 'var(--text-muted)' }}>
+                          Select a reason to decline.
+                        </p>
+                      )}
+                    </div>
+                  )}
+                  <div className="flex flex-col-reverse sm:flex-row gap-3">
+                    <Button
+                      variant="outline"
+                      onClick={() => setReviewDeclineOpen((open) => !open)}
+                      disabled={processingId === reviewItem.id}
+                      className="sm:w-44 border-[#D44545]/40 text-[#D44545] hover:bg-[#D44545]/10 font-black uppercase tracking-wider"
+                    >
+                      {reviewDeclineOpen ? 'Cancel Decline' : 'Decline'}
+                    </Button>
+                    <Button
+                      onClick={() => void handleApprove(reviewItem.id)}
+                      disabled={processingId === reviewItem.id}
+                      className="flex-1 font-black uppercase tracking-wider"
+                    >
+                      {processingId === reviewItem.id ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <CheckCircle2 className="w-4 h-4" />
+                      )}
+                      {approveLabelFor(reviewItem)}
+                    </Button>
+                  </div>
+                </>
+              )}
             </div>
           )}
         </DialogContent>
@@ -830,7 +849,19 @@ function ApprovalRow({
               Auction Edit
             </p>
           ) : (
-            <p className="text-lg font-black text-[#C9A05C]">{formatCurrency(itemAmount(record))}</p>
+            <>
+              <p className="text-lg font-black text-[#C9A05C]">{formatCurrency(itemAmount(record))}</p>
+              {/* The number is only meaningful if the reviewer knows which of the
+                  two figures it is. A ₱440 loan on an ₱800 valuation reads very
+                  differently once it is named. */}
+              <p className="text-[9px] font-black uppercase tracking-widest mt-0.5" style={{ color: 'var(--text-muted)' }}>
+                {record.targetType === 'REDEMPTION'
+                  ? 'Amount paid'
+                  : typeof record.recommendedLoanAmount === 'number' && record.recommendedLoanAmount > 0
+                    ? 'Recommended loan'
+                    : 'Appraised value'}
+              </p>
+            </>
           )}
           {record.targetType === 'REDEMPTION' && (
             <p className="text-[10px] font-semibold mt-1" style={{ color: 'var(--text-muted)' }}>
@@ -869,7 +900,11 @@ function ApprovalRow({
       )}
 
       <div className="mt-4 flex items-center gap-2 flex-wrap">
-        <Button variant="ghost" size="sm" onClick={onReview}>
+        <Button
+          onClick={onReview}
+          className="font-black uppercase tracking-wider cursor-pointer"
+        >
+          <FileText className="w-4 h-4" />
           Review &amp; Decide
         </Button>
       </div>
@@ -877,6 +912,86 @@ function ApprovalRow({
       {isOwnRequest && (
         <p className="text-[10px] font-semibold mt-2" style={{ color: 'var(--text-muted)' }}>
           You cannot decide your own request.
+        </p>
+      )}
+    </div>
+  );
+}
+
+/**
+ * The valuation block.
+ *
+ * The loan figure leads because that is what the reviewer is approving; the
+ * valuation and the LTV sit beneath it as the basis for that number. Previously
+ * these were three equal-weight rows, and an appraisal where the valuation and
+ * the recommendation happened to match rendered as the same figure twice with
+ * no indication of which was which.
+ */
+function ReviewValuation({ item }: { item: ApprovalQueueItem }) {
+  const appraised = item.appraisedValue ?? 0;
+  const recommended = item.recommendedLoanAmount ?? itemAmount(item);
+  const ltv = appraised > 0 ? Math.round((recommended / appraised) * 100) : null;
+  const risk = typeof item.riskScore === 'number' ? item.riskScore : null;
+  const riskTone =
+    risk === null
+      ? { color: 'var(--text-muted)', label: 'Not scored' }
+      : risk > 40
+        ? { color: '#D44545', label: 'High' }
+        : risk > 20
+          ? { color: 'var(--amber)', label: 'Moderate' }
+          : { color: 'var(--green)', label: 'Low' };
+
+  return (
+    <div
+      className="rounded-2xl p-5"
+      style={{ background: 'rgba(201,160,92,0.08)', border: '1px solid rgba(201,160,92,0.18)' }}
+    >
+      <p className="text-[10px] font-black uppercase tracking-widest mb-3" style={{ color: 'var(--gold)' }}>
+        Recommended Loan
+      </p>
+      <p
+        className="text-4xl font-black leading-none tracking-tight"
+        style={{ fontFamily: 'var(--font-display)', color: 'var(--gold)' }}
+      >
+        {formatCurrency(recommended)}
+      </p>
+      {ltv !== null && (
+        <p className="text-[11px] font-semibold mt-2" style={{ color: 'var(--text-muted)' }}>
+          {ltv}% of the {formatCurrency(appraised)} appraised value
+        </p>
+      )}
+
+      <div
+        className="grid grid-cols-2 gap-3 mt-5 pt-4"
+        style={{ borderTop: '1px solid rgba(201,160,92,0.14)' }}
+      >
+        <div>
+          <p className="text-[9px] font-black uppercase tracking-widest" style={{ color: 'var(--text-muted)' }}>
+            Appraised value
+          </p>
+          <p className="text-sm font-black text-[#F5F0E8] mt-1">{formatCurrency(appraised)}</p>
+        </div>
+        <div>
+          <p className="text-[9px] font-black uppercase tracking-widest" style={{ color: 'var(--text-muted)' }}>
+            Risk score
+          </p>
+          <div className="flex items-baseline gap-2 mt-1">
+            <p className="text-sm font-black text-[#F5F0E8]">{risk ?? '—'}</p>
+            {risk !== null && (
+              <span className="text-[9px] font-black uppercase tracking-widest" style={{ color: riskTone.color }}>
+                {riskTone.label}
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {item.isHighRisk && (
+        <p
+          className="mt-4 text-[10px] font-black uppercase tracking-widest"
+          style={{ color: 'var(--amber)' }}
+        >
+          Flagged high risk — confirm the collateral justifies this figure
         </p>
       )}
     </div>

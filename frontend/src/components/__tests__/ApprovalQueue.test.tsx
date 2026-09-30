@@ -189,4 +189,112 @@ describe('ApprovalQueue (RBAC-05)', () => {
 
     expect(await screen.findByText(/All caught up!/i)).toBeInTheDocument();
   });
+
+  // The endpoint returns `appraisedValue` and `recommendedLoanAmount`. It does
+  // NOT return `amount`, and the row's helper used to read only that - so every
+  // appraisal rendered ₱0.00 in the queue while the review dialog showed the
+  // real figure. These fixtures use the actual response shape, no `amount`.
+  describe('the figure on a collapsed row', () => {
+    it('shows the recommended loan, not ₱0.00', async () => {
+      apiMock.get.mockResolvedValue([
+        {
+          id: 1,
+          targetType: 'APPRAISAL',
+          targetId: 100,
+          status: 'PENDING',
+          ticketNumber: 'TKT-100',
+          createdAt: '2026-08-01T00:00:00.000Z',
+          appraisedValue: 800,
+          recommendedLoanAmount: 440,
+        },
+      ]);
+
+      render(<ApprovalQueue />);
+
+      expect(await screen.findByText(/₱440/)).toBeInTheDocument();
+      expect(screen.queryByText(/₱0\.00/)).not.toBeInTheDocument();
+    });
+
+    it('names the figure so ₱440 is not mistaken for the valuation', async () => {
+      apiMock.get.mockResolvedValue([
+        {
+          id: 1,
+          targetType: 'APPRAISAL',
+          targetId: 100,
+          status: 'PENDING',
+          ticketNumber: 'TKT-100',
+          createdAt: '2026-08-01T00:00:00.000Z',
+          appraisedValue: 800,
+          recommendedLoanAmount: 440,
+        },
+      ]);
+
+      render(<ApprovalQueue />);
+
+      expect(await screen.findByText(/Recommended loan/i)).toBeInTheDocument();
+    });
+
+    it('falls back to the appraised value when no recommendation was made', async () => {
+      apiMock.get.mockResolvedValue([
+        {
+          id: 1,
+          targetType: 'APPRAISAL',
+          targetId: 100,
+          status: 'PENDING',
+          ticketNumber: 'TKT-100',
+          createdAt: '2026-08-01T00:00:00.000Z',
+          appraisedValue: 800,
+          recommendedLoanAmount: null,
+        },
+      ]);
+
+      render(<ApprovalQueue />);
+
+      expect(await screen.findByText(/₱800/)).toBeInTheDocument();
+      expect(await screen.findByText(/Appraised value/i)).toBeInTheDocument();
+    });
+
+    it('treats a zero recommendation as absent rather than as the figure', async () => {
+      // A zero here would render ₱0.00 - the exact symptom being fixed - and
+      // `??` would not help because 0 is not nullish.
+      apiMock.get.mockResolvedValue([
+        {
+          id: 1,
+          targetType: 'APPRAISAL',
+          targetId: 100,
+          status: 'PENDING',
+          ticketNumber: 'TKT-100',
+          createdAt: '2026-08-01T00:00:00.000Z',
+          appraisedValue: 800,
+          recommendedLoanAmount: 0,
+        },
+      ]);
+
+      render(<ApprovalQueue />);
+
+      expect(await screen.findByText(/₱800/)).toBeInTheDocument();
+    });
+
+    it('shows the amount paid on a redemption', async () => {
+      apiMock.get.mockResolvedValue([
+        {
+          id: 2,
+          targetType: 'REDEMPTION',
+          targetId: 200,
+          status: 'PENDING',
+          ticketNumber: 'TKT-200',
+          createdAt: '2026-08-01T00:00:00.000Z',
+          amountPaid: 1450,
+        },
+      ]);
+
+      render(<ApprovalQueue />);
+
+      // Radix Tabs activates on pointer/mouse down, not on a bare click.
+      fireEvent.mouseDown(screen.getByText('Redemption'));
+
+      expect(await screen.findByText(/₱1,450/)).toBeInTheDocument();
+      expect(await screen.findByText(/Amount paid/i)).toBeInTheDocument();
+    });
+  });
 });
