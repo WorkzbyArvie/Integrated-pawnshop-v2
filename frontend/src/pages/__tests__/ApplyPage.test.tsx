@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, waitFor, fireEvent, cleanup } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 
 import ApplyPage from '../ApplyPage';
 
@@ -152,6 +153,18 @@ const stepBack = async (times: number) => {
   }
 };
 
+/**
+ * Render inside a Router. The wordmark is a `<Link to="/">` — the only route off
+ * this page — so the component now needs routing context, and a bare render
+ * would throw on every test rather than on the one that cares.
+ */
+const renderPage = () =>
+  render(
+    <MemoryRouter>
+      <ApplyPage />
+    </MemoryRouter>,
+  );
+
 beforeEach(() => {
   log.length = 0;
   branchFixture.current = [OPEN_SHOP, CLOSED_SHOP];
@@ -193,7 +206,7 @@ const attachPhoto = async (inputId: string) => {
 };
 
 const walkToItemStep = async () => {
-  render(<ApplyPage />);
+  renderPage();
   await screen.findByText('Cebuana Main');
   fireEvent.click(screen.getByLabelText('Cebuana Main'));
   fireEvent.click(screen.getByRole('button', { name: /continue/i }));
@@ -258,6 +271,65 @@ describe('ApplyPage — reachability', () => {
   });
 });
 
+describe('ApplyPage — leaving the flow', () => {
+  /**
+   * The only way off this page.
+   *
+   * Step-level Back is not a substitute for this. It does not exist on step one
+   * — that was the previous fix — and the footer unmounts entirely on the result
+   * screen, so the last screen of the flow has no footer control at all.
+   */
+  it('links the wordmark back to the landing page', async () => {
+    renderPage();
+    await screen.findByText('Cebuana Main');
+
+    const home = screen.getByRole('link', { name: /pawngold home/i });
+    expect(home.getAttribute('href')).toBe('/');
+  });
+
+  it('offers that route on the first step, where Back does not exist', async () => {
+    renderPage();
+    await screen.findByText('Cebuana Main');
+
+    // Both facts together: the page is a dead end without the wordmark.
+    expect(screen.queryByRole('button', { name: 'Back' })).toBeNull();
+    expect(screen.getByRole('link', { name: /pawngold home/i })).toBeTruthy();
+  });
+
+  it('still offers it on the result screen, where the footer is gone', async () => {
+    await walkToIdentityStep(/Silver jewellery/);
+    await fillIdentity();
+    fireEvent.click(screen.getByRole('button', { name: /submit application/i }));
+    await screen.findByText('RSV-ABCDE-1234');
+
+    // The footer's `step < 4` guard unmounts every footer control here, so the
+    // wordmark is the only exit the applicant has.
+    expect(screen.queryByRole('button', { name: 'Back' })).toBeNull();
+    expect(screen.getByRole('link', { name: /pawngold home/i })).toBeTruthy();
+  });
+
+  it('keeps the wordmark looking like a wordmark, not a button', async () => {
+    renderPage();
+    await screen.findByText('Cebuana Main');
+
+    // Asserted on the rendered span rather than the source: the link replaced a
+    // `<p>`, and the point is that the *visible* treatment is unchanged. A
+    // source regex here had to span the whole explanatory comment, which makes
+    // it a test of how long a comment is.
+    const wordmark = screen.getByRole('link', { name: /pawngold home/i });
+    const label = wordmark.querySelector('span')!;
+    const classes = label.className;
+
+    // The micro-label contract: mono, uppercase, tracked, muted. No button
+    // affordance — no rounded pill, no border, no fill.
+    expect(classes).toContain('font-mono');
+    expect(classes).toContain('uppercase');
+    expect(classes).toContain('tracking-widest');
+    expect(classes).toContain('text-muted');
+    expect(classes).not.toMatch(/rounded|border|shadow/);
+  });
+});
+
 describe('ApplyPage — layout', () => {
   /**
    * jsdom performs no layout, so an overlap between a sticky footer and the
@@ -307,7 +379,7 @@ describe('ApplyPage — layout', () => {
 
 describe('ApplyPage — branch selection', () => {
   it('renders every branch the server returns, open and closed alike', async () => {
-    render(<ApplyPage />);
+    renderPage();
 
     expect(await screen.findByText('Cebuana Main')).toBeTruthy();
     expect(screen.getByText('Jaro Dasmariñas')).toBeTruthy();
@@ -317,7 +389,7 @@ describe('ApplyPage — branch selection', () => {
   });
 
   it('does not claim the application is a loan', async () => {
-    render(<ApplyPage />);
+    renderPage();
     await screen.findByText('Cebuana Main');
 
     // A pawn loan requires physical possession of the collateral. Promising a
@@ -326,7 +398,7 @@ describe('ApplyPage — branch selection', () => {
   });
 
   it('will not advance without a branch', async () => {
-    render(<ApplyPage />);
+    renderPage();
     await screen.findByText('Cebuana Main');
 
     expect((screen.getByRole('button', { name: /continue/i }) as HTMLButtonElement).disabled).toBe(
@@ -335,7 +407,7 @@ describe('ApplyPage — branch selection', () => {
   });
 
   it('offers no Back control on the first step, rather than a dead one', async () => {
-    render(<ApplyPage />);
+    renderPage();
     await screen.findByText('Cebuana Main');
 
     // This was rendered disabled, and it was reported as a button that does
@@ -365,7 +437,7 @@ describe('ApplyPage — branch selection', () => {
   });
 
   it('shows a closed branch with its reason, and refuses to let it be chosen', async () => {
-    render(<ApplyPage />);
+    renderPage();
     await screen.findByText('Cebuana Main');
 
     // Hidden entirely was tried first, and against the live database it made the
@@ -387,7 +459,7 @@ describe('ApplyPage — branch selection', () => {
   });
 
   it('marks an open branch as accepting', async () => {
-    render(<ApplyPage />);
+    renderPage();
     await screen.findByText('Cebuana Main');
 
     const open = screen.getByLabelText('Cebuana Main') as HTMLInputElement;
@@ -397,7 +469,7 @@ describe('ApplyPage — branch selection', () => {
 
   it('says so plainly when no branch can accept at all', async () => {
     branchFixture.current = [CLOSED_SHOP];
-    render(<ApplyPage />);
+    renderPage();
 
     // The one state that must never render as an empty list: an empty list is
     // indistinguishable from a loading failure, and against the live database
@@ -408,7 +480,7 @@ describe('ApplyPage — branch selection', () => {
   });
 
   it('never renders a loading message once the list has arrived', async () => {
-    render(<ApplyPage />);
+    renderPage();
     await screen.findByText('Cebuana Main');
 
     // "Loading branches…" on a screen that has branches is a stuck state, and

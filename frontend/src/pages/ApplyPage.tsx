@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 
 import { api } from '../lib/apiClient';
+import { Link } from 'react-router-dom';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Textarea } from '../components/ui/textarea';
@@ -568,7 +569,27 @@ export default function ApplyPage() {
       */}
       <div className="mx-auto w-full max-w-3xl px-4 pb-24 pt-8 sm:px-6 sm:pb-28 sm:pt-12">
         <header className="mb-8">
-          <p className={microLabel}>PawnGold</p>
+          {/*
+            The wordmark is the way off this page, and it has to be a link.
+
+            Step-level Back is not a substitute: it does not exist on step one,
+            and it disappears entirely on the result screen once the footer
+            unmounts. Someone who arrives from a shared link, decides the site
+            is not for them, and wants to go back to the front page had no way
+            to do it at all — a `<p>` where a link should be.
+
+            Conventional and expected: the logo in the corner of a site goes
+            home. It keeps its micro-label appearance, so the fix does not also
+            move anything else on the page.
+          */}
+          <Link
+            to="/"
+            aria-label="PawnGold home"
+            className="inline-block cursor-pointer rounded-[8px] transition-colors duration-200 hover:text-[var(--gold)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--gold)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg-deep)]"
+            style={{ color: 'var(--text-secondary)' }}
+          >
+            <span className={microLabel}>PawnGold</span>
+          </Link>
           <h1 className="mt-1 text-3xl font-black leading-tight [font-family:var(--font-display)] sm:text-4xl">
             Get an estimate before you visit
           </h1>
