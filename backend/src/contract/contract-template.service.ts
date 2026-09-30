@@ -46,7 +46,7 @@ export class ContractTemplateService implements OnModuleInit {
 <p><strong>Loan Amount:</strong> PHP {{loanAmount}}<br/>
 <strong>Interest Rate:</strong> {{interestRate}}% per month<br/>
 <strong>Service Fee:</strong> PHP {{serviceFee}} ({{serviceFeeRate}}%)<br/>
-<strong>Loan Term:</strong> {{loanTerm}} months<br/>
+<strong>Loan Term:</strong> {{loanTerm}}<br/>
 <strong>Loan Date:</strong> {{loanDate}}<br/>
 <strong>Maturity Date:</strong> {{maturityDate}}</p>
 

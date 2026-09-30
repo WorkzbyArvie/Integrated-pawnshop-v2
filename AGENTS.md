@@ -217,7 +217,9 @@ carry the focus ring, hover treatment and press behaviour already.
 2. **Money gets hierarchy.** A figure the user must act on is `text-4xl` in
    `--font-display` at `--gold`. Never three equal-weight rows of figures — a
    valuation and a loan that happen to match must not render as the same number
-   twice. Label which figure is which.
+   twice. Label which figure is which. Printed output follows the same rule: a
+   document the borrower signs leads with the amount, not with a flat field list.
+   See `contract-renderer.service.ts` and `scripts/preview-contract-pdf.ts`.
 3. **The action must be visible without scrolling.** In a dialog, the primary
    action goes in a pinned footer, not at the end of the scroll area.
 4. **Uppercase micro-labels use `--font-mono`,** 9–10px, `tracking-widest`, and

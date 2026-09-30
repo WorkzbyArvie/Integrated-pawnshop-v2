@@ -256,6 +256,47 @@ the review button vanished.
 
 ---
 
+## Printed output — contract PDFs
+
+The web design system does not transfer to paper. A loan contract is printed,
+photocopied, and submitted to a panel, so:
+
+- **Monochrome.** No brand gold on the body. The one accent is a 1.5pt rule under
+  the title, which survives a photocopier.
+- **Two columns, one baseline.** Label in a fixed left gutter, value at a fixed
+  x. Sizes differ (8.5pt label, 10pt value, 13pt for the amount), so the label
+  is nudged down by `(valueSize - labelSize) * 0.7` to share the value's
+  baseline. That factor was measured off the emitted PDF text matrices — do not
+  "simplify" it away.
+- **The amount leads.** `LOAN AMOUNT` sits on a shaded band at 13pt. It is the
+  figure the borrower is agreeing to.
+- **One signature block.** Never a blank ruled block above the signed one.
+
+**Do not flatten template HTML.** The old renderer did
+`html.replace(/<[^>]*>/g, '\n')`, turning every tag into a line break. The
+templates write `<strong>Label:</strong> value<br/>` specifically to keep a
+label and its value on one row, and that `<br/>` was inverted into a newline —
+so every field printed as two lines. `htmlToBlocks` recovers the structure;
+`contract-renderer.layout.spec.ts` pins it.
+
+### Previewing a PDF without a running backend
+
+```bash
+cd backend
+$env:TS_NODE_COMPILER_OPTIONS='{"module":"commonjs","target":"es2021","esModuleInterop":true,"experimentalDecorators":true,"emitDecoratorMetadata":true,"skipLibCheck":true}'
+npx ts-node scripts/preview-contract-pdf.ts   # writes contract-{unsigned,signed}.pdf
+```
+
+To check alignment rather than eyeball it, extract text with its coordinates —
+this asserts rows line up, which a screenshot cannot:
+
+```bash
+node <path>/pdf-rows.cjs scripts/contract-unsigned.pdf
+```
+
+It inflates the content streams and prints `y=<baseline> x=<x> <text>` per run.
+Two runs on the same `y` are on one visual row. Gitignored output.
+
 ## Visual harness
 
 `frontend/harness/` renders a component against fixture data with no auth and no
