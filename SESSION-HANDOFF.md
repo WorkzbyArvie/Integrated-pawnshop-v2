@@ -202,6 +202,48 @@ Unchanged, and these gate a live demo:
 - **`.planning/STATE.md` and `state.json` disagree** with each other and with this
   file. This file is authoritative.
 
+## BLOCKED — read this before anything else
+
+The signer-names deploy failed and the next deploy will fail identically until
+the failed migration row is resolved. **`migrate resolve` cannot be run from the
+author's machine** — `backend/.env` holds a dead database credential (P1000).
+This is the "DB credential in `backend/.env` is dead" item from session 3, now
+load-bearing.
+
+### The unblock, in the Supabase SQL editor
+
+No shell, no password, no working local credential required. Check first:
+
+```sql
+SELECT migration_name, started_at, finished_at, rolled_back_at
+FROM _prisma_migrations
+WHERE migration_name = '20260930160000_add_contract_signer_names';
+```
+
+Expect one row with `finished_at` NULL and `rolled_back_at` NULL. Then:
+
+```sql
+UPDATE _prisma_migrations
+SET rolled_back_at = NOW()
+WHERE migration_name = '20260930160000_add_contract_signer_names'
+  AND finished_at IS NULL;
+```
+
+This is exactly what `npx prisma migrate resolve --rolled-back` writes, so the
+corrected migration re-applies on the next deploy. **Never run `migrate reset`
+against production** — it drops the schema.
+
+Then redeploy `f31b0f8`. The migration adds `customer_signer_name` and
+`staff_signer_name` to `loan_contracts`.
+
+### Then fix the local credential properly
+
+You need a working `DATABASE_URL` for every future migration, and you need to
+rotate the database password anyway as part of the credential rotation. Those
+are the same action: in Supabase, Project Settings → Database, reset the
+password, then copy the fresh connection string into `backend/.env`. See the
+newly filled-in `backend/.env.example` for the exact form.
+
 ---
 
 <details>
