@@ -152,7 +152,42 @@ placeholder is not a label — it disappears on focus and is not announced.
 A greyed-out button with no stated reason reads as broken. Pair the disabled
 state with muted helper text: `Select a reason to decline.`
 
-### 9. Overlays open in sequence, never together
+### 9. To override a component's width, override its *breakpoint*
+
+`DialogContent` ships `sm:max-w-lg`. Passing `max-w-2xl` does **not** widen it.
+
+Both declarations are a single class selector, so they have equal specificity,
+and Tailwind emits the responsive variant later in the stylesheet. At desktop
+width the `sm:` rule wins and the dialog stays at 512px. Verified in the built
+CSS: `.sm\:max-w-lg` sits at byte 104719, inside `@media(min-width:40rem)`,
+while the bare `max-w-*` utilities sit near 23000 — later wins.
+
+The failure is silent and looks like a styling mistake rather than a specificity
+one, and it only shows at desktop width, so it survives a narrow-window check.
+
+**Rule: to change a `sm:`-prefixed default, pass the same prefix.**
+
+```tsx
+<DialogContent className="sm:max-w-2xl …">   // correct
+<DialogContent className="max-w-2xl …">     // silently ignored on desktop
+```
+
+This is not confined to `DialogContent`. Any component that sets a responsive
+default has the same trap — grep for `sm:max-w-`, `sm:grid-cols-`, `sm:gap-`
+before assuming a bare override took effect.
+
+**A label longer than its button needs `whitespace-normal`.** The `Button` base
+sets `whitespace-nowrap`, so a long uppercase label can only ever be clipped,
+never wrapped. Pair it with `h-auto` and a `min-h-*` so the button grows:
+
+```tsx
+className="flex-1 min-h-11 h-auto py-2.5 whitespace-normal leading-tight"
+```
+
+Check the rendered width at **200% browser zoom** as well as at 100%. That is
+where a fixed-max-width dialog with a nowrap label fails first.
+
+### 10. Overlays open in sequence, never together
 
 When one dialog hands off to another, the first must close before the second
 opens. Set the state that opened the next surface, and clear the state of the

@@ -114,6 +114,14 @@ whose data it was looking at.*
     mappings, 106→111 SQL rows, 102→103 guarded sites) and the matrix entry were
     updated. It will fail on any unguarded or drifted endpoint. Do not "fix" it by
     loosening the assertions.
+24. **A bare `max-w-*` does not override a component's `sm:max-w-*`.** Equal
+    specificity, and Tailwind emits the responsive rule later, so on desktop the
+    base wins. The review dialog passed `max-w-2xl`, stayed at 512px, and clipped
+    the approve label. Confirmed in the built CSS: `.sm\:max-w-lg` is at byte
+    104719 inside `@media(min-width:40rem)`; bare `max-w-*` is near 23000. Pass
+    the same breakpoint prefix. This is a **live bug in 17 other dialogs** — every
+    `DialogContent className="max-w-*"` in the app is probably rendering at
+    `sm:max-w-lg` instead of its intended width. Not yet swept; see open items.
 
 ## UI: the design system is now written down
 
@@ -152,6 +160,13 @@ Unchanged, and these gate a live demo:
   treated as having been exposed.
 - **43 orphan auth accounts** — delete confirmed? Never confirmed done.
 - **Mobile app has no credential-security code at all.** Largest remaining gap.
+- **17 other dialogs likely render at the wrong width** — see trap 24. Every
+  `DialogContent className="max-w-*"` outside `ApprovalQueue` passes a bare
+  `max-w-*` and so probably renders at `sm:max-w-lg` (512px) on desktop rather
+  than its intended width. Some of those are *narrower* than intended, which is
+  harmless; `PayrollManagement` asks for `max-w-3xl` and is certainly being
+  squeezed. A mechanical sweep adding the `sm:` prefix would fix all of them and
+  is worth doing before the defense — it has not been done.
 - **`submitForApproval` writes `appraisedValue` and `recommendedLoanAmount` as the
   same number** (`pawn-ticket.service.ts`). The review dialog now labels and
   separates them so the UI is not misleading, but the stored data is still wrong:

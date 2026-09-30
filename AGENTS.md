@@ -232,12 +232,18 @@ carry the focus ring, hover treatment and press behaviour already.
    overlays mount together and the one mounted first wins. Each overlay owns a
    distinct z-index — base `z-50`, contract `z-[100]` — and equal z-index is
    never acceptable between two surfaces that can be open simultaneously.
-9. **Test with `jsdom` caveats in mind:** Radix `Select` will not open from
-   `pointerDown`; use `keyDown` with `ArrowDown`. Radix `Tabs` activate on
-   `mouseDown`, not `click`. Both silently find zero matches otherwise.
-10. **A new test must be shown to fail against the old code.** A test that passes
+9. **Override a component's width at its breakpoint.** `DialogContent` ships
+   `sm:max-w-lg`; a bare `max-w-2xl` loses to it on desktop (equal specificity,
+   responsive rule emitted later) and the dialog silently stays 512px. Pass
+   `sm:max-w-2xl`. Any label longer than its button also needs
+   `whitespace-normal` + `h-auto`, because `Button` sets `whitespace-nowrap`.
+   Verify at 200% zoom, not just 100%.
+10. **Test with `jsdom` caveats in mind:** Radix `Select` will not open from
+    `pointerDown`; use `keyDown` with `ArrowDown`. Radix `Tabs` activate on
+    `mouseDown`, not `click`. Both silently find zero matches otherwise.
+11. **A new test must be shown to fail against the old code.** A test that passes
     both before and after a fix is asserting nothing — revert the fix, watch it
-    fail, then restore. This has caught two "fixed" bugs that were not.
+    fail, then restore. This has caught three "fixed" bugs that were not.
 
 **Visual harness.** `frontend/harness/` renders a component against fixture
 data with no auth or API, for checking a design without a live backend:

@@ -229,6 +229,44 @@ describe('ApprovalQueue (RBAC-05)', () => {
     );
   });
 
+  // `DialogContent` ships `sm:max-w-lg`. A caller passing a bare `max-w-*` does
+  // not override it: both rules have equal specificity, and the responsive one
+  // is emitted later in the stylesheet, so at desktop width the dialog stayed
+  // at 512px and the 25-character approve label was clipped with no way to wrap.
+  it('widens the dialog past the base max-w-lg so the action label is not clipped', async () => {
+    render(<ApprovalQueue />);
+
+    fireEvent.click((await screen.findAllByRole('button', { name: /review & decide/i }))[0]);
+
+    const dialog = await screen.findByRole('dialog');
+    // Must carry the `sm:` prefix. A bare `max-w-2xl` loses to the base.
+    expect(dialog.className).toContain('sm:max-w-2xl');
+  });
+
+  it('lets the primary action label wrap instead of clipping', async () => {
+    render(<ApprovalQueue />);
+
+    fireEvent.click((await screen.findAllByRole('button', { name: /review & decide/i }))[0]);
+    const approve = await screen.findByRole('button', { name: /approve & generate contract/i });
+
+    // The button base sets `whitespace-nowrap`, so without an override the
+    // label can only ever be cut off.
+    expect(approve.className).toContain('whitespace-normal');
+    expect(approve.className).toContain('h-auto');
+  });
+
+  it('states the full action label, not a truncated one', async () => {
+    render(<ApprovalQueue />);
+
+    fireEvent.click((await screen.findAllByRole('button', { name: /review & decide/i }))[0]);
+
+    // The full phrase is in the DOM. Uppercase is applied by CSS, so the text
+    // content is title case - what matters is that nothing is cut off in the
+    // markup, because the accessible name is derived from this text.
+    const approve = await screen.findByRole('button', { name: /approve & generate contract/i });
+    expect(approve.textContent?.trim()).toBe('Approve & Generate Contract');
+  });
+
   it('renders the empty state when the queue has no pending approvals', async () => {
     apiMock.get.mockResolvedValue([]);
 

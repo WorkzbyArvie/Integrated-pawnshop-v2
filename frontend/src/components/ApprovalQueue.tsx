@@ -530,7 +530,11 @@ export function ApprovalQueue({ branchId, activeBranchId, userRole }: ApprovalQu
           }
         }}
       >
-        <DialogContent className="max-w-2xl bg-[#14141B] border border-[rgba(201,160,92,0.15)] text-[#F5F0E8] p-0 gap-0 flex flex-col max-h-[90vh] overflow-hidden">
+        {/* `sm:max-w-2xl`, not `max-w-2xl`. `DialogContent` ships
+            `sm:max-w-lg`, and Tailwind's responsive variant wins at desktop
+            width - so a bare `max-w-2xl` applied only *below* `sm` and the
+            dialog stayed at 512px, clipping the approve button's label. */}
+        <DialogContent className="sm:max-w-2xl bg-[#14141B] border border-[rgba(201,160,92,0.15)] text-[#F5F0E8] p-0 gap-0 flex flex-col max-h-[90vh] overflow-hidden">
           <DialogHeader className="px-6 pt-6 pb-4 pr-14 border-b shrink-0" style={{ borderColor: 'rgba(201,160,92,0.12)' }}>
             {reviewItem && (
               <div className="flex items-center gap-2 mb-2">
@@ -778,14 +782,19 @@ export function ApprovalQueue({ branchId, activeBranchId, userRole }: ApprovalQu
                       variant="outline"
                       onClick={() => setReviewDeclineOpen((open) => !open)}
                       disabled={processingId === reviewItem.id}
-                      className="sm:w-44 border-[#D44545]/40 text-[#D44545] hover:bg-[#D44545]/10 font-black uppercase tracking-wider"
+                      className="sm:w-40 shrink-0 border-[#D44545]/40 text-[#D44545] hover:bg-[#D44545]/10 font-black uppercase tracking-wider"
                     >
                       {reviewDeclineOpen ? 'Cancel Decline' : 'Decline'}
                     </Button>
+                    {/* `whitespace-normal` and a taller min-height: the button
+                        base sets `whitespace-nowrap`, so a 25-character
+                        uppercase label can only ever be clipped, never wrapped.
+                        Letting it wrap to two lines is the only way the full
+                        label survives a narrow dialog or a 200% zoom. */}
                     <Button
                       onClick={() => void handleApprove(reviewItem.id)}
                       disabled={processingId === reviewItem.id}
-                      className="flex-1 font-black uppercase tracking-wider"
+                      className="flex-1 min-h-11 h-auto py-2.5 px-4 whitespace-normal leading-tight text-center font-black uppercase tracking-wider"
                     >
                       {processingId === reviewItem.id ? (
                         <Loader2 className="w-4 h-4 animate-spin" />

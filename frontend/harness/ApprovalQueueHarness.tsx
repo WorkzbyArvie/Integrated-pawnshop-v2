@@ -130,7 +130,7 @@ export function ApprovalQueueHarness() {
       </div>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-2xl bg-[#14141B] border border-[rgba(201,160,92,0.15)] text-[#F5F0E8] p-0 gap-0 flex flex-col max-h-[90vh] overflow-hidden">
+        <DialogContent className="sm:max-w-2xl bg-[#14141B] border border-[rgba(201,160,92,0.15)] text-[#F5F0E8] p-0 gap-0 flex flex-col max-h-[90vh] overflow-hidden">
           <DialogHeader className="px-6 pt-6 pb-4 pr-14 border-b shrink-0" style={{ borderColor: 'rgba(201,160,92,0.12)' }}>
             <div className="flex items-center gap-2 mb-2">
               <Badge className={item.targetType === 'APPRAISAL' ? 'bg-[#C9A05C]/10 text-[#C9A05C] border border-[rgba(201,160,92,0.2)]' : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'}>
