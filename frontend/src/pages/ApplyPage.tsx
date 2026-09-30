@@ -559,7 +559,14 @@ export default function ApplyPage() {
 
   return (
     <div className="min-h-screen bg-[var(--bg-deep)] text-[var(--text-primary)] [font-family:var(--font-body)]">
-      <div className="mx-auto w-full max-w-3xl px-4 py-8 sm:px-6 sm:py-12">
+      {/*
+        `pb-24` reserves room for the pinned footer. Without it the last row of
+        a long list — the branch list runs to thirteen entries when every shop
+        is closed — ends up underneath the footer and is unreadable, because a
+        `sticky` footer paints over the content behind it rather than pushing
+        it up.
+      */}
+      <div className="mx-auto w-full max-w-3xl px-4 pb-24 pt-8 sm:px-6 sm:pb-28 sm:pt-12">
         <header className="mb-8">
           <p className={microLabel}>PawnGold</p>
           <h1 className="mt-1 text-3xl font-black leading-tight [font-family:var(--font-display)] sm:text-4xl">
@@ -1078,21 +1085,46 @@ export default function ApplyPage() {
         </main>
 
         {step < 4 ? (
-          <footer className="sticky bottom-0 mt-6 flex items-center justify-between gap-3 border-t border-[rgba(201,160,92,0.14)] bg-[var(--bg-glass)] py-4 backdrop-blur">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setStep((current) => Math.max(0, current - 1) as StepIndex)}
-              disabled={step === 0}
-              className="border-[rgba(201,160,92,0.22)] text-[var(--text-primary)]"
-            >
-              <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-              Back
-            </Button>
+          // Pinned rather than scrolled with the form, so the primary action is
+          // always reachable (design rule 3). The container's bottom padding is
+          // what keeps the last row of a long list clear of it.
+          <footer className="sticky bottom-0 z-10 mt-6 flex items-center justify-between gap-3 border-t border-[rgba(201,160,92,0.14)] bg-[var(--bg-glass)] px-4 py-4 backdrop-blur sm:px-6">
+            {/*
+              Back is absent on the first step rather than rendered disabled.
+
+              It was rendered disabled, and a greyed control that still has the
+              shape and border of a button reads as broken rather than as "there
+              is nothing before this step" — which is exactly how it was
+              reported. There is no state to return to, so no control is the
+              honest rendering of that.
+
+              `size="lg"` on both: the footer is the page's only action area and
+              the `h-10` default looked undersized inside a `max-w-3xl` card.
+            */}
+            {step > 0 ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="lg"
+                onClick={() => setStep((current) => Math.max(0, current - 1) as StepIndex)}
+                // Stronger than the shared `outline` border, which is
+                // `rgba(201,160,92,0.22)` over a near-white 3% fill — on the
+                // translucent footer that reads as a flat panel, not a button.
+                className="border-[rgba(201,160,92,0.40)] text-[var(--text-primary)]"
+              >
+                <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+                Back
+              </Button>
+            ) : (
+              // Holds the primary action on the right instead of letting it jump
+              // to the left edge when its sibling disappears.
+              <span aria-hidden="true" />
+            )}
 
             {step < 3 ? (
               <Button
                 type="button"
+                size="lg"
                 disabled={!canAdvance || quoting}
                 onClick={() => setStep((current) => Math.min(4, current + 1) as StepIndex)}
               >
@@ -1102,7 +1134,12 @@ export default function ApplyPage() {
                 ) : null}
               </Button>
             ) : (
-              <Button type="button" onClick={() => void submit()} disabled={submitting}>
+              <Button
+                type="button"
+                size="lg"
+                onClick={() => void submit()}
+                disabled={submitting}
+              >
                 {submitting ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />

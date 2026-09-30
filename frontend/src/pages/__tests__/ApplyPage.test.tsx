@@ -239,8 +239,7 @@ const fillIdentity = async () => {
 };
 
 describe('ApplyPage — reachability', () => {
-  it('renders above the session gate, so an applicant with no account gets it', () => {
-    // The route is wired before the `!session` branch in App.tsx. A regression
+  it('renders above the session gate, so an applicant with no account gets it', () => {    // The route is wired before the `!session` branch in App.tsx. A regression
     // there strands every applicant on the marketing page, and it is invisible
     // to anyone testing with a staff account already open.
     // Read from the project root rather than `import.meta.url`: under this
@@ -256,6 +255,53 @@ describe('ApplyPage — reachability', () => {
     expect(applyReturn).toBeGreaterThan(-1);
     expect(loggedOutFallback).toBeGreaterThan(-1);
     expect(applyReturn).toBeLessThan(loggedOutFallback);
+  });
+});
+
+describe('ApplyPage — layout', () => {
+  /**
+   * jsdom performs no layout, so an overlap between a sticky footer and the
+   * last row of a long list cannot be observed from the DOM — the elements are
+   * siblings and both "exist". It was found in a screenshot instead, with the
+   * thirteenth branch cut in half behind the footer.
+   *
+   * So this reads the source. A behavioural test here would pass against the
+   * broken layout, which is the same trap as asserting a `disabled` attribute
+   * proves nothing about the control being unusable.
+   */
+  it('reserves room below the content for the pinned footer', () => {
+    const source = readFileSync(resolve(process.cwd(), 'src/pages/ApplyPage.tsx'), 'utf8');
+
+    // Bottom padding on the scroll container, matching roughly the footer's
+    // height plus breathing space.
+    //
+    // Matched inside the container's own className rather than anywhere in the
+    // file, and requiring a *space* before the class.
+    //
+    // Three looser forms each passed while the padding was deleted, and each
+    // for its own reason worth recording:
+    //   - a bare `/pb-2\d/` matches the `sm:pb-28` variant;
+    //   - `\bpb-2\d` still matches it, because `:` is a non-word character so
+    //     the word boundary sits happily between `sm:` and `pb-28`;
+    //   - a loose `className="[^"]*pb-2\d[^"]*"` matches some other element's
+    //     class on the same screen.
+    // A source assertion has to be the thing that fails when the fix is
+    // reverted, or it is decoration.
+    expect(source).toMatch(
+      /className="mx-auto w-full max-w-3xl[^"]* pb-2[048][^"]*"/,
+    );
+
+    // And the footer is genuinely pinned rather than in normal flow.
+    expect(source).toMatch(/className="sticky bottom-0[^"]*"/);
+  });
+
+  it('keeps the branch list scrollable rather than trapping it behind the footer', () => {
+    const source = readFileSync(resolve(process.cwd(), 'src/pages/ApplyPage.tsx'), 'utf8');
+
+    // The page must not lock its own scroll height; if it did, the padding
+    // above would be pointless and the footer would still overlap on a short
+    // viewport.
+    expect(source).not.toMatch(/overflow-hidden[^"]*min-h-screen/);
   });
 });
 
@@ -286,6 +332,36 @@ describe('ApplyPage — branch selection', () => {
     expect((screen.getByRole('button', { name: /continue/i }) as HTMLButtonElement).disabled).toBe(
       true,
     );
+  });
+
+  it('offers no Back control on the first step, rather than a dead one', async () => {
+    render(<ApplyPage />);
+    await screen.findByText('Cebuana Main');
+
+    // This was rendered disabled, and it was reported as a button that does
+    // nothing. A greyed control with the shape of a button reads as broken, not
+    // as "there is nothing before this step".
+    expect(screen.queryByRole('button', { name: 'Back' })).toBeNull();
+  });
+
+  it('goes back a step once there is somewhere to go back to', async () => {
+    await walkToItemStep();
+
+    expect(screen.getByRole('button', { name: 'Back' })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Back' }));
+
+    // Back to the branch list, and the choice is still made.
+    expect(await screen.findByText('Choose a branch')).toBeTruthy();
+    expect(shopChosen()).toBe('shop-1');
+  });
+
+  it('cannot go back past the first step', async () => {
+    await walkToItemStep();
+    fireEvent.click(screen.getByRole('button', { name: 'Back' }));
+    await screen.findByText('Choose a branch');
+
+    // Once there, Back is gone rather than inert.
+    expect(screen.queryByRole('button', { name: 'Back' })).toBeNull();
   });
 
   it('shows a closed branch with its reason, and refuses to let it be chosen', async () => {
