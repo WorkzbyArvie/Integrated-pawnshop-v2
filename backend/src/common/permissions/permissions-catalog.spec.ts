@@ -526,6 +526,17 @@ function migrationSqlPath(): string {
   return migrationSqlBySuffix('_v2_schema_baseline');
 }
 
+/** Every migration's SQL, concatenated, in directory order. */
+function allMigrationSql(): string {
+  return fs
+    .readdirSync(migrationsRoot, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) =>
+      fs.readFileSync(path.join(migrationsRoot, entry.name, 'migration.sql'), 'utf8'),
+    )
+    .join('\n');
+}
+
 const RBAC_GUARD_SOURCE = fs.readFileSync(
   path.resolve(__dirname, '../guards/rbac.guard.ts'),
   'utf8',
@@ -570,6 +581,42 @@ describe('permission catalog consistency', () => {
       ...migrationSql.matchAll(/^\s*\('[A-Z_]+','[a-z_.]+'\)[,]?$/gm),
     ].length;
     expect(sqlRows).toBe(111);
+  });
+
+  // This is the check whose absence let `contract.view` ship broken. It was
+  // added to the const and to the baseline migration and looked correct in every
+  // test - but the baseline has already run in every live environment, so
+  // editing it seeded nothing anywhere, and `PermissionService` resolves
+  // permissions from the `role_permissions` table. Every owner was refused with
+  // "Required permission(s): contract.view. Your role: OWNER".
+  //
+  // A new permission therefore needs a *forward* migration, not a baseline edit.
+  it('inserts every declared permission from some migration, not only the baseline', () => {
+    const all = allMigrationSql();
+    const inserted = new Set(
+      [...all.matchAll(/INSERT INTO permissions[\s\S]*?VALUES([\s\S]*?)ON CONFLICT/gi)].flatMap(
+        (block) => [...block[1].matchAll(/'([a-z_.]+)'/g)].map((m) => m[1]),
+      ),
+    );
+
+    const unreachable = constNames.filter((name) => !inserted.has(name));
+    expect(unreachable).toEqual([]);
+  });
+
+  it('grants contract.view in a forward migration, so live environments get it', () => {
+    // Named explicitly because the general invariant above is satisfied by the
+    // baseline alone - which is exactly how this shipped broken. A permission
+    // added after the baseline ran needs a migration newer than it.
+    const forward = fs
+      .readdirSync(migrationsRoot, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory() && !entry.name.endsWith('_v2_schema_baseline'))
+      .map((entry) => ({
+        name: entry.name,
+        sql: fs.readFileSync(path.join(migrationsRoot, entry.name, 'migration.sql'), 'utf8'),
+      }));
+
+    const seeding = forward.filter((m) => m.sql.includes("'contract.view'"));
+    expect(seeding.length).toBeGreaterThan(0);
   });
 
   it('seeds the two compatibility staff-management grants by name and mirrors them at runtime', () => {

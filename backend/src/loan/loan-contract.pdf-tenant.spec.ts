@@ -85,10 +85,13 @@ describe('downloadContractPdf tenant scoping', () => {
     );
   });
 
-  it('lets a super admin read across tenants', async () => {
-    // The platform operator legitimately reads every shop; scoping it shut
-    // would break support access, which the handoff records as a deliberate
-    // feature.
+  it('lets a super admin read across tenants at the service layer', async () => {
+    // Defence in depth, and note this is NOT reachable over HTTP:
+    // `RbacGuard` holds super admin to an allowlist and `/loan` is not a
+    // governance prefix, so the guard refuses before the service runs. The
+    // exemption matters only if this service is ever called from a non-HTTP
+    // path. Cross-tenant support access is delivered by a separate mechanism
+    // (`/tenant-governance/request-support-access`), not by widening this route.
     const service = build('shop-b');
 
     const result = await service.downloadContractPdf('ctr-1', 'shop-a', 'SUPER_ADMIN');

@@ -80,13 +80,16 @@ Fixed on both halves, because they are different questions:
 
 - **May this role read a contract?** New `contract.view` permission, granted to
   exactly the roles that already hold `contract.sign` (OWNER, MANAGER, STAFF,
-  CASHIER_TELLER, APPRAISER). Seeded in the baseline migration and declared in
-  the permission matrix.
+  CASHIER_TELLER, APPRAISER). Declared in the permission matrix, and seeded by
+  the forward migration in trap 25 — **a baseline edit alone left every live
+  environment refusing the owner**, which the operator caught immediately.
 - **Whose contract?** The service now compares the contract's owning
   `application.pawnshopId` against the caller's, and 404s on a mismatch. A 404,
   not a 403 — a 403 confirms the id exists, which is itself a disclosure about
-  another shop's records. `SUPER_ADMIN` is exempt, since cross-tenant support
-  access is a deliberate feature here.
+  another shop's records. `SUPER_ADMIN` is exempt **at the service layer only**:
+  `RbacGuard` holds super admin to an allowlist and `/loan` is not a governance
+  prefix, so over HTTP the guard refuses before the service runs. Support access
+  is delivered by `/tenant-governance/request-support-access` instead.
 
 The scoping tests were reverted-and-checked: 4 of 7 fail without the fix.
 
@@ -122,6 +125,28 @@ whose data it was looking at.*
     the same breakpoint prefix. This is a **live bug in 17 other dialogs** — every
     `DialogContent className="max-w-*"` in the app is probably rendering at
     `sm:max-w-lg` instead of its intended width. Not yet swept; see open items.
+25. **A new permission needs a FORWARD migration, never a baseline edit.** This
+    is the most important deployment lesson in the file, and I got it wrong.
+    Adding `contract.view` to `permissions.const.ts` **and** to
+    `20260731120000_v2_schema_baseline` passed every test — and did nothing
+    live, because the baseline has already run in every environment.
+    `PermissionService.resolveEffectivePermissions` reads the
+    `role_permissions` **table**, so an owner with no row was refused with
+    `Access denied. Required permission(s): contract.view. Your role: OWNER`.
+    The whole catalog suite was green while the feature was dead in production.
+    Fixed by `20260930120000_add_contract_view_permission`, which is the same
+    pattern as `20260910100000_add_review_permissions` — a file that already
+    documented this exact trap. The baseline edit was kept, because fresh
+    installs need it. Two catalog tests now assert every declared permission is
+    seeded by *some* migration, and that `contract.view` specifically has a
+    forward migration; the second was verified to fail when the migration is
+    removed.
+
+    **Before shipping any new permission:** create a new migration directory
+    with `YYYYMMDDHHMMSS_name`, insert the permission and its role grants with
+    `ON CONFLICT DO NOTHING`, and do not rely on the baseline. Prisma's
+    `migrate deploy` runs on Render via `prestart:prod`, so a correct forward
+    migration is applied automatically on deploy.
 
 ## UI: the design system is now written down
 
