@@ -20,6 +20,13 @@ import {
 import { api } from '../../lib/apiClient';
 import { getSignedKycDocUrl } from '../../lib/kycDocs';
 import ComplianceExpiryRegister from '../../components/ComplianceExpiryRegister';
+import {
+  DeclineReasonPicker,
+  DECLINE_REASON_SETS,
+  formatDeclineReason,
+  isDeclineReasonComplete,
+  type DeclineReason,
+} from '../../components/DeclineReasonPicker';
 
 interface PendingReview {
   id: string;
@@ -356,10 +363,10 @@ export default function SuperAdminComplianceOverview() {
   const [loading, setLoading] = useState(true);
   const [verifyingId, setVerifyingId] = useState<string | null>(null);
   const [verifyingKycId, setVerifyingKycId] = useState<string | null>(null);
-  const [denyReason, setDenyReason] = useState('');
+  const [docDenyReason, setDocDenyReason] = useState<DeclineReason>(null);
   const [showKycRejectModal, setShowKycRejectModal] = useState<string | null>(null);
   const [docDenyOpen, setDocDenyOpen] = useState(false);
-  const [kycRejectReason, setKycRejectReason] = useState('');
+  const [kycDeclineReason, setKycDeclineReason] = useState<DeclineReason>(null);
   const [activeTab, setActiveTab] = useState<'pending' | 'kyc' | 'overview' | 'register'>('pending');
   const [viewingKyc, setViewingKyc] = useState<KycPendingReview | null>(null);
   const [viewingDoc, setViewingDoc] = useState<PendingReview | null>(null);
@@ -383,16 +390,18 @@ export default function SuperAdminComplianceOverview() {
     }
   }, []);
 
-  // The reviewer denies a document; the document's resulting state is DENIED.
-  // The button still says "Deny" - that is the action being taken.
+  // The reviewer declines a document; the document's resulting state is DENIED.
+  // The button says "Decline" - that is the action being taken, and the wire
+  // value stays DENIED because that is the schema's state, not a label.
   async function handleVerify(documentId: string, status: 'VERIFIED' | 'DENIED') {
+    if (status === 'DENIED' && !isDeclineReasonComplete(docDenyReason)) return;
     setVerifyingId(documentId);
     try {
       await api.put(`/compliance/documents/${documentId}/verify`, {
         status,
-        denialReason: status === 'DENIED' ? denyReason : undefined,
+        denialReason: status === 'DENIED' ? formatDeclineReason(docDenyReason) : undefined,
       });
-      setDenyReason('');
+      setDocDenyReason(null);
       setDocDenyOpen(false);
       fetchData();
     } catch (err) {
@@ -403,14 +412,15 @@ export default function SuperAdminComplianceOverview() {
   }
 
   async function handleKycReview(kycId: string, decision: 'VERIFIED' | 'REJECTED') {
+    if (decision === 'REJECTED' && !isDeclineReasonComplete(kycDeclineReason)) return;
     setVerifyingKycId(kycId);
     try {
       await api.patch(`/auth/kyc/${kycId}/review`, {
         decision,
-        rejectionReason: decision === 'REJECTED' ? kycRejectReason : undefined,
+        rejectionReason: decision === 'REJECTED' ? formatDeclineReason(kycDeclineReason) : undefined,
       });
       setShowKycRejectModal(null);
-      setKycRejectReason('');
+      setKycDeclineReason(null);
       fetchData();
     } catch (err) {
       console.error('KYC review failed:', err);
@@ -630,40 +640,37 @@ export default function SuperAdminComplianceOverview() {
                         Approve
                       </button>
                       <button
-                        onClick={() => setShowKycRejectModal(kyc.id)}
+                        onClick={() => { setShowKycRejectModal(kyc.id); setKycDeclineReason(null); }}
                         disabled={verifyingKycId === kyc.id}
                         className="flex items-center gap-1 px-3 py-1.5 bg-red-500/10 text-red-400 rounded-lg hover:bg-red-500/20 transition-colors disabled:opacity-50"
                       >
                         <XCircle className="w-4 h-4" />
-                        Reject
+                        Decline
                       </button>
                     </div>
                   </div>
 
                   {showKycRejectModal === kyc.id && (
-                    <div className="mt-4 p-4 bg-gilded-darker border border-red-500/30 rounded-lg">
-                      <label className="block text-sm text-gilded-muted mb-2">
-                        Rejection Reason
-                      </label>
-                      <textarea
-                        value={kycRejectReason}
-                        onChange={(e) => setKycRejectReason(e.target.value)}
-                        className="w-full px-3 py-2 bg-gilded-dark border border-gilded-border rounded-lg text-gilded-light text-sm"
-                        rows={3}
-                        placeholder="Enter reason for rejection..."
+                    <div className="mt-4 p-4 bg-gilded-darker border border-red-500/30 rounded-lg space-y-3">
+                      <DeclineReasonPicker
+                        id={`superadmin-kyc-decline-${kyc.id}`}
+                        value={kycDeclineReason}
+                        onChange={setKycDeclineReason}
+                        options={DECLINE_REASON_SETS.KYC}
+                        disabled={verifyingKycId === kyc.id}
                       />
-                      <div className="flex gap-2 mt-2">
+                      <div className="flex gap-2">
                         <button
                           onClick={() => handleKycReview(kyc.id, 'REJECTED')}
-                          disabled={!kycRejectReason.trim()}
+                          disabled={!isDeclineReasonComplete(kycDeclineReason) || verifyingKycId === kyc.id}
                           className="px-4 py-1.5 bg-red-500 text-white rounded-lg text-sm font-medium disabled:opacity-50"
                         >
-                          Confirm Reject
+                          Confirm Decline
                         </button>
                         <button
                           onClick={() => {
                             setShowKycRejectModal(null);
-                            setKycRejectReason('');
+                            setKycDeclineReason(null);
                           }}
                           className="px-4 py-1.5 bg-gilded-dark border border-gilded-border rounded-lg text-gilded-light text-sm"
                         >
@@ -1019,25 +1026,22 @@ export default function SuperAdminComplianceOverview() {
               <SignedDocViewer url={viewingDoc.fileUrl} fileName={viewingDoc.fileName} />
 
               {docDenyOpen && (
-                <div className="p-4 bg-gilded-darker border border-amber-500/30 rounded-lg">
-                  <label className="block text-sm text-gilded-muted mb-2">
-                    What needs to change
-                  </label>
-                  <textarea
-                    value={denyReason}
-                    onChange={(e) => setDenyReason(e.target.value)}
-                    className="w-full px-3 py-2 bg-gilded-dark border border-gilded-border rounded-lg text-gilded-light text-sm"
-                    rows={3}
-                    placeholder="e.g. The permit expired on 30 June — upload the current one."
+                <div className="p-4 bg-gilded-darker border border-amber-500/30 rounded-lg space-y-3">
+                  <DeclineReasonPicker
+                    id={`doc-decline-${viewingDoc.id}`}
+                    value={docDenyReason}
+                    onChange={setDocDenyReason}
+                    options={DECLINE_REASON_SETS.COMPLIANCE_DOCUMENT}
+                    disabled={verifyingId === viewingDoc.id}
                   />
-                  <p className="text-xs text-gilded-muted mt-2">
-                    The shop sees this and can re-upload immediately. Denying a
+                  <p className="text-xs text-gilded-muted">
+                    The shop sees this and can re-upload immediately. Declining a
                     document does not close the application.
                   </p>
-                  <div className="flex gap-2 mt-3">
+                  <div className="flex gap-2">
                     <button
                       onClick={() => { handleVerify(viewingDoc.id, 'DENIED'); setViewingDoc(null); }}
-                      disabled={!denyReason.trim()}
+                      disabled={!isDeclineReasonComplete(docDenyReason) || verifyingId === viewingDoc.id}
                       className="px-4 py-1.5 bg-amber-500 text-gilded-darker rounded-lg text-sm font-semibold disabled:opacity-50"
                     >
                       Confirm &amp; Notify
@@ -1045,7 +1049,7 @@ export default function SuperAdminComplianceOverview() {
                     <button
                       onClick={() => {
                         setDocDenyOpen(false);
-                        setDenyReason('');
+                        setDocDenyReason(null);
                       }}
                       className="px-4 py-1.5 bg-gilded-dark border border-gilded-border rounded-lg text-gilded-light text-sm"
                     >
@@ -1068,12 +1072,12 @@ export default function SuperAdminComplianceOverview() {
                   Approve
                 </button>
                 <button
-                  onClick={() => setDocDenyOpen(true)}
+                  onClick={() => { setDocDenyOpen(true); setDocDenyReason(null); }}
                   disabled={verifyingId === viewingDoc.id}
                   className="flex items-center gap-1.5 px-4 py-2 bg-amber-500/10 text-amber-400 rounded-lg hover:bg-amber-500/20 transition-colors disabled:opacity-50 text-sm font-medium"
                 >
                   <XCircle className="w-4 h-4" />
-                  Deny &amp; request re-upload
+                  Decline &amp; request re-upload
                 </button>
               </div>
             </div>

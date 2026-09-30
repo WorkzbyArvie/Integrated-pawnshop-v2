@@ -16,6 +16,8 @@ import { getPasswordRuleFailures } from './Auth/PasswordRequirements';
 interface BranchActivity {
   pawnshopId: string;
   branchId: number | null;
+  /** Resolved server-side: the branch name when one is scoped, else the shop. */
+  displayName: string | null;
   totalTickets: number;
   countsByStatus: Record<string, number>;
   categories: Record<string, number>;
@@ -81,7 +83,12 @@ export function Dashboard({
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [adminPasswordError, setAdminPasswordError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [activeBranchName, setActiveBranchName] = useState<string>("Loading...");
+  // Null until the endpoint names the scope. This was seeded with the string
+  // "Loading...", and because that string is truthy the `||` guard on the
+  // resolve below could never fall through - it read the placeholder back out
+  // of its own state and set it again. An empty string is the honest "not yet
+  // known"; the header renders a dash until the name arrives.
+  const [activeBranchName, setActiveBranchName] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [isImpersonating, setIsImpersonating] = useState(() => {
     // Initialize from localStorage on mount
@@ -256,7 +263,11 @@ export function Dashboard({
         branchId: hasActiveOperationalBranch ? String(activeOperationalBranchId) : undefined,
       });
 
-      const resolvedBranchName = activeBranchName || (targetUuid === HQ_UUID ? 'PawnGold HQ' : 'Branch Office');
+      // The endpoint resolved this inside the verified tenant scope, so it is
+      // the real branch or shop name rather than a client-supplied label.
+      const resolvedBranchName =
+        activity.displayName?.trim() ||
+        (targetUuid === HQ_UUID ? 'PawnGold HQ' : 'Branch Office');
       setActiveBranchName(resolvedBranchName);
 
       const customerCount = activity.clientCount ?? 0;
@@ -394,7 +405,7 @@ export function Dashboard({
         INVENTORY_CUSTODIAN: 'Inventory Custodian',
         AUDITOR: 'Auditor',
       };
-      setSuccessData({ email: adminEmail, role: roleLabels[requestedRole] || requestedRole, pawnshop: activeBranchName });
+      setSuccessData({ email: adminEmail, role: roleLabels[requestedRole] || requestedRole, pawnshop: activeBranchName || 'This branch' });
 
       // Clear form
       setAdminEmail('');
@@ -521,7 +532,7 @@ export function Dashboard({
           <div className="flex items-center gap-2 mt-2">
             <Building2 size={12} style={{ color: 'var(--gold)' }} />
             <p className="text-[10px] font-semibold uppercase tracking-[0.18em]" style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
-              {activeBranchName}
+              {activeBranchName || '—'}
               <span className="ml-2 opacity-40">[{targetUuid ? targetUuid.slice(0, 8) : '--------'}]</span>
             </p>
           </div>
@@ -767,7 +778,7 @@ export function Dashboard({
                 <div>
                   <h2 className="text-xl font-black uppercase text-[#F5F0E8]">Add Admin</h2>
                   <p className="text-[10px] font-bold text-[#C9A05C] uppercase tracking-widest mt-2">
-                    📍 {activeBranchName}
+                    📍 {activeBranchName || '—'}
                   </p>
                 </div>
                 <button
@@ -780,7 +791,7 @@ export function Dashboard({
 
               <form onSubmit={handleAddAdmin} className="space-y-4">
                 <div className="p-4 bg-[#C9A05C]/10 text-[#C9A05C] text-[10px] font-bold rounded-xl border border-[rgba(201,160,92,0.15)]">
-                  ℹ️ This admin will have access to <strong>{activeBranchName}</strong> only.
+                  ℹ️ This admin will have access to <strong>{activeBranchName || 'this branch'}</strong> only.
                 </div>
 
                 <div>

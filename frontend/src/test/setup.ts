@@ -1,5 +1,20 @@
 import '@testing-library/jest-dom';
 
+// Radix Select reads `hasPointerCapture` off its trigger while opening the
+// listbox. jsdom does not implement the pointer-capture API, so a test that
+// tried to open a dropdown found zero options and reported nothing - which is
+// how the decline-reason picker shipped with no test ever exercising it.
+// The stubs below satisfy the guard. Note that a bare `pointerdown` still
+// leaves the listbox shut in jsdom; open a Select under test with
+// `fireEvent.keyDown(trigger, { key: 'ArrowDown' })`, which is the same path a
+// keyboard user takes and is fully supported.
+if (typeof Element !== 'undefined' && !Element.prototype.hasPointerCapture) {
+  Element.prototype.hasPointerCapture = () => true;
+  Element.prototype.setPointerCapture = () => {};
+  Element.prototype.releasePointerCapture = () => {};
+  Element.prototype.scrollIntoView = () => {};
+}
+
 if (typeof window !== 'undefined' && typeof window.matchMedia !== 'function') {
   Object.defineProperty(window, 'matchMedia', {
     writable: true,

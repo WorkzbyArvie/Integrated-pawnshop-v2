@@ -97,8 +97,8 @@ describe('ApprovalQueue (RBAC-05)', () => {
   it('approves a record via POST /approval-queue/:id/approve and refreshes the queue', async () => {
     render(<ApprovalQueue />);
 
-    const approveButtons = await screen.findAllByRole('button', { name: /approve/i });
-    fireEvent.click(approveButtons[0]);
+    fireEvent.click((await screen.findAllByRole('button', { name: /review & decide/i }))[0]);
+    fireEvent.click(await screen.findByRole('button', { name: /approve & generate contract/i }));
 
     await waitFor(() =>
       expect(apiMock.post).toHaveBeenCalledWith('/approval-queue/1/approve', expect.anything()),
@@ -106,25 +106,78 @@ describe('ApprovalQueue (RBAC-05)', () => {
     await waitFor(() => expect(apiMock.get).toHaveBeenCalledTimes(2));
   });
 
-  it('keeps reject disabled until a rejection comment is provided', async () => {
+  it('offers no decision controls on the row - they live inside the review dialog', async () => {
+    render(<ApprovalQueue />);
+
+    await screen.findAllByRole('button', { name: /review & decide/i });
+
+    // A decision taken without opening the record is what let a reviewer act on
+    // a valuation they had not seen, so nothing may be actionable from the row.
+    expect(screen.queryByRole('button', { name: /approve/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /decline/i })).not.toBeInTheDocument();
+  });
+
+  it('keeps Confirm Decline disabled until a reason is chosen from the dropdown', async () => {
     apiMock.get.mockResolvedValue([pendingRecords[0]]);
 
     render(<ApprovalQueue />);
 
-    const rejectButton = await screen.findByRole('button', { name: /reject/i });
-    expect(rejectButton).toBeDisabled();
+    fireEvent.click(await screen.findByRole('button', { name: /review & decide/i }));
+    fireEvent.click(await screen.findByRole('button', { name: /^decline$/i }));
 
-    fireEvent.change(screen.getByPlaceholderText(/rejection comment/i), {
-      target: { value: 'redo appraisal' },
-    });
+    const confirm = await screen.findByRole('button', { name: /confirm decline/i });
+    expect(confirm).toBeDisabled();
+    expect(screen.getByText(/select a reason to decline/i)).toBeInTheDocument();
 
-    expect(rejectButton).not.toBeDisabled();
+    // No reason means no request: the decline cannot reach the API at all.
+    expect(apiMock.post).not.toHaveBeenCalled();
+  });
 
-    fireEvent.click(rejectButton);
+  it('declines with the chosen reason and refreshes the queue', async () => {
+    apiMock.get.mockResolvedValue([pendingRecords[0]]);
+
+    render(<ApprovalQueue />);
+
+    fireEvent.click(await screen.findByRole('button', { name: /review & decide/i }));
+    fireEvent.click(await screen.findByRole('button', { name: /^decline$/i }));
+
+    fireEvent.keyDown(await screen.findByTestId('decline-1-trigger'), { key: 'ArrowDown' });
+    fireEvent.click(await screen.findByRole('option', { name: /documents insufficient/i }));
+
+    const confirm = await screen.findByRole('button', { name: /confirm decline/i });
+    await waitFor(() => expect(confirm).not.toBeDisabled());
+    fireEvent.click(confirm);
 
     await waitFor(() =>
       expect(apiMock.post).toHaveBeenCalledWith('/approval-queue/1/reject', {
-        decisionComment: 'redo appraisal',
+        decisionComment: 'Documents insufficient',
+      }),
+    );
+  });
+
+  it('requires typed text when the reason is "other"', async () => {
+    apiMock.get.mockResolvedValue([pendingRecords[0]]);
+
+    render(<ApprovalQueue />);
+
+    fireEvent.click(await screen.findByRole('button', { name: /review & decide/i }));
+    fireEvent.click(await screen.findByRole('button', { name: /^decline$/i }));
+
+    fireEvent.keyDown(await screen.findByTestId('decline-1-trigger'), { key: 'ArrowDown' });
+    fireEvent.click(await screen.findByRole('option', { name: /other \(specify below\)/i }));
+
+    const confirm = await screen.findByRole('button', { name: /confirm decline/i });
+    expect(confirm).toBeDisabled();
+
+    const custom = await screen.findByTestId('decline-1-custom');
+    fireEvent.change(custom, { target: { value: 'Item is a replica' } });
+
+    await waitFor(() => expect(confirm).not.toBeDisabled());
+    fireEvent.click(confirm);
+
+    await waitFor(() =>
+      expect(apiMock.post).toHaveBeenCalledWith('/approval-queue/1/reject', {
+        decisionComment: 'Item is a replica',
       }),
     );
   });

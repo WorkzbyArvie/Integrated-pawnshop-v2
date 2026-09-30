@@ -73,6 +73,7 @@ export class AnalyticsService {
     const pawnshopId = this.resolveTenant(actor);
 
     let scopedBranchId: number | null = null;
+    let scopedBranchName: string | null = null;
     if (branchId) {
       const parsed = parseInt(branchId, 10);
       if (!Number.isInteger(parsed) || parsed <= 0) {
@@ -81,13 +82,26 @@ export class AnalyticsService {
 
       const branch = await this.prisma.branch.findFirst({
         where: { id: parsed, pawnshopId },
-        select: { id: true },
+        select: { id: true, name: true },
       });
       if (!branch) {
         throw new NotFoundException('Branch not found in this shop');
       }
       scopedBranchId = branch.id;
+      scopedBranchName = branch.name;
     }
+
+    // Display name for the dashboard header. The browser used to read this from
+    // its own queries filtered by a `pawnshop_id` taken from the URL, which is
+    // not a constraint - those reads were removed as cross-tenant capable and
+    // the label was never restored, so the header sat on its "Loading..."
+    // placeholder forever. The tenant is already resolved and verified above,
+    // so the name is read here, from the same scope as the figures beside it.
+    const pawnshop = await this.prisma.pawnshop.findFirst({
+      where: { id: pawnshopId },
+      select: { name: true },
+    });
+    const displayName = scopedBranchName || pawnshop?.name || null;
 
     const ticketScope = scopedBranchId != null
       ? { pawnshopId, branchId: scopedBranchId }
@@ -168,6 +182,7 @@ export class AnalyticsService {
     return {
       pawnshopId,
       branchId: scopedBranchId,
+      displayName,
       totalTickets: tickets.length,
       countsByStatus,
       categories,

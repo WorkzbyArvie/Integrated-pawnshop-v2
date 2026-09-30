@@ -384,15 +384,17 @@ describe('GET /analytics/branch-activity — the dashboard aggregate', () => {
   let ticket: { findMany: jest.Mock };
   let customer: { count: jest.Mock };
   let branch: { findFirst: jest.Mock };
+  let pawnshop: { findFirst: jest.Mock };
 
   const OWNER_ACTOR = { id: 'u-1', role: 'OWNER', pawnshopId: 'shop-a' };
 
   beforeEach(() => {
     ticket = { findMany: jest.fn().mockResolvedValue([]) };
     customer = { count: jest.fn().mockResolvedValue(0) };
-    branch = { findFirst: jest.fn().mockResolvedValue({ id: 3 }) };
+    branch = { findFirst: jest.fn().mockResolvedValue({ id: 3, name: 'Shop A - Dasmarinas' }) };
+    pawnshop = { findFirst: jest.fn().mockResolvedValue({ name: 'Shop A' }) };
     service = Object.create(AnalyticsService.prototype) as AnalyticsService;
-    (service as any).prisma = { ticket, customer, branch };
+    (service as any).prisma = { ticket, customer, branch, pawnshop };
   });
 
   // The defect: the dashboard assembled these from direct browser reads of
@@ -428,6 +430,25 @@ describe('GET /analytics/branch-activity — the dashboard aggregate', () => {
     expect(ticket.findMany).toHaveBeenCalledWith(
       expect.objectContaining({ where: { pawnshopId: 'shop-a', branchId: 3 } }),
     );
+  });
+
+  it('names the branch the dashboard header displays, from the resolved tenant', async () => {
+    // The header used to read this in the browser from rows filtered by a
+    // client-supplied `pawnshop_id`. Those reads were cross-tenant capable and
+    // were removed, and nothing replaced them - the component fell back to its
+    // own "Loading..." placeholder and stayed there beside loaded figures.
+    const result = await service.getBranchActivity(OWNER_ACTOR, '3');
+
+    expect(result.displayName).toBe('Shop A - Dasmarinas');
+    expect(pawnshop.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'shop-a' } }),
+    );
+  });
+
+  it('falls back to the shop name when no branch is scoped', async () => {
+    const result = await service.getBranchActivity(OWNER_ACTOR);
+
+    expect(result.displayName).toBe('Shop A');
   });
 
   it('refuses a branch from another tenant', async () => {

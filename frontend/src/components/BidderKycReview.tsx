@@ -2,6 +2,13 @@ import { useEffect, useState, useCallback } from 'react';
 import { CheckCircle, XCircle, Clock, Eye, Shield, RefreshCw } from 'lucide-react';
 import { api } from '../lib/apiClient';
 import DocLink from './DocLink';
+import {
+  DeclineReasonPicker,
+  DECLINE_REASON_SETS,
+  formatDeclineReason,
+  isDeclineReasonComplete,
+  type DeclineReason,
+} from './DeclineReasonPicker';
 
 interface KycRecord {
   id: string;
@@ -33,7 +40,8 @@ export default function BidderKycReview() {
   const [records, setRecords] = useState<KycRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<KycRecord | null>(null);
-  const [rejectReason, setRejectReason] = useState('');
+  const [declineReason, setDeclineReason] = useState<DeclineReason>(null);
+  const [declineOpen, setDeclineOpen] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
   const [tab, setTab] = useState<'pending' | 'all'>('pending');
 
@@ -58,15 +66,16 @@ export default function BidderKycReview() {
   useEffect(() => { load(); }, [load]);
 
   const handleReview = async (id: string, decision: 'VERIFIED' | 'REJECTED') => {
-    if (decision === 'REJECTED' && !rejectReason.trim()) return;
+    if (decision === 'REJECTED' && !isDeclineReasonComplete(declineReason)) return;
     setActionLoading(true);
     try {
       await api.patch(`/auth/kyc/${id}/review`, {
         decision,
-        rejectionReason: decision === 'REJECTED' ? rejectReason.trim() : undefined,
+        rejectionReason: decision === 'REJECTED' ? formatDeclineReason(declineReason) : undefined,
       });
       setSelected(null);
-      setRejectReason('');
+      setDeclineReason(null);
+      setDeclineOpen(false);
       await load();
     } catch (err: any) {
       alert(err.message || 'Review failed');
@@ -161,37 +170,62 @@ export default function BidderKycReview() {
             </div>
 
             {selected.status === 'PENDING' && (
-              <div className="flex items-end gap-3">
-                <button
-                  disabled={actionLoading}
-                  onClick={() => handleReview(selected.id, 'VERIFIED')}
-                  className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
-                >
-                  <CheckCircle className="w-4 h-4" /> Approve
-                </button>
-                <div className="flex-1">
-                  <input
-                    type="text"
-                    placeholder="Rejection reason (required to reject)"
-                    value={rejectReason}
-                    onChange={(e) => setRejectReason(e.target.value)}
-                    className="w-full px-3 py-2 bg-[#1C1C26] border border-[rgba(201,160,92,0.15)] rounded-lg text-sm text-[#F5F0E8] placeholder:text-[#8A8279] focus:outline-none focus:border-[#C9A05C]"
-                  />
+              <div className="space-y-3">
+                <div className="flex items-center gap-3 flex-wrap">
+                  <button
+                    disabled={actionLoading}
+                    onClick={() => handleReview(selected.id, 'VERIFIED')}
+                    className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
+                  >
+                    <CheckCircle className="w-4 h-4" /> Approve
+                  </button>
+                  <button
+                    disabled={actionLoading}
+                    onClick={() => setDeclineOpen((open) => !open)}
+                    className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-500 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
+                  >
+                    <XCircle className="w-4 h-4" /> Decline
+                  </button>
                 </div>
-                <button
-                  disabled={actionLoading || !rejectReason.trim()}
-                  onClick={() => handleReview(selected.id, 'REJECTED')}
-                  className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-500 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
-                >
-                  <XCircle className="w-4 h-4" /> Reject
-                </button>
+                {declineOpen && (
+                  <div className="space-y-3">
+                    <DeclineReasonPicker
+                      id={`kyc-decline-${selected.id}`}
+                      value={declineReason}
+                      onChange={setDeclineReason}
+                      options={DECLINE_REASON_SETS.KYC}
+                      disabled={actionLoading}
+                    />
+                    <div className="flex items-center gap-2">
+                      <button
+                        disabled={actionLoading || !isDeclineReasonComplete(declineReason)}
+                        onClick={() => handleReview(selected.id, 'REJECTED')}
+                        className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-500 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
+                      >
+                        <XCircle className="w-4 h-4" /> Confirm Decline
+                      </button>
+                      <button
+                        disabled={actionLoading}
+                        onClick={() => { setDeclineOpen(false); setDeclineReason(null); }}
+                        className="px-4 py-2 text-sm font-medium rounded-lg text-[#9B9488] hover:text-[#F5F0E8] transition-colors disabled:opacity-50"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                    {!isDeclineReasonComplete(declineReason) && (
+                      <p className="text-[10px] font-semibold text-[#8A8279]">
+                        Select a reason to decline.
+                      </p>
+                    )}
+                  </div>
+                )}
               </div>
             )}
 
             {selected.status !== 'PENDING' && (
               <div className="flex items-center gap-2 text-sm">
                 <span className={selected.status === 'VERIFIED' ? 'text-emerald-400' : 'text-red-400'}>
-                  {selected.status === 'VERIFIED' ? 'Approved' : 'Rejected'}
+                  {selected.status === 'VERIFIED' ? 'Approved' : 'Declined'}
                 </span>
                 {selected.rejectionReason && <span className="text-[#9B9488]">— {selected.rejectionReason}</span>}
                 {selected.reviewedAt && <span className="text-[#8A8279]">on {new Date(selected.reviewedAt).toLocaleDateString()}</span>}

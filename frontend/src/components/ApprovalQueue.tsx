@@ -20,8 +20,14 @@ import { Input } from './ui/input';
 import { Skeleton } from './ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table';
 import { Tabs, TabsList, TabsTrigger } from './ui/tabs';
-import { Textarea } from './ui/textarea';
 import { ContractViewer } from './ContractViewer';
+import {
+  DeclineReasonPicker,
+  DECLINE_REASON_SETS,
+  formatDeclineReason,
+  isDeclineReasonComplete,
+  type DeclineReason,
+} from './DeclineReasonPicker';
 
 interface ApprovalQueueItem {
   id: number;
@@ -102,6 +108,8 @@ export function ApprovalQueue({ branchId, activeBranchId, userRole }: ApprovalQu
   const [searchQuery, setSearchQuery] = useState('');
   const [processingId, setProcessingId] = useState<number | null>(null);
   const [reviewItem, setReviewItem] = useState<ApprovalQueueItem | null>(null);
+  const [reviewDeclineReason, setReviewDeclineReason] = useState<DeclineReason>(null);
+  const [reviewDeclineOpen, setReviewDeclineOpen] = useState(false);
   const [reviewPhotoIndex, setReviewPhotoIndex] = useState(0);
   const [reviewPhotoSrc, setReviewPhotoSrc] = useState<string | null>(null);
   const [reviewPhotoFailed, setReviewPhotoFailed] = useState(false);
@@ -207,15 +215,19 @@ export function ApprovalQueue({ branchId, activeBranchId, userRole }: ApprovalQu
     }
   };
 
-  const handleReject = async (id: number, comment: string) => {
+  const handleDecline = async (id: number, reason: DeclineReason) => {
     if (processingId !== null) return;
+    if (!isDeclineReasonComplete(reason)) return;
     setProcessingId(id);
     try {
-      await api.post(`/approval-queue/${id}/reject`, { decisionComment: comment });
-      showToast('Request rejected', 'success');
+      await api.post(`/approval-queue/${id}/reject`, {
+        decisionComment: formatDeclineReason(reason),
+      });
+      showToast('Request declined', 'success');
+      setReviewItem(null);
       await loadQueue(activeTab);
     } catch (err) {
-      showToast(err instanceof Error ? err.message : 'Failed to reject request', 'error');
+      showToast(err instanceof Error ? err.message : 'Failed to decline request', 'error');
     } finally {
       setProcessingId(null);
     }
@@ -271,6 +283,24 @@ export function ApprovalQueue({ branchId, activeBranchId, userRole }: ApprovalQu
     (record) => record.targetType === 'LISTING_EDIT' && record.status === 'PENDING',
   ).length;
   const pendingTotal = appraisalCount + redemptionCount + listingEditCount;
+
+  const declineOptionsFor = (item: ApprovalQueueItem) =>
+    item.targetType === 'REDEMPTION'
+      ? DECLINE_REASON_SETS.REDEMPTION
+      : item.targetType === 'LISTING_EDIT'
+        ? DECLINE_REASON_SETS.LISTING_EDIT
+        : DECLINE_REASON_SETS.APPRAISAL;
+
+  const approveLabelFor = (item: ApprovalQueueItem) =>
+    item.targetType === 'REDEMPTION'
+      ? 'Approve & Release'
+      : item.targetType === 'LISTING_EDIT'
+        ? 'Approve Edit'
+        : 'Approve & Generate Contract';
+
+  const isOwnReviewRequest = Boolean(
+    currentUserId && reviewItem?.requestedBy?.id === currentUserId && !canSelfApprove,
+  );
 
   return (
     <div className="p-8 space-y-6 min-h-screen" style={{ background: 'rgba(28,28,38,0.5)' }}>
@@ -378,7 +408,7 @@ export function ApprovalQueue({ branchId, activeBranchId, userRole }: ApprovalQu
             <>
               <p className="text-lg font-black text-[#F5F0E8]">No decisions yet</p>
               <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
-                Approved and rejected requests will appear here.
+                Approved and declined requests will appear here.
               </p>
             </>
           ) : (
@@ -440,16 +470,27 @@ export function ApprovalQueue({ branchId, activeBranchId, userRole }: ApprovalQu
               key={record.id}
               record={record}
               isOwnRequest={Boolean(currentUserId && record.requestedBy?.id === currentUserId) && !canSelfApprove}
-              processing={processingId === record.id}
-              onReview={() => { setReviewPhotoIndex(0); setReviewItem(record); }}
-              onApprove={() => void handleApprove(record.id)}
-              onReject={(comment) => void handleReject(record.id, comment)}
+              onReview={() => {
+                setReviewPhotoIndex(0);
+                setReviewDeclineReason(null);
+                setReviewDeclineOpen(false);
+                setReviewItem(record);
+              }}
             />
           ))}
         </div>
       )}
 
-      <Dialog open={Boolean(reviewItem)} onOpenChange={(open) => { if (!open) setReviewItem(null); }}>
+      <Dialog
+        open={Boolean(reviewItem)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setReviewItem(null);
+            setReviewDeclineReason(null);
+            setReviewDeclineOpen(false);
+          }
+        }}
+      >
         <DialogContent className="max-w-lg bg-[#14141B] border border-[rgba(201,160,92,0.15)] text-[#F5F0E8]">
           <DialogHeader>
             <DialogTitle className="text-lg font-black uppercase tracking-tight text-[#F5F0E8] flex items-center gap-2">
@@ -657,6 +698,72 @@ export function ApprovalQueue({ branchId, activeBranchId, userRole }: ApprovalQu
                 {reviewItem.requestedBy?.fullName ? `Requested by ${reviewItem.requestedBy.fullName}` : 'Requested by staff'}
                 {reviewItem.createdAt ? ` · ${formatDateTime(reviewItem.createdAt)}` : ''}
               </p>
+
+              <div className="border-t pt-4 space-y-4" style={{ borderColor: 'rgba(201,160,92,0.12)' }}>
+                {isOwnReviewRequest ? (
+                  <p className="text-xs font-bold" style={{ color: 'var(--amber)' }}>
+                    You cannot decide your own request.
+                  </p>
+                ) : (
+                  <>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <Button
+                        onClick={() => void handleApprove(reviewItem.id)}
+                        disabled={processingId === reviewItem.id}
+                        className="bg-[#C9A05C] text-[#0A0A0F] hover:bg-[#d4b36e] font-black uppercase tracking-wider"
+                      >
+                        {processingId === reviewItem.id ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : null}
+                        {approveLabelFor(reviewItem)}
+                      </Button>
+                      <Button
+                        variant="outline"
+                        onClick={() => setReviewDeclineOpen((open) => !open)}
+                        disabled={processingId === reviewItem.id}
+                        className="border-[#D44545]/40 text-[#D44545] hover:bg-[#D44545]/10 font-black uppercase tracking-wider"
+                      >
+                        Decline
+                      </Button>
+                    </div>
+                    {reviewDeclineOpen && (
+                      <div className="space-y-3 rounded-2xl p-4" style={{ background: 'rgba(212,69,69,0.06)' }}>
+                        <DeclineReasonPicker
+                          id={`decline-${reviewItem.id}`}
+                          value={reviewDeclineReason}
+                          onChange={setReviewDeclineReason}
+                          options={declineOptionsFor(reviewItem)}
+                          disabled={processingId === reviewItem.id}
+                        />
+                        <div className="flex items-center gap-2">
+                          <Button
+                            onClick={() => void handleDecline(reviewItem.id, reviewDeclineReason)}
+                            disabled={!isDeclineReasonComplete(reviewDeclineReason) || processingId === reviewItem.id}
+                            className="bg-[#D44545] text-white hover:bg-[#e05a5a] font-black uppercase tracking-wider"
+                          >
+                            {processingId === reviewItem.id ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : null}
+                            Confirm Decline
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            onClick={() => setReviewDeclineOpen(false)}
+                            disabled={processingId === reviewItem.id}
+                          >
+                            Cancel
+                          </Button>
+                        </div>
+                        {!isDeclineReasonComplete(reviewDeclineReason) && (
+                          <p className="text-[10px] font-semibold" style={{ color: 'var(--text-muted)' }}>
+                            Select a reason to decline.
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
             </div>
           )}
         </DialogContent>
@@ -681,20 +788,12 @@ export function ApprovalQueue({ branchId, activeBranchId, userRole }: ApprovalQu
 function ApprovalRow({
   record,
   isOwnRequest,
-  processing,
   onReview,
-  onApprove,
-  onReject,
 }: {
   record: ApprovalQueueItem;
   isOwnRequest: boolean;
-  processing: boolean;
   onReview: () => void;
-  onApprove: () => void;
-  onReject: (comment: string) => void;
 }) {
-  const [comment, setComment] = useState('');
-
   return (
     <div className="rounded-2xl border border-[rgba(201,160,92,0.08)] bg-[#14141B] p-5">
       <div className="flex items-start justify-between gap-4">
@@ -769,46 +868,15 @@ function ApprovalRow({
         </div>
       )}
 
-      <div className="mt-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-        <div className="flex items-center gap-2 flex-wrap">
-          <Button variant="ghost" size="sm" onClick={onReview}>
-            Review
-          </Button>
-          <Button
-            size="sm"
-            onClick={onApprove}
-            disabled={processing || isOwnRequest}
-            className="bg-[#C9A05C] text-[#0A0A0F] hover:bg-[#d4b36e]"
-          >
-            {processing ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
-            {record.targetType === 'REDEMPTION'
-              ? 'Approve & Release'
-              : record.targetType === 'LISTING_EDIT'
-                ? 'Approve Edit'
-                : 'Approve & Generate Contract'}
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => onReject(comment)}
-            disabled={processing || comment.trim() === ''}
-            className="border-[#D44545]/40 text-[#D44545] hover:bg-[#D44545]/10"
-          >
-            Reject
-          </Button>
-        </div>
-        <Textarea
-          value={comment}
-          onChange={(event) => setComment(event.target.value)}
-          placeholder="Rejection comment (required)"
-          rows={2}
-          className="bg-[#1C1C26] border-[rgba(217,69,69,0.2)] text-[#F5F0E8] placeholder:text-[#8A8279] focus:ring-2 focus:ring-[#D44545]/40 lg:max-w-xs"
-        />
+      <div className="mt-4 flex items-center gap-2 flex-wrap">
+        <Button variant="ghost" size="sm" onClick={onReview}>
+          Review &amp; Decide
+        </Button>
       </div>
 
       {isOwnRequest && (
         <p className="text-[10px] font-semibold mt-2" style={{ color: 'var(--text-muted)' }}>
-          You cannot approve your own request.
+          You cannot decide your own request.
         </p>
       )}
     </div>
