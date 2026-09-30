@@ -397,21 +397,26 @@ export function InventoryVault({ branchId, activeBranchId }: InventoryVaultProps
 
   const handleShowContract = async (item: InventoryItem) => {
     if (!item.contractId) return;
+    let url: string | null = null;
     try {
-      const headers: Record<string, string> = {};
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session?.access_token) headers['Authorization'] = `Bearer ${session.access_token}`;
-      const pawnshopId = localStorage.getItem('active_pawnshop_id') ?? '';
-      if (pawnshopId) headers['pawnshop-id'] = pawnshopId;
-
-      const backendUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
-      const res = await fetch(`${backendUrl}/loan/contracts/${item.contractId}/pdf`, { headers });
-      if (!res.ok) throw new Error('Failed to fetch contract PDF');
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      window.open(url, '_blank');
+      // Same defect as the contract viewer's download: a hand-rolled `fetch`
+      // against `VITE_API_URL`, which this project does not define. It fell back
+      // to `http://localhost:3000`, so "view contract" on a redeemed item failed
+      // against the user's own machine.
+      const blob = await api.blob(`/loan/contracts/${item.contractId}/pdf`);
+      url = URL.createObjectURL(blob);
+      const opened = window.open(url, '_blank', 'noopener,noreferrer');
+      if (!opened) {
+        // Popup blocked. Say so, rather than appearing to do nothing.
+        showToast('Your browser blocked the contract window. Allow pop-ups for this site.', 'error');
+      }
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'Failed to open contract', 'error');
+    } finally {
+      // The previous version created this URL and never revoked it, so every
+      // view leaked the whole PDF into memory for the life of the tab. Give the
+      // new tab a moment to attach before releasing it.
+      if (url) setTimeout(() => URL.revokeObjectURL(url as string), 60_000);
     }
   };
 

@@ -426,6 +426,43 @@ export const api = {
     request<T>('PUT', path, body),
 
   del: <T = unknown>(path: string) => request<T>('DELETE', path),
+
+  /**
+   * Fetch a binary body (a PDF, a spreadsheet) as a blob.
+   *
+   * `request` JSON-parses every response, so a PDF came back as a parse error
+   * and callers had no choice but to hand-roll a `fetch`. Doing that is how this
+   * file's bug happened: a hand-rolled call read `VITE_API_URL`, which this
+   * project does not define, so it silently fell back to `localhost:3000` and
+   * the download failed with a bare "Failed to fetch" on a deployed app. Every
+   * call must go through {@link getBackendUrl} and {@link getHeaders} so the
+   * auth and tenant headers are the same ones the rest of the app sends.
+   */
+  blob: async (path: string): Promise<Blob> => {
+    const headers = await getHeaders();
+    const url = `${BACKEND_URL}${path.startsWith('/') ? path : `/${path}`}`;
+
+    const res = await fetch(url, { method: 'GET', headers, cache: 'no-store' });
+
+    if (!res.ok) {
+      // Surface the server's reason rather than "Failed to fetch", which says
+      // nothing about whether this was a 403 or a missing route.
+      let detail = '';
+      try {
+        const body = await res.json();
+        detail = body?.message || body?.error || '';
+      } catch {
+        detail = '';
+      }
+      throw new ApiError(
+        detail || `Download failed (HTTP ${res.status})`,
+        res.status,
+        { success: false, error: 'BLOB_REQUEST_FAILED' },
+      );
+    }
+
+    return res.blob();
+  },
 };
 
 export async function getCurrentUserId(): Promise<string> {

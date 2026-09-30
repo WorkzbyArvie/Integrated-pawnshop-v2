@@ -340,12 +340,27 @@ export class LoanContractService {
     return contracts;
   }
 
-  async downloadContractPdf(contractId: string): Promise<{ buffer: Buffer; contractNumber: string }> {
+  async downloadContractPdf(
+    contractId: string,
+    callerPawnshopId?: string | null,
+    callerRole?: string,
+  ): Promise<{ buffer: Buffer; contractNumber: string }> {
     const contract = await this.prisma.loanContract.findUnique({
       where: { id: contractId },
       include: { application: { select: { pawnshopId: true } } },
     });
     if (!contract) throw new NotFoundException('Contract not found');
+
+    // A permission answers "may this role read a contract"; it does not answer
+    // "whose". Without this the lookup above is a bare primary-key read, so any
+    // manager of any shop could render another shop's signed contract by id.
+    // Scoped here, in the same shape as `AnalyticsService.resolveTenant`.
+    if (callerRole !== 'SUPER_ADMIN') {
+      const ownerShop = contract.application?.pawnshopId ?? null;
+      if (!callerPawnshopId || ownerShop !== callerPawnshopId) {
+        throw new NotFoundException('Contract not found');
+      }
+    }
 
     const extraSections = contract.application?.pawnshopId
       ? await this.getCustomContractSections(contract.application.pawnshopId)

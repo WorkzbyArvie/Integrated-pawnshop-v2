@@ -184,6 +184,13 @@ const MATRIX: Record<string, { tuple: string[]; permission: string }> = {
     tuple: ['MANAGER', 'OWNER'],
     permission: 'contract.sign',
   },
+  // The PDF route had no `@Roles` and no `@RequiresPermission`, so any
+  // authenticated profile could render any contract by id. It is declared here
+  // so the matrix reflects it and the guarded-endpoint count stays honest.
+  'loan.controller.ts::downloadContractPdf': {
+    tuple: ['MANAGER', 'OWNER'],
+    permission: 'contract.view',
+  },
   'tenant-governance.controller.ts::getPawnshopMetadata': {
     tuple: ['SUPER_ADMIN'],
     permission: 'platform.manage',
@@ -540,26 +547,29 @@ describe('permission catalog consistency', () => {
     ...migrationSql.matchAll(/^\s*\('([a-z_.]+)',\s*'[a-z_]+',\s*NULL\)[,]?$/gm),
   ].map((m) => m[1]);
 
-  it('holds exactly 40 distinct values in the const', () => {
-    expect(constNames).toHaveLength(40);
-    expect(new Set(constNames).size).toBe(40);
+  // 41 after `contract.view` was added to guard GET /loan/contracts/:id/pdf,
+  // which rendered a signed contract with no permission declared.
+  it('holds exactly 41 distinct values in the const', () => {
+    expect(constNames).toHaveLength(41);
+    expect(new Set(constNames).size).toBe(41);
   });
 
   it('matches the migration SQL permission names both ways', () => {
-    expect(sqlNames).toHaveLength(40);
+    expect(sqlNames).toHaveLength(41);
     expect(new Set(sqlNames)).toEqual(new Set(constNames));
   });
 
-  it('ROLE_PERMISSIONS references only const values and sums to 117 mappings', () => {
+  // 123 = 118 + the five `contract.view` grants that mirror `contract.sign`.
+  it('ROLE_PERMISSIONS references only const values and sums to 123 mappings', () => {
     const mapped = Object.values(ROLE_PERMISSIONS).flat();
-    expect(mapped.length).toBe(118);
+    expect(mapped.length).toBe(123);
     for (const name of mapped) {
       expect(PERMISSIONS[name]).toBe(name);
     }
     const sqlRows = [
       ...migrationSql.matchAll(/^\s*\('[A-Z_]+','[a-z_.]+'\)[,]?$/gm),
     ].length;
-    expect(sqlRows).toBe(106);
+    expect(sqlRows).toBe(111);
   });
 
   it('seeds the two compatibility staff-management grants by name and mirrors them at runtime', () => {
@@ -580,7 +590,7 @@ describe('permission catalog consistency', () => {
     const baselineRows = [
       ...migrationSql.matchAll(/^\s*\('[A-Z_]+','[a-z_.]+'\)[,]?$/gm),
     ].length;
-    expect(baselineRows + seeded.length).toBe(108);
+    expect(baselineRows + seeded.length).toBe(113);
 
     for (const grant of seeded) {
       expect(ROLE_PERMISSIONS[grant.role]).toContain(grant.permission);
@@ -656,7 +666,7 @@ describe('69-site equivalence scan', () => {
     // renewal. All are guarded, so all are counted here - the invariant is
     // that every guarded site is in the matrix, and this number is the
     // tripwire for that.
-    expect(total).toBe(102);
+    expect(total).toBe(103);
   });
 
   it('matrix tuples match the current @Roles tuples (RED-phase calibration)', () => {

@@ -229,23 +229,25 @@ export function ContractViewer({
   const handleDownloadPdf = async () => {
     if (!contract) return;
     setDownloading(true);
+    setError(null);
     try {
-      const headers: Record<string, string> = {};
-      const { supabase: supa } = await import('../lib/supabaseClient');
-      const { data: { session } } = await supa.auth.getSession();
-      if (session?.access_token) headers['Authorization'] = `Bearer ${session.access_token}`;
-      const pawnshopId = localStorage.getItem('active_pawnshop_id') ?? '';
-      if (pawnshopId) headers['pawnshop-id'] = pawnshopId;
+      // Through `api.blob`, which uses the same base URL and auth/tenant headers
+      // as every other call. This used to hand-roll a `fetch` against
+      // `VITE_API_URL` - a variable this project never defines - so it fell back
+      // to `http://localhost:3000` and failed with a bare "Failed to fetch" on a
+      // deployed app, with nothing in the message pointing at the real cause.
+      const blob = await api.blob(`/loan/contracts/${contract.id}/pdf`);
 
-      const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/loan/contracts/${contract.id}/pdf`, { headers });
-      if (!res.ok) throw new Error('Failed to download PDF');
-      const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `${contract.contractNumber}.pdf`;
+      a.download = `${contract.contractNumber || 'contract'}.pdf`;
+      document.body.appendChild(a);
       a.click();
-      URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      // Revoked on the next tick: revoking synchronously can cancel the
+      // download in some browsers before it has read the blob.
+      setTimeout(() => URL.revokeObjectURL(url), 0);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Download failed');
     } finally {

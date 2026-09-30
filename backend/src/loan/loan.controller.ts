@@ -435,12 +435,30 @@ export class LoanController {
     return this.loanContractService.getContractProofs(contractId);
   }
 
+  // This route was unguarded. It renders a signed loan contract - the document
+  // a panel would be asked to accept as proof of the transaction - and any
+  // authenticated profile could request any contract id. `downloadContractPdf`
+  // looks the contract up by primary key with no tenant check, so the exposure
+  // was cross-tenant, not merely "any logged-in user". It is declared in the
+  // permission matrix like every other guarded site.
+  @RequiresPermission(PERMISSIONS['contract.view'])
   @Get('contracts/:contractId/pdf')
   async downloadContractPdf(
     @Param('contractId') contractId: string,
+    @Req() req: Request,
     @Res() res: Response,
   ) {
-    const { buffer, contractNumber } = await this.loanContractService.downloadContractPdf(contractId);
+    // `RbacGuard` attaches the principal to the request. The Express `Request`
+    // type is not augmented anywhere in this project, so it is read off a local
+    // cast rather than introducing a global declaration for one call site.
+    const caller = (req as unknown as {
+      user?: { pawnshopId?: string | null; role?: string };
+    }).user;
+    const { buffer, contractNumber } = await this.loanContractService.downloadContractPdf(
+      contractId,
+      caller?.pawnshopId,
+      caller?.role,
+    );
     res.set({
       'Content-Type': 'application/pdf',
       'Content-Disposition': `attachment; filename="${contractNumber}.pdf"`,
