@@ -320,16 +320,22 @@ export class LoanContractService {
     }
 
     // Resolved before the write so the contract names the person who signed it.
-    // A missing staff record is not fatal - the signature still stands, it just
+    // A missing profile is not fatal - the signature still stands, it just
     // prints without a name - so a deleted account cannot block a signing that
     // has already legally happened.
-    const signer = await this.prisma.staff.findUnique({
+    //
+    // `profiles`, not `staff`. `staffId` here is the authenticated user id that
+    // `RbacGuard` puts on the request, which is the Supabase auth id and so the
+    // `profiles.id` primary key. The `staff` table has its own generated uuid
+    // and no relation to the profile, so looking the id up there returns null
+    // every time and the name would never print.
+    const signer = await this.prisma.profile.findUnique({
       where: { id: staffId },
       select: { fullName: true },
     });
     if (!signer) {
       this.logger.warn(
-        `No staff record for ${staffId}; contract ${contract.contractNumber} will sign without a printed name.`,
+        `No profile for ${staffId}; contract ${contract.contractNumber} will sign without a printed name.`,
       );
     }
 
@@ -421,16 +427,20 @@ export class LoanContractService {
     // snapshot existed. The customer already had a fallback - the borrower name
     // is in `contract_data` - but the staff name had none, so every
     // already-signed contract printed a signature with no name against it. The
-    // `staffId` on the row is the evidence of who signed, so it is the right
+    // `staff_id` on the row is the evidence of who signed, so it is the right
     // thing to reconstruct from. This is a fallback for the past only: new
     // signatures snapshot the name and never reach it.
+    //
+    // `profiles`, not `staff`: `staff_id` holds the authenticated user id, which
+    // is the Supabase auth id and therefore `profiles.id`. The `staff` table has
+    // an unrelated generated uuid.
     let staffName = contract.staffSignerName ?? null;
     if (!staffName && contract.staffId) {
-      const staff = await this.prisma.staff.findUnique({
+      const profile = await this.prisma.profile.findUnique({
         where: { id: contract.staffId },
         select: { fullName: true },
       });
-      staffName = staff?.fullName ?? null;
+      staffName = profile?.fullName ?? null;
     }
 
     const { pdfBuffer } = await this.contractRenderer.renderPdfOnly(

@@ -28,9 +28,13 @@ describe('LoanContractService', () => {
         update: jest.fn(),
       },
       // `signByStaff` looks the signatory up to snapshot their printed name onto
-      // the contract, so the mock needs the model.
-      staff: {
+      // the contract, so the mock needs the model. It resolves against
+      // `profiles` because `staffId` is the authenticated user id.
+      profile: {
         findUnique: jest.fn().mockResolvedValue({ fullName: 'Maria Santos' }),
+      },
+      staff: {
+        findUnique: jest.fn().mockResolvedValue(null),
       },
     };
 

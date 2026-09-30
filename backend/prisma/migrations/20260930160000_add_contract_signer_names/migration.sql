@@ -40,10 +40,14 @@ WHERE lc.customer_signer_name IS NULL
   AND lc.signed_by_customer = true
   AND lc.contract_data ->> 'customerName' IS NOT NULL;
 
+-- `profiles`, not `staff`. `staff_id` holds the authenticated user id that
+-- `RbacGuard` puts on the request, which is the Supabase auth id and so the
+-- `profiles.id` primary key. The `staff` table has its own generated uuid and no
+-- relation to the profile, so joining on it matches nothing.
 UPDATE loan_contracts lc
-SET staff_signer_name = s.full_name
-FROM staff s
+SET staff_signer_name = p.full_name
+FROM profiles p
 WHERE lc.staff_signer_name IS NULL
   AND lc.signed_by_staff = true
-  AND lc.staff_id = s.id
-  AND s.full_name IS NOT NULL;
+  AND lc.staff_id = p.id
+  AND p.full_name IS NOT NULL;

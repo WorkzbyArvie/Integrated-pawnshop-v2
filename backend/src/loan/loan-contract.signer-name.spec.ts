@@ -53,7 +53,13 @@ const buildService = (
         return Promise.resolve(contract);
       }),
     },
-    staff: { findUnique: jest.fn().mockResolvedValue(staffFullName ? { fullName: staffFullName } : null) },
+    // `profiles`, not `staff`. `staffId` is the authenticated user id, which is
+    // the Supabase auth id and therefore `profiles.id`. The `staff` table has an
+    // unrelated generated uuid and no relation, so looking the id up there
+    // returns null and the name silently never prints. The `staff` mock is kept
+    // returning null so a regression to the wrong table fails loudly.
+    profile: { findUnique: jest.fn().mockResolvedValue(staffFullName ? { fullName: staffFullName } : null) },
+    staff: { findUnique: jest.fn().mockResolvedValue(null) },
     ticket: { update: jest.fn().mockResolvedValue({}) },
   };
 
@@ -138,14 +144,19 @@ describe('signByStaff', () => {
     expect(contract.staffSignerName).toBe('Maria Santos');
   });
 
-  it('resolves the name from the staff record at signing time', async () => {
+  it('resolves the name from the profile at signing time, not the staff table', async () => {
     const { service, prisma } = buildService({ signedByCustomer: true });
 
     await service.signByStaff(APPLICATION_ID, STAFF_ID, 'sig', 'OWNER');
 
-    expect(prisma.staff.findUnique).toHaveBeenCalledWith(
+    // `profiles`, because STAFF_ID is the authenticated user id that
+    // `RbacGuard` puts on the request. The `staff` table has an unrelated
+    // generated uuid, so a lookup there returns null silently - which is exactly
+    // how this rendered nameless signatures in the first place.
+    expect(prisma.profile.findUnique).toHaveBeenCalledWith(
       expect.objectContaining({ where: { id: STAFF_ID } }),
     );
+    expect(prisma.staff.findUnique).not.toHaveBeenCalled();
   });
 
   it('still signs when the staff record no longer exists', async () => {
@@ -219,7 +230,9 @@ describe('downloadContractPdf name fallbacks', () => {
     const service = Object.create(LoanContractService.prototype) as LoanContractService;
     (service as any).prisma = {
       loanContract: { findUnique: jest.fn().mockResolvedValue(contract) },
-      staff: { findUnique: staffFindUnique },
+      // `staff_id` is the auth user id, so this resolves against `profiles`.
+      profile: { findUnique: staffFindUnique },
+      staff: { findUnique: jest.fn().mockResolvedValue(null) },
     };
     (service as any).contractRenderer = { renderPdfOnly };
     (service as any).getCustomContractSections = jest.fn().mockResolvedValue([]);
