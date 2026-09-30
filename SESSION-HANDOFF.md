@@ -2,21 +2,41 @@
 
 **Defense: 3rd week of October 2026.** About two weeks.
 
-**Everything is pushed.** `origin/main` is level with `HEAD`. Sessions 3 and 4
-are all deployed or deploying — the money fixes from session 3 have been
-confirmed live by the operator (POS quotes ₱440 on 10g of silver, contract shows
-grace 90 days and interest 3.50%).
+**Everything is committed and pushed.** `origin/main` == `HEAD` == `ef6846a`.
+Nothing is uncommitted in source; the only dirty files are GSD planning docs
+(`.planning/*`, not maintained — this file is authoritative) and the deliberately
+deleted `CAPSTONE CHAP 1-3.docx` decoy.
 
-| Commit | What it did |
-|---|---|
-| `46433c1` | Appraisal rates + risk scoring moved off the client |
-| `7768089` | Two interest unit bugs; POS/redemption/dashboard stop computing money |
-| `dad2f62` | Renewal closed, plus three defects in `renewLoan` |
-| `f920ab2` | Session 3 handoff |
-| `0b6945c` | Dashboard branch name; declines gated on a reason |
-| `de23cf4` | Review dialog rebuilt; design system recorded |
-| `e48bddb` | Review dialog closes before the contract opens |
-| _(this session)_ | Contract PDF download, and a cross-tenant leak on that route |
+**Verified state:** backend **1072** tests / 67 suites green, frontend **321** /
+28 files green, tsc clean both sides, both builds clean.
+
+| Commit | What it did | Deployed? |
+|---|---|---|
+| `46433c1` | Appraisal rates + risk scoring off the client | yes |
+| `7768089` | Two interest unit bugs; POS/redemption/dashboard stop computing money | yes |
+| `dad2f62` | Renewal closed, plus three defects in `renewLoan` | yes |
+| `f920ab2` | Session 3 handoff | yes |
+| `0b6945c` | Dashboard branch name; declines gated on a reason | yes |
+| `de23cf4` | Review dialog rebuilt; design system recorded | yes |
+| `e48bddb` | Review dialog closes before the contract opens | yes |
+| `d3d3e16` | Review dialog was 512px, not 672px, and clipped its action | yes |
+| `310b891` | `contract.view` needs a forward migration, not a baseline edit | yes |
+| `5cacca2` | Contract PDF layout rebuilt; "30 days months" fixed | yes |
+| `e6be121` | Ignore generated preview PDFs | yes |
+| `5db5c12` | Signer's printed name on the contract | **no** |
+| `f31b0f8` | Fix the broken signer-names migration | **no** |
+| `ef6846a` | Document `DATABASE_URL` and the P3018 recovery | **no** |
+
+The last three are **not live**. They are blocked on the SQL statement in the
+next section. Everything above them is deployed and was confirmed by the
+operator: POS quotes ₱440 on 10g of silver, the contract shows grace 90 days and
+interest 3.50%.
+
+## Session 5 — pick up here
+
+Ten commits, all pushed, none verified in a browser. **The single most useful
+thing you can do is click through the app.** Everything below says what to look
+at and what "correct" looks like.
 
 **Suite state:** backend **1028** / 63 suites green, frontend **318** / 28 files
 green, tsc clean both sides, both builds clean. The two `kycDocs` failures are
@@ -147,6 +167,33 @@ whose data it was looking at.*
     `ON CONFLICT DO NOTHING`, and do not rely on the baseline. Prisma's
     `migrate deploy` runs on Render via `prestart:prod`, so a correct forward
     migration is applied automatically on deploy.
+26. **A Prisma model name is not a table name.** `@@map` renames the table, and
+    `LoanContract` lives in `loan_contracts`. A migration written against
+    `loan_contract` failed on deploy with P3018 / 42P01, `relation
+    "loan_contract" does not exist`. **Read the `@@map` line for every model a
+    migration touches, before writing the SQL.** This is the fifth migration
+    deploy this project has lost, and the fourth caused by this author.
+    `migration-table-names.spec.ts` now validates table references in forward
+    migrations against `schema.prisma` and rejects a model name used where
+    `@@map` renames the table — verified by reintroducing the bug and watching it
+    fail.
+27. **A failed migration blocks every later one.** Prisma records it in
+    `_prisma_migrations` with `finished_at` NULL and then refuses to apply
+    anything until it is resolved. Correcting the SQL and pushing is *not*
+    enough — the row must be cleared by hand or every later deploy fails
+    identically with P3018. See the unblock section. `migrate resolve
+    --rolled-back` needs a working `DATABASE_URL`, which is why the equivalent
+    `UPDATE ... SET rolled_back_at = NOW()` is documented in `.env.example`: it
+    needs no credential at all.
+28. **The theme across sessions 3–5: a green suite did not mean working.**
+    Every defect in this file shipped past a full test run and a clean build,
+    because none of them was visible from TypeScript. The browser was trusted to
+    know whose data it was looking at; a percentage went into a fraction column;
+    a template was edited but the live row was not; a model name was used where
+    a table name belonged. Tests that assert the *invariant* rather than the
+    expected number found more of these than reading the code did, and the
+    "show the test failing first" rule caught three fixes that were reported
+    done and were not.
 
 ## UI: the design system is now written down
 
@@ -165,42 +212,130 @@ cd frontend && npx vite dev   # then /harness/index.html
 
 Dev-only, and verified absent from the production bundle.
 
+## Test checklist — do this first
+
+Nothing below has been seen in a browser. Each row is a thing that changed and
+what "correct" looks like, so a failure is unambiguous.
+
+| # | Where | Expect |
+|---|---|---|
+| 1 | Dashboard header | The shop's name. It said `Loading...` forever because the state was seeded with that string and a non-empty string is truthy, so the `\|\|` fallback could never fire. |
+| 2 | Approval Queue rows | A real figure, not `₱0.00`, labelled **Recommended loan**. The endpoint returns `recommendedLoanAmount`, never `amount` — the old helper read the field that does not exist. |
+| 3 | Review & Decide | Dialog opens at full width, **not** 512px. Label and value share a baseline. `Approve & Generate Contract` is fully visible, not clipped. |
+| 4 | Decline (in the dialog) | Opens a **dropdown** of reasons per request type, disabled until one is chosen. `Other` requires typed text. Applies to all three surfaces. |
+| 5 | Approve & Generate Contract | The review dialog **closes** and the contract opens in front. Both used to mount at `z-50`, so the contract was behind the dialog. |
+| 6 | Download Contract PDF | Downloads. **A 404 is correct** if you switched shops — that is the tenant scoping working, not a regression. |
+| 7 | The PDF itself | Labels and values on one row; terms numbered 1–8; **one** SIGNATURES block, not two; "Page 1 of 2" bottom-right; `Loan Term: 30 days` **not** `30 days months`. |
+| 8 | Signature names | `JUAN DELA CRUZ` in caps under the signature rule, role beneath. **Needs the unblock below first** — this is the not-yet-deployed part. |
+| 9 | Renewal | Redemption → "Customer is renewing instead" → Collect Interest & Renew. ₱350 on a ₱10,000 loan at 3.5%. |
+
+To inspect a PDF without the app:
+
+```bash
+cd backend
+$env:TS_NODE_COMPILER_OPTIONS='{"module":"commonjs","target":"es2021","esModuleInterop":true,"experimentalDecorators":true,"emitDecoratorMetadata":true,"skipLibCheck":true}'
+npx ts-node scripts/preview-contract-pdf.ts    # contract-{unsigned,signed,half-signed}.pdf
+node ../docs/pdf-rows.cjs scripts/contract-signed.pdf   # prints text + x/y per run
+```
+
+`pdf-rows.cjs` asserts rows line up, which a screenshot cannot. Two runs on the
+same `y` are on one visual row.
+
+## Session 4 additions — a security fix and a UI rebuild
+
+### The contract PDF route was cross-tenant (most serious item of session 4)
+
+`GET /loan/contracts/:contractId/pdf` had **no `@Roles` and no
+`@RequiresPermission`**, and `downloadContractPdf` looked the contract up with a
+bare `findUnique({ where: { id } })` — no tenant check at all. Any authenticated
+profile of any role could render **any shop's signed contract** by guessing a
+UUID. That is a cross-tenant read of the document the whole thesis rests on.
+
+Fixed on both halves, because they are separate questions:
+
+- **May this role read a contract?** `contract.view`, granted to exactly the
+  roles that already hold `contract.sign` (OWNER, MANAGER, STAFF, CASHIER_TELLER,
+  APPRAISER). Seeded by the forward migration in trap 25 — a baseline edit alone
+  left every live environment refusing the owner, which the operator caught
+  immediately.
+- **Whose contract?** The service compares the contract's owning
+  `application.pawnshopId` against the caller's and 404s on a mismatch. A 404,
+  not a 403 — a 403 confirms the id exists. `SUPER_ADMIN` is exempt **at the
+  service layer only**: `RbacGuard` holds super admin to an allowlist and
+  `/loan` is not a governance prefix, so over HTTP the guard refuses first.
+  Support access is `/tenant-governance/request-support-access`.
+
+The scoping tests were reverted-and-checked: 4 of 7 fail without the fix.
+
+**This is the fourth instance of the same class** — the browser branch-name read,
+the analytics aggregates, the KYC doc URLs, and this. Every one was a read
+assembled outside the tenant the request was scoped to. That shape is worth
+naming in the defense: *the browser was trusted to know whose data it was
+looking at.*
+
+### The contract PDF, rebuilt
+
+The renderer was `html.replace(/<[^>]*>/g, '\n')` — it replaced **every tag**
+with a newline, including the `<br/>` the templates use deliberately to keep a
+label and its value on one row. Every field printed as two lines. The same line
+of code produced underlined headings that read as hyperlinks, unnumbered terms,
+and no page numbers. It also printed **two** SIGNATURES blocks: the template's
+blank ruled one, then the renderer's signed one.
+
+Now: a real parser (`htmlToBlocks`), label/value as an aligned two-column table
+with a fixed gutter, the amount on a shaded band at 13pt, numbered terms with a
+hanging indent, one signature block, and a footer on every page with the contract
+number and "Page N of M". Signer names now print in caps under their own rule,
+snapshotted at signing time (`customer_signer_name` / `staff_signer_name`,
+migration `20260930160000`) — deliberately not joined at render time, because a
+deleted staff record must not change what a signed contract says.
+
+Layout was verified by extracting text and baselines from the generated PDF, not
+by eye: `docs/pdf-rows.cjs`. That caught a sign error in my own baseline-alignment
+fix, which had *doubled* the error instead of removing it.
+
 ## Still open
 
-Unchanged, and these gate a live demo:
+Ordered by what actually blocks a live demo.
 
-- **Click through the app.** Still the top item, and now the only unverified
-  thing in this handoff. Specific things to look at, all changed this session:
-  the dashboard header (should name the branch, not say "Loading..."), the
-  approval queue rows (should show a figure, not ₱0.00), the review dialog, and
-  **Download Contract PDF** — which now needs the endpoint to be reachable, and
-  note it will 404 across tenants by design.
-- **Thesis prose reconciliation** (~1h, draft-level). Unchanged; see session 3
-  for the item list. The real thesis is `CHAPTER201-4.docx`.
-- **P.D. 114 §14 sale notice** — not implemented.
-- **Verify the 7 compliance documents as Super Admin** or `ComplianceGuard`
-  blocks tickets, loans and bids. Single most likely reason a demo fails.
-- **Rotate `service_role`, then the JWT secret.** Key is in git history via
-  `d9d199a`. Now more urgent: the PDF leak existed, so the credentials should be
-  treated as having been exposed.
-- **43 orphan auth accounts** — delete confirmed? Never confirmed done.
-- **Mobile app has no credential-security code at all.** Largest remaining gap.
-- **17 other dialogs likely render at the wrong width** — see trap 24. Every
-  `DialogContent className="max-w-*"` outside `ApprovalQueue` passes a bare
-  `max-w-*` and so probably renders at `sm:max-w-lg` (512px) on desktop rather
-  than its intended width. Some of those are *narrower* than intended, which is
-  harmless; `PayrollManagement` asks for `max-w-3xl` and is certainly being
-  squeezed. A mechanical sweep adding the `sm:` prefix would fix all of them and
-  is worth doing before the defense — it has not been done.
-- **`submitForApproval` writes `appraisedValue` and `recommendedLoanAmount` as the
-  same number** (`pawn-ticket.service.ts`). The review dialog now labels and
-  separates them so the UI is not misleading, but the stored data is still wrong:
-  a ticket appraised via this path has no distinct valuation on record.
-- **Phase 11 and Phase 12** untouched.
-- **Dashboard live-update** still gone and unreplaced. Realtime broadcast fed by a
-  database trigger, **not** a browser SELECT policy on `ticket`.
-- **`.planning/STATE.md` and `state.json` disagree** with each other and with this
-  file. This file is authoritative.
+1. **Verify the 7 compliance documents as Super Admin.** Until each is
+   `VERIFIED`, `ComplianceGuard` blocks pawn tickets, loans and auction bids.
+   Single most likely reason a demo fails, and entirely outside the code.
+2. **Rotate `service_role`, then the JWT secret.** Key is in git history via
+   `d9d199a`. Urgent: the cross-tenant PDF read existed, so treat the credentials
+   as exposed. Rotating the *database* password in Supabase also fixes the dead
+   `backend/.env` credential — see the unblock section.
+3. **43 orphan auth accounts** — no `profiles` row. Deletion was requested twice
+   and never confirmed.
+4. **Click through the app** — the checklist above.
+5. **Thesis prose reconciliation** (~1h, draft level): renewal "8 months" → 30
+   days, drop the at-rest encryption claim, narrow "weighted forecasts", fix
+   "Forfeiture" (lender takes collateral — not the state seizing it), remove
+   "Based on google", verify "Tan and Lim (2022)", standardise "Dasmariñas".
+   The real thesis is `CHAPTER201-4.docx`; `CAPSTONE CHAP 1-3.docx` is a decoy
+   from a flower-shop project and is already deleted in the working tree.
+6. **P.D. 114 §14 sale notice** — not implemented. The 90-day grace period is
+   right; the required notice before disposal is missing.
+7. **17 dialogs render at the wrong width** — trap 24. Every
+   `DialogContent className="max-w-*"` outside `ApprovalQueue` passes a bare
+   `max-w-*`, which loses to the base `sm:max-w-lg`, so they render at 512px on
+   desktop. Most ask for *narrower*, so they are accidentally fine;
+   `PayrollManagement` asks for `max-w-3xl` and is definitely being squeezed. A
+   mechanical `sm:` prefix sweep fixes all of them. Not done — it changes widths
+   nobody has looked at.
+8. **`submitForApproval` stores `appraisedValue` and `recommendedLoanAmount` as the
+   same number** (`pawn-ticket.service.ts`). The review dialog now labels them
+   separately so the UI is not misleading, but the stored data is still wrong: a
+   ticket appraised through that path has no distinct valuation on record.
+9. **Mobile app has no credential-security code at all** — a bidder can set a
+   weak password on mobile. Largest remaining gap; never confirmed whether to
+   build it.
+10. **Dashboard live-update** gone and unreplaced. The fix is a Realtime
+    broadcast fed by a database trigger, **not** a browser SELECT policy on
+    `ticket` — that would undo the RLS work entirely.
+11. **Phase 11 and Phase 12** untouched.
+12. `.planning/STATE.md` and `state.json` disagree with each other and with this
+    file. GSD bookkeeping, not maintained. **This file is authoritative.**
 
 ## BLOCKED — read this before anything else
 
