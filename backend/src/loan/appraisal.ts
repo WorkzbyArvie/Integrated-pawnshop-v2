@@ -344,7 +344,12 @@ export interface RiskInput {
   authenticityVerified?: boolean;
   /** Explicit suspicion, e.g. a failed density or hallmark check. */
   authenticitySuspect?: boolean;
-  /** Is the pawner's government ID verified? */
+  /**
+   * Is the pawner's government ID verified?
+   *
+   * `undefined` means nobody checked. That is not the same as `false`, and the
+   * scorer treats them differently - see {@link assessRisk}.
+   */
   idVerified?: boolean;
   /** KYC status, case-insensitive. Anything short of VERIFIED counts. */
   kycStatus?: string | null;
@@ -390,15 +395,30 @@ export function assessRisk(input: RiskInput): RiskAssessment {
     factors.push('authenticity verified');
   }
 
-  if (input.idVerified !== true) {
+  // "Not assessed" and "assessed and failed" are different facts, and conflating
+  // them fabricates a finding about the pawner.
+  //
+  // The POS sends neither `idVerified` nor `kycStatus`, so both arrived as
+  // `undefined` and were scored as failures: a 10g bracelet the appraiser had
+  // every reason to trust came back 85% CRITICAL on the strength of "ID not
+  // verified" and "KYC not verified", which nobody had actually checked. The
+  // floor was 10 + 30 + 25 + 20 and the score could not go lower.
+  //
+  // `false` is a real finding and still scores. `undefined` is an absence and now
+  // says so, contributing nothing.
+  if (input.idVerified === false) {
     score += RISK_FACTORS.idUnverified;
     factors.push('ID not verified');
-  } else {
+  } else if (input.idVerified === true) {
     factors.push('ID verified');
+  } else {
+    factors.push('ID not assessed');
   }
 
   const kyc = (input.kycStatus ?? '').trim().toUpperCase();
-  if (kyc !== 'VERIFIED') {
+  if (kyc === '') {
+    factors.push('KYC not assessed');
+  } else if (kyc !== 'VERIFIED') {
     score += RISK_FACTORS.kycNotVerified;
     factors.push('KYC not verified');
   } else {

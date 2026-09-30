@@ -308,8 +308,19 @@ describe('assessRisk', () => {
       kycStatus: 'VERIFIED',
     });
     const noAuth = assessRisk({ idVerified: true, kycStatus: 'VERIFIED' });
-    const noId = assessRisk({ authenticityVerified: true, kycStatus: 'VERIFIED' });
-    const noKyc = assessRisk({ authenticityVerified: true, idVerified: true });
+    // `false` rather than omitted. Omission means nobody checked, which is no
+    // longer a failure - so these must state the failure explicitly to exercise
+    // the weight the constant publishes.
+    const noId = assessRisk({
+      authenticityVerified: true,
+      idVerified: false,
+      kycStatus: 'VERIFIED',
+    });
+    const noKyc = assessRisk({
+      authenticityVerified: true,
+      idVerified: true,
+      kycStatus: 'PENDING',
+    });
 
     expect(RISK_FACTORS.authenticityUnverified)
       .toBeGreaterThan(RISK_FACTORS.idUnverified);
@@ -364,13 +375,27 @@ describe('assessRisk', () => {
     expect(counterfeit.band).toBe('CRITICAL');
     expect(counterfeit.blocking).toBe(true);
 
-    // And a complete absence of verification, which is paperwork rather than
-    // authenticity, must not be able to outrank it in the only field that
-    // stops a pawn.
-    const nothingCleared = assessRisk({ weight: 10 });
-    expect(nothingCleared.score).toBeGreaterThan(counterfeit.score);
+    // And no amount of *unperformed* paperwork may outrank it. An ordinary POS
+    // quote - which sends only `authenticityVerified: false` - used to total 85
+    // here, above the counterfeit, purely because checks nobody performed were
+    // being charged as failures. It now sits at 40.
+    const unperformed = assessRisk({ authenticityVerified: false, weight: 10 });
+    expect(unperformed.score).toBeLessThan(counterfeit.score);
     expect(counterfeit.blocking).toBe(true);
-    expect(nothingCleared.blocking).toBe(false);
+    expect(unperformed.blocking).toBe(false);
+
+    // Every check explicitly failed still totals more than a suspected
+    // counterfeit (10 + 30 + 25 + 20 = 85 against 10 + 45 = 55). That ordering is
+    // the known reason `blocking` exists and is not scored away - the band reports
+    // the worst condition present rather than the arithmetic.
+    const allFailed = assessRisk({
+      authenticityVerified: false,
+      idVerified: false,
+      kycStatus: 'PENDING',
+      weight: 10,
+    });
+    expect(allFailed.score).toBeGreaterThan(counterfeit.score);
+    expect(allFailed.blocking).toBe(false);
   });;
 
   it('does not block a merely unverified item', () => {
@@ -387,10 +412,12 @@ describe('assessRisk', () => {
     expect(bare.score).toBeGreaterThan(cleared.score);
   });
 
-  it('penalises a missing ID and an unverified KYC', () => {
+  it('penalises a failed ID and an unverified KYC', () => {
+    // Explicit `false` and an explicit status: a check nobody performed is a
+    // different fact, and is covered separately below.
     const clean = assessRisk({ authenticityVerified: true, idVerified: true, kycStatus: 'VERIFIED' });
-    const noId = assessRisk({ authenticityVerified: true, kycStatus: 'VERIFIED' });
-    const noKyc = assessRisk({ authenticityVerified: true, idVerified: true });
+    const noId = assessRisk({ authenticityVerified: true, idVerified: false, kycStatus: 'VERIFIED' });
+    const noKyc = assessRisk({ authenticityVerified: true, idVerified: true, kycStatus: 'PENDING' });
 
     expect(noId.score).toBeGreaterThan(clean.score);
     expect(noKyc.score).toBeGreaterThan(clean.score);
@@ -402,9 +429,14 @@ describe('assessRisk', () => {
       expect(assessRisk({ kycStatus: status, authenticityVerified: true, idVerified: true }).factors)
         .toContain('KYC verified');
     }
-    for (const status of ['PENDING', 'NOT_SUBMITTED', null, undefined, 'REJECTED']) {
+    for (const status of ['PENDING', 'NOT_SUBMITTED', 'REJECTED']) {
       expect(assessRisk({ kycStatus: status, authenticityVerified: true, idVerified: true }).factors)
         .toContain('KYC not verified');
+    }
+    // Blank, null and omitted all mean the same thing: nobody checked.
+    for (const status of ['', '   ', null, undefined]) {
+      expect(assessRisk({ kycStatus: status, authenticityVerified: true, idVerified: true }).factors)
+        .toContain('KYC not assessed');
     }
   });
 
@@ -441,10 +473,26 @@ describe('assessRisk', () => {
     expect(cleared.score).toBeLessThan(MODERATE_RISK_THRESHOLD);
     expect(cleared.band).toBe('LOW');
 
-    // Nothing cleared, light, low value: 10 + 30 + 25 + 20 = 85, over CRITICAL.
-    const bare = assessRisk({ weight: 10 });
-    expect(bare.score).toBeGreaterThanOrEqual(CRITICAL_RISK_THRESHOLD);
-    expect(bare.band).toBe('CRITICAL');
+    // Every check explicitly failed, light and low value: 10 + 30 + 25 + 20 = 85,
+    // over CRITICAL. This used to be the *omitted* case, which meant an ordinary
+    // POS quote - one that sends only `authenticityVerified: false` - landed
+    // here at 85% CRITICAL and listed "ID not verified" as a finding about a
+    // pawner nobody had checked.
+    const allFailed = assessRisk({
+      authenticityVerified: false,
+      idVerified: false,
+      kycStatus: 'PENDING',
+      weight: 10,
+    });
+    expect(allFailed.score).toBeGreaterThanOrEqual(CRITICAL_RISK_THRESHOLD);
+    expect(allFailed.band).toBe('CRITICAL');
+
+    // An unperformed check is not a failed one, so a POS quote sits at
+    // 10 + 30 = 40: HIGH, which is "needs manager review" - exactly what
+    // submit-for-approval does next.
+    const unperformed = assessRisk({ authenticityVerified: false, weight: 10 });
+    expect(unperformed.score).toBeLessThan(CRITICAL_RISK_THRESHOLD);
+    expect(unperformed.band).toBe('HIGH');
   });
 
   it('puts the band boundaries where the constants say they are', () => {
