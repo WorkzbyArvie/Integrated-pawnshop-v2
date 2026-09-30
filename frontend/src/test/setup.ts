@@ -32,6 +32,37 @@ if (typeof window !== 'undefined' && typeof window.matchMedia !== 'function') {
   });
 }
 
+// `IntersectionObserver` drives the landing page's scroll-reveal and
+// scroll-spy. jsdom does not implement it, so rendering `LandingPage` threw
+// `ReferenceError: IntersectionObserver is not defined` before a single
+// assertion ran — which reads as "the page is broken" rather than "this test
+// file cannot render the page".
+//
+// The stub never fires a callback, so every observed element stays in its
+// initial state. A test that needs the reveal to have happened must drive it
+// explicitly rather than waiting for a scroll event that will not come.
+if (typeof globalThis.IntersectionObserver === 'undefined') {
+  class NoopIntersectionObserver implements IntersectionObserver {
+    readonly root: Element | Document | null = null;
+    readonly rootMargin: string = '';
+    readonly thresholds: ReadonlyArray<number> = [];
+    observe(): void {}
+    unobserve(): void {}
+    disconnect(): void {}
+    takeRecords(): IntersectionObserverEntry[] {
+      return [];
+    }
+  }
+  globalThis.IntersectionObserver =
+    NoopIntersectionObserver as unknown as typeof IntersectionObserver;
+  (globalThis as any).IntersectionObserverEntry = class {
+    isIntersecting = false;
+    intersectionRatio = 0;
+    target: Element = document.documentElement;
+    time = 0;
+  };
+}
+
 if (typeof globalThis.localStorage === 'undefined') {
   const store = new Map<string, string>();
   const storage: Storage = {

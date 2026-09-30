@@ -191,13 +191,28 @@ type ApprovedReview = {
 
 const AUCTION_URL = import.meta.env.VITE_AUCTION_URL || 'https://pawngold-auctionhouse-v2.vercel.app';
 
-const HEADER_LINKS: Array<{ href: string; label: string; external?: boolean; url?: string }> = [
+/**
+ * `route` links leave the page but stay inside the app, unlike `external` which
+ * opens another site. A pawner's entry point has to be reachable from here, so
+ * it is a first-class kind rather than an anchor that happens to point at
+ * another path.
+ */
+const HEADER_LINKS: Array<{
+  href: string;
+  label: string;
+  external?: boolean;
+  route?: string;
+  url?: string;
+}> = [
   { href: '#home', label: 'Home' },
   { href: '#features', label: 'Features' },
   { href: '#pricing', label: 'Pricing' },
   { href: '#security', label: 'Security' },
   { href: '#faq', label: 'FAQ' },
   { href: '#contact', label: 'Contact' },
+  // The audience here is a shop owner. This one is a pawner with gold in a
+  // drawer, so it is placed last and styled apart from the section links.
+  { href: 'apply', label: 'Get an Estimate', route: '/apply' },
   { href: 'auction', label: 'Auction House', external: true, url: AUCTION_URL },
 ];
 
@@ -739,6 +754,22 @@ export default function LandingPage() {
                       <path d="M1.5 8.5L8.5 1.5M8.5 1.5H3.5M8.5 1.5V6.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
                     </svg>
                   </a>
+                ) : item.route ? (
+                  // A pawner, not an operator. Set apart from the section links
+                  // so the header does not read as though "Get an Estimate" is
+                  // another tab of the sales pitch.
+                  <Link
+                    key={item.label}
+                    to={item.route}
+                    className="inline-flex items-center gap-1.5 rounded-[10px] px-3 py-1.5 text-[13px] font-semibold transition-colors duration-150"
+                    style={{
+                      border: '1px solid rgba(201,160,92,0.28)',
+                      color: 'var(--gold)',
+                    }}
+                  >
+                    {item.label}
+                    <ArrowRight className="h-3 w-3" />
+                  </Link>
                 ) : (
                   <button
                     key={item.label}
@@ -757,6 +788,21 @@ export default function LandingPage() {
             </nav>
 
             <div className="flex items-center gap-3">
+              {/*
+                The section links are `hidden md:flex`, and this header has no
+                mobile menu, so below `md` the pawner route would not exist at
+                all. A phone is the most likely device for someone standing at a
+                jewellery counter, so it is shown here and dropped above `md`
+                where the nav already carries it.
+              */}
+              <Link
+                to="/apply"
+                className="inline-flex items-center gap-1 rounded-[10px] border px-2.5 py-1.5 text-[12px] font-semibold md:hidden"
+                style={{ borderColor: 'rgba(201,160,92,0.28)', color: 'var(--gold)' }}
+              >
+                Estimate
+                <ArrowRight className="h-3 w-3" />
+              </Link>
               <Link to="/login" className="text-[13px] font-medium" style={{ color: 'var(--text-secondary)' }}>Sign In</Link>
               <button
                 onClick={openModal}
@@ -817,6 +863,25 @@ export default function LandingPage() {
                 Explore Features
               </button>
             </div>
+
+            {/*
+              The hero is written for a shop owner, and its primary action is
+              "Start Free Trial". Someone with a ring in their pocket is not
+              looking for that, and burying their route under it is how a real
+              customer ends up leaving. So the pawner's path is stated in its own
+              words, below the operator's actions and out of their way.
+            */}
+            <p className="mt-6 text-[13px]" style={{ color: 'var(--text-muted)' }}>
+              Not a shop owner?{' '}
+              <Link
+                to="/apply"
+                className="inline-flex items-center gap-1.5 font-semibold underline-offset-4 transition-opacity duration-150 hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--gold)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg-deep)]"
+                style={{ color: 'var(--gold)' }}
+              >
+                Get an estimate for your item
+                <ArrowRight className="h-3.5 w-3.5" />
+              </Link>
+            </p>
             <div className="mt-8 grid grid-cols-3 gap-3">
               {heroStats.map((stat) => (
                 <div
@@ -1280,6 +1345,14 @@ export default function LandingPage() {
                 { label: 'Security', href: '#security' },
                 { label: 'FAQ', href: '#faq' },
               ],
+            },
+            {
+              // The footer is the last place someone looks before giving up, and
+              // this is the only place that addresses a pawner rather than an
+              // operator — so it gets its own column instead of being filed under
+              // "Product", where it would read as another feature of the SaaS.
+              label: 'For Customers',
+              items: [{ label: 'Get an Estimate', href: '/apply' }],
             },
             {
               label: 'Legal',
