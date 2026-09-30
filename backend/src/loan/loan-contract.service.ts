@@ -417,6 +417,22 @@ export class LoanContractService {
 
     const contractData = contract.contractData as Record<string, any>;
 
+    // Fall back to the recorded `staffId` for a contract signed before the
+    // snapshot existed. The customer already had a fallback - the borrower name
+    // is in `contract_data` - but the staff name had none, so every
+    // already-signed contract printed a signature with no name against it. The
+    // `staffId` on the row is the evidence of who signed, so it is the right
+    // thing to reconstruct from. This is a fallback for the past only: new
+    // signatures snapshot the name and never reach it.
+    let staffName = contract.staffSignerName ?? null;
+    if (!staffName && contract.staffId) {
+      const staff = await this.prisma.staff.findUnique({
+        where: { id: contract.staffId },
+        select: { fullName: true },
+      });
+      staffName = staff?.fullName ?? null;
+    }
+
     const { pdfBuffer } = await this.contractRenderer.renderPdfOnly(
       'loan-contract',
       contractData,
@@ -431,7 +447,7 @@ export class LoanContractService {
         // best available evidence for an already-signed document.
         customerName:
           contract.customerSignerName ?? contractData?.customerName ?? null,
-        staffName: contract.staffSignerName ?? null,
+        staffName,
       },
       extraSections,
     );

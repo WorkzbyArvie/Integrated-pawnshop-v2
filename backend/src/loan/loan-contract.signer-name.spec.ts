@@ -181,3 +181,102 @@ describe('signByStaff', () => {
     );
   });
 });
+
+/**
+ * The PDF for an *already signed* contract, which was signed before the
+ * snapshot columns existed.
+ *
+ * This is the case the operator actually hit: a contract signed and stored, then
+ * the download rendering a signature with no name against it. The borrower has a
+ * fallback because their name is in `contract_data`; the staff did not, so every
+ * existing contract printed a nameless staff signature. `staff_id` is on the row
+ * and is real evidence of who signed, so it is the right thing to reconstruct
+ * from.
+ */
+describe('downloadContractPdf name fallbacks', () => {
+  const build = (contractOverrides: Record<string, unknown>, staffRow: unknown) => {
+    const contract = {
+      id: CONTRACT_ID,
+      contractNumber: 'CTR-EXISTING',
+      contractData: { customerName: 'Juan Dela Cruz', loanAmount: '440.00' },
+      application: { pawnshopId: 'shop-1' },
+      customerSignature: 'sig',
+      customerSignedAt: new Date('2026-09-30T11:00:00.000Z'),
+      customerSignerName: null,
+      staffSignature: 'sig',
+      staffSignedAt: new Date('2026-09-30T11:05:00.000Z'),
+      staffId: null as string | null,
+      staffSignerName: null as string | null,
+      ...contractOverrides,
+    };
+
+    const renderPdfOnly = jest.fn().mockResolvedValue({
+      pdfBuffer: Buffer.from('pdf'),
+      htmlContent: '<p>x</p>',
+    });
+    const staffFindUnique = jest.fn().mockResolvedValue(staffRow);
+
+    const service = Object.create(LoanContractService.prototype) as LoanContractService;
+    (service as any).prisma = {
+      loanContract: { findUnique: jest.fn().mockResolvedValue(contract) },
+      staff: { findUnique: staffFindUnique },
+    };
+    (service as any).contractRenderer = { renderPdfOnly };
+    (service as any).getCustomContractSections = jest.fn().mockResolvedValue([]);
+    (service as any).logger = { warn: jest.fn(), error: jest.fn() };
+
+    return { service, renderPdfOnly, staffFindUnique };
+  };
+
+  const signaturesOf = (renderPdfOnly: jest.Mock) => renderPdfOnly.mock.calls[0][2];
+
+  it('falls back to contract_data for a borrower signed before the snapshot', async () => {
+    const { service, renderPdfOnly } = build({ staffId: null }, null);
+
+    await service.downloadContractPdf(CONTRACT_ID, 'shop-1', 'OWNER');
+
+    expect(signaturesOf(renderPdfOnly).customerName).toBe('Juan Dela Cruz');
+  });
+
+  it('reconstructs the staff name from staff_id for a pre-snapshot contract', async () => {
+    const { service, renderPdfOnly } = build(
+      { staffId: STAFF_ID },
+      { fullName: 'Maria Santos' },
+    );
+
+    await service.downloadContractPdf(CONTRACT_ID, 'shop-1', 'OWNER');
+
+    expect(signaturesOf(renderPdfOnly).staffName).toBe('Maria Santos');
+  });
+
+  it('prefers the snapshot over the join when both exist', async () => {
+    // A renamed staff member must not change what a signed contract says. The
+    // snapshot wins; the join is only for the past.
+    const { service, renderPdfOnly, staffFindUnique } = build(
+      { staffId: STAFF_ID, staffSignerName: 'Name At Signing' },
+      { fullName: 'Renamed Later' },
+    );
+
+    await service.downloadContractPdf(CONTRACT_ID, 'shop-1', 'OWNER');
+
+    expect(signaturesOf(renderPdfOnly).staffName).toBe('Name At Signing');
+    expect(staffFindUnique).not.toHaveBeenCalled();
+  });
+
+  it('does not query for a staff record when none was recorded', async () => {
+    const { service, staffFindUnique } = build({ staffId: null }, { fullName: 'X' });
+
+    await service.downloadContractPdf(CONTRACT_ID, 'shop-1', 'OWNER');
+
+    expect(staffFindUnique).not.toHaveBeenCalled();
+  });
+
+  it('leaves the name null when the staff record has since been deleted', async () => {
+    // No crash and no invented name - the block degrades to its placeholder.
+    const { service, renderPdfOnly } = build({ staffId: STAFF_ID }, null);
+
+    await service.downloadContractPdf(CONTRACT_ID, 'shop-1', 'OWNER');
+
+    expect(signaturesOf(renderPdfOnly).staffName).toBeNull();
+  });
+});
