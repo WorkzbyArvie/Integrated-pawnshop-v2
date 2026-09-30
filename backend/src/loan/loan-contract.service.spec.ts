@@ -27,6 +27,11 @@ describe('LoanContractService', () => {
       ticket: {
         update: jest.fn(),
       },
+      // `signByStaff` looks the signatory up to snapshot their printed name onto
+      // the contract, so the mock needs the model.
+      staff: {
+        findUnique: jest.fn().mockResolvedValue({ fullName: 'Maria Santos' }),
+      },
     };
 
     legalProofService = {
@@ -151,6 +156,10 @@ describe('LoanContractService', () => {
         staffSignedAt: expect.any(Date),
         signedByStaff: true,
         staffId: 'staff-1',
+        // The printed name of the signatory, snapshotted onto the contract so
+        // the PDF can say who signed it. Resolved from the staff record here,
+        // not joined at render time.
+        staffSignerName: 'Maria Santos',
       },
     });
     expect(prisma.ticket.update).toHaveBeenCalledWith({

@@ -939,12 +939,20 @@ model LoanContract {
   customerSignatureImageUrl  String?       @map("customer_signature_image_url")
   customerSignatureImageMime String?       @map("customer_signature_image_mime")
   customerSignedAt  DateTime?       @map("customer_signed_at")
+  // Printed name of whoever signed, captured at signing time.
+  //
+  // The signature image alone cannot identify a signer, and resolving the name
+  // later is not evidence: a staff record can be deleted or renamed, and the
+  // contract would then print a different name than the one signed. This is a
+  // snapshot, deliberately not a join.
+  customerSignerName String?       @map("customer_signer_name")
   signedByStaff     Boolean         @default(false) @map("signed_by_staff")
   staffSignature    String?         @map("staff_signature")
   staffSignatureType      SignatureType @default(TYPED) @map("staff_signature_type")
   staffSignatureImageUrl  String?       @map("staff_signature_image_url")
   staffSignatureImageMime String?       @map("staff_signature_image_mime")
   staffId           String?         @map("staff_id") @db.Uuid
+  staffSignerName   String?         @map("staff_signer_name")
   staffSignedAt     DateTime?       @map("staff_signed_at")
   generatedAt       DateTime        @default(now()) @map("generated_at")
   

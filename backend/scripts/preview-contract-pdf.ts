@@ -54,12 +54,23 @@ async function main() {
   const signed = await (service as any).generatePdf(html, DATA, {
     customerSignature: `data:image/png;base64,${png}`,
     customerSignedAt: '2026-09-30T11:00:00.000Z',
+    customerName: 'Juan Dela Cruz',
     staffSignature: `data:image/png;base64,${png}`,
     staffSignedAt: '2026-09-30T11:05:00.000Z',
+    staffName: 'Maria Santos',
   });
   fs.writeFileSync(path.join(__dirname, 'contract-signed.pdf'), signed);
 
-  console.log('wrote contract-unsigned.pdf and contract-signed.pdf');
+  // Signed, but the staff record was already gone at signing time - the name is
+  // unknown, so the block must still render with its ruled line and placeholder.
+  const halfSigned = await (service as any).generatePdf(html, DATA, {
+    customerSignature: `data:image/png;base64,${png}`,
+    customerSignedAt: '2026-09-30T11:00:00.000Z',
+    customerName: 'Juan Dela Cruz',
+  });
+  fs.writeFileSync(path.join(__dirname, 'contract-half-signed.pdf'), halfSigned);
+
+  console.log('wrote contract-unsigned.pdf, contract-signed.pdf and contract-half-signed.pdf');
 }
 
 void main();

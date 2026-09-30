@@ -47,6 +47,9 @@ export class ContractRendererService {
       customerSignedAt?: string | null;
       staffSignature?: string | null;
       staffSignedAt?: string | null;
+      /** Printed name of the signer, captured at signing time. */
+      customerName?: string | null;
+      staffName?: string | null;
     },
   ) {
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(templateId);
@@ -110,6 +113,9 @@ export class ContractRendererService {
       customerSignedAt?: string | null;
       staffSignature?: string | null;
       staffSignedAt?: string | null;
+      /** Printed name of the signer, captured at signing time. */
+      customerName?: string | null;
+      staffName?: string | null;
     },
     extraSections?: { heading: string; html: string }[],
   ): Promise<{ htmlContent: string; pdfBuffer: Buffer; templateType: string; templateVersion: string }> {
@@ -509,11 +515,14 @@ export class ContractRendererService {
       customerSignedAt?: string | null;
       staffSignature?: string | null;
       staffSignedAt?: string | null;
+      /** Printed name of the signer, captured at signing time. */
+      customerName?: string | null;
+      staffName?: string | null;
     },
   ) {
     // Keep the whole block on one page: a signature line split across a page
     // break is not a signature line.
-    this.ensureRoom(doc, 210);
+    this.ensureRoom(doc, 240);
     doc.y += 10;
     this.renderHeading(doc, 'h2', 'Signatures');
 
@@ -524,6 +533,7 @@ export class ContractRendererService {
       image: string | null | undefined,
       role: string,
       signedAt: string | null | undefined,
+      signerName: string | null | undefined,
     ) => {
       const top = doc.y;
       const lineWidth = 208;
@@ -551,12 +561,6 @@ export class ContractRendererService {
         .stroke()
         .restore();
 
-      doc
-        .font('Helvetica')
-        .fontSize(8.5)
-        .fillColor('#6F6A61')
-        .text(role, lineX, ruleY + 5, { width: lineWidth, characterSpacing: 0.3 });
-
       const dateX = lineX + lineWidth + 28;
       const date = formatDate(signedAt);
       doc
@@ -568,6 +572,37 @@ export class ContractRendererService {
         .stroke()
         .restore();
 
+      // The printed name goes directly under its own rule, which is the
+      // convention: name identifies the signature, the role beneath it says what
+      // capacity they signed in. Previously only the role printed, so the
+      // document could not say who had signed it.
+      const printedName = signerName?.trim();
+      if (printedName) {
+        doc
+          .font('Helvetica-Bold')
+          .fontSize(9.5)
+          .fillColor('#1A1A1A')
+          .text(printedName.toUpperCase(), lineX, ruleY + 5, {
+            width: lineWidth,
+            lineBreak: false,
+          });
+      } else {
+        doc
+          .font('Helvetica')
+          .fontSize(8.5)
+          .fillColor('#8A8279')
+          .text('Printed name', lineX, ruleY + 5, {
+            width: lineWidth,
+            characterSpacing: 0.3,
+          });
+      }
+
+      doc
+        .font('Helvetica')
+        .fontSize(8)
+        .fillColor('#6F6A61')
+        .text(role, lineX, ruleY + 19, { width: lineWidth, characterSpacing: 0.3 });
+
       doc
         .font('Helvetica')
         .fontSize(8.5)
@@ -577,11 +612,21 @@ export class ContractRendererService {
           characterSpacing: date ? 0 : 0.3,
         });
 
-      doc.y = ruleY + 30;
+      doc.y = ruleY + 40;
     };
 
-    block(signatures?.customerSignature, 'Customer / Borrower', signatures?.customerSignedAt);
-    block(signatures?.staffSignature, 'Pawnshop Representative', signatures?.staffSignedAt);
+    block(
+      signatures?.customerSignature,
+      'Customer / Borrower',
+      signatures?.customerSignedAt,
+      signatures?.customerName,
+    );
+    block(
+      signatures?.staffSignature,
+      'Pawnshop Representative',
+      signatures?.staffSignedAt,
+      signatures?.staffName,
+    );
   }
 
   private stampFooters(doc: PDFKit.PDFDocument, data: Record<string, any>) {
@@ -620,6 +665,9 @@ export class ContractRendererService {
     customerSignedAt?: string | null;
     staffSignature?: string | null;
     staffSignedAt?: string | null;
+    /** Printed name of the signer, captured at signing time. */
+    customerName?: string | null;
+    staffName?: string | null;
   }): Promise<Buffer> {
     return new Promise((resolve) => {
       const doc = new PDFDocument({

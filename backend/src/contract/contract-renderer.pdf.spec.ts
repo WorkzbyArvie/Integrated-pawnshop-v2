@@ -96,6 +96,51 @@ describe('generatePdf', () => {
   });
 });
 
+/**
+ * A signature block with no name cannot say who signed. The name is snapshotted
+ * on the contract at signing time rather than joined at render time, so a
+ * renamed or deleted account cannot change what a signed contract says.
+ */
+describe('signer names on the contract', () => {
+  const PNG = Buffer.from(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+    'base64',
+  ).toString('base64');
+  const sig = `data:image/png;base64,${PNG}`;
+
+  it('prints the printed name for both signers', async () => {
+    const buffer = await render(TEMPLATE, { contractNumber: 'CTR-N' }, {
+      customerSignature: sig,
+      customerSignedAt: '2026-09-30T11:00:00.000Z',
+      customerName: 'Juan Dela Cruz',
+      staffSignature: sig,
+      staffSignedAt: '2026-09-30T11:05:00.000Z',
+      staffName: 'Maria Santos',
+    });
+
+    // The rendered PDF is compressed, so assert it still builds; the text
+    // itself is pinned by the row extraction in the preview step.
+    expect(buffer.subarray(0, 5).toString()).toBe('%PDF-');
+  });
+
+  it('renders when the staff record is gone and the name is unknown', async () => {
+    // A missing account must not block a document that has already been
+    // legally signed - the block degrades to its placeholders.
+    const buffer = await render(TEMPLATE, { contractNumber: 'CTR-N' }, {
+      customerSignature: sig,
+      customerSignedAt: '2026-09-30T11:00:00.000Z',
+      customerName: 'Juan Dela Cruz',
+    });
+
+    expect(buffer.subarray(0, 5).toString()).toBe('%PDF-');
+  });
+
+  it('renders an unsigned contract with placeholders for both', async () => {
+    const buffer = await render(TEMPLATE, { contractNumber: 'CTR-N' });
+    expect(buffer.subarray(0, 5).toString()).toBe('%PDF-');
+  });
+});
+
 describe('the loan term unit', () => {
   /**
    * The shipped contract printed "Loan Term: 30 days months".

@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 import { LegalProofService } from './legal-proof.service';
 import { ContractRendererService } from '../contract/contract-renderer.service';
@@ -17,6 +17,8 @@ import PDFDocument from 'pdfkit';
 
 @Injectable()
 export class LoanContractService {
+  private readonly logger = new Logger(LoanContractService.name);
+
   constructor(
     private prisma: PrismaService,
     private legalProofService: LegalProofService,
@@ -253,7 +255,16 @@ export class LoanContractService {
   async signByCustomer(applicationId: string, customerSignature: string) {
     const contract = await this.prisma.loanContract.findUnique({
       where: { applicationId },
-      include: { application: { select: { pawnshopId: true, customerId: true, loan: { include: { ticket: true } } } } },
+      include: {
+        application: {
+          select: {
+            pawnshopId: true,
+            customerId: true,
+            customer: { select: { fullName: true } },
+            loan: { include: { ticket: true } },
+          },
+        },
+      },
     });
     if (!contract) throw new NotFoundException('Contract not found for this application');
     if (contract.signedByCustomer) {
@@ -262,18 +273,31 @@ export class LoanContractService {
 
     const updated = await this.prisma.loanContract.update({
       where: { id: contract.id },
-      data: { customerSignature, customerSignedAt: new Date(), signedByCustomer: true },
+      data: {
+        customerSignature,
+        customerSignedAt: new Date(),
+        signedByCustomer: true,
+        // The printed name is snapshotted here rather than looked up when the
+        // PDF is rendered, so the contract names the person who actually signed
+        // even if the customer record is renamed or removed later.
+        customerSignerName: contract.application.customer?.fullName ?? null,
+      },
     });
 
     await this.legalProofService.createProof({
       pawnshopId: contract.application.pawnshopId,
       recordType: 'CONTRACT_PROOF',
       title: `Contract signed by customer for application ${applicationId}`,
-      summary: `Contract ${contract.contractNumber} was signed by customer.`,
+      summary: `Contract ${contract.contractNumber} was signed by ${contract.application.customer?.fullName || 'the customer'}.`,
       createdBy: contract.application.customerId,
       applicationId,
       contractId: contract.id,
-      payload: { contractId: contract.id, contractNumber: contract.contractNumber, customerSignedAt: updated.customerSignedAt?.toISOString() },
+      payload: {
+        contractId: contract.id,
+        contractNumber: contract.contractNumber,
+        customerSignedAt: updated.customerSignedAt?.toISOString(),
+        customerSignerName: updated.customerSignerName,
+      },
     });
 
     return updated;
@@ -295,6 +319,20 @@ export class LoanContractService {
       throw new BadRequestException('Ticket not found for this contract');
     }
 
+    // Resolved before the write so the contract names the person who signed it.
+    // A missing staff record is not fatal - the signature still stands, it just
+    // prints without a name - so a deleted account cannot block a signing that
+    // has already legally happened.
+    const signer = await this.prisma.staff.findUnique({
+      where: { id: staffId },
+      select: { fullName: true },
+    });
+    if (!signer) {
+      this.logger.warn(
+        `No staff record for ${staffId}; contract ${contract.contractNumber} will sign without a printed name.`,
+      );
+    }
+
     await this.stateMachine.transition(
       'TICKET_LIFECYCLE',
       contract.application.loan.ticket.lifecycleStatus,
@@ -304,7 +342,13 @@ export class LoanContractService {
 
     const updated = await this.prisma.loanContract.update({
       where: { id: contract.id },
-      data: { staffSignature, staffSignedAt: new Date(), signedByStaff: true, staffId },
+      data: {
+        staffSignature,
+        staffSignedAt: new Date(),
+        signedByStaff: true,
+        staffId,
+        staffSignerName: signer?.fullName ?? null,
+      },
     });
 
     await this.prisma.ticket.update({
@@ -319,11 +363,16 @@ export class LoanContractService {
       pawnshopId: contract.application.pawnshopId,
       recordType: 'CONTRACT_PROOF',
       title: `Contract signed by staff for application ${applicationId}`,
-      summary: `Contract ${contract.contractNumber} was signed by staff.`,
+      summary: `Contract ${contract.contractNumber} was signed by ${signer?.fullName || 'staff'}.`,
       createdBy: staffId,
       applicationId,
       contractId: contract.id,
-      payload: { contractId: contract.id, contractNumber: contract.contractNumber, staffSignedAt: updated.staffSignedAt?.toISOString() },
+      payload: {
+        contractId: contract.id,
+        contractNumber: contract.contractNumber,
+        staffSignedAt: updated.staffSignedAt?.toISOString(),
+        staffSignerName: updated.staffSignerName,
+      },
     });
 
     return updated;
@@ -366,14 +415,23 @@ export class LoanContractService {
       ? await this.getCustomContractSections(contract.application.pawnshopId)
       : [];
 
+    const contractData = contract.contractData as Record<string, any>;
+
     const { pdfBuffer } = await this.contractRenderer.renderPdfOnly(
       'loan-contract',
-      contract.contractData as Record<string, any>,
+      contractData,
       {
         customerSignature: contract.customerSignature,
         customerSignedAt: contract.customerSignedAt?.toISOString() || null,
         staffSignature: contract.staffSignature,
         staffSignedAt: contract.staffSignedAt?.toISOString() || null,
+        // Snapshotted at signing. A contract signed before this existed has no
+        // snapshot, so the borrower falls back to the name already in
+        // `contract_data` - the name the contract was issued to, which is the
+        // best available evidence for an already-signed document.
+        customerName:
+          contract.customerSignerName ?? contractData?.customerName ?? null,
+        staffName: contract.staffSignerName ?? null,
       },
       extraSections,
     );
