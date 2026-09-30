@@ -53,6 +53,17 @@ const KNOWN_UNGUARDED: Record<string, string> = {
   '/customers': 'duplicate check, gated on pawn_ticket.create and tenant-scoped',
   '/healthz': 'liveness probe',
   '/health': 'liveness probe',
+  // The public half of the pawn application flow. `GET /public/pawn/branches`,
+  // `POST /public/pawn/quote`, `POST /public/pawn/reservations`,
+  // `GET /public/pawn/reservations/:reference` and `POST /public/pawn/uploads`
+  // are `@Public()` by necessity — a prospective pawner has no account, which is
+  // the entire reason the flow exists. They are all rate limited, and a pawner
+  // has no tenant header because they belong to no tenant.
+  //
+  // The sixth route, `GET /public/pawn/reservations`, is the shop-side queue. It
+  // is permission-gated and resolves the tenant from `req.user`, so a
+  // `?pawnshopId=` may only narrow the read and only for SUPER_ADMIN.
+  '/public/pawn': 'applicant routes are unauthenticated by necessity; the shop-side queue is scoped to req.user',
 };
 
 /**

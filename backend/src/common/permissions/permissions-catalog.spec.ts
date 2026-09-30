@@ -96,6 +96,15 @@ const MATRIX: Record<string, { tuple: string[]; permission: string }> = {
     tuple: ['APPRAISER', 'CASHIER_TELLER', 'STAFF', 'MANAGER', 'OWNER'],
     permission: 'pawn_ticket.create',
   },
+  // The shop-side queue of online pawn applications. Anyone who can take a pawn
+  // at the counter can see the applicants who asked about one, scoped to their
+  // own shop - a branch preparing for a walk-in needs the name and the item.
+  // The tenant comes from `req.user`, not from the query string, so this grants
+  // no reach into another shop's applicants.
+  'public-appraisal.controller.ts::listForShop': {
+    tuple: ['APPRAISER', 'CASHIER_TELLER', 'STAFF', 'MANAGER', 'OWNER'],
+    permission: 'pawn_ticket.create',
+  },
   'pawn-ticket.controller.ts::quoteRedemption': {
     tuple: ['CASHIER_TELLER', 'MANAGER', 'OWNER'],
     permission: 'pawn_ticket.redeem',
@@ -713,7 +722,15 @@ describe('69-site equivalence scan', () => {
     // renewal. All are guarded, so all are counted here - the invariant is
     // that every guarded site is in the matrix, and this number is the
     // tripwire for that.
-    expect(total).toBe(103);
+    //
+    // 104 adds `public-appraisal.controller.ts::listForShop`, the shop-side
+    // queue of online applications. It is counted rather than left out because it
+    // holds applicant names, phone numbers, addresses and item descriptions -
+    // personal data, and the reason it is `@RequiresPermission`-scoped to the
+    // caller's own tenant rather than trusting `?pawnshopId=`. The five
+    // applicant-facing routes on that controller are `@Public()` and carry no
+    // roles, so they contribute nothing here by design.
+    expect(total).toBe(104);
   });
 
   it('matrix tuples match the current @Roles tuples (RED-phase calibration)', () => {

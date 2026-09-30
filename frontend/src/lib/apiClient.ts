@@ -463,6 +463,73 @@ export const api = {
 
     return res.blob();
   },
+
+  /**
+   * Upload a file as `multipart/form-data`.
+   *
+   * `request` JSON-stringifies its body, so a file could not be sent through it
+   * and every caller hand-rolled a `fetch` — the same mistake that made
+   * `VITE_API_URL` appear in this codebase and fail only on a deployed build.
+   * This goes through {@link getBackendUrl} and {@link getHeaders} like every
+   * other call here.
+   *
+   * `Content-Type` is deliberately **not** set. The browser has to add the
+   * multipart boundary itself; setting it by hand produces a body the server
+   * cannot parse, and the failure surfaces as an empty form rather than an error.
+   */
+  upload: async <T = unknown>(
+    path: string,
+    file: File | Blob,
+    options: {
+      fieldName?: string;
+      query?: Record<string, string | number | undefined>;
+    } = {},
+  ): Promise<T> => {
+    const headers = await getHeaders();
+    // Drop any `Content-Type` the shared header builder set; fetch fills it in.
+    delete headers['Content-Type'];
+
+    const form = new FormData();
+    form.append(options.fieldName ?? 'file', file);
+
+    let url = `${BACKEND_URL}${path.startsWith('/') ? path : `/${path}`}`;
+    if (options.query) {
+      const params = new URLSearchParams();
+      for (const [key, val] of Object.entries(options.query)) {
+        if (val !== undefined && val !== null && val !== '') {
+          params.append(key, String(val));
+        }
+      }
+      const qs = params.toString();
+      if (qs) url += `?${qs}`;
+    }
+
+    const res = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: form,
+      // Never let a proxy or the HTTP cache hold on to an upload.
+      cache: 'no-store',
+    });
+
+    const text = await res.text();
+    let body: any = null;
+    try {
+      body = text ? JSON.parse(text) : null;
+    } catch {
+      body = null;
+    }
+
+    if (!res.ok) {
+      throw new ApiError(
+        body?.message || body?.error || `Upload failed (HTTP ${res.status})`,
+        res.status,
+        body ?? { success: false, error: 'UPLOAD_FAILED' },
+      );
+    }
+
+    return body as T;
+  },
 };
 
 export async function getCurrentUserId(): Promise<string> {

@@ -100,6 +100,7 @@ const OwnerComplianceDashboard = lazy(() => import('./pages/admin/OwnerComplianc
 const BidderKycReview = lazy(() => import('./components/BidderKycReview'));
 const TransactionHistory = lazy(() => import('./pages/loans/TransactionHistory').then(m => ({ default: m.TransactionHistory })));
 const LandingPage = lazy(() => import('./pages/LandingPage'));
+const ApplyPage = lazy(() => import('./pages/ApplyPage'));
 const ReviewsFeedback = lazy(() => import('./components/ReviewsFeedback').then(m => ({ default: m.ReviewsFeedback })));
 const LegalDocPage = lazy(() => import('./pages/LegalDocPage'));
 const AccountSecurityPage = lazy(() => import('./pages/AccountSecurityPage'));
@@ -330,6 +331,9 @@ function App() {
 
   const isResetPasswordRoute = normalizedPath === '/reset-password' || hasRecoveryIntent;
   const isLoginRoute = normalizedPath === '/login';
+  // Public, unauthenticated, and available to a signed-in operator as well —
+  // the pawner has no account, so it must never be gated behind one.
+  const isApplyRoute = normalizedPath === '/apply';
   const isLegalDocRoute =
     normalizedPath === '/terms' ||
     normalizedPath === '/privacy' ||
@@ -1629,6 +1633,13 @@ function App() {
   // only then the operational shell.
   if (isLegalDocRoute) return <LegalDocPage path={normalizedPath} />;
   if (isResetPasswordRoute) return <ResetPassword />;
+
+  // The online application is public and needs no credentials, so it sits above
+  // the credential preflight rather than behind it. Rendering it after the
+  // `!session` check would strand it on the marketing page for every applicant
+  // who does not already have an account — which is every applicant.
+  if (isApplyRoute) return <ApplyPage />;
+
   if (!session) {
     if (isLoginRoute) return <Login />;
     return <LandingPage />;

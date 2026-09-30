@@ -2379,27 +2379,42 @@ export class AppService {
       throw new Error('Your KYC is already verified');
     }
 
-    const ocrNameMatch = data?.ocrNameMatch === true;
-    const ocrConfidence = Math.min(100, Math.max(0, Number(data?.ocrConfidence) || 0));
-    const faceMatched = data?.faceMatched === true;
-    const faceMatchScore = Math.min(1, Math.max(0, Number(data?.faceMatchScore) || 0));
-    const tamperClean = data?.tamperClean === true;
+    // What the client used to send, and what is now recorded instead.
+    //
+    // `ocrNameMatch`, `ocrConfidence`, `faceMatched`, `faceMatchScore` and
+    // `tamperClean` all arrived in the request body, and the reviewer was shown
+    // "FACE MATCH ✓" and "TAMPER CLEAN ✓" on the strength of them. Anyone could
+    // POST `faceMatched: true` and have the person adjudicating their identity
+    // shown a green tick that the server had established nothing. It never
+    // auto-verified — the status still goes to PENDING and a human decides — so
+    // this was not a bypass, but the evidence on screen was forgeable.
+    //
+    // The server cannot perform OCR or face matching, so it does not claim to.
+    // It records what it can observe: which files arrived, when, and from where,
+    // and states plainly that no automated check was performed. The reviewer
+    // opens the documents and decides, which is what the PENDING state means.
+    const evidence = {
+      idFrontUrl: Boolean(idFrontUrl),
+      idBackUrl: Boolean(idBackUrl),
+      selfieUrl: Boolean(selfieUrl),
+    };
 
     const verificationData = {
-      ocr: {
-        nameMatch: ocrNameMatch,
-        idNumberMatch: data?.ocrIdNumberMatch === true,
-        confidence: ocrConfidence,
-        extractedName: String(data?.ocrExtractedName || ''),
-        extractedIdNumber: String(data?.ocrExtractedIdNumber || ''),
+      evidence,
+      automatedChecks: {
+        // Explicit, so a reviewer is never left reading an absent field as
+        // "checked and passed".
+        ocr: { performed: false, reason: 'No OCR provider is configured.' },
+        face: { performed: false, reason: 'No face-match provider is configured.' },
+        tamper: { performed: false, reason: 'No document-forensics provider is configured.' },
       },
-      face: {
-        matched: faceMatched,
-        score: faceMatchScore,
-      },
-      tamper: {
-        clean: tamperClean,
-        flags: Array.isArray(data?.tamperFlags) ? data.tamperFlags : [],
+      // Client claims are kept only as claims, and are never rendered as a
+      // finding.
+      clientAsserted: {
+        ocrNameMatch: data?.ocrNameMatch === true,
+        faceMatched: data?.faceMatched === true,
+        tamperClean: data?.tamperClean === true,
+        trusted: false,
       },
       submittedAt: new Date().toISOString(),
       clientIp: null,

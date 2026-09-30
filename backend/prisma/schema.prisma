@@ -30,6 +30,7 @@ model Branch {
   attendanceRecords    AttendanceRecord[]
   payslips             Payslip[]
   pawnshop             Pawnshop?              @relation(fields: [pawnshopId], references: [id])
+  reservations         PawnReservation[]
   @@map("branch")
   @@schema("public")
 }
@@ -40,6 +41,85 @@ model Category {
   inventory Inventory[]
   auctionListings AuctionListing[]
   @@map("category")
+  @@schema("public")
+}
+
+/// An online application: a quoted figure and a booking, not a loan.
+///
+/// A loan requires physical possession of the collateral, so this can never
+/// become one on its own. What it does is let everything except the physical
+/// inspection happen before the pawner travels - pricing, identity evidence,
+/// compliance - and hold the quoted rate for a window so the branch can prepare.
+///
+/// The priced figures are a snapshot, not a live join. A rate table that changes
+/// tomorrow must not silently change what an application said yesterday.
+model PawnReservation {
+  id            String                  @id @default(uuid()) @db.Uuid
+  reference     String                  @unique
+  status        PawnReservationStatus   @default(PENDING)
+  pawnshopId    String                  @map("pawnshop_id") @db.Uuid
+  branchId      Int?                    @map("branch_id")
+  expiresAt     DateTime                @map("expires_at")
+
+  // Applicant
+  customerName  String                  @map("customer_name")
+  contactNumber String                  @map("contact_number")
+  address       String
+
+  // Item as described
+  itemCategory      String               @map("item_category")
+  itemDescription   String?              @map("item_description")
+  weightGrams       Float                @map("weight_grams")
+  purityPercent     Float?               @map("purity_percent")
+  photoUrls         Json                 @default("[]") @map("photo_urls")
+
+  // The quote, snapshotted at the moment it was given
+  appraisedValue       Float             @map("appraised_value")
+  recommendedLoanAmount Float            @map("recommended_loan_amount")
+  gramRate             Float             @map("gram_rate")
+  ltvRatio             Float             @map("ltv_ratio")
+  termDays             Int                @map("term_days")
+  maturityDate         DateTime           @map("maturity_date")
+  gracePeriodDays      Int                @map("grace_period_days")
+  belowStatutoryMinimum Boolean           @default(false) @map("below_statutory_minimum")
+  riskScore            Int?               @map("risk_score")
+  riskBand             String?            @map("risk_band")
+  rateSummary          Json?              @map("rate_summary")
+
+  // Identity evidence. `kycStatus` starts PENDING because capturing documents is
+  // not verification - a reviewer adjudicates, and records who and when.
+  idType          KycIdType? @map("id_type")
+  idNumber        String?    @map("id_number")
+  idFrontUrl      String?    @map("id_front_url")
+  idBackUrl       String?    @map("id_back_url")
+  selfieUrl       String?    @map("selfie_url")
+  kycStatus       KycStatus  @default(PENDING) @map("kyc_status")
+  verificationData Json?     @map("verification_data")
+
+  reviewedBy     String?     @map("reviewed_by") @db.Uuid
+  reviewedAt     DateTime?   @map("reviewed_at")
+  rejectionReason String?    @map("rejection_reason")
+  convertedTicketId Int?     @map("converted_ticket_id")
+
+  createdAt      DateTime                 @default(now()) @map("created_at")
+  updatedAt      DateTime                 @updatedAt @map("updated_at")
+
+  pawnshop       Pawnshop?                @relation(fields: [pawnshopId], references: [id])
+  branch         Branch?                  @relation(fields: [branchId], references: [id])
+
+  @@index([pawnshopId, status])
+  @@index([status, expiresAt])
+  @@map("pawn_reservation")
+  @@schema("public")
+}
+
+enum PawnReservationStatus {
+  PENDING
+  CONFIRMED
+  EXPIRED
+  CANCELLED
+  CONVERTED
+  DECLINED
   @@schema("public")
 }
 
@@ -226,6 +306,7 @@ model Pawnshop {
   receipts                  Receipt[]
   legalEntity               LegalEntity?
   pawnshopDocuments         PawnshopDocument[]
+  reservations              PawnReservation[]
   approvalRecords           ApprovalRecord[]
   customerKycRecords        CustomerKyc[]
   systemReviews             SystemReview[]

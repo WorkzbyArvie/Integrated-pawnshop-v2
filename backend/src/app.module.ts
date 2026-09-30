@@ -22,6 +22,7 @@ import { KycModule } from './kyc/kyc.module';
 import { PayrollModule } from './payroll/payroll.module';
 import { SubscriptionModule } from './subscription/subscription.module';
 import { LoanModule } from './loan/loan.module';
+import { PublicAppraisalModule } from './public-appraisal/public-appraisal.module';
 import { ProfileModule } from './profile/profile.module';
 import { SecurityModule } from './security/security.module';
 import { AccountSecurityGuard } from './security/guards/account-security.guard';
@@ -52,6 +53,7 @@ import { CommonModule } from './common/common.module';
     PayrollModule,
     SubscriptionModule,
     LoanModule,
+    PublicAppraisalModule,
     ProfileModule,
     SecurityModule,
     PaymentMethodsModule,
