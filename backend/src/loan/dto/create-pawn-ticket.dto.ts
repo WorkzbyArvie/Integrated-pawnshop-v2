@@ -28,6 +28,18 @@ export class CreatePawnTicketDto {
   @Min(0)
   loanAmount: number;
 
+  /**
+   * The collateral's valuation, from `POST /loan/quote-appraisal`. Distinct from
+   * `loanAmount`, which is only the fraction of this actually advanced.
+   *
+   * Without it the approval record can only carry the loan, so the valuation is
+   * lost and `appraisedValue` and `recommendedLoanAmount` come out equal.
+   */
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  appraisedValue?: number;
+
   @IsOptional()
   @IsNumber()
   riskScore?: number;

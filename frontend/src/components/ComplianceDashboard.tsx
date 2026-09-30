@@ -479,7 +479,7 @@ export function ComplianceDashboard({ branchId: _branchId, activeBranchId }: Com
 
       {/* Verify Dialog */}
       <Dialog open={showVerifyDialog} onOpenChange={setShowVerifyDialog}>
-        <DialogContent className="max-w-sm">
+        <DialogContent className="sm:max-w-sm">
           <DialogHeader>
             <DialogTitle>Verify Compliance</DialogTitle>
             <DialogDescription>Confirm the winner has submitted valid payment proof.</DialogDescription>
@@ -510,7 +510,7 @@ export function ComplianceDashboard({ branchId: _branchId, activeBranchId }: Com
 
       {/* Release Dialog */}
       <Dialog open={showReleaseDialog} onOpenChange={setShowReleaseDialog}>
-        <DialogContent className="max-w-sm">
+        <DialogContent className="sm:max-w-sm">
           <DialogHeader>
             <DialogTitle>Release Item</DialogTitle>
             <DialogDescription>Release the auctioned item to the winning bidder.</DialogDescription>
@@ -543,7 +543,7 @@ export function ComplianceDashboard({ branchId: _branchId, activeBranchId }: Com
 
       {/* Extend Deadline Dialog */}
       <Dialog open={showExtendDialog} onOpenChange={setShowExtendDialog}>
-        <DialogContent className="max-w-sm">
+        <DialogContent className="sm:max-w-sm">
           <DialogHeader>
             <DialogTitle>Extend Deadline</DialogTitle>
           </DialogHeader>
@@ -572,7 +572,7 @@ export function ComplianceDashboard({ branchId: _branchId, activeBranchId }: Com
 
       {/* Detail Dialog */}
       <Dialog open={showDetailDialog} onOpenChange={setShowDetailDialog}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Compliance Detail</DialogTitle>
           </DialogHeader>

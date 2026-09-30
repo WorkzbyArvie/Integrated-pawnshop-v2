@@ -526,7 +526,10 @@ export function PayrollManagement({ branchId: _branchId, activeBranchId }: Payro
 
       {/* Payroll Settings Modal */}
       <Dialog open={showSettingsDialog} onOpenChange={setShowSettingsDialog}>
-        <DialogContent className="max-w-3xl">
+        {/* `sm:` prefix - a bare `max-w-3xl` loses to the base `sm:max-w-lg`, so
+            this dialog has been rendering at 512px. Widening never crowds
+            content, so this is the safe direction. See AGENTS.md rule 9. */}
+        <DialogContent className="sm:max-w-3xl">
           <DialogHeader>
             <DialogTitle>Payroll Settings</DialogTitle>
           </DialogHeader>
@@ -785,7 +788,7 @@ export function PayrollManagement({ branchId: _branchId, activeBranchId }: Payro
 
       {/* Payslip Detail Dialog */}
       <Dialog open={showDetailDialog} onOpenChange={setShowDetailDialog}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Payslip Detail</DialogTitle>
           </DialogHeader>

@@ -728,7 +728,7 @@ export function SubscriptionManager({ branchId: _branchId, onSubscriptionChange 
 
       {/* Create Subscription Dialog */}
       <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Start Subscription</DialogTitle>
             <DialogDescription>
@@ -797,7 +797,7 @@ export function SubscriptionManager({ branchId: _branchId, onSubscriptionChange 
 
       {/* Change Tier Dialog */}
       <Dialog open={showChangeDialog} onOpenChange={setShowChangeDialog}>
-        <DialogContent className="max-w-sm">
+        <DialogContent className="sm:max-w-sm">
           <DialogHeader>
             <DialogTitle>Change Plan</DialogTitle>
           </DialogHeader>
@@ -830,7 +830,7 @@ export function SubscriptionManager({ branchId: _branchId, onSubscriptionChange 
 
       {/* Cancel Dialog */}
       <Dialog open={showCancelDialog} onOpenChange={setShowCancelDialog}>
-        <DialogContent className="max-w-sm">
+        <DialogContent className="sm:max-w-sm">
           <DialogHeader>
             <DialogTitle className="text-rose-600">Cancel Subscription</DialogTitle>
             <DialogDescription>

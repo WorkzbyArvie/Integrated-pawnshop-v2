@@ -331,6 +331,11 @@ export function SalesPos({ branchId, activeBranchId }: SalesPosProps) {
         itemDescription: formData.itemDescription,
         weight: parseFloat(formData.weight),
         loanAmount: recommendedAmount,
+        // The valuation, which is not the loan. Without it the ticket carries
+        // only the loan, and `submitForApproval` writes that into both
+        // `appraisedValue` and `recommendedLoanAmount` - so the approval record
+        // shows one figure twice and the collateral has no recorded value.
+        appraisedValue: quoteDetails?.appraisedValue,
         // `||` would turn a score of 0 into undefined. Zero is the score of a
         // fully-cleared item under the server's model, so it is a real value to
         // record, not an absence of one.

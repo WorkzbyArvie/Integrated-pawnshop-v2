@@ -273,6 +273,12 @@ export class PawnTicketService {
           description: descriptionWithPhotos,
           weight: dto.weight,
           loanAmount: dto.loanAmount,
+          // The valuation and the score the appraiser actually produced, kept as
+          // facts on the ticket. Previously only the boolean derived from the
+          // score survived, and the score itself was thrown away - then
+          // reconstructed downstream as `isHighRisk ? 60 : 0`.
+          appraisedValue: dto.appraisedValue ?? null,
+          riskScore: dto.riskScore ?? null,
           expiryDate,
           status: 'PENDING',
           lifecycleStatus: 'RECEIVED',
@@ -371,19 +377,31 @@ export class PawnTicketService {
       data: { lifecycleStatus: 'PENDING_APPROVAL' },
     });
 
+    // The valuation and the loan are different numbers - the loan is a fraction
+    // of the valuation - so recording the loan as both made every approval
+    // record carry one figure twice, and the reviewer could not tell which was
+    // which. `appraisedValue` is null only for a ticket created before the
+    // column existed, where the loan is the best available evidence.
+    const appraisedValue = ticket.appraisedValue ?? ticket.loanAmount;
+
     await this.prisma.approvalRecord.create({
       data: {
         pawnshopId: this.assertPawnshopId(ticket),
         targetType: 'APPRAISAL',
         targetId: String(ticket.id),
         status: 'PENDING',
-        amount: ticket.loanAmount,
+        // Matches the appraisal flow, where `amount` is the valuation. The
+        // approval service reads `record.amount` as `appraisedValue`.
+        amount: appraisedValue,
         requestedById: userId,
         payload: {
           ticketId: ticket.id,
           ticketNumber: ticket.ticketNumber,
-          appraisedValue: ticket.loanAmount,
-          riskScore: ticket.isHighRisk ? 60 : 0,
+          appraisedValue,
+          // The score the appraiser produced, or null meaning "not assessed".
+          // This was `isHighRisk ? 60 : 0` - a number invented from a boolean -
+          // so the queue showed a fabricated score on every flagged item.
+          riskScore: ticket.riskScore,
           recommendedLoanAmount: ticket.loanAmount,
           itemCondition: null,
           appraisalNotes: `Submitted for approval via appraisal workflow for ticket ${ticket.ticketNumber}`,

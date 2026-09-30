@@ -638,7 +638,7 @@ export function AttendanceTracker({ branchId: _branchId, activeBranchId, userRol
 
       {/* Schedule Settings Dialog -- bulk apply to all staff */}
       <Dialog open={showScheduleDialog} onOpenChange={setShowScheduleDialog}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Schedule Settings -- Apply to All Staff</DialogTitle>
           </DialogHeader>
@@ -691,7 +691,7 @@ export function AttendanceTracker({ branchId: _branchId, activeBranchId, userRol
 
       {/* Leave Request Dialog */}
       <Dialog open={showLeaveDialog} onOpenChange={setShowLeaveDialog}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Request Leave</DialogTitle>
           </DialogHeader>
@@ -748,7 +748,7 @@ export function AttendanceTracker({ branchId: _branchId, activeBranchId, userRol
 
       {/* Staff Statistics Dialog */}
       <Dialog open={showStatsDialog} onOpenChange={setShowStatsDialog}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Staff Attendance Statistics</DialogTitle>
           </DialogHeader>

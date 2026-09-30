@@ -548,7 +548,7 @@ export function QueueManagement({ branchId: _branchId }: QueueManagementProps) {
 
       {/* Create Ticket Dialog */}
       <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>New Queue Ticket</DialogTitle>
           </DialogHeader>
@@ -603,7 +603,7 @@ export function QueueManagement({ branchId: _branchId }: QueueManagementProps) {
 
       {/* Chat Dialog */}
       <Dialog open={!!chatTicket} onOpenChange={(open) => { if (!open) closeChat(); }}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <MessageSquare className="w-5 h-5" />

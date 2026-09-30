@@ -571,7 +571,7 @@ export function FinanceLedger({ branchId: _branchId, activeBranchId }: FinanceLe
 
       {/* Reject Ledger Request Dialog */}
       <Dialog open={showRejectDialog} onOpenChange={(open) => { setShowRejectDialog(open); if (!open) { setRejectingRequestId(null); setRejectReason(''); } }}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Reject Ledger Request</DialogTitle>
           </DialogHeader>
@@ -601,7 +601,7 @@ export function FinanceLedger({ branchId: _branchId, activeBranchId }: FinanceLe
 
       {/* Create Entry Dialog */}
       <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>New Ledger Entry</DialogTitle>
           </DialogHeader>
@@ -730,7 +730,7 @@ export function FinanceLedger({ branchId: _branchId, activeBranchId }: FinanceLe
 
       {/* Reconciliation Dialog */}
       <Dialog open={showReconDialog} onOpenChange={setShowReconDialog}>
-        <DialogContent className="max-w-sm">
+        <DialogContent className="sm:max-w-sm">
           <DialogHeader>
             <DialogTitle>Daily Reconciliation</DialogTitle>
           </DialogHeader>

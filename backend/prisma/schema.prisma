@@ -289,6 +289,16 @@ model Ticket {
   weight       Float?
   storageLocation String @map("storage_location") @default("Vault A")
   loanAmount   Float    @map("loan_amount")
+  // The collateral's valuation, which is NOT the loan. The loan is a fraction of
+  // this (see STATUTORY_MIN_LTV, P.D. 114 s.9), and the contract, the receipt
+  // and the approval record all need to state both. Before this existed the only
+  // figure on the ticket was the loan, so `submitForApproval` wrote the loan into
+  // both `appraisedValue` and `recommendedLoanAmount`, and the approval queue
+  // showed one number twice with no way to tell which was which.
+  appraisedValue Float?  @map("appraised_value")
+  // The appraiser's actual risk score. Null means nobody scored it, and the UI
+  // must say "Not scored" rather than substitute a number.
+  riskScore    Float?   @map("risk_score")
   interestRate Float    @map("interest_rate") @default(3.0)
   status       String   @default("ACTIVE")
   lifecycleStatus TicketLifecycleStatus @default(RECEIVED) @map("lifecycle_status")
