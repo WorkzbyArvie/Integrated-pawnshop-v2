@@ -5,8 +5,10 @@ import { PublicAppraisalService, RESERVATION_WINDOW_HOURS } from './public-appra
  *
  * Three properties are load-bearing and each has been a defect class in this
  * codebase before:
- *   1. Only shops that can actually transact are listed, so nobody travels to be
- *      refused.
+ *   1. A shop that cannot transact is marked as such on the listing AND refused
+ *      on quote and submit, so nobody travels to be refused - but it is still
+ *      shown, because a pawner who wants to pawn today is not served by a shop
+ *      vanishing from the list.
  *   2. The recorded figures are the server's own arithmetic, not the applicant's.
  *   3. Identity documents are captured, not "verified" - no automated check is
  *      performed, so none is claimed.
@@ -25,6 +27,7 @@ const ALL_VERIFIED = [
   'DTI_SEC', 'MAYORS_PERMIT', 'BIR_CERTIFICATE', 'BSP_LICENSE',
   'AMLC_REGISTRATION', 'VALID_GOVT_ID', 'PROOF_OF_BUSINESS',
 ].map((documentType) => ({
+  pawnshopId: 'shop-1',
   documentType,
   status: 'VERIFIED',
   expiryDate: null as Date | null,
@@ -98,34 +101,47 @@ const applicationDto = {
 };
 
 describe('listBranches', () => {
-  it('lists a shop whose documents are all verified', async () => {
+  it('marks a shop whose documents are all verified as accepting', async () => {
     const { service } = build();
     const branches = await service.listBranches();
 
     expect(branches).toHaveLength(1);
     expect(branches[0].pawnshopName).toBe('Cebuana');
     expect(branches[0].branches[0].id).toBe(3);
+    expect(branches[0].canAcceptApplications).toBe(true);
+    expect(branches[0].complianceNote).toBeNull();
+    expect(branches[0].missingDocuments).toEqual([]);
   });
 
-  it('hides a shop that is missing a document', async () => {
+  it('still shows a shop that is missing a document, and says so', async () => {
     const { service } = build({
       documents: ALL_VERIFIED.filter((d) => d.documentType !== 'BSP_LICENSE'),
     });
+    const branches = await service.listBranches();
 
-    expect(await service.listBranches()).toEqual([]);
+    // A pawner who wants to pawn today is not served by a shop vanishing from
+    // the list — they are served by being told it is closed for applications and
+    // going somewhere that is. Checked against the live database, hiding made
+    // the page empty: 13 shops, all blocked, nothing to show.
+    expect(branches).toHaveLength(1);
+    expect(branches[0].canAcceptApplications).toBe(false);
+    expect(branches[0].missingDocuments).toEqual(['BSP_LICENSE']);
+    expect(branches[0].complianceNote).toMatch(/not accepting/i);
   });
 
-  it('hides a shop with an unverified document', async () => {
+  it('marks a shop with an unverified document as not accepting', async () => {
     const { service } = build({
       documents: ALL_VERIFIED.map((d) =>
         d.documentType === 'MAYORS_PERMIT' ? { ...d, status: 'PENDING' } : d,
       ),
     });
+    const branches = await service.listBranches();
 
-    expect(await service.listBranches()).toEqual([]);
+    expect(branches[0].canAcceptApplications).toBe(false);
+    expect(branches[0].missingDocuments).toEqual(['MAYORS_PERMIT']);
   });
 
-  it('hides a shop with an expired document', async () => {
+  it('marks a shop with an expired document as not accepting', async () => {
     const { service } = build({
       documents: ALL_VERIFIED.map((d) =>
         d.documentType === 'BIR_CERTIFICATE'
@@ -133,20 +149,60 @@ describe('listBranches', () => {
           : d,
       ),
     });
+    const branches = await service.listBranches();
 
-    expect(await service.listBranches()).toEqual([]);
+    expect(branches[0].canAcceptApplications).toBe(false);
+    expect(branches[0].missingDocuments).toEqual(['BIR_CERTIFICATE']);
   });
 
   it('judges the latest upload, not a stale verified one underneath', async () => {
     const { service } = build({
       documents: [
-        { documentType: 'DTI_SEC', status: 'VERIFIED', expiryDate: null, createdAt: new Date('2026-01-01') },
-        { documentType: 'DTI_SEC', status: 'DENIED', expiryDate: null, createdAt: new Date('2026-06-01') },
+        { pawnshopId: 'shop-1', documentType: 'DTI_SEC', status: 'VERIFIED', expiryDate: null, createdAt: new Date('2026-01-01') },
+        { pawnshopId: 'shop-1', documentType: 'DTI_SEC', status: 'DENIED', expiryDate: null, createdAt: new Date('2026-06-01') },
         ...ALL_VERIFIED.filter((d) => d.documentType !== 'DTI_SEC'),
       ],
     });
+    const branches = await service.listBranches();
 
-    expect(await service.listBranches()).toEqual([]);
+    // Approved, then replaced by a rejected upload. The shop must not stay open
+    // on the approval sitting underneath the rejection.
+    expect(branches[0].canAcceptApplications).toBe(false);
+    expect(branches[0].missingDocuments).toEqual(['DTI_SEC']);
+  });
+
+  it('puts a shop that can be used at the top of the list', async () => {
+    const { service, prisma } = build();
+    prisma.pawnshop.findMany.mockResolvedValue([
+      { ...COMPLIANT_SHOP, id: 'aaa', name: 'Alpha' },
+      { ...COMPLIANT_SHOP, id: 'zzz', name: 'Omega' },
+    ]);
+    prisma.branch.findMany.mockResolvedValue([]);
+    prisma.pawnshopDocument.findMany
+      // Only the first shop is fully documented.
+      .mockResolvedValue(ALL_VERIFIED.map((d) => ({ ...d, pawnshopId: 'aaa' })));
+
+    const branches = await service.listBranches();
+
+    expect(branches.map((b) => b.pawnshopName)).toEqual(['Alpha', 'Omega']);
+    expect(branches[0].canAcceptApplications).toBe(true);
+    expect(branches[1].canAcceptApplications).toBe(false);
+  });
+
+  it('reads every shop’s documents in one query, not seven per shop', async () => {
+    const { service, prisma } = build();
+    prisma.pawnshop.findMany.mockResolvedValue([
+      { ...COMPLIANT_SHOP, id: 'aaa', name: 'Alpha' },
+      { ...COMPLIANT_SHOP, id: 'bbb', name: 'Beta' },
+      { ...COMPLIANT_SHOP, id: 'ccc', name: 'Gamma' },
+    ]);
+    prisma.branch.findMany.mockResolvedValue([]);
+    prisma.pawnshopDocument.findMany.mockResolvedValue([]);
+
+    await service.listBranches();
+
+    // A loop of per-shop lookups is a slow route on a public endpoint.
+    expect(prisma.pawnshopDocument.findMany).toHaveBeenCalledTimes(1);
   });
 });
 

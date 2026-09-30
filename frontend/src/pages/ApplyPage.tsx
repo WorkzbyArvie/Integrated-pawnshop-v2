@@ -43,12 +43,31 @@ interface BranchOption {
   contactPhone: string | null;
   latitude: number | null;
   longitude: number | null;
+  /**
+   * Whether the branch can accept an application right now, judged server-side
+   * on its regulatory documents.
+   *
+   * A branch that cannot is still listed. Hiding it was tried first and made the
+   * page empty against the live database — 13 shops, all missing documents, so
+   * an applicant saw nothing at all. Being told "this one is not accepting"
+   * serves them; a shop silently vanishing does not.
+   */
+  canAcceptApplications: boolean;
+  complianceNote: string | null;
   branches: Array<{ id: number; name: string; location: string }>;
 }
 
 interface Quote {
   pawnshopId: string;
   pawnshopName: string;
+  /**
+   * Echoed back from the request. The staleness check compares the quote against
+   * the form with these, so a response that omits them can never match and the
+   * flow would never advance.
+   */
+  itemCategory: string;
+  weightGrams: number;
+  purityPercent: number | null;
   appraisedValue: number;
   recommendedLoanAmount: number;
   gramRate: number;
@@ -562,7 +581,8 @@ export default function ApplyPage() {
                   Choose a branch
                 </h2>
                 <p className="mt-1 text-sm text-[var(--text-secondary)]">
-                  Only branches that can lawfully accept pawns today are listed.
+                  Pick the branch you will visit. Branches that cannot accept pawns today are marked
+                  so you do not make the trip for nothing.
                 </p>
               </div>
 
@@ -572,20 +592,51 @@ export default function ApplyPage() {
                 </p>
               ) : branches.length === 0 ? (
                 <p className="text-sm text-[var(--text-secondary)]">Loading branches…</p>
+              ) : !branches.some((option) => option.canAcceptApplications) ? (
+                // Every branch is closed. Say so plainly, and keep the contact
+                // numbers reachable — a pawner who cannot pawn today still needs
+                // to know where to go, and an empty screen tells them nothing.
+                <div className="space-y-3">
+                  <p role="alert" className="text-sm text-[var(--amber)]">
+                    No branch near you can accept pawns at the moment. Each one is missing
+                    regulatory documents it needs to operate. You can still call ahead below.
+                  </p>
+                  <ul className="space-y-2">
+                    {branches.map((option) => (
+                      <li
+                        key={option.pawnshopId}
+                        className="rounded-[14px] border border-[rgba(201,160,92,0.12)] p-3"
+                      >
+                        <span className="block text-sm font-semibold">{option.pawnshopName}</span>
+                        {option.contactPhone ? (
+                          <span className="mt-1 flex items-center gap-1.5 text-xs text-[var(--text-muted)]">
+                            <Phone className="h-3 w-3 shrink-0" aria-hidden="true" />
+                            {option.contactPhone}
+                          </span>
+                        ) : null}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
               ) : (
                 <fieldset className="space-y-3">
                   <legend className="sr-only">Branch</legend>
                   {branches.map((option) => {
                     const active = option.pawnshopId === shopId;
+                    const open = option.canAcceptApplications;
                     return (
                       <label
                         key={option.pawnshopId}
                         className={[
-                          'flex cursor-pointer items-start gap-3 rounded-[14px] border p-4 transition-colors duration-200',
-                          'focus-within:ring-2 focus-within:ring-[var(--gold)]',
+                          'flex items-start gap-3 rounded-[14px] border p-4 transition-colors duration-200',
+                          open
+                            ? 'cursor-pointer focus-within:ring-2 focus-within:ring-[var(--gold)]'
+                            : 'cursor-not-allowed opacity-60',
                           active
                             ? 'border-[var(--gold)] bg-[var(--gold-glow)]'
-                            : 'border-[rgba(201,160,92,0.14)] hover:border-[rgba(201,160,92,0.30)]',
+                            : open
+                              ? 'border-[rgba(201,160,92,0.14)] hover:border-[rgba(201,160,92,0.30)]'
+                              : 'border-[rgba(201,160,92,0.10)]',
                         ].join(' ')}
                       >
                         <input
@@ -593,10 +644,20 @@ export default function ApplyPage() {
                           name="branch"
                           value={option.pawnshopId}
                           checked={active}
-                          // The wrapping label's text is the name plus two lines
-                          // of metadata, so the accessible name is set
+                          // The wrapping label's text is the name plus several
+                          // lines of metadata, so the accessible name is set
                           // explicitly rather than inherited from all of it.
-                          aria-label={option.pawnshopName}
+                          aria-label={
+                            open
+                              ? option.pawnshopName
+                              : `${option.pawnshopName} — not accepting applications`
+                          }
+                          // A closed branch is shown, not hidden, but it cannot be
+                          // selected: the server refuses to quote or accept it
+                          // anyway, and letting an applicant fill in three more
+                          // steps only to be rejected at the end is worse than
+                          // refusing at the door.
+                          disabled={!open}
                           onChange={() => {
                             setShopId(option.pawnshopId);
                             setBranchId('');
@@ -606,11 +667,21 @@ export default function ApplyPage() {
                             // under another shop's name.
                             setQuote(null);
                           }}
-                          className="mt-1 h-4 w-4 shrink-0 accent-[var(--gold)]"
+                          className="mt-1 h-4 w-4 shrink-0 accent-[var(--gold)] disabled:cursor-not-allowed"
                         />
                         <span className="min-w-0 flex-1">
-                          <span className="block text-sm font-semibold">
-                            {option.pawnshopName}
+                          <span className="flex flex-wrap items-center gap-2">
+                            <span className="text-sm font-semibold">{option.pawnshopName}</span>
+                            <span
+                              className={[
+                                'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-widest [font-family:var(--font-mono)]',
+                                open
+                                  ? 'bg-[rgba(61,168,108,0.12)] text-[var(--green)]'
+                                  : 'bg-[rgba(212,168,75,0.12)] text-[var(--amber)]',
+                              ].join(' ')}
+                            >
+                              {open ? 'Accepting' : 'Closed'}
+                            </span>
                           </span>
                           {option.address ? (
                             <span className="mt-1 flex items-center gap-1.5 text-xs text-[var(--text-muted)]">
@@ -622,6 +693,11 @@ export default function ApplyPage() {
                             <span className="mt-1 flex items-center gap-1.5 text-xs text-[var(--text-muted)]">
                               <Phone className="h-3 w-3 shrink-0" aria-hidden="true" />
                               {option.contactPhone}
+                            </span>
+                          ) : null}
+                          {!open && option.complianceNote ? (
+                            <span className="mt-1.5 block text-xs text-[var(--amber)]">
+                              {option.complianceNote}
                             </span>
                           ) : null}
                         </span>

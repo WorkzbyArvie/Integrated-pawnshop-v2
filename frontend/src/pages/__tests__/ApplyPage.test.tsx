@@ -18,21 +18,6 @@ import ApplyPage from '../ApplyPage';
  * `mouseDown`. Both silently find zero matches otherwise.
  */
 
-const BRANCHES = [
-  {
-    pawnshopId: 'shop-1',
-    pawnshopName: 'Cebuana Main',
-    address: 'Dasmarinas, Cavite',
-    contactPhone: '0917 555 0100',
-    latitude: 14.4,
-    longitude: 120.9,
-    branches: [
-      { id: 3, name: 'Main', location: 'Dasmarinas' },
-      { id: 4, name: 'Aliaga', location: 'Aliaga' },
-    ],
-  },
-];
-
 const QUOTE = {
   pawnshopId: 'shop-1',
   pawnshopName: 'Cebuana Main',
@@ -75,29 +60,47 @@ const RESERVATION = {
  * The call log lives on `globalThis` for the same reason: the stub functions
  * run later, but they must not close over the harness's own variables.
  */
-const { stub, log } = vi.hoisted(() => {
+const OPEN_SHOP = {
+  pawnshopId: 'shop-1',
+  pawnshopName: 'Cebuana Main',
+  address: 'Dasmarinas, Cavite',
+  contactPhone: '0917 555 0100',
+  latitude: 14.4,
+  longitude: 120.9,
+  canAcceptApplications: true,
+  complianceNote: null,
+  missingDocuments: [],
+  branches: [
+    { id: 3, name: 'Main', location: 'Dasmarinas' },
+    { id: 4, name: 'Aliaga', location: 'Aliaga' },
+  ],
+};
+
+/** A shop missing regulatory documents — the state every shop was actually in. */
+const CLOSED_SHOP = {
+  pawnshopId: 'shop-2',
+  pawnshopName: 'Jaro Dasmariñas',
+  address: 'Jaro, Cavite',
+  contactPhone: '0917 555 0200',
+  latitude: 14.5,
+  longitude: 120.8,
+  canAcceptApplications: false,
+  complianceNote: 'This branch is not accepting online applications at the moment.',
+  missingDocuments: ['DTI_SEC', 'MAYORS_PERMIT'],
+  branches: [{ id: 7, name: 'Jaro', location: 'Jaro' }],
+};
+
+const { stub, log, branchFixture } = vi.hoisted(() => {
   const log: Array<{ method: string; path: string; body?: unknown }> = [];
+  // Held outside the stub so a test can swap the branch list before rendering.
+  const branchFixture = { current: [] as any[] };
   return {
     log,
+    branchFixture,
     stub: {
       get: async (path: string) => {
         log.push({ method: 'GET', path });
-        return path === '/public/pawn/branches'
-          ? [
-              {
-                pawnshopId: 'shop-1',
-                pawnshopName: 'Cebuana Main',
-                address: 'Dasmarinas, Cavite',
-                contactPhone: '0917 555 0100',
-                latitude: 14.4,
-                longitude: 120.9,
-                branches: [
-                  { id: 3, name: 'Main', location: 'Dasmarinas' },
-                  { id: 4, name: 'Aliaga', location: 'Aliaga' },
-                ],
-              },
-            ]
-          : [];
+        return path === '/public/pawn/branches' ? branchFixture.current : [];
       },
       post: async (path: string, body?: unknown) => {
         log.push({ method: 'POST', path, body });
@@ -129,6 +132,14 @@ vi.mock('../../lib/apiClient', () => ({ api: stub, default: stub }));
 const posted = (path: string) => log.filter((call) => call.method === 'POST' && call.path === path);
 const uploads = () => log.filter((call) => call.method === 'POST' && call.path.includes('uploads'));
 
+/** Which branch the form is currently pointed at, read off the radio group. */
+const shopChosen = () => {
+  const chosen = screen
+    .getAllByRole('radio')
+    .find((input) => (input as HTMLInputElement).checked);
+  return chosen ? (chosen as HTMLInputElement).value : '';
+};
+
 /**
  * Step back twice. Queried by exact name rather than `/back/i`, because the
  * quoted terms and the "Back" button both match a loose pattern.
@@ -143,6 +154,7 @@ const stepBack = async (times: number) => {
 
 beforeEach(() => {
   log.length = 0;
+  branchFixture.current = [OPEN_SHOP, CLOSED_SHOP];
 });
 
 afterEach(cleanup);
@@ -248,14 +260,14 @@ describe('ApplyPage — reachability', () => {
 });
 
 describe('ApplyPage — branch selection', () => {
-  it('renders the branches the server says it may', async () => {
+  it('renders every branch the server returns, open and closed alike', async () => {
     render(<ApplyPage />);
 
     expect(await screen.findByText('Cebuana Main')).toBeTruthy();
-    // The compliance filter is server-side — a shop missing a regulatory
-    // document never reaches this list. The page renders what it is given and
-    // invents no branch of its own.
-    expect(screen.getAllByRole('radio')).toHaveLength(1);
+    expect(screen.getByText('Jaro Dasmariñas')).toBeTruthy();
+    // The compliance judgement is server-side. The page renders what it is
+    // given and invents no branch of its own.
+    expect(screen.getAllByRole('radio')).toHaveLength(2);
   });
 
   it('does not claim the application is a loan', async () => {
@@ -274,6 +286,58 @@ describe('ApplyPage — branch selection', () => {
     expect((screen.getByRole('button', { name: /continue/i }) as HTMLButtonElement).disabled).toBe(
       true,
     );
+  });
+
+  it('shows a closed branch with its reason, and refuses to let it be chosen', async () => {
+    render(<ApplyPage />);
+    await screen.findByText('Cebuana Main');
+
+    // Hidden entirely was tried first, and against the live database it made the
+    // page empty — 13 shops, all missing documents. A pawner who wants to pawn
+    // today is served by being told where they cannot, not by an empty screen.
+    const closed = screen.getByLabelText(/Jaro Dasmariñas — not accepting/i) as HTMLInputElement;
+    expect(closed.disabled).toBe(true);
+    expect(screen.getByText(/not accepting online applications/i)).toBeTruthy();
+
+    // And it must not stay unchosen once a click lands on the label. React
+    // forwards a click on a `<label>` to its control, and jsdom's `disabled`
+    // handling for a labelled control is not the browser's — so the click is
+    // dispatched at the `<label>`, which is how a real user's click actually
+    // reaches the input, and the state is checked afterwards rather than
+    // trusting the assertion about the attribute.
+    const label = closed.closest('label')!;
+    fireEvent.click(label);
+    expect(shopChosen()).not.toBe('shop-2');
+  });
+
+  it('marks an open branch as accepting', async () => {
+    render(<ApplyPage />);
+    await screen.findByText('Cebuana Main');
+
+    const open = screen.getByLabelText('Cebuana Main') as HTMLInputElement;
+    expect(open.disabled).toBe(false);
+    expect(screen.getByText('Accepting')).toBeTruthy();
+  });
+
+  it('says so plainly when no branch can accept at all', async () => {
+    branchFixture.current = [CLOSED_SHOP];
+    render(<ApplyPage />);
+
+    // The one state that must never render as an empty list: an empty list is
+    // indistinguishable from a loading failure, and against the live database
+    // it was exactly what happened.
+    expect(await screen.findByText(/no branch near you can accept pawns/i)).toBeTruthy();
+    // Still shows where to call, which an empty screen cannot.
+    expect(screen.getByText('0917 555 0200')).toBeTruthy();
+  });
+
+  it('never renders a loading message once the list has arrived', async () => {
+    render(<ApplyPage />);
+    await screen.findByText('Cebuana Main');
+
+    // "Loading branches…" on a screen that has branches is a stuck state, and
+    // it is what a page that filtered everything out looked like.
+    expect(screen.queryByText(/loading branches/i)).toBeNull();
   });
 });
 

@@ -75,11 +75,22 @@ export class PublicAppraisalService {
   ) {}
 
   /**
-   * Branches a prospective pawner may apply to.
+   * Branches a prospective pawner may see, and whether each can take them today.
    *
-   * Only shops that can actually transact are listed. Advertising a branch and
-   * then refusing at the counter is worse than not listing it, and the whole
-   * point of moving this online is that a pawner does not travel to be told no.
+   * A non-compliant shop is **listed, not hidden** — with the reason shown.
+   *
+   * The first version of this filtered them out entirely, on the reasoning that
+   * advertising a branch and refusing at the counter is worse than not listing
+   * it. Checked against the live database that reasoning lost: 13 active shops,
+   * every one blocked by missing regulatory documents, so the page rendered an
+   * empty list and the feature could not be demonstrated at all. More to the
+   * point, a pawner who wants to pawn a ring *today* is not served by a blank
+   * screen — they are served by being told the nearest shop is not accepting
+   * applications and going somewhere that is.
+   *
+   * So the listing states the position and the transaction stays refused.
+   * `canAcceptApplications` is the gate; `quote` and `create` re-check it, so
+   * this widens what a pawner can *see*, never what the shop can *do*.
    */
   async listBranches() {
     const [pawnshops, branches] = await Promise.all([
@@ -101,35 +112,49 @@ export class PublicAppraisalService {
       byPawnshop.set(branch.pawnshopId, list);
     }
 
-    const out: Array<{
-      pawnshopId: string;
-      pawnshopName: string;
-      address: string | null;
-      latitude: number | null;
-      longitude: number | null;
-      contactPhone: string | null;
-      branches: Array<{ id: number; name: string; location: string }>;
-    }> = [];
+    // Fetched for every shop in one query rather than per shop — a loop of
+    // seven-per-shop lookups is a slow public endpoint.
+    const allDocuments = await this.prisma.pawnshopDocument.findMany({
+      where: { pawnshopId: { in: pawnshops.map((shop) => shop.id) } },
+      select: { pawnshopId: true, documentType: true, status: true, expiryDate: true, createdAt: true },
+    });
 
-    for (const shop of pawnshops) {
-      const missing = await this.unverifiedDocuments(shop.id);
-      if (missing.length) continue;
-      out.push({
-        pawnshopId: shop.id,
-        pawnshopName: shop.name,
-        address: shop.address,
-        latitude: shop.latitude,
-        longitude: shop.longitude,
-        contactPhone: shop.contactPhone,
-        branches: (byPawnshop.get(shop.id) ?? []).map((b) => ({
-          id: b.id,
-          name: b.name,
-          location: b.location,
-        })),
+    const latestByShop = this.latestDocumentsByShop(allDocuments);
+
+    // Compliant shops first, then alphabetical, so the one an applicant can
+    // actually use is the one they read first.
+    const assessed = pawnshops
+      .map((shop) => {
+        const missing = this.missingDocuments(latestByShop.get(shop.id));
+        return {
+          pawnshopId: shop.id,
+          pawnshopName: shop.name,
+          address: shop.address,
+          latitude: shop.latitude,
+          longitude: shop.longitude,
+          contactPhone: shop.contactPhone,
+          canAcceptApplications: missing.length === 0,
+          // Named in the singular as a field name would imply a count, and the
+          // count is not what an applicant needs to know.
+          complianceNote: missing.length
+            ? 'This branch is not accepting online applications at the moment.'
+            : null,
+          missingDocuments: missing,
+          branches: (byPawnshop.get(shop.id) ?? []).map((b) => ({
+            id: b.id,
+            name: b.name,
+            location: b.location,
+          })),
+        };
+      })
+      .sort((a, b) => {
+        if (a.canAcceptApplications !== b.canAcceptApplications) {
+          return a.canAcceptApplications ? -1 : 1;
+        }
+        return a.pawnshopName.localeCompare(b.pawnshopName);
       });
-    }
 
-    return out;
+    return assessed;
   }
 
   /**
@@ -152,8 +177,14 @@ export class PublicAppraisalService {
 
     const missing = await this.unverifiedDocuments(pawnshopId);
     if (missing.length) {
+      // Names the count so the applicant understands this is the branch's
+      // regulatory position and not a fault in what they typed. The document
+      // types themselves are deliberately not listed — that is the shop's
+      // business, not something to publish on a public endpoint.
       throw new BadRequestException(
-        'That branch cannot accept pawns at the moment - its regulatory documents are not on file. Please choose another branch.',
+        `${missing.length} of the required regulatory documents for that branch ${
+          missing.length === 1 ? 'is' : 'are'
+        } not on file, so it cannot accept pawns at the moment. Please choose another branch.`,
       );
     }
 
@@ -386,18 +417,70 @@ export class PublicAppraisalService {
     return rows.map((row) => this.present(row));
   }
 
+  /**
+   * The documents a shop still needs before it may transact.
+   *
+   * One implementation, used by the listing, the quote and the create, so the
+   * three cannot drift into disagreeing about which shops are open.
+   */
   private async unverifiedDocuments(pawnshopId: string): Promise<string[]> {
     const documents = await this.prisma.pawnshopDocument.findMany({
       where: { pawnshopId },
+      select: { documentType: true, status: true, expiryDate: true, createdAt: true },
     });
+    return this.missingDocuments(this.latestDocuments(documents));
+  }
 
-    const latest = new Map<string, (typeof documents)[number]>();
+  /**
+   * The newest upload per document type.
+   *
+   * Judged on the latest, not on whether any verified row exists. A shop that
+   * uploaded a document, had it approved, then uploaded a replacement that was
+   * rejected must not stay open on the approval underneath the rejection.
+   */
+  private latestDocuments<T extends { documentType: string; createdAt: Date }>(
+    documents: T[],
+  ): Map<string, T> {
+    const latest = new Map<string, T>();
     for (const doc of documents) {
       const existing = latest.get(doc.documentType);
       if (!existing || doc.createdAt > existing.createdAt) {
         latest.set(doc.documentType, doc);
       }
     }
+    return latest;
+  }
+
+  /**
+   * Same, grouped by shop, for a listing that assesses every shop at once.
+   *
+   * `T` is constrained on every field it touches rather than only
+   * `pawnshopId` — a constraint naming one property while the body reads another
+   * is a type error, and loosening the generic to `any` would hide the mistake
+   * that caused it.
+   */
+  private latestDocumentsByShop<
+    T extends { pawnshopId: string; documentType: string; createdAt: Date },
+  >(documents: T[]): Map<string, Map<string, T>> {
+    const grouped = new Map<string, T[]>();
+    for (const doc of documents) {
+      const list = grouped.get(doc.pawnshopId) ?? [];
+      list.push(doc);
+      grouped.set(doc.pawnshopId, list);
+    }
+
+    const byShop = new Map<string, Map<string, T>>();
+    for (const [shopId, list] of grouped) {
+      byShop.set(shopId, this.latestDocuments(list));
+    }
+    return byShop;
+  }
+
+  /** Which of the required documents are absent, unverified, or expired. */
+  private missingDocuments(
+    latest: Map<string, { status: string; expiryDate: Date | null }> | undefined,
+  ): string[] {
+    if (!latest) return [...REQUIRED_DOCUMENTS];
 
     const now = new Date();
     return REQUIRED_DOCUMENTS.filter((required) => {
