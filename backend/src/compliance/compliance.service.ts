@@ -525,6 +525,7 @@ export class ComplianceService {
       },
       select: {
         id: true,
+        pawnshopId: true,
         documentType: true,
         fileName: true,
         fileUrl: true,
@@ -539,6 +540,29 @@ export class ComplianceService {
       },
       orderBy: { createdAt: 'asc' },
     });
+
+    /*
+     * `pawnshopId` is nullable and the relation is `Pawnshop?`, so a document row
+     * whose shop has gone — or one uploaded during registration before the shop
+     * row existed — comes back with `pawnshop: null`.
+     *
+     * Such a row cannot be reviewed: a verdict has nowhere to be attached. It
+     * was returned anyway, and the reviewer's screen did `review.pawnshop.id`
+     * inside a grouping reduce, which threw and blanked the whole compliance
+     * tab. That is what "error in compliance tab" turned out to be.
+     *
+     * Filtered out here so one unreviewable row cannot take down the screen, and
+     * logged so the underlying orphan is visible instead of merely hidden.
+     */
+    const orphaned = pending.filter((row) => row.pawnshop === null);
+    if (orphaned.length > 0) {
+      this.logger.warn(
+        `${orphaned.length} compliance document(s) have no pawnshop and cannot be reviewed: ${orphaned
+          .map((row) => row.id)
+          .join(', ')}`,
+      );
+      return pending.filter((row) => row.pawnshop !== null);
+    }
 
     return pending;
   }

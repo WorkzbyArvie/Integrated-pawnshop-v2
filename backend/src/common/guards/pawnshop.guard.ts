@@ -66,6 +66,39 @@ export class PawnshopGuard implements CanActivate {
       return true;
     }
 
+    /*
+     * SUPER_ADMIN is platform-scoped and belongs to no tenant, so it sends no
+     * `pawnshop-id` — `App.tsx` explicitly clears `active_pawnshop_id` for that
+     * role. Requiring one here made the entire platform surface unusable for the
+     * only role that operates it: every call answered 400 "Missing pawnshop-id
+     * header", and the compliance and tenant-governance tabs rendered blank.
+     *
+     * This is not a new exemption. The tenant middleware in `main.ts` has
+     * already made exactly this decision, before the header check and before the
+     * cross-tenant comparison that follows it:
+     *
+     *     if (normalizedRole === 'SUPER_ADMIN') { next(); return; }
+     *
+     * The guard was simply stricter than the middleware in front of it, which
+     * made the two disagree about who may use the platform. Tenant isolation is
+     * still enforced where it matters — RBAC on every route, and the service
+     * layer's own tenant resolution — and this guard only ever validated header
+     * presence and format.
+     */
+    const actorRole = String(
+      (request as any).actor?.role ?? (request as any).user?.role ?? '',
+    )
+      .toUpperCase()
+      // Same normalisation `main.ts` applies before it makes the same decision,
+      // so the two agree on what `Super Admin`, `super_admin` and `SUPER-ADMIN`
+      // all mean. Without the replace, a hyphenated role reached the platform
+      // as one identity and the guard rejected it as another.
+      .replace(/[\s-]+/g, '_');
+
+    if (actorRole === 'SUPER_ADMIN') {
+      return true;
+    }
+
     const pawnshopId = request.headers['pawnshop-id'] as string;
 
     if (!pawnshopId) {

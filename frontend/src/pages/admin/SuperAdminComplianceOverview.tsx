@@ -38,7 +38,19 @@ interface PendingReview {
   status: string;
   denialReason: string | null;
   createdAt: string;
-  pawnshop: { id: string; name: string; ownerEmail: string };
+  /**
+   * Nullable on purpose.
+   *
+   * `PawnshopDocument.pawnshopId` is nullable and the Prisma relation is
+   * `Pawnshop?`, so the wire can genuinely send `pawnshop: null` for a document
+   * whose shop no longer exists. This interface declared it non-nullable, so
+   * `review.pawnshop.id` type-checked — and then threw on the real payload,
+   * inside a grouping reduce, blanking the entire compliance tab.
+   *
+   * A type that asserts something the wire does not guarantee is worse than no
+   * type: it moves the failure from the compiler to the reviewer.
+   */
+  pawnshop: { id: string; name: string; ownerEmail: string } | null;
 }
 
 interface KycPendingReview {
@@ -523,7 +535,27 @@ export default function SuperAdminComplianceOverview() {
         </div>
 
         {activeTab === 'pending' && (() => {
-          const grouped = pendingReviews.reduce<Record<string, PendingReview[]>>((acc, review) => {
+          /*
+           * Rows with no pawnshop are skipped rather than dereferenced.
+           *
+           * This runs inside a `reduce`, so a single null threw during render
+           * and took the whole tab down — not just the bad row. The backend now
+           * filters these too, but the client cannot rely on that: the type said
+           * non-nullable, which is exactly why the dereference looked safe.
+           */
+          type Reviewable = PendingReview & {
+            pawnshop: NonNullable<PendingReview['pawnshop']>;
+          };
+
+          const reviewable = pendingReviews.filter(
+            (review): review is Reviewable =>
+              review.pawnshop !== null && review.pawnshop !== undefined,
+          );
+
+          // Typed with the narrowed element so the grouping's output keeps it —
+          // `Object.values` on a `Record<string, PendingReview[]>` would widen it
+          // straight back and the null guard would look like it had done nothing.
+          const grouped = reviewable.reduce<Record<string, Reviewable[]>>((acc, review) => {
             const psId = review.pawnshop.id;
             (acc[psId] = acc[psId] || []).push(review);
             return acc;
@@ -1006,7 +1038,12 @@ export default function SuperAdminComplianceOverview() {
                   {DOCUMENT_LABELS[viewingDoc.documentType] || viewingDoc.documentType}
                 </h2>
                 <p className="text-sm text-gilded-muted mt-0.5">
-                  {viewingDoc.pawnshop.name} &middot; {viewingDoc.pawnshop.ownerEmail}
+                  {/* A document with no shop has nothing to show here, and the
+                      backend filters those out — but this reads a value straight
+                      off the wire, so it states the case rather than assuming. */}
+                  {viewingDoc.pawnshop
+                    ? `${viewingDoc.pawnshop.name} · ${viewingDoc.pawnshop.ownerEmail}`
+                    : 'Shop no longer registered'}
                 </p>
               </div>
               <button onClick={() => setViewingDoc(null)} className="p-2 rounded-lg hover:bg-gilded-darker transition-colors">
