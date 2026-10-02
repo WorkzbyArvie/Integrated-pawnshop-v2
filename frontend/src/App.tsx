@@ -23,6 +23,7 @@ import {
   Clock,
   Receipt,
   FileCheck2,
+  Inbox,
   History,
   CreditCard,
   ClipboardList,
@@ -97,6 +98,7 @@ const MultiBranchManagement = lazy(() => import('./components/MultiBranchManagem
 const SupportChat = lazy(() => import('./components/SupportChat').then(m => ({ default: m.SupportChat })));
 const AuditHistory = lazy(() => import('./components/AuditHistory').then(m => ({ default: m.AuditHistory })));
 const OwnerComplianceDashboard = lazy(() => import('./pages/admin/OwnerComplianceDashboard'));
+const ApplicationQueue = lazy(() => import('./components/ApplicationQueue'));
 const BidderKycReview = lazy(() => import('./components/BidderKycReview'));
 const TransactionHistory = lazy(() => import('./pages/loans/TransactionHistory').then(m => ({ default: m.TransactionHistory })));
 const LandingPage = lazy(() => import('./pages/LandingPage'));
@@ -195,6 +197,7 @@ const TAB_TO_PATH: Record<string, string> = {
   'attendance': '/attendance',
   'payroll': '/payroll',
   'compliance': '/compliance',
+    'applications': '/applications',
   'subscription': '/subscription',
   'support-chat': '/support-chat',
   'account-security': '/account-security',
@@ -249,6 +252,11 @@ const STATIC_NAV_ITEMS = [
     { id: 'attendance', label: 'Attendance', icon: Clock, roles: ['Owner', 'Admin', 'Manager', 'HR'], type: 'OPERATIONAL' },
     { id: 'payroll', label: 'Payroll', icon: Receipt, roles: ['Owner', 'Admin', 'HR'], type: 'OPERATIONAL' },
     { id: 'compliance', label: 'Compliance', icon: FileCheck2, roles: ['Owner', 'Admin', 'Manager', 'HR', 'Auditor'], type: 'OPERATIONAL' },
+    // Where the online applications land. Without this the public flow was
+    // write-only: applicants filled in a form and the branch had no screen to
+    // see it on. Same roles as Compliance — the staff who check documents are
+    // the staff who appraise the item.
+    { id: 'applications', label: 'Applications', icon: Inbox, roles: ['Owner', 'Admin', 'Manager'], type: 'OPERATIONAL' },
     { id: 'subscription', label: 'Subscription', icon: CreditCard, roles: ['Owner'], type: 'OPERATIONAL' },
     { id: 'reviews', label: 'Reviews & Feedback', icon: MessageSquareQuote, roles: ['Owner'], type: 'OPERATIONAL' },
 ];
@@ -2111,6 +2119,7 @@ function App() {
             {activeTab === 'attendance' && <AttendanceTracker branchId={currentBranchId} activeBranchId={activeOperationalBranchId} userRole={userRole} />}
             {activeTab === 'payroll' && <PayrollManagement branchId={currentBranchId} activeBranchId={activeOperationalBranchId} />}
             {activeTab === 'compliance' && <OwnerComplianceDashboard />}
+            {activeTab === 'applications' && <ApplicationQueue />}
             {activeTab === 'subscription' && userRole === 'Owner' && <SubscriptionManager branchId={currentBranchId} onSubscriptionChange={() => setSubscriptionRefreshKey(k => k + 1)} />}
             {activeTab === 'support-chat' && ['Owner', 'Admin', 'Super Admin'].includes(userRole) && (
               <SupportChat pawnshopId={currentBranchId} userRole={userRole} />
