@@ -18,9 +18,12 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { Public } from '../common/decorators/public.decorator';
 import { Throttle } from '../common/decorators/throttle.decorator';
 import { RequiresPermission } from '../common/decorators/requires-permission.decorator';
+import { RequiresCompliance } from '../common/decorators/requires-compliance.decorator';
+import { AuditLog } from '../common/decorators/audit-log.decorator';
 import { PERMISSIONS } from '../common/permissions/permissions.const';
 import { PublicAppraisalService } from './public-appraisal.service';
 import { CreateReservationDto } from './dto/create-reservation.dto';
+import { ConvertReservationDto } from './dto/convert-reservation.dto';
 import { PublicQuoteDto } from './dto/public-quote.dto';
 
 /**
@@ -172,5 +175,49 @@ export class PublicAppraisalController {
     }
 
     return this.service.listForShop(scopedPawnshopId, status);
+  }
+
+  /**
+   * Convert an application into a real pawn ticket, after the appraisal.
+   *
+   * `pawn_ticket.create` because that is the permission the underlying ticket
+   * creation already requires — the conversion grants nothing the counter route
+   * withholds. `RequiresCompliance(40)` matches `POST /pawn-tickets`, so an
+   * application cannot become a pawn at a shop that lost its regulatory
+   * documents between the quote and the visit.
+   *
+   * The caller's own tenant is passed down and checked against the
+   * application's, the same way `listForShop` scopes its read. Finding the
+   * reservation by reference alone would let any shop convert any other shop's
+   * application.
+   */
+  @RequiresCompliance(40)
+  @AuditLog('CONVERT_RESERVATION')
+  @RequiresPermission(PERMISSIONS['pawn_ticket.create'])
+  @Throttle({ ttl: 60_000, limit: 30 })
+  @Post('reservations/:reference/convert')
+  convert(
+    @Param('reference') reference: string,
+    @Body() dto: ConvertReservationDto,
+    @Req() req: Request,
+  ) {
+    const user = (req as any).user as
+      | { id?: string; role?: string; pawnshopId?: string }
+      | undefined;
+
+    const isPlatform = user?.role === 'SUPER_ADMIN';
+    const callerPawnshopId = user?.pawnshopId ?? '';
+    if (!isPlatform && !callerPawnshopId) {
+      throw new BadRequestException(
+        'No pawnshop is associated with your account. Select a shop before converting an application.',
+      );
+    }
+
+    return this.service.convertToTicket(
+      reference,
+      dto,
+      user?.id ?? 'system',
+      isPlatform ? null : callerPawnshopId,
+    );
   }
 }

@@ -9,6 +9,7 @@ import { randomUUID } from 'crypto';
 
 import { PrismaService } from '../prisma.service';
 import { StorageService } from '../common/storage/storage.service';
+import { PawnTicketService } from '../loan/pawn-ticket.service';
 
 import {
   appraise,
@@ -24,6 +25,7 @@ import {
 } from '../loan/loan-terms';
 import { resolveRates, STATUTORY_MIN_LTV, toCentavos } from '../finance/interest';
 import { CreateReservationDto } from './dto/create-reservation.dto';
+import { ConvertReservationDto } from './dto/convert-reservation.dto';
 import { PublicQuoteDto } from './dto/public-quote.dto';
 
 /**
@@ -72,6 +74,7 @@ export class PublicAppraisalService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly storage: StorageService,
+    private readonly pawnTickets: PawnTicketService,
   ) {}
 
   /**
@@ -378,6 +381,146 @@ export class PublicAppraisalService {
 
     this.logger.log(`Applicant upload stored under ${folder}.`);
     return { url };
+  }
+
+  /**
+   * Turn an application into a real pawn ticket.
+   *
+   * This is what closes the loop. Until it existed an application was a dead
+   * end: the customer applied, the shop could see nothing, and there was no way
+   * to make the reservation into a transaction — so the whole flow collected
+   * data and stopped.
+   *
+   * The appraiser's figures are authoritative. The snapshot on the reservation
+   * was priced from a self-reported weight and an unverified purity mark, and
+   * it is carried forward only as the record of what the applicant was told —
+   * never as the number on the ticket. Delegating to `createTicket` rather than
+   * writing tickets directly keeps one creation path, so the state machine, the
+   * interest calculation and the audit trail behave identically whether the pawn
+   * started at the counter or online.
+   */
+  async convertToTicket(
+    reference: string,
+    dto: ConvertReservationDto,
+    convertedBy: string,
+    /**
+     * The caller's own shop, or `null` for the platform operator.
+     *
+     * Finding the reservation by reference alone would let any shop holding
+     * `pawn_ticket.create` convert any other shop's application — creating a
+     * ticket against a customer who never walked into that branch. The mismatch
+     * is a 404 rather than a 403 so the route does not confirm that somebody
+     * else's reference exists.
+     */
+    callerPawnshopId: string | null,
+  ) {
+    const reservation = await this.prisma.pawnReservation.findUnique({
+      where: { reference: reference.trim().toUpperCase() },
+    });
+
+    if (!reservation) {
+      throw new NotFoundException('No application matches that reference.');
+    }
+
+    if (callerPawnshopId && reservation.pawnshopId !== callerPawnshopId) {
+      throw new NotFoundException('No application matches that reference.');
+    }
+
+    if (reservation.convertedTicketId) {
+      throw new BadRequestException(
+        'This application has already been converted into a pawn ticket.',
+      );
+    }
+
+    const lapsed = reservation.expiresAt.getTime() < Date.now();
+    if (lapsed && reservation.status === 'PENDING') {
+      throw new BadRequestException(
+        'The 24-hour window on this application has passed. Start a new application at the branch.',
+      );
+    }
+
+    if (['CANCELLED', 'DECLINED', 'CONVERTED'].includes(reservation.status)) {
+      throw new BadRequestException(
+        `This application is ${reservation.status.toLowerCase()} and cannot be converted.`,
+      );
+    }
+
+    /*
+     * The applicant's snapshot versus the appraiser's figure. A silent
+     * difference is the thing a panel asks about — the pawner was told one
+     * number on the website and signed a different one — so it is recorded
+     * rather than quietly overwritten.
+     */
+    const onlineLoan = reservation.recommendedLoanAmount;
+    const revised =
+      Math.abs(onlineLoan - dto.loanAmount) > 0.01 ||
+      Math.abs(reservation.appraisedValue - dto.appraisedValue) > 0.01;
+
+    if (revised && !dto.revisionReason?.trim()) {
+      throw new BadRequestException(
+        'The inspected figures differ from the online estimate. Record a reason for the revision before converting.',
+      );
+    }
+
+    const description = [
+      dto.itemDescription?.trim() || reservation.itemDescription || '',
+      revised && dto.revisionReason?.trim()
+        ? `Revised from the online estimate (${onlineLoan.toFixed(2)}): ${dto.revisionReason.trim()}`
+        : '',
+    ]
+      .filter(Boolean)
+      .join('\n');
+
+    const ticket = await this.pawnTickets.createTicket(
+      {
+        customerName: reservation.customerName,
+        customerAddress: reservation.address,
+        customerContact: reservation.contactNumber,
+        itemCategory: dto.itemCategory?.trim() || reservation.itemCategory,
+        itemDescription: description,
+        weight: dto.weight,
+        loanAmount: dto.loanAmount,
+        appraisedValue: dto.appraisedValue,
+        riskScore: reservation.riskScore ?? undefined,
+        photoUrls: Array.isArray(reservation.photoUrls)
+          ? (reservation.photoUrls as string[])
+          : [],
+        appraisalDeadline:
+          dto.appraisalDeadline ?? new Date(Date.now() + 30 * 864e5).toISOString(),
+        pawnshopId: reservation.pawnshopId,
+        branchId: dto.branchId ?? reservation.branchId ?? undefined,
+      } as never,
+      convertedBy,
+    );
+
+    await this.prisma.pawnReservation.update({
+      where: { id: reservation.id },
+      data: {
+        status: 'CONVERTED',
+        convertedTicketId: ticket.id,
+        // The evidence the applicant submitted has now been judged by a person,
+        // so recording who is the difference between "we hold documents" and
+        // "we checked them".
+        reviewedBy: convertedBy,
+        reviewedAt: new Date(),
+      },
+    });
+
+    this.logger.log(
+      `Reservation ${reservation.reference} converted to ticket ${ticket.id} by ${convertedBy}` +
+        (revised ? ' with a revised figure' : ''),
+    );
+
+    return {
+      ticket,
+      revision: revised
+        ? {
+            onlineLoanAmount: onlineLoan,
+            onlineAppraisedValue: reservation.appraisedValue,
+            reason: dto.revisionReason ?? null,
+          }
+        : null,
+    };
   }
 
   /**

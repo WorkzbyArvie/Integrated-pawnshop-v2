@@ -105,6 +105,15 @@ const MATRIX: Record<string, { tuple: string[]; permission: string }> = {
     tuple: ['APPRAISER', 'CASHIER_TELLER', 'STAFF', 'MANAGER', 'OWNER'],
     permission: 'pawn_ticket.create',
   },
+  // Converting an online application into a pawn ticket. The same permission and
+  // the same roles as `POST /pawn-tickets` — the conversion delegates to
+  // `createTicket`, so it must not grant a capability the counter route
+  // withholds. `RequiresCompliance(40)` matches too, so an application cannot
+  // become a pawn at a shop that lost its documents between quote and visit.
+  'public-appraisal.controller.ts::convert': {
+    tuple: ['APPRAISER', 'CASHIER_TELLER', 'STAFF', 'MANAGER', 'OWNER'],
+    permission: 'pawn_ticket.create',
+  },
   'pawn-ticket.controller.ts::quoteRedemption': {
     tuple: ['CASHIER_TELLER', 'MANAGER', 'OWNER'],
     permission: 'pawn_ticket.redeem',
@@ -730,7 +739,12 @@ describe('69-site equivalence scan', () => {
     // caller's own tenant rather than trusting `?pawnshopId=`. The five
     // applicant-facing routes on that controller are `@Public()` and carry no
     // roles, so they contribute nothing here by design.
-    expect(total).toBe(104);
+    //
+    // 105 adds `public-appraisal.controller.ts::convert`, which turns an
+    // application into a pawn ticket. Counted for the same reason: it is the
+    // point where an applicant's identity documents and personal details become
+    // a live contract.
+    expect(total).toBe(105);
   });
 
   it('matrix tuples match the current @Roles tuples (RED-phase calibration)', () => {
