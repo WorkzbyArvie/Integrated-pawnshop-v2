@@ -4,8 +4,8 @@
 
 **Everything is committed and pushed.** `origin/main` == `HEAD` == `cb7d35c`.
 
-**Verified state:** backend **1145** tests / 72 suites green, frontend **361** /
-31 files green, tsc clean both sides, both builds clean.
+**Verified state:** backend **1187** tests / 75 suites green, frontend **376** /
+32 files green, tsc clean both sides, both builds clean.
 
 **`DATABASE_URL` is fixed.** `backend/.env` points at the live Supabase
 database, so `npx prisma migrate deploy` now works locally — and because it is
@@ -47,6 +47,29 @@ in our hands yet.
 | `9dee2f8` | A pawner can reach the flow from the landing page | yes |
 | `37a606a` | Dead Back button; footer buttons read as pressed | yes |
 | `cb7d35c` | The wordmark is the way off the page | yes |
+| `83a1ab6` | SUPER_ADMIN could use the platform; an orphan blanked the compliance tab | yes |
+| `258625f` | An application converts into a real ticket | yes |
+| `a0906df` | The branch screen where that conversion happens | yes |
+
+### The loop is now closed
+
+An application used to be a dead end. Both halves existed and neither could
+reach the other:
+
+```
+  /apply  →  PawnReservation  →  (nothing)
+```
+
+Now:
+
+```
+  /apply  →  PawnReservation  →  Applications screen  →  PawnTicket  →  loan
+```
+
+`POST /public/pawn/reservations/:reference/convert` delegates to
+`PawnTicketService.createTicket`, so a pawn that started online takes the same
+state machine, interest arithmetic and audit trail as one started at the
+counter. `ApplicationQueue` is on the sidebar for Owner / Admin / Manager.
 
 ---
 
@@ -104,6 +127,34 @@ approval queue.
   rather than as "there is nothing before this step". Now absent on step one,
   present from step two.
 
+### The platform surface was unusable for Super Admin
+
+`PawnshopGuard` required a `pawnshop-id` header on every non-exempt route. A
+SUPER_ADMIN belongs to no tenant and sends no such header — `App.tsx` explicitly
+clears it for that role — so every call on `/tenant-governance` answered 400 and
+the compliance tab rendered blank.
+
+`main.ts` had already exempted SUPER_ADMIN before requiring the header. The
+guard was simply stricter than the middleware in front of it. It now reads the
+role with `main.ts`'s own normalisation, so `Super Admin`, `super_admin` and
+`SUPER-ADMIN` all agree. Tenant isolation is unchanged.
+
+**Verified live:** `/tenant-governance/pawnshops/metadata` now answers 401
+(unauthenticated) instead of 400 "Missing pawnshop-id header" — auth rejects it
+before the header rule, which is the correct order.
+
+### One orphaned document blanked the whole compliance tab
+
+`PawnshopDocument.pawnshopId` is nullable and the relation is `Pawnshop?`, so a
+document whose shop is gone arrives with `pawnshop: null`. The reviewer grouped
+pending reviews by `review.pawnshop.id` inside a `reduce`, so it threw during
+render and took the tab down.
+
+TypeScript called the dereference safe because `PendingReview.pawnshop` was
+declared non-nullable. **That was the real defect** — a type asserting something
+the wire does not guarantee moves the failure from the compiler to the
+reviewer. Making it honest surfaced five more unguarded reads.
+
 ---
 
 ## Blockers, in priority order
@@ -117,25 +168,19 @@ only shop needing just four.
 Until one shop is open, nobody can complete an application. This also blocks
 pawning at the counter, since `ComplianceGuard` gates the POS too.
 
-### 2. Convert a reservation into a ticket — the biggest functional gap
-
-An application currently ends there. The appraiser can see it but has no way to
-turn it into a `Ticket`. The `convertedTicketId` column exists and is unused.
-
-### 3. Track-by-reference page
+### 2. Track-by-reference page
 
 `GET /public/pawn/reservations/:reference` works and is verified live. There is
-no UI. A pawner who closes the tab has no way back in.
+no UI. A pawner who closes the tab has no way back in. The endpoint is
+unauthenticated, returns only what the applicant submitted plus the status, and
+never the identity document URLs.
 
-### 4. Branch staff queue screen
-
-`GET /public/pawn/reservations` exists, permission-gated and tenant-scoped.
-Nothing renders it, so a shop cannot see applications it has received.
-
-### 5. Mobile app
+### 3. Mobile app
 
 Per `docs/MOBILE-PAWN-APPLICATION.md`. Written to be followed without reading
-the backend.
+the backend. The spec predates the conversion endpoint, so it does not mention
+`/convert` — the mobile app does not need it, since conversion happens at the
+counter.
 
 ---
 
